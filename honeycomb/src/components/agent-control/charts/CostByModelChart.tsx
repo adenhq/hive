@@ -85,10 +85,14 @@ export function CostByModelChart({
                 layout="vertical"
                 align="right"
                 verticalAlign="middle"
+                wrapperStyle={{
+                  maxWidth: '45%',
+                  overflow: 'hidden',
+                }}
                 formatter={(value, entry) => {
                   const item = data.find((d) => d.name === value)
                   return (
-                    <span className="text-sm">
+                    <span className="text-sm block truncate max-w-[120px]" title={String(value)}>
                       {value}{' '}
                       <span className="text-muted-foreground">
                         ({item ? formatPercent(item.cost / totalCost) : ''})

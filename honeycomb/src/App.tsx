@@ -30,7 +30,7 @@ export function App() {
         >
           <Route path="agents" element={<WorkersPanel />} />
           <Route path="data" element={<DataPanel />} />
-          <Route path="analytics" element={<AnalyticsPanel />} />
+          <Route path="performance-dashboard" element={<AnalyticsPanel />} />
           <Route path="cost-control" element={<CostControls />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />

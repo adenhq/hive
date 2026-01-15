@@ -133,6 +133,7 @@ export interface BudgetConfig {
   spent: number
   limitAction: LimitAction
   degradeToModel?: string
+  throttleRate?: number
   alerts: BudgetAlert[]
   notifications: BudgetNotifications
 }

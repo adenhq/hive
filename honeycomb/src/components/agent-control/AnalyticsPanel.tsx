@@ -12,7 +12,9 @@ import { KpiCard } from './shared/KpiCard'
 import { LiveIndicator } from './shared/LiveIndicator'
 import { VegaLiteChart } from './charts/VegaLiteChart'
 import { useAnalytics } from '@/hooks/queries/useAnalytics'
-import { useAgentControlStore, type TimeRange } from '@/stores/agentControlStore'
+import { useAgentControlStore } from '@/stores/agentControlStore'
+import { usePersistedTimeRange } from '@/hooks/usePersistedSettings'
+import type { TimeRange } from '@/types/settings'
 import { transformAnalyticsData, type CostByModelData } from './charts/transformers'
 import {
   createCostTrendSpec,
@@ -23,11 +25,11 @@ import {
 import type { RawJsonData, KPIValues } from '@/types/agentControl'
 
 const timeRangeOptions: { value: TimeRange; label: string }[] = [
-  { value: 'today', label: 'Today' },
-  { value: 'week', label: 'Last Week' },
-  { value: 'twoWeeks', label: 'Last 2 Weeks' },
-  { value: 'month', label: 'Last Month' },
   { value: 'all', label: 'All Time' },
+  { value: 'month', label: 'Last Month' },
+  { value: 'twoWeeks', label: 'Last 2 Weeks' },
+  { value: 'week', label: 'Last Week' },
+  { value: 'today', label: 'Today' },
 ]
 
 // Helper to safely extract KPI values from raw API response
@@ -77,8 +79,7 @@ function extractKpis(data: RawJsonData | undefined): KPIValues {
  * Main analytics dashboard with KPIs and VegaLite charts.
  */
 export function AnalyticsPanel() {
-  const timeRange = useAgentControlStore((state) => state.timeRange)
-  const setTimeRange = useAgentControlStore((state) => state.setTimeRange)
+  const { timeRange, setTimeRange } = usePersistedTimeRange()
   const hasActiveAgents = useAgentControlStore((state) => state.eventsBuffer.length > 0)
 
   const { data: analytics, isLoading } = useAnalytics()

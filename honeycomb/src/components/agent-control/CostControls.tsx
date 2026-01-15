@@ -41,6 +41,15 @@ function extractBudgets(data: RawJsonData | undefined): BudgetConfig[] {
   return []
 }
 
+// Extract policyId from API response (uses first policy or 'default')
+function extractPolicyId(data: RawJsonData | undefined): string | null {
+  if (!data) return null
+  if (data.policies && Array.isArray(data.policies) && data.policies.length > 0) {
+    return (data.policies[0] as { id?: string }).id || 'default'
+  }
+  return 'default'
+}
+
 /**
  * Budget management panel with summary cards and budget list.
  */
@@ -57,9 +66,14 @@ export function CostControls() {
 
   const { data: rawData, isLoading, error } = useBudgets()
 
-  // Parse budgets from API response
+  // Parse budgets and policyId from API response
   const budgets = useMemo(
     () => extractBudgets(rawData as RawJsonData | undefined),
+    [rawData]
+  )
+
+  const policyId = useMemo(
+    () => extractPolicyId(rawData as RawJsonData | undefined),
     [rawData]
   )
 
@@ -232,13 +246,6 @@ export function CostControls() {
       ) : filteredBudgets.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <p>No budgets found</p>
-          <Button
-            variant="link"
-            className="mt-2"
-            onClick={() => setAddDialogOpen(true)}
-          >
-            Create your first budget
-          </Button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -253,13 +260,19 @@ export function CostControls() {
       )}
 
       {/* Add Budget Dialog */}
-      <AddBudgetDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} />
+      <AddBudgetDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        policyId={policyId}
+      />
 
       {/* Budget Detail Panel */}
       <BudgetDetailPanel
         budget={selectedBudget}
         open={detailPanelOpen}
         onOpenChange={setDetailPanelOpen}
+        policyId={policyId}
+        existingBudgets={budgets}
       />
     </div>
   )

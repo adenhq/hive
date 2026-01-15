@@ -204,6 +204,12 @@ function transformLatencyDistribution(
     }
   })
 
+  // Only return data if there are actual counts
+  const totalCount = Object.values(aggregated).reduce((sum, count) => sum + count, 0)
+  if (totalCount === 0) {
+    return []
+  }
+
   return Object.entries(aggregated).map(([range, count]) => ({ range, count }))
 }
 

@@ -4,7 +4,7 @@ import {
   getLogsAggregated,
   getMetricsSummary,
 } from '@/services/agentControlApi'
-import { useAgentControlStore } from '@/stores/agentControlStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import type { RawJsonData } from '@/types/agentControl'
 
 // =============================================================================
@@ -16,7 +16,7 @@ import type { RawJsonData } from '@/types/agentControl'
  * Routes to narrow (hourly) or wide (daily) endpoint automatically
  */
 export function useAnalytics() {
-  const timeRange = useAgentControlStore((state) => state.timeRange)
+  const timeRange = useSettingsStore((state) => state.performanceDashboardTimeRange)
 
   return useQuery({
     queryKey: ['analytics', timeRange],

@@ -1,5 +1,5 @@
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query'
-import { getLogs } from '@/services/agentControlApi'
+import { getLogs, getLogsAggregated } from '@/services/agentControlApi'
 import type { RawJsonData } from '@/types/agentControl'
 
 // =============================================================================
@@ -9,6 +9,11 @@ import type { RawJsonData } from '@/types/agentControl'
 interface LogsResponse {
   rows?: unknown[]
   [key: string]: unknown
+}
+
+export interface LogsFilters {
+  type?: string
+  success?: string
 }
 
 // =============================================================================
@@ -22,11 +27,12 @@ export function useLogs(
   start: string,
   end: string,
   limit = 500,
-  enabled = true
+  enabled = true,
+  filters?: LogsFilters
 ) {
   return useQuery({
-    queryKey: ['logs', start, end, limit],
-    queryFn: () => getLogs(start, end, limit, 0),
+    queryKey: ['logs', start, end, limit, filters],
+    queryFn: () => getLogs(start, end, limit, 0, filters),
     enabled,
     staleTime: 1 * 60 * 1000, // 1 minute
   })
@@ -39,12 +45,13 @@ export function useLogsInfinite(
   start: string,
   end: string,
   pageSize = 500,
-  enabled = true
+  enabled = true,
+  filters?: LogsFilters
 ) {
   return useInfiniteQuery({
-    queryKey: ['logs', 'infinite', start, end],
+    queryKey: ['logs', 'infinite', start, end, filters],
     queryFn: ({ pageParam }) =>
-      getLogs(start, end, pageSize, pageParam) as Promise<LogsResponse>,
+      getLogs(start, end, pageSize, pageParam, filters) as Promise<LogsResponse>,
     getNextPageParam: (lastPage, allPages) => {
       // If we got fewer rows than pageSize, there's no more data
       const rowCount = lastPage.rows?.length ?? 0
@@ -55,6 +62,24 @@ export function useLogsInfinite(
       return allPages.length * pageSize
     },
     initialPageParam: 0,
+    enabled,
+    staleTime: 1 * 60 * 1000,
+  })
+}
+
+/**
+ * Aggregated logs - grouped by model or agent
+ */
+export function useLogsAggregated(
+  start: string,
+  end: string,
+  groupBy: 'model' | 'agent',
+  limit = 100,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: ['logs', 'aggregated', start, end, groupBy, limit],
+    queryFn: () => getLogsAggregated(start, end, groupBy, limit),
     enabled,
     staleTime: 1 * 60 * 1000,
   })

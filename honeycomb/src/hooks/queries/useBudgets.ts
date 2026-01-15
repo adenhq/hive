@@ -29,6 +29,7 @@ interface CreateBudgetParams {
     spent: number
     limitAction: 'kill' | 'throttle' | 'degrade' | 'notify'
     degradeToModel?: string
+    throttleRate?: number
     alerts: BudgetAlert[]
     notifications: BudgetNotifications
   }

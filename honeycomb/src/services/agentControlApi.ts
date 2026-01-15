@@ -72,16 +72,23 @@ export function getAnalyticsNarrow(): Promise<RawJsonData> {
  * @param end - ISO date string
  * @param limit - Max records to return (default: 500)
  * @param offset - Pagination offset (default: 0)
+ * @param filters - Optional filters for type and success
  */
 export function getLogs(
   start: string,
   end: string,
   limit = 500,
-  offset = 0
+  offset = 0,
+  filters?: { type?: string; success?: string }
 ): Promise<RawJsonData> {
-  return hiveClient.get(
-    `/tsdb/logs?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&limit=${limit}&offset=${offset}`
-  )
+  const params = new URLSearchParams()
+  params.set('start', start)
+  params.set('end', end)
+  params.set('limit', limit.toString())
+  params.set('offset', offset.toString())
+  if (filters?.type) params.set('type', filters.type)
+  if (filters?.success !== undefined) params.set('success', filters.success)
+  return hiveClient.get(`/tsdb/logs?${params.toString()}`)
 }
 
 /**
@@ -170,6 +177,7 @@ export function addBudgetRule(
     spent: number
     limitAction: 'kill' | 'throttle' | 'degrade' | 'notify'
     degradeToModel?: string
+    throttleRate?: number
     alerts: BudgetAlert[]
     notifications: BudgetNotifications
   }

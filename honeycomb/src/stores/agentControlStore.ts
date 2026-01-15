@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { LLMEvent } from '@/types/agentControl'
+import type { LLMEvent, AgentStatus } from '@/types/agentControl'
 
 // =============================================================================
 // Types
@@ -24,6 +24,10 @@ interface AgentControlState {
   eventsBuffer: LLMEvent[]
   addEvents: (events: LLMEvent[]) => void
   clearEvents: () => void
+
+  // Agent status from WebSocket
+  agentStatus: AgentStatus | null
+  setAgentStatus: (status: AgentStatus) => void
 }
 
 // =============================================================================
@@ -55,4 +59,8 @@ export const useAgentControlStore = create<AgentControlState>((set) => ({
       return { eventsBuffer: combined.slice(0, MAX_EVENTS_BUFFER) }
     }),
   clearEvents: () => set({ eventsBuffer: [] }),
+
+  // Agent status from WebSocket
+  agentStatus: null,
+  setAgentStatus: (status) => set({ agentStatus: status }),
 }))

@@ -63,6 +63,22 @@ const httpInstances = new Map<string, Map<string, HttpInstanceInfo>>();
 // TTL for HTTP agents (remove if no heartbeat for this duration)
 const HTTP_AGENT_TTL_MS = 60000; // 60 seconds
 
+// Store the control emitter globally for agent status broadcasts
+let globalControlEmitter: ControlEmitterInner | null = null;
+
+// Track which teams have active subscriptions for agent status (team -> subscriber count)
+const teamSubscriberCounts = new Map<string, number>();
+
+// Helper to get teams with active subscribers
+function getTeamsWithSubscribers(): string[] {
+  return Array.from(teamSubscriberCounts.entries())
+    .filter(([, count]) => count > 0)
+    .map(([teamId]) => teamId);
+}
+
+// Interval for periodic agent status broadcasts
+let agentStatusInterval: ReturnType<typeof setInterval> | null = null;
+
 /**
  * Register or update an HTTP-only agent from heartbeat
  * Called from control_service when processing heartbeat events
@@ -113,6 +129,9 @@ function registerHttpAgent(
     console.log(
       `[Aden Control] HTTP agent registered: ${agentName || instanceId.slice(0, 8)}... (team: ${teamKey})`
     );
+
+    // Broadcast updated agent status to subscribers
+    broadcastAgentStatus(teamKey);
   }
 }
 
@@ -121,15 +140,22 @@ function registerHttpAgent(
  */
 function cleanupStaleHttpAgents(): void {
   const now = Date.now();
+  const teamsWithRemovedAgents: string[] = [];
 
   for (const [teamId, instances] of httpInstances) {
+    let removed = false;
     for (const [instanceId, info] of instances) {
       if (now - info.lastHeartbeat.getTime() > HTTP_AGENT_TTL_MS) {
         instances.delete(instanceId);
+        removed = true;
         console.log(
           `[Aden Control] HTTP agent expired: ${instanceId.slice(0, 8)}... (team: ${teamId})`
         );
       }
+    }
+
+    if (removed) {
+      teamsWithRemovedAgents.push(teamId);
     }
 
     // Clean up empty team maps
@@ -137,10 +163,107 @@ function cleanupStaleHttpAgents(): void {
       httpInstances.delete(teamId);
     }
   }
+
+  // Broadcast updated status to teams that had agents removed
+  for (const teamId of teamsWithRemovedAgents) {
+    broadcastAgentStatus(teamId);
+  }
 }
 
 // Run cleanup every 30 seconds
 setInterval(cleanupStaleHttpAgents, 30000);
+
+/**
+ * Get agent status for a team
+ */
+function getAgentStatusForTeam(teamId: string): {
+  type: string;
+  active: boolean;
+  count: number;
+  instances: Array<{
+    instance_id: string;
+    policy_id: string | null;
+    agent_name: string | null;
+    connected_at: string;
+    last_heartbeat: string;
+    connection_type: "websocket" | "http";
+    status?: string;
+  }>;
+  timestamp: string;
+} {
+  const wsInstances = connectedInstances.get(teamId);
+  const httpInsts = httpInstances.get(teamId);
+
+  const instances: Array<{
+    instance_id: string;
+    policy_id: string | null;
+    agent_name: string | null;
+    connected_at: string;
+    last_heartbeat: string;
+    connection_type: "websocket" | "http";
+    status?: string;
+  }> = [];
+
+  // Add WebSocket-connected instances
+  if (wsInstances) {
+    for (const info of wsInstances.values()) {
+      instances.push({
+        instance_id: info.instanceId,
+        policy_id: info.policyId,
+        agent_name: null,
+        connected_at: info.connectedAt.toISOString(),
+        last_heartbeat: info.lastHeartbeat.toISOString(),
+        connection_type: "websocket",
+      });
+    }
+  }
+
+  // Add HTTP-only instances
+  if (httpInsts) {
+    for (const info of httpInsts.values()) {
+      instances.push({
+        instance_id: info.instanceId,
+        policy_id: info.policyId,
+        agent_name: info.agentName,
+        connected_at: info.firstSeen.toISOString(),
+        last_heartbeat: info.lastHeartbeat.toISOString(),
+        connection_type: "http",
+        status: info.status,
+      });
+    }
+  }
+
+  const count = instances.length;
+
+  return {
+    type: "agent-status",
+    active: count > 0,
+    count,
+    instances,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/**
+ * Broadcast agent status to all subscribed clients for a team
+ */
+function broadcastAgentStatus(teamId: string): void {
+  if (!globalControlEmitter) return;
+
+  const status = getAgentStatusForTeam(teamId);
+  const room = `team:${teamId}:llm-events`;
+  globalControlEmitter.to(room).emit("message", status);
+}
+
+/**
+ * Broadcast agent status to all teams with subscribers
+ */
+function broadcastAgentStatusToAllTeams(): void {
+  const teams = getTeamsWithSubscribers();
+  for (const teamId of teams) {
+    broadcastAgentStatus(teamId);
+  }
+}
 
 interface AdenSocket extends Socket {
   user?: Record<string, unknown>;
@@ -193,6 +316,15 @@ function initAdenControlSockets(io: Server, rootEmitter: RedisEmitter): ControlE
 
   // Create emitter for this namespace
   const controlEmitter: ControlEmitterInner = rootEmitter.of("/v1/control/ws");
+
+  // Store globally for agent status broadcasts
+  globalControlEmitter = controlEmitter;
+
+  // Start periodic agent status broadcast (every 2 seconds)
+  if (agentStatusInterval) {
+    clearInterval(agentStatusInterval);
+  }
+  agentStatusInterval = setInterval(broadcastAgentStatusToAllTeams, 2000);
 
   // Initialize LLM event batcher with emitter for real-time streaming
   llmEventBatcher.setEmitter(controlEmitter as unknown as { to: (room: string) => { emit: (event: string, payload: unknown) => void } });
@@ -352,17 +484,33 @@ function initAdenControlSockets(io: Server, rootEmitter: RedisEmitter): ControlE
       const room = `team:${teamId}:llm-events`;
       socket.join(room);
       console.log(`[Aden Control WS] Socket ${socket.id} subscribed to ${room}`);
+
+      // Track subscriber count for this team
+      const currentCount = teamSubscriberCounts.get(teamId!) || 0;
+      teamSubscriberCounts.set(teamId!, currentCount + 1);
+
       socket.emit("message", {
         type: "subscribed",
         stream: "llm-events",
         teamId: teamId,
       });
+
+      // Send initial agent status
+      const status = getAgentStatusForTeam(teamId!);
+      socket.emit("message", status);
     });
 
     socket.on("unsubscribe-llm-events", () => {
       const room = `team:${teamId}:llm-events`;
       socket.leave(room);
       console.log(`[Aden Control WS] Socket ${socket.id} unsubscribed from ${room}`);
+
+      // Decrement subscriber count
+      const currentCount = teamSubscriberCounts.get(teamId!) || 0;
+      if (currentCount > 0) {
+        teamSubscriberCounts.set(teamId!, currentCount - 1);
+      }
+
       socket.emit("message", {
         type: "unsubscribed",
         stream: "llm-events",

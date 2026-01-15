@@ -16,11 +16,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { BudgetType, LimitAction } from '@/types/agentControl'
+import { useCreateBudget } from '@/hooks/queries/useBudgets'
+import { useNotificationStore } from '@/stores/notificationStore'
+import type { BudgetType } from '@/types/agentControl'
 
 interface AddBudgetDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  policyId: string | null
 }
 
 const budgetTypes: { value: BudgetType; label: string }[] = [
@@ -31,28 +34,26 @@ const budgetTypes: { value: BudgetType; label: string }[] = [
   { value: 'tag', label: 'Tag' },
 ]
 
-const limitActions: { value: LimitAction; label: string; description: string }[] = [
-  { value: 'notify', label: 'Notify Only', description: 'Send alerts but continue' },
-  { value: 'throttle', label: 'Throttle', description: 'Reduce request rate' },
-  { value: 'degrade', label: 'Degrade', description: 'Switch to cheaper model' },
-  { value: 'kill', label: 'Kill', description: 'Stop all requests' },
-]
-
 /**
  * Dialog for creating a new budget configuration.
  */
-export function AddBudgetDialog({ open, onOpenChange }: AddBudgetDialogProps) {
+export function AddBudgetDialog({ open, onOpenChange, policyId }: AddBudgetDialogProps) {
   const [name, setName] = useState('')
   const [type, setType] = useState<BudgetType>('agent')
   const [limit, setLimit] = useState('100')
-  const [limitAction, setLimitAction] = useState<LimitAction>('notify')
-  const [alertThreshold, setAlertThreshold] = useState('80')
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const createBudget = useCreateBudget()
+  const addNotification = useNotificationStore((state) => state.addNotification)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    if (!policyId) {
+      setError('No policy available. Please try again later.')
+      return
+    }
 
     if (!name.trim()) {
       setError('Name is required')
@@ -65,24 +66,41 @@ export function AddBudgetDialog({ open, onOpenChange }: AddBudgetDialogProps) {
       return
     }
 
-    setIsSubmitting(true)
-
     try {
-      // TODO: Integrate with actual API when policyId is available
-      // For now, just close the dialog
-      console.log('Creating budget:', {
-        name,
-        type,
-        limit: limitValue,
-        limitAction,
-        alertThreshold: parseFloat(alertThreshold) || undefined,
+      await createBudget.mutateAsync({
+        policyId,
+        budget: {
+          id: name.trim().toLowerCase().replace(/\s+/g, '-'),
+          name: name.trim(),
+          type,
+          limit: limitValue,
+          spent: 0,
+          limitAction: 'throttle',
+          throttleRate: 1.0,
+          alerts: [
+            { threshold: 80, enabled: true },
+            { threshold: 100, enabled: true },
+          ],
+          notifications: {
+            inApp: true,
+            email: false,
+            emailRecipients: [],
+            webhook: false,
+          },
+        },
       })
-
+      addNotification({
+        type: 'success',
+        title: 'Budget created',
+        message: `"${name.trim()}" has been created successfully.`,
+      })
       handleClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create budget')
-    } finally {
-      setIsSubmitting(false)
+      addNotification({
+        type: 'error',
+        title: 'Creation failed',
+        message: err instanceof Error ? err.message : 'Failed to create budget',
+      })
     }
   }
 
@@ -90,8 +108,6 @@ export function AddBudgetDialog({ open, onOpenChange }: AddBudgetDialogProps) {
     setName('')
     setType('agent')
     setLimit('100')
-    setLimitAction('notify')
-    setAlertThreshold('80')
     setError(null)
     onOpenChange(false)
   }
@@ -153,53 +169,12 @@ export function AddBudgetDialog({ open, onOpenChange }: AddBudgetDialogProps) {
             />
           </div>
 
-          {/* Limit Action */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Action at Limit</label>
-            <Select
-              value={limitAction}
-              onValueChange={(value) => setLimitAction(value as LimitAction)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select action" />
-              </SelectTrigger>
-              <SelectContent>
-                {limitActions.map((action) => (
-                  <SelectItem key={action.value} value={action.value}>
-                    <div className="flex flex-col">
-                      <span>{action.label}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {action.description}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Alert Threshold */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Alert Threshold (%)</label>
-            <Input
-              type="number"
-              min="0"
-              max="100"
-              value={alertThreshold}
-              onChange={(e) => setAlertThreshold(e.target.value)}
-              placeholder="80"
-            />
-            <p className="text-xs text-muted-foreground">
-              Receive alerts when spending reaches this percentage
-            </p>
-          </div>
-
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating...' : 'Create Budget'}
+            <Button type="submit" disabled={createBudget.isPending}>
+              {createBudget.isPending ? 'Creating...' : 'Create Budget'}
             </Button>
           </DialogFooter>
         </form>

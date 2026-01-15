@@ -17,6 +17,16 @@ const router = express.Router();
 
 const AUTH_MIDDLEWARE = passport.authenticate("jwt", { session: false });
 
+const isRecord = (v: unknown): v is Record<string, unknown> => {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+};
+
+const utcDateKey = (d: Date): string => {
+  const x = new Date(d);
+  x.setUTCHours(0, 0, 0, 0);
+  return x.toISOString().slice(0, 10);
+};
+
 interface TokenContext {
   team_id: string;
   user_id?: string;
@@ -453,19 +463,62 @@ router.get("/logs", AUTH_MIDDLEWARE, async (req: Request, res: Response) => {
       });
     }
 
-    // Default: return raw rows
+    // Default: return raw rows with derived type and success fields
+    const { type: typeFilter, success: successFilter } = req.query as { type?: string; success?: string };
+
+    // Build WHERE conditions for optional filters
+    const whereConditions = [
+      '"timestamp" >= $1',
+      '"timestamp" <= $2',
+      'team_id = $3',
+    ];
+    const params: (string | number | boolean)[] = [startDate.toISOString(), endDate.toISOString(), String(ctx.team_id)];
+
+    // Add type filter if specified
+    if (typeFilter && typeFilter !== 'all') {
+      if (typeFilter === 'tool_call') {
+        whereConditions.push('COALESCE(tool_call_count, 0) > 0');
+      } else if (typeFilter === 'error') {
+        whereConditions.push('(finish_reason IS NULL OR finish_reason IN (\'error\', \'content_filter\'))');
+      } else if (typeFilter === 'llm_request') {
+        whereConditions.push('COALESCE(tool_call_count, 0) = 0');
+        whereConditions.push('(finish_reason IS NOT NULL AND finish_reason NOT IN (\'error\', \'content_filter\'))');
+      }
+    }
+
+    // Add success filter if specified
+    if (successFilter !== undefined && successFilter !== '') {
+      const isSuccess = successFilter === 'true';
+      if (isSuccess) {
+        whereConditions.push('finish_reason IN (\'stop\', \'end_turn\', \'tool_calls\', \'length\')');
+      } else {
+        whereConditions.push('(finish_reason IS NULL OR finish_reason NOT IN (\'stop\', \'end_turn\', \'tool_calls\', \'length\'))');
+      }
+    }
+
+    params.push(limit, offset);
+
     const sql = `
-      SELECT *
+      SELECT *,
+        CASE
+          WHEN COALESCE(tool_call_count, 0) > 0 THEN 'tool_call'
+          WHEN finish_reason IS NULL OR finish_reason IN ('error', 'content_filter') THEN 'error'
+          ELSE 'llm_request'
+        END as derived_type,
+        CASE
+          WHEN finish_reason IN ('stop', 'end_turn', 'tool_calls', 'length') THEN true
+          ELSE false
+        END as derived_success
       FROM llm_events
-      WHERE "timestamp" >= $1 AND "timestamp" <= $2 AND team_id = $3
+      WHERE ${whereConditions.join(' AND ')}
       ORDER BY "timestamp" DESC
-      LIMIT $4 OFFSET $5
+      LIMIT $${params.length - 1} OFFSET $${params.length}
     `;
-    const params = [startDate.toISOString(), endDate.toISOString(), String(ctx.team_id), limit, offset];
     const { rows } = await poolClient.query(sql, params);
     return res.json({
       window: { start: startDate.toISOString(), end: endDate.toISOString() },
       count: rows.length,
+      filters: { type: typeFilter || 'all', success: successFilter },
       rows,
     });
   } catch (err) {

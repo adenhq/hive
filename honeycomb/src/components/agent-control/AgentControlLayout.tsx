@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useControlSocket } from '@/hooks/useControlSocket'
 import { useAgentControlStore } from '@/stores/agentControlStore'
 import { useUserStore } from '@/stores/userStore'
+import { useSidebarCollapsed } from '@/hooks/usePersistedSettings'
 import { NotificationBell } from './shared/NotificationBell'
 import {
   DropdownMenu,
@@ -31,13 +32,18 @@ import {
   PanelLeft,
   Settings,
   Sparkles,
+  HelpCircle,
+  ExternalLink,
+  FileText,
+  MessageCircle,
 } from 'lucide-react'
 import { SettingsModal } from '@/components/settings/SettingsModal'
+import { HelpDialog } from './shared/HelpDialog'
 
 const navItems = [
   { value: 'agents', label: 'Agents', path: '/agents', icon: Users },
   { value: 'data', label: 'Logs', path: '/data', icon: Database },
-  { value: 'analytics', label: 'Performance Dashboard', path: '/analytics', icon: BarChart3 },
+  { value: 'analytics', label: 'Performance Dashboard', path: '/performance-dashboard', icon: BarChart3 },
   { value: 'cost-control', label: 'Cost Control', path: '/cost-control', icon: DollarSign },
 ]
 
@@ -51,11 +57,19 @@ export function AgentControlLayout() {
   const fullName = useUserStore((state) => state.fullName())
   const navigate = useNavigate()
   const location = useLocation()
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const { sidebarCollapsed, toggleSidebar } = useSidebarCollapsed()
 
   // Settings modal controlled by URL hash
   const settingsOpen = location.hash === '#settings'
   const handleSettingsClose = (open: boolean) => {
+    if (!open) {
+      navigate(location.pathname, { replace: true })
+    }
+  }
+
+  // Help dialog controlled by URL hash
+  const helpOpen = location.hash === '#help'
+  const handleHelpClose = (open: boolean) => {
     if (!open) {
       navigate(location.pathname, { replace: true })
     }
@@ -66,8 +80,6 @@ export function AgentControlLayout() {
     connect()
     return () => disconnect()
   }, [connect, disconnect])
-
-  const toggleSidebar = () => setSidebarCollapsed((prev) => !prev)
 
   return (
     <div className="h-screen flex bg-background overflow-hidden">
@@ -238,6 +250,31 @@ export function AgentControlLayout() {
           </div>
 
           <NotificationBell />
+
+          {/* Help dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <HelpCircle className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => navigate(`${location.pathname}#help`)}>
+                <HelpCircle className="mr-2 h-4 w-4" />
+                Guide
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.open('https://docs.adenhq.com/', '_blank')}>
+                <FileText className="mr-2 h-4 w-4" />
+                Documentation
+                <ExternalLink className="ml-auto h-3 w-3 opacity-50" />
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.open('https://discord.gg/MXE49hrKDk', '_blank')}>
+                <MessageCircle className="mr-2 h-4 w-4" />
+                Discord
+                <ExternalLink className="ml-auto h-3 w-3 opacity-50" />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </header>
 
         {/* Content area */}
@@ -249,6 +286,7 @@ export function AgentControlLayout() {
       </div>
 
       <SettingsModal open={settingsOpen} onOpenChange={handleSettingsClose} />
+      <HelpDialog open={helpOpen} onOpenChange={handleHelpClose} />
     </div>
   )
 }

@@ -8,7 +8,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
 import {
   Table,
   TableBody,
@@ -20,57 +19,104 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { LiveIndicator } from './shared/LiveIndicator'
-import { useLogs } from '@/hooks/queries/useLogs'
+import { DateRangePicker } from '@/components/ui/date-range-picker'
+import { useLogs, useLogsAggregated } from '@/hooks/queries/useLogs'
 import { useAgentControlStore } from '@/stores/agentControlStore'
-import { cn } from '@/lib/utils'
+import type { DateRange } from 'react-day-picker'
 
-type ViewMode = 'metrics' | 'requests'
+type ViewType = 'raw' | 'metrics' | 'model' | 'agent'
+type LogType = 'llm_request' | 'tool_call' | 'error'
 
-const dataTypeOptions = [
-  { value: 'all', label: 'All Types' },
-  { value: 'llm_request', label: 'LLM Requests' },
-  { value: 'tool_call', label: 'Tool Calls' },
-  { value: 'error', label: 'Errors' },
+const viewOptions = [
+  { value: 'raw', label: 'Raw Data' },
+  { value: 'metrics', label: 'Metrics Summary' },
+  { value: 'model', label: 'Model Usage' },
+  { value: 'agent', label: 'Agent Activity' },
 ]
 
-// Define log entry type
 interface LogEntry {
   id?: string
   timestamp: string
-  type?: string
+  derived_type: LogType
+  derived_success: boolean
   agent?: string
   model?: string
-  success?: boolean
-  cost?: number
-  latency?: number
+  provider?: string
+  cost_total?: number
+  latency_ms?: number
+  finish_reason?: string
+  tool_call_count?: number
+  usage_input_tokens?: number
+  usage_output_tokens?: number
+  usage_total_tokens?: number
   [key: string]: unknown
 }
 
-/**
- * Logs viewer with filtering and export capabilities.
- */
+interface AggregatedEntry {
+  model?: string
+  agent?: string
+  request_count: number
+  total_input_tokens: number
+  total_output_tokens: number
+  total_tokens: number
+  total_cost: number
+  avg_latency_ms: number
+  first_seen?: string
+  last_seen?: string
+}
+
 export function DataPanel() {
-  const [viewMode, setViewMode] = useState<ViewMode>('requests')
-  const [dataType, setDataType] = useState('all')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [viewType, setViewType] = useState<ViewType>('raw')
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
+
+  // Default date range: last 7 days
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
+    const end = new Date()
+    end.setHours(23, 59, 59, 999)
+    const start = new Date()
+    start.setDate(start.getDate() - 7)
+    start.setHours(0, 0, 0, 0)
+    return { from: start, to: end }
+  })
 
   const hasActiveAgents = useAgentControlStore((state) => state.eventsBuffer.length > 0)
 
-  // Get date range (last 24 hours)
-  const endDate = useMemo(() => new Date().toISOString(), [])
+  // Convert date range to ISO strings for API
   const startDate = useMemo(() => {
-    const d = new Date()
-    d.setHours(d.getHours() - 24)
-    return d.toISOString()
-  }, [])
+    return dateRange?.from?.toISOString() ?? new Date().toISOString()
+  }, [dateRange?.from])
 
-  const { data: logsData, isLoading, error, refetch } = useLogs(startDate, endDate, 500)
+  const endDate = useMemo(() => {
+    return dateRange?.to?.toISOString() ?? new Date().toISOString()
+  }, [dateRange?.to])
+
+  // Fetch raw logs for 'raw' and 'metrics' views
+  const {
+    data: logsData,
+    isLoading: logsLoading,
+    error: logsError,
+    refetch: refetchLogs,
+  } = useLogs(startDate, endDate, 500, viewType === 'raw' || viewType === 'metrics')
+
+  // Fetch aggregated data for 'model' view
+  const {
+    data: modelData,
+    isLoading: modelLoading,
+    error: modelError,
+    refetch: refetchModel,
+  } = useLogsAggregated(startDate, endDate, 'model', 100, viewType === 'model')
+
+  // Fetch aggregated data for 'agent' view
+  const {
+    data: agentData,
+    isLoading: agentLoading,
+    error: agentError,
+    refetch: refetchAgent,
+  } = useLogsAggregated(startDate, endDate, 'agent', 100, viewType === 'agent')
 
   // Parse logs from API response
   const logs = useMemo((): LogEntry[] => {
     if (!logsData) return []
-    // Handle different response shapes
     const rawLogs = (logsData as { rows?: unknown[] }).rows ||
                     (logsData as { logs?: unknown[] }).logs ||
                     (Array.isArray(logsData) ? logsData : [])
@@ -80,42 +126,103 @@ export function DataPanel() {
     }))
   }, [logsData])
 
-  // Filter logs
-  const filteredLogs = useMemo(() => {
-    return logs.filter((log) => {
-      if (dataType !== 'all' && log.type !== dataType) return false
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase()
-        const searchable = JSON.stringify(log).toLowerCase()
-        return searchable.includes(query)
-      }
-      return true
-    })
-  }, [logs, dataType, searchQuery])
+  // Parse aggregated data
+  const modelAggregations = useMemo((): AggregatedEntry[] => {
+    if (!modelData) return []
+    return (modelData as { aggregations?: AggregatedEntry[] }).aggregations || []
+  }, [modelData])
+
+  const agentAggregations = useMemo((): AggregatedEntry[] => {
+    if (!agentData) return []
+    return (agentData as { aggregations?: AggregatedEntry[] }).aggregations || []
+  }, [agentData])
+
+  // Determine loading/error state based on current view
+  const isLoading = viewType === 'raw' || viewType === 'metrics'
+    ? logsLoading
+    : viewType === 'model'
+    ? modelLoading
+    : agentLoading
+
+  const error = viewType === 'raw' || viewType === 'metrics'
+    ? logsError
+    : viewType === 'model'
+    ? modelError
+    : agentError
+
+  const refetch = viewType === 'raw' || viewType === 'metrics'
+    ? refetchLogs
+    : viewType === 'model'
+    ? refetchModel
+    : refetchAgent
 
   const handleExport = () => {
-    if (!filteredLogs.length) return
+    let csv = ''
 
-    const csv = [
-      ['Timestamp', 'Type', 'Agent', 'Model', 'Status', 'Cost', 'Latency'].join(','),
-      ...filteredLogs.map((log) =>
-        [
-          log.timestamp,
-          log.type || '-',
-          log.agent || '-',
-          log.model || '-',
-          log.success !== undefined ? (log.success ? 'Success' : 'Failed') : '-',
-          log.cost?.toFixed(4) || '-',
-          log.latency ? `${log.latency}ms` : '-',
-        ].join(',')
-      ),
-    ].join('\n')
+    if (viewType === 'raw') {
+      if (!logs.length) return
+      csv = [
+        ['Timestamp', 'Provider', 'Model', 'Agent', 'Tokens', 'Cost', 'Latency'].join(','),
+        ...logs.map((log) =>
+          [
+            log.timestamp,
+            log.provider || '-',
+            log.model || '-',
+            log.agent || '-',
+            log.usage_total_tokens ?? '-',
+            log.cost_total ? Number(log.cost_total).toFixed(6) : '-',
+            log.latency_ms ? `${Math.round(Number(log.latency_ms))}ms` : '-',
+          ].join(',')
+        ),
+      ].join('\n')
+    } else if (viewType === 'metrics') {
+      const successCount = logs.filter((l) => l.derived_success).length
+      const totalCost = logs.reduce((sum, l) => sum + (Number(l.cost_total) || 0), 0)
+      csv = [
+        ['Metric', 'Value'].join(','),
+        ['Total Requests', logs.length].join(','),
+        ['Success Rate', `${((successCount / Math.max(logs.length, 1)) * 100).toFixed(1)}%`].join(','),
+        ['Total Cost', `$${totalCost.toFixed(2)}`].join(','),
+      ].join('\n')
+    } else if (viewType === 'model') {
+      if (!modelAggregations.length) return
+      csv = [
+        ['Model', 'Requests', 'Input Tokens', 'Output Tokens', 'Total Cost', 'Avg Latency'].join(','),
+        ...modelAggregations.map((row) =>
+          [
+            row.model || '-',
+            row.request_count,
+            row.total_input_tokens,
+            row.total_output_tokens,
+            `$${row.total_cost.toFixed(4)}`,
+            `${Math.round(row.avg_latency_ms)}ms`,
+          ].join(',')
+        ),
+      ].join('\n')
+    } else if (viewType === 'agent') {
+      if (!agentAggregations.length) return
+      csv = [
+        ['Agent', 'Requests', 'Input Tokens', 'Output Tokens', 'Total Cost', 'Avg Latency'].join(','),
+        ...agentAggregations.map((row) =>
+          [
+            row.agent || '-',
+            row.request_count,
+            row.total_input_tokens,
+            row.total_output_tokens,
+            `$${row.total_cost.toFixed(4)}`,
+            `${Math.round(row.avg_latency_ms)}ms`,
+          ].join(',')
+        ),
+      ].join('\n')
+    }
+
+    if (!csv) return
 
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `agent-logs-${new Date().toISOString().split('T')[0]}.csv`
+    a.download = `logs-${viewType}-${new Date().toISOString().split('T')[0]}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -130,10 +237,39 @@ export function DataPanel() {
     })
   }
 
+  const getCardTitle = () => {
+    switch (viewType) {
+      case 'raw':
+        return 'Raw Data'
+      case 'metrics':
+        return 'Metrics Summary'
+      case 'model':
+        return 'Model Usage'
+      case 'agent':
+        return 'Agent Activity'
+      default:
+        return 'Data'
+    }
+  }
+
+  const hasData = () => {
+    switch (viewType) {
+      case 'raw':
+      case 'metrics':
+        return logs.length > 0
+      case 'model':
+        return modelAggregations.length > 0
+      case 'agent':
+        return agentAggregations.length > 0
+      default:
+        return false
+    }
+  }
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <p className="text-red-500 mb-4">Failed to load logs</p>
+        <p className="text-red-500 mb-4">Failed to load data</p>
         <Button variant="outline" onClick={() => refetch()}>
           Retry
         </Button>
@@ -146,48 +282,25 @@ export function DataPanel() {
       {/* Controls */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {/* View Mode Toggle */}
-          <div className="flex rounded-lg border p-1">
-            <Button
-              variant={viewMode === 'requests' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('requests')}
-            >
-              Requests
-            </Button>
-            <Button
-              variant={viewMode === 'metrics' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('metrics')}
-            >
-              Metrics
-            </Button>
-          </div>
+          <DateRangePicker value={dateRange} onChange={setDateRange} />
 
-          <Select value={dataType} onValueChange={setDataType}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Data type" />
+          <Select value={viewType} onValueChange={(v) => setViewType(v as ViewType)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select view" />
             </SelectTrigger>
             <SelectContent>
-              {dataTypeOptions.map((option) => (
+              {viewOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-
-          <Input
-            placeholder="Search logs..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-[200px]"
-          />
         </div>
 
         <div className="flex items-center gap-3">
           <LiveIndicator isLive={hasActiveAgents} />
-          <Button variant="outline" onClick={handleExport} disabled={!filteredLogs.length}>
+          <Button variant="outline" onClick={handleExport} disabled={!hasData()}>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-4 w-4 mr-2"
@@ -208,9 +321,7 @@ export function DataPanel() {
       {/* Data Table */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle>
-            {viewMode === 'requests' ? 'Request Logs' : 'Metrics Summary'}
-          </CardTitle>
+          <CardTitle>{getCardTitle()}</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -219,25 +330,25 @@ export function DataPanel() {
                 <Skeleton key={i} className="h-12" />
               ))}
             </div>
-          ) : filteredLogs.length === 0 ? (
+          ) : !hasData() ? (
             <div className="text-center py-12 text-muted-foreground">
-              No logs found
+              No data found for the selected date range
             </div>
-          ) : viewMode === 'requests' ? (
+          ) : viewType === 'raw' ? (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Timestamp</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Agent</TableHead>
+                  <TableHead>Provider</TableHead>
                   <TableHead>Model</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Agent</TableHead>
+                  <TableHead className="text-right">Tokens</TableHead>
                   <TableHead className="text-right">Cost</TableHead>
                   <TableHead className="text-right">Latency</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredLogs.map((log) => (
+                {logs.map((log) => (
                   <>
                     <TableRow
                       key={log.id}
@@ -251,37 +362,23 @@ export function DataPanel() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-xs">
-                          {log.type || 'request'}
+                          {log.provider || '-'}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="truncate max-w-[150px]">
-                        {log.agent || '-'}
                       </TableCell>
                       <TableCell className="truncate max-w-[150px]">
                         {log.model || '-'}
                       </TableCell>
-                      <TableCell>
-                        {log.success !== undefined ? (
-                          <Badge
-                            variant="secondary"
-                            className={cn(
-                              'text-xs',
-                              log.success
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-red-100 text-red-800'
-                            )}
-                          >
-                            {log.success ? 'Success' : 'Failed'}
-                          </Badge>
-                        ) : (
-                          '-'
-                        )}
+                      <TableCell className="truncate max-w-[150px]">
+                        {log.agent || '-'}
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs">
-                        {log.cost ? `$${log.cost.toFixed(4)}` : '-'}
+                        {log.usage_total_tokens ?? '-'}
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs">
-                        {log.latency ? `${log.latency}ms` : '-'}
+                        {log.cost_total ? `$${Number(log.cost_total).toFixed(6)}` : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs">
+                        {log.latency_ms ? `${Math.round(Number(log.latency_ms))}ms` : '-'}
                       </TableCell>
                     </TableRow>
                     {expandedRow === log.id && (
@@ -297,47 +394,126 @@ export function DataPanel() {
                 ))}
               </TableBody>
             </Table>
-          ) : (
-            // Metrics view - simplified
+          ) : viewType === 'metrics' ? (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Metric</TableHead>
                   <TableHead>Value</TableHead>
-                  <TableHead>Period</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 <TableRow>
                   <TableCell className="font-medium">Total Requests</TableCell>
-                  <TableCell>{filteredLogs.length}</TableCell>
-                  <TableCell>Last 24h</TableCell>
+                  <TableCell>{logs.length}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell className="font-medium">Success Rate</TableCell>
                   <TableCell>
                     {(
-                      (filteredLogs.filter((l) => l.success !== false).length /
-                        Math.max(filteredLogs.length, 1)) *
+                      (logs.filter((l) => l.derived_success).length /
+                        Math.max(logs.length, 1)) *
                       100
                     ).toFixed(1)}
                     %
                   </TableCell>
-                  <TableCell>Last 24h</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell className="font-medium">Total Cost</TableCell>
                   <TableCell>
                     $
-                    {filteredLogs
-                      .reduce((sum, l) => sum + (l.cost || 0), 0)
+                    {logs
+                      .reduce((sum, l) => sum + (Number(l.cost_total) || 0), 0)
                       .toFixed(2)}
                   </TableCell>
-                  <TableCell>Last 24h</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium">Total Tokens</TableCell>
+                  <TableCell>
+                    {logs
+                      .reduce((sum, l) => sum + (Number(l.usage_total_tokens) || 0), 0)
+                      .toLocaleString()}
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium">Avg Latency</TableCell>
+                  <TableCell>
+                    {Math.round(
+                      logs.reduce((sum, l) => sum + (Number(l.latency_ms) || 0), 0) /
+                        Math.max(logs.length, 1)
+                    )}
+                    ms
+                  </TableCell>
                 </TableRow>
               </TableBody>
             </Table>
-          )}
+          ) : viewType === 'model' ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Model</TableHead>
+                  <TableHead className="text-right">Requests</TableHead>
+                  <TableHead className="text-right">Input Tokens</TableHead>
+                  <TableHead className="text-right">Output Tokens</TableHead>
+                  <TableHead className="text-right">Total Cost</TableHead>
+                  <TableHead className="text-right">Avg Latency</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {modelAggregations.map((row, idx) => (
+                  <TableRow key={row.model || idx}>
+                    <TableCell className="font-medium">{row.model || '-'}</TableCell>
+                    <TableCell className="text-right">{row.request_count}</TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {row.total_input_tokens.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {row.total_output_tokens.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      ${row.total_cost.toFixed(4)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {Math.round(row.avg_latency_ms)}ms
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : viewType === 'agent' ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Agent</TableHead>
+                  <TableHead className="text-right">Requests</TableHead>
+                  <TableHead className="text-right">Input Tokens</TableHead>
+                  <TableHead className="text-right">Output Tokens</TableHead>
+                  <TableHead className="text-right">Total Cost</TableHead>
+                  <TableHead className="text-right">Avg Latency</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {agentAggregations.map((row, idx) => (
+                  <TableRow key={row.agent || idx}>
+                    <TableCell className="font-medium">{row.agent || '(no agent)'}</TableCell>
+                    <TableCell className="text-right">{row.request_count}</TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {row.total_input_tokens.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {row.total_output_tokens.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      ${row.total_cost.toFixed(4)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs">
+                      {Math.round(row.avg_latency_ms)}ms
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : null}
         </CardContent>
       </Card>
     </div>

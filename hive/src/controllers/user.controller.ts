@@ -463,4 +463,142 @@ router.post("/generate-dev-token", async (req: Request, res: Response) => {
   }
 });
 
+// =============================================================================
+// UI Settings Endpoints
+// =============================================================================
+
+/**
+ * Default UI settings for new users
+ */
+const DEFAULT_UI_SETTINGS = {
+  sidebarCollapsed: false,
+  performanceDashboardTimeRange: 'today',
+};
+
+/**
+ * GET /user/settings
+ *
+ * Get user UI settings from preferences column.
+ * Returns defaults if no settings exist.
+ */
+router.get("/settings", async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        msg: "No token provided",
+      });
+    }
+
+    const userDbService = req.app.locals.userDbService;
+    const user = await userDbService.findByToken(extractToken(authHeader));
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        msg: "Invalid token",
+      });
+    }
+
+    // Extract UI settings from preferences, merge with defaults
+    const preferences = user.preferences || {};
+    const uiSettings = {
+      sidebarCollapsed: preferences.sidebarCollapsed ?? DEFAULT_UI_SETTINGS.sidebarCollapsed,
+      performanceDashboardTimeRange: preferences.performanceDashboardTimeRange ?? DEFAULT_UI_SETTINGS.performanceDashboardTimeRange,
+    };
+
+    res.json({
+      success: true,
+      data: uiSettings,
+    });
+  } catch (err: any) {
+    console.error("[UserController] GET /settings error:", err.message);
+    res.status(500).json({
+      success: false,
+      msg: "Failed to get settings",
+    });
+  }
+});
+
+/**
+ * PUT /user/settings
+ *
+ * Update user UI settings in preferences column.
+ * Supports partial updates - merges with existing preferences.
+ */
+router.put("/settings", async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        msg: "No token provided",
+      });
+    }
+
+    const userDbService = req.app.locals.userDbService;
+    const user = await userDbService.findByToken(extractToken(authHeader));
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        msg: "Invalid token",
+      });
+    }
+
+    const { sidebarCollapsed, performanceDashboardTimeRange } = req.body;
+
+    // Build update object with only provided fields
+    const updates: Record<string, any> = {};
+    if (typeof sidebarCollapsed === 'boolean') {
+      updates.sidebarCollapsed = sidebarCollapsed;
+    }
+    if (performanceDashboardTimeRange !== undefined) {
+      updates.performanceDashboardTimeRange = performanceDashboardTimeRange;
+    }
+
+    // Merge with existing preferences
+    const currentPreferences = user.preferences || {};
+    const newPreferences = { ...currentPreferences, ...updates };
+
+    // Update in database - use pgPool for Postgres, mysqlPool for MySQL
+    const pgPool = req.app.locals.pgPool;
+    const mysqlPool = req.app.locals.mysqlPool;
+
+    if (pgPool) {
+      // PostgreSQL - use JSONB
+      await pgPool.query(
+        'UPDATE users SET preferences = $1, updated_at = NOW() WHERE id = $2',
+        [JSON.stringify(newPreferences), user.id]
+      );
+    } else if (mysqlPool) {
+      // MySQL - use JSON column
+      await mysqlPool.query(
+        'UPDATE user SET preferences = ?, updated_at = NOW() WHERE id = ?',
+        [JSON.stringify(newPreferences), user.id]
+      );
+    } else {
+      console.warn("[UserController] PUT /settings: No database pool available, settings not persisted");
+    }
+
+    // Return updated settings
+    const uiSettings = {
+      sidebarCollapsed: newPreferences.sidebarCollapsed ?? DEFAULT_UI_SETTINGS.sidebarCollapsed,
+      performanceDashboardTimeRange: newPreferences.performanceDashboardTimeRange ?? DEFAULT_UI_SETTINGS.performanceDashboardTimeRange,
+    };
+
+    res.json({
+      success: true,
+      data: uiSettings,
+    });
+  } catch (err: any) {
+    console.error("[UserController] PUT /settings error:", err.message);
+    res.status(500).json({
+      success: false,
+      msg: "Failed to update settings",
+    });
+  }
+});
+
 export default router;

@@ -33,12 +33,16 @@ import {
   Bell,
   Mail,
 } from 'lucide-react'
+import { useUpdateBudget, useDeleteBudget } from '@/hooks/queries/useBudgets'
+import { useNotificationStore } from '@/stores/notificationStore'
 import type { BudgetConfig, BudgetType, LimitAction } from '@/types/agentControl'
 
 interface BudgetDetailPanelProps {
   budget: BudgetConfig | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  policyId: string | null
+  existingBudgets: BudgetConfig[]
 }
 
 const typeIcons: Record<BudgetType, React.ElementType> = {
@@ -58,9 +62,7 @@ const typeColors: Record<BudgetType, string> = {
 }
 
 const limitActions: { value: LimitAction; label: string; description: string }[] = [
-  { value: 'notify', label: 'Notify Only', description: 'Send alerts but allow requests to continue' },
   { value: 'throttle', label: 'Throttle', description: 'Rate limit requests when budget is exceeded' },
-  { value: 'degrade', label: 'Degrade', description: 'Switch to a cheaper model' },
   { value: 'kill', label: 'Block', description: 'Stop all requests when budget is exceeded' },
 ]
 
@@ -71,24 +73,31 @@ export function BudgetDetailPanel({
   budget,
   open,
   onOpenChange,
+  policyId,
+  existingBudgets,
 }: BudgetDetailPanelProps) {
   // Local state for editing
   const [limit, setLimit] = useState('')
-  const [limitAction, setLimitAction] = useState<LimitAction>('notify')
+  const [limitAction, setLimitAction] = useState<LimitAction>('throttle')
+  const [throttleRate, setThrottleRate] = useState('1.0')
   const [alerts, setAlerts] = useState<{ threshold: number; enabled: boolean }[]>([])
   const [newThreshold, setNewThreshold] = useState('')
   const [emailEnabled, setEmailEnabled] = useState(false)
   const [emailRecipients, setEmailRecipients] = useState<string[]>([])
   const [newEmail, setNewEmail] = useState('')
   const [inAppEnabled, setInAppEnabled] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
+
+  const updateBudget = useUpdateBudget()
+  const deleteBudgetMutation = useDeleteBudget()
+  const addNotification = useNotificationStore((state) => state.addNotification)
 
   // Reset form when budget changes
   useEffect(() => {
     if (budget) {
       setLimit(budget.limit.toString())
       setLimitAction(budget.limitAction)
+      setThrottleRate(budget.throttleRate?.toString() ?? '1.0')
       setAlerts([...budget.alerts])
       setEmailEnabled(budget.notifications.email)
       setEmailRecipients([...budget.notifications.emailRecipients])
@@ -141,37 +150,65 @@ export function BudgetDetailPanel({
   }
 
   const handleSubmit = async () => {
-    setIsSubmitting(true)
+    if (!policyId || !budget) return
+
     try {
-      // TODO: Integrate with actual API
-      console.log('Updating budget:', {
-        id: budget.id,
-        limit: parseFloat(limit),
-        limitAction,
-        alerts,
-        notifications: {
-          inApp: inAppEnabled,
-          email: emailEnabled,
-          emailRecipients,
-          webhook: budget.notifications.webhook,
+      await updateBudget.mutateAsync({
+        policyId,
+        budgetId: budget.id,
+        updates: {
+          limit: parseFloat(limit),
+          limitAction,
+          throttleRate: limitAction === 'throttle' ? parseFloat(throttleRate) : undefined,
+          alerts,
+          notifications: {
+            inApp: inAppEnabled,
+            email: emailEnabled,
+            emailRecipients,
+            webhook: budget.notifications.webhook,
+          },
         },
+        existingBudgets,
+      })
+      addNotification({
+        type: 'success',
+        title: 'Budget updated',
+        message: `"${budget.name}" has been updated successfully.`,
       })
       onOpenChange(false)
     } catch (error) {
       console.error('Failed to update budget:', error)
-    } finally {
-      setIsSubmitting(false)
+      addNotification({
+        type: 'error',
+        title: 'Update failed',
+        message: 'Failed to update budget. Please try again.',
+      })
     }
   }
 
   const handleDelete = async () => {
+    if (!policyId || !budget) return
+
     if (confirm(`Are you sure you want to delete "${budget.name}"? This action cannot be undone.`)) {
       try {
-        // TODO: Integrate with actual API
-        console.log('Deleting budget:', budget.id)
+        await deleteBudgetMutation.mutateAsync({
+          policyId,
+          budgetId: budget.id,
+          existingBudgets,
+        })
+        addNotification({
+          type: 'success',
+          title: 'Budget deleted',
+          message: `"${budget.name}" has been deleted.`,
+        })
         onOpenChange(false)
       } catch (error) {
         console.error('Failed to delete budget:', error)
+        addNotification({
+          type: 'error',
+          title: 'Delete failed',
+          message: 'Failed to delete budget. Please try again.',
+        })
       }
     }
   }
@@ -290,6 +327,29 @@ export function BudgetDetailPanel({
             <p className="text-xs text-muted-foreground">
               {limitActions.find(a => a.value === limitAction)?.description}
             </p>
+
+            {/* Throttle Rate Config - shown when throttle is selected */}
+            {limitAction === 'throttle' && (
+              <div className="mt-3 p-3 rounded-md bg-amber-50 border border-amber-200 space-y-2">
+                <Label htmlFor="throttleRate" className="text-sm font-medium">
+                  Throttle Limit (req/sec)
+                </Label>
+                <Input
+                  id="throttleRate"
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  value={throttleRate}
+                  onChange={(e) => {
+                    setThrottleRate(e.target.value)
+                    handleChange()
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Maximum requests per second when budget limit is reached
+                </p>
+              </div>
+            )}
           </div>
 
           <Separator />
@@ -462,16 +522,17 @@ export function BudgetDetailPanel({
             variant="destructive"
             size="sm"
             onClick={handleDelete}
+            disabled={deleteBudgetMutation.isPending}
           >
             <Trash2 className="h-4 w-4 mr-2" />
-            Delete
+            {deleteBudgetMutation.isPending ? 'Deleting...' : 'Delete'}
           </Button>
           <div className="flex-1" />
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button size="sm" onClick={handleSubmit} disabled={isSubmitting || !isDirty}>
-            {isSubmitting ? 'Saving...' : 'Save Changes'}
+          <Button size="sm" onClick={handleSubmit} disabled={updateBudget.isPending || !isDirty}>
+            {updateBudget.isPending ? 'Saving...' : 'Save Changes'}
           </Button>
         </SheetFooter>
       </SheetContent>
