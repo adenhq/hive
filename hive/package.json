@@ -9,7 +9,7 @@
     "build": "tsc && npm run build:copy-sql",
     "build:copy-sql": "find src -name '*.sql' -exec sh -c 'mkdir -p dist/$(dirname ${1#src/}) && cp \"$1\" dist/${1#src/}' _ {} \\;",
     "start": "node dist/index.js",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "test:mcp": "ts-node --transpile-only scripts/test-mcp.ts",
     "test:mcp:quick": "./scripts/test-mcp-curl.sh",
     "lint": "eslint src/",
