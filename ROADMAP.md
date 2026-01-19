@@ -1,10 +1,10 @@
-# Hive Product Roadmap
+Product Roadmap
 
-Hive is a node-based architecture for building and orchestrating autonomous agents. This roadmap outlines the key milestones and features required to build a robust, scalable agentic ecosystem.
+Aden Agent Framework aims to help developers build outcome orienated, self-adaptive agents. Please find our roadmap here
 
 ```mermaid
 timeline
-    title Hive Evolution Roadmap
+    title Aden Agent Framework Roadmap
     section MVP Phase
         Architecture : Node-Based : SDK : Flexible Edges : Hooks : Tool Use
         Capabilities : Goal Creation : Worker Agents Generation: File/Memory Tools : Multi-Agent : Human-in-the-Loop
