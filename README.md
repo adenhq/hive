@@ -109,6 +109,12 @@ cd hive && npm run dev
 - [Configuration Guide](docs/configuration.md) - All configuration options
 - [Architecture Overview](docs/architecture.md) - System design and structure
 
+## Roadmap
+
+Aden Agent Framework aims to help developers build outcome orienated, self-adaptive agents. Please find our roadmap here
+  
+[ROADMAP.md](ROADMAP.md)
+
 ## Community & Support
 
 We use [Discord](https://discord.com/invite/MXE49hrKDk) for support, feature requests, and community discussions.
