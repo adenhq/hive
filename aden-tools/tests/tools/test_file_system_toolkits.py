@@ -94,6 +94,30 @@ class TestViewFileTool:
         assert result["size_bytes"] == 0
         assert result["lines"] == 0
 
+    def test_view_file_with_unicode(self, view_file_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Viewing a file with unicode characters works correctly."""
+        test_file = tmp_path / "unicode.txt"
+        content = "Hello 世界! 🌍 émoji"
+        test_file.write_text(content, encoding="utf-8")
+
+        result = view_file_fn(path="unicode.txt", **mock_workspace)
+
+        assert result["success"] is True
+        assert result["content"] == content
+        assert result["size_bytes"] == len(content.encode("utf-8"))
+
+    def test_view_nested_file(self, view_file_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Viewing a file in a nested directory works correctly."""
+        nested = tmp_path / "nested" / "dir"
+        nested.mkdir(parents=True)
+        test_file = nested / "file.txt"
+        test_file.write_text("nested content")
+
+        result = view_file_fn(path="nested/dir/file.txt", **mock_workspace)
+
+        assert result["success"] is True
+        assert result["content"] == "nested content"
+
 
 class TestWriteToFileTool:
     """Tests for write_to_file tool."""
@@ -219,6 +243,37 @@ class TestListDirTool:
         assert result["total_count"] == 0
         assert result["entries"] == []
 
+    def test_list_nonexistent_directory(self, list_dir_fn, mock_workspace, mock_secure_path):
+        """Listing a non-existent directory returns error."""
+        result = list_dir_fn(path="nonexistent_dir", **mock_workspace)
+
+        assert "error" in result
+        assert "not found" in result["error"].lower()
+
+    def test_list_directory_with_file_sizes(self, list_dir_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Listing a directory returns file sizes for files."""
+        (tmp_path / "small.txt").write_text("hi")
+        (tmp_path / "larger.txt").write_text("hello world")
+        (tmp_path / "subdir").mkdir()
+
+        result = list_dir_fn(path=".", **mock_workspace)
+
+        assert result["success"] is True
+
+        # Find entries by name
+        entries_by_name = {e["name"]: e for e in result["entries"]}
+
+        # Files should have size_bytes
+        assert entries_by_name["small.txt"]["type"] == "file"
+        assert entries_by_name["small.txt"]["size_bytes"] == 2
+
+        assert entries_by_name["larger.txt"]["type"] == "file"
+        assert entries_by_name["larger.txt"]["size_bytes"] == 11
+
+        # Directories should have None for size_bytes
+        assert entries_by_name["subdir"]["type"] == "directory"
+        assert entries_by_name["subdir"]["size_bytes"] is None
+
 
 class TestReplaceFileContentTool:
     """Tests for replace_file_content tool."""
@@ -259,6 +314,50 @@ class TestReplaceFileContentTool:
 
         assert "error" in result
         assert "not found" in result["error"].lower()
+
+    def test_replace_file_not_found(self, replace_file_content_fn, mock_workspace, mock_secure_path):
+        """Replacing content in non-existent file returns error."""
+        result = replace_file_content_fn(
+            path="nonexistent.txt",
+            target="foo",
+            replacement="bar",
+            **mock_workspace
+        )
+
+        assert "error" in result
+        assert "not found" in result["error"].lower()
+
+    def test_replace_single_occurrence(self, replace_file_content_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Replacing content with single occurrence works correctly."""
+        test_file = tmp_path / "single.txt"
+        test_file.write_text("Hello World")
+
+        result = replace_file_content_fn(
+            path="single.txt",
+            target="Hello",
+            replacement="Hi",
+            **mock_workspace
+        )
+
+        assert result["success"] is True
+        assert result["occurrences_replaced"] == 1
+        assert test_file.read_text() == "Hi World"
+
+    def test_replace_multiline_content(self, replace_file_content_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Replacing content across multiple lines works correctly."""
+        test_file = tmp_path / "multiline.txt"
+        test_file.write_text("Line 1\nTODO: fix this\nLine 3\nTODO: add tests\n")
+
+        result = replace_file_content_fn(
+            path="multiline.txt",
+            target="TODO:",
+            replacement="DONE:",
+            **mock_workspace
+        )
+
+        assert result["success"] is True
+        assert result["occurrences_replaced"] == 2
+        assert test_file.read_text() == "Line 1\nDONE: fix this\nLine 3\nDONE: add tests\n"
 
 
 class TestGrepSearchTool:
@@ -302,6 +401,79 @@ class TestGrepSearchTool:
         assert result["total_matches"] == 0
         assert result["matches"] == []
 
+    def test_grep_search_directory_non_recursive(self, grep_search_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Searching directory non-recursively only searches immediate files."""
+        # Create files in root
+        (tmp_path / "file1.txt").write_text("pattern here")
+        (tmp_path / "file2.txt").write_text("no match here")
+
+        # Create nested directory with file
+        nested = tmp_path / "nested"
+        nested.mkdir()
+        (nested / "nested_file.txt").write_text("pattern in nested")
+
+        result = grep_search_fn(
+            path=".",
+            pattern="pattern",
+            recursive=False,
+            **mock_workspace
+        )
+
+        assert result["success"] is True
+        assert result["total_matches"] == 1  # Only finds pattern in root, not in nested
+        assert result["recursive"] is False
+
+    def test_grep_search_directory_recursive(self, grep_search_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Searching directory recursively finds matches in subdirectories."""
+        # Create files in root
+        (tmp_path / "file1.txt").write_text("pattern here")
+
+        # Create nested directory with file
+        nested = tmp_path / "nested"
+        nested.mkdir()
+        (nested / "nested_file.txt").write_text("pattern in nested")
+
+        result = grep_search_fn(
+            path=".",
+            pattern="pattern",
+            recursive=True,
+            **mock_workspace
+        )
+
+        assert result["success"] is True
+        assert result["total_matches"] == 2  # Finds pattern in both files
+        assert result["recursive"] is True
+
+    def test_grep_search_regex_pattern(self, grep_search_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Searching with regex pattern finds complex matches."""
+        test_file = tmp_path / "regex_test.txt"
+        test_file.write_text("foo123bar\nfoo456bar\nbaz789baz\n")
+
+        result = grep_search_fn(
+            path="regex_test.txt",
+            pattern=r"foo\d+bar",
+            **mock_workspace
+        )
+
+        assert result["success"] is True
+        assert result["total_matches"] == 2
+        assert result["matches"][0]["line_number"] == 1
+        assert result["matches"][1]["line_number"] == 2
+
+    def test_grep_search_multiple_matches_per_line(self, grep_search_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Searching returns one match per line even with multiple occurrences."""
+        test_file = tmp_path / "multi_match.txt"
+        test_file.write_text("hello hello hello\nworld\nhello again")
+
+        result = grep_search_fn(
+            path="multi_match.txt",
+            pattern="hello",
+            **mock_workspace
+        )
+
+        assert result["success"] is True
+        assert result["total_matches"] == 2  # Line 1 and Line 3
+
 
 class TestExecuteCommandTool:
     """Tests for execute_command_tool."""
@@ -332,6 +504,41 @@ class TestExecuteCommandTool:
 
         assert result["success"] is True
         assert result["return_code"] == 1
+
+    def test_execute_command_with_stderr(self, execute_command_fn, mock_workspace, mock_secure_path):
+        """Executing a command that writes to stderr captures it."""
+        result = execute_command_fn(
+            command="echo 'error message' >&2",
+            **mock_workspace
+        )
+
+        assert result["success"] is True
+        assert "error message" in result.get("stderr", "")
+
+    def test_execute_command_list_files(self, execute_command_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Executing ls command lists files."""
+        # Create a test file
+        (tmp_path / "testfile.txt").write_text("content")
+
+        result = execute_command_fn(
+            command=f"ls {tmp_path}",
+            **mock_workspace
+        )
+
+        assert result["success"] is True
+        assert result["return_code"] == 0
+        assert "testfile.txt" in result["stdout"]
+
+    def test_execute_command_with_pipe(self, execute_command_fn, mock_workspace, mock_secure_path):
+        """Executing a command with pipe works correctly."""
+        result = execute_command_fn(
+            command="echo 'hello world' | tr 'a-z' 'A-Z'",
+            **mock_workspace
+        )
+
+        assert result["success"] is True
+        assert result["return_code"] == 0
+        assert "HELLO WORLD" in result["stdout"]
 
 
 class TestApplyDiffTool:
