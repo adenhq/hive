@@ -1,0 +1,4 @@
+exports/
+docs/
+.pytest_cache/
+**/__pycache__/
