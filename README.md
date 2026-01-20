@@ -213,12 +213,16 @@ Choose other frameworks when you need:
 
 ```
 hive/
-├── honeycomb/          # Frontend (React + TypeScript + Vite)
-├── hive/               # Backend (Node.js + TypeScript + Express)
-├── docs/               # Documentation
-├── scripts/            # Build and utility scripts
-├── config.yaml.example # Configuration template
-└── docker-compose.yml  # Container orchestration
+├── honeycomb/              # Frontend Dashboard 
+├── hive/                   # Backend API Server 
+├── aden-tools/             # MCP Tools Package - 19 tools for agent capabilities
+├── docs/                   # Documentation and guides
+├── scripts/                # Build and utility scripts
+├── config.yaml.example     # Configuration template
+├── docker-compose.yml      # Container orchestration
+├── DEVELOPER.md            # Developer guide
+├── CONTRIBUTING.md         # Contribution guidelines
+└── ROADMAP.md              # Product roadmap
 ```
 
 ## Development
