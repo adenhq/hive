@@ -27,6 +27,7 @@ dependencies = [
     "pandas>=2.0.0",
     "jsonpath-ng>=1.6.0",
     "fastmcp>=2.0.0",
+    "diff-match-patch>=20230430",
 ]
 
 [project.optional-dependencies]

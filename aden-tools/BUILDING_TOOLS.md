@@ -146,13 +146,13 @@ Every tool folder needs a `README.md` with:
 
 ## Testing
 
-Place tests in `tests/tools/test_my_tool.py`:
+Place tests in `tests/tools/test_{{tool_name}}.py`:
 
 ```python
 import pytest
 from fastmcp import FastMCP
 
-from aden_tools.tools.my_tool import register_tools
+from aden_tools.tools.{{tool_name}} import register_tools
 
 
 @pytest.fixture

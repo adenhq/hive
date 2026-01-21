@@ -144,6 +144,7 @@ services:
       - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY:-}
     volumes:
       - .:/workspace:rw  # Mount project root for file access
+      - aden_tools_workspaces:/app/workdir/workspaces  # Persist file system tool workspaces
     working_dir: /workspace  # Set working directory so relative paths work
     command: ["python", "/app/mcp_server.py"]  # Use absolute path since working_dir changed
     healthcheck:
@@ -164,3 +165,4 @@ volumes:
   timescaledb_data:
   mongodb_data:
   redis_data:
+  aden_tools_workspaces:

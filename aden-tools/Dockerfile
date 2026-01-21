@@ -15,8 +15,17 @@ COPY mcp_server.py ./
 RUN pip install --no-cache-dir -e .
 
 # Create non-root user for security
-RUN useradd -m -u 1001 appuser && chown -R appuser:appuser /app
+RUN useradd -m -u 1001 appuser
+
+# Create workspaces directory for file system tools persistence
+# This directory will be mounted as a volume
+RUN mkdir -p /app/workdir/workspaces && \
+    chown -R appuser:appuser /app
+
 USER appuser
+
+# Declare volume for workspace persistence across container runs
+VOLUME ["/app/workdir/workspaces"]
 
 # Expose MCP server port
 EXPOSE 4001
