@@ -175,7 +175,7 @@ const fetchDailyCA = async ({
     ORDER BY bucket ASC
   `;
   const { rows } = await client.query(sql, params);
-  177 => ({
+return rows.map((r: any) => ({
     bucket: r.bucket instanceof Date ? r.bucket.toISOString().slice(0, 10) : r.bucket,
     requests: Number(r.requests) || 0,
     cost_total: toNumber(r.cost_total, 0),
