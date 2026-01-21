@@ -171,7 +171,7 @@ class AgentRunner:
         goal: Goal,
         mock_mode: bool = False,
         storage_path: Path | None = None,
-        model: str = "claude-sonnet-4-20250514",
+        model: str = "claude-haiku-4-5-20251001",
     ):
         """
         Initialize the runner (use AgentRunner.load() instead).
@@ -221,7 +221,7 @@ class AgentRunner:
         agent_path: str | Path,
         mock_mode: bool = False,
         storage_path: Path | None = None,
-        model: str = "claude-sonnet-4-20250514",
+        model: str = "claude-haiku-4-5-20251001",
     ) -> "AgentRunner":
         """
         Load an agent from an export folder.

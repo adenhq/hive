@@ -9,12 +9,22 @@ Usage:
 
 import json
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated
 
 from mcp.server import FastMCP
 
 from framework.graph import Goal, SuccessCriterion, Constraint, NodeSpec, EdgeSpec, EdgeCondition
 from framework.graph.edge import GraphSpec
+
+# Testing framework imports
+from framework.testing.test_case import Test, ApprovalStatus, TestType
+from framework.testing.test_storage import TestStorage
+from framework.testing.constraint_gen import ConstraintTestGenerator
+from framework.testing.success_gen import SuccessCriteriaTestGenerator
+from framework.testing.approval_types import ApprovalRequest, ApprovalAction
+from framework.testing.debug_tool import DebugTool
+from framework.testing.parallel import AgentFactory
 
 
 # Initialize MCP server
@@ -1901,6 +1911,387 @@ def simulate_plan_execution(
         "plan_complete": len(remaining) == 0,
         "note": "This is a simulation. Actual execution may differ based on step results and judge decisions.",
     }, indent=2)
+
+
+# =============================================================================
+# TESTING TOOLS (Goal-Based Evaluation)
+# =============================================================================
+
+# Session storage for pending tests (not yet persisted)
+_pending_tests: dict[str, list[Test]] = {}
+
+# Default storage path for tests
+DEFAULT_TEST_STORAGE_PATH = Path("data/tests")
+
+
+@mcp.tool()
+def generate_constraint_tests(
+    goal_id: Annotated[str, "ID of the goal to generate tests for"],
+    goal_json: Annotated[str, """JSON string of the Goal object. Constraint fields:
+- id: string (required)
+- description: string (required)
+- constraint_type: "hard" or "soft" (required)
+- category: string (optional, default: "general")
+- check: string (optional, how to validate: "llm_judge", expression, or function name)"""],
+) -> str:
+    """
+    Generate constraint tests for a goal.
+
+    Returns proposals for user approval. Tests are NOT persisted until approved.
+    """
+    try:
+        goal = Goal.model_validate_json(goal_json)
+    except Exception as e:
+        return json.dumps({"error": f"Invalid goal JSON: {e}"})
+
+    # Get LLM provider
+    try:
+        from framework.llm import AnthropicProvider
+        llm = AnthropicProvider()
+    except Exception as e:
+        return json.dumps({"error": f"Failed to initialize LLM: {e}"})
+
+    # Generate tests
+    generator = ConstraintTestGenerator(llm)
+    tests = generator.generate(goal)
+
+    # Store as pending (not persisted yet)
+    _pending_tests[goal_id] = tests
+
+    return json.dumps({
+        "goal_id": goal_id,
+        "generated_count": len(tests),
+        "tests": [
+            {
+                "id": t.id,
+                "test_name": t.test_name,
+                "parent_criteria_id": t.parent_criteria_id,
+                "description": t.description,
+                "confidence": t.llm_confidence,
+                "test_code_preview": t.test_code[:500] + "..." if len(t.test_code) > 500 else t.test_code,
+            }
+            for t in tests
+        ],
+        "next_step": "Call approve_tests to approve, modify, or reject each test",
+    })
+
+
+@mcp.tool()
+def generate_success_tests(
+    goal_id: Annotated[str, "ID of the goal to generate tests for"],
+    goal_json: Annotated[str, "JSON string of the Goal object"],
+    node_names: Annotated[str, "Comma-separated list of agent node names"] = "",
+    tool_names: Annotated[str, "Comma-separated list of available tool names"] = "",
+) -> str:
+    """
+    Generate success criteria tests for a goal.
+
+    Should be called during Eval stage after agent exists.
+    Returns proposals for user approval.
+    """
+    try:
+        goal = Goal.model_validate_json(goal_json)
+    except Exception as e:
+        return json.dumps({"error": f"Invalid goal JSON: {e}"})
+
+    # Get LLM provider
+    try:
+        from framework.llm import AnthropicProvider
+        llm = AnthropicProvider()
+    except Exception as e:
+        return json.dumps({"error": f"Failed to initialize LLM: {e}"})
+
+    # Parse node/tool names
+    nodes = [n.strip() for n in node_names.split(",") if n.strip()]
+    tools = [t.strip() for t in tool_names.split(",") if t.strip()]
+
+    # Generate tests
+    generator = SuccessCriteriaTestGenerator(llm)
+    tests = generator.generate(goal, node_names=nodes, tool_names=tools)
+
+    # Add to pending (may have constraint tests already)
+    if goal_id in _pending_tests:
+        _pending_tests[goal_id].extend(tests)
+    else:
+        _pending_tests[goal_id] = tests
+
+    return json.dumps({
+        "goal_id": goal_id,
+        "generated_count": len(tests),
+        "tests": [
+            {
+                "id": t.id,
+                "test_name": t.test_name,
+                "parent_criteria_id": t.parent_criteria_id,
+                "description": t.description,
+                "confidence": t.llm_confidence,
+                "test_code_preview": t.test_code[:500] + "..." if len(t.test_code) > 500 else t.test_code,
+            }
+            for t in tests
+        ],
+        "next_step": "Call approve_tests to approve, modify, or reject each test",
+    })
+
+
+@mcp.tool()
+def approve_tests(
+    goal_id: Annotated[str, "ID of the goal"],
+    approvals: Annotated[str, "JSON array of approval decisions"],
+) -> str:
+    """
+    Approve, reject, or modify generated tests.
+
+    Approvals format:
+    [
+        {"test_id": "...", "action": "approve"},
+        {"test_id": "...", "action": "modify", "modified_code": "..."},
+        {"test_id": "...", "action": "reject", "reason": "..."},
+        {"test_id": "...", "action": "skip"}
+    ]
+
+    Actions: approve, modify (requires modified_code), reject (requires reason), skip
+    """
+    if goal_id not in _pending_tests:
+        return json.dumps({"error": f"No pending tests for goal {goal_id}"})
+
+    try:
+        approvals_list = json.loads(approvals)
+    except json.JSONDecodeError as e:
+        return json.dumps({"error": f"Invalid approvals JSON: {e}"})
+
+    # Create storage
+    storage = TestStorage(DEFAULT_TEST_STORAGE_PATH / goal_id)
+
+    # Build approval requests
+    requests = []
+    for a in approvals_list:
+        try:
+            action = ApprovalAction(a.get("action", "skip"))
+            requests.append(ApprovalRequest(
+                test_id=a["test_id"],
+                action=action,
+                modified_code=a.get("modified_code"),
+                reason=a.get("reason"),
+                approved_by="mcp_user",
+            ))
+        except (KeyError, ValueError) as e:
+            return json.dumps({"error": f"Invalid approval entry: {e}"})
+
+    # Find and save approved tests
+    pending = {t.id: t for t in _pending_tests[goal_id]}
+
+    results = []
+    for req in requests:
+        test = pending.get(req.test_id)
+        if not test:
+            results.append({"test_id": req.test_id, "error": "Not found in pending"})
+            continue
+
+        if req.action == ApprovalAction.APPROVE:
+            test.approve(req.approved_by)
+            storage.save_test(test)
+            results.append({"test_id": req.test_id, "status": "approved"})
+
+        elif req.action == ApprovalAction.MODIFY:
+            if req.modified_code:
+                test.modify(req.modified_code, req.approved_by)
+                storage.save_test(test)
+                results.append({"test_id": req.test_id, "status": "modified"})
+            else:
+                results.append({"test_id": req.test_id, "error": "modified_code required"})
+
+        elif req.action == ApprovalAction.REJECT:
+            test.reject(req.reason or "No reason provided")
+            storage.save_test(test)
+            results.append({"test_id": req.test_id, "status": "rejected"})
+
+        elif req.action == ApprovalAction.SKIP:
+            results.append({"test_id": req.test_id, "status": "skipped"})
+
+    # Clear pending for processed tests
+    processed_ids = {r["test_id"] for r in results if "error" not in r}
+    _pending_tests[goal_id] = [t for t in _pending_tests[goal_id] if t.id not in processed_ids]
+
+    # Clean up if empty
+    if not _pending_tests[goal_id]:
+        del _pending_tests[goal_id]
+
+    return json.dumps({"goal_id": goal_id, "results": results})
+
+
+@mcp.tool()
+def run_tests(
+    goal_id: Annotated[str, "ID of the goal to test"],
+    agent_path: Annotated[str, "Path to the agent export folder"],
+    test_types: Annotated[str, 'JSON array of test types: ["constraint", "outcome", "edge_case", "all"]'] = '["all"]',
+    parallel: Annotated[int, "Number of parallel workers (0 for sequential)"] = 0,
+    fail_fast: Annotated[bool, "Stop on first failure"] = False,
+) -> str:
+    """
+    Run evaluation tests for a goal.
+
+    Returns pass/fail summary with detailed results for each test.
+    """
+    from framework.testing.parallel import ParallelTestRunner, ParallelConfig
+
+    # Parse test types
+    try:
+        types_list = json.loads(test_types)
+    except json.JSONDecodeError:
+        types_list = ["all"]
+
+    # Load storage
+    storage = TestStorage(DEFAULT_TEST_STORAGE_PATH / goal_id)
+
+    # Get approved tests
+    tests = storage.get_approved_tests(goal_id)
+
+    # Filter by type if not "all"
+    if "all" not in types_list:
+        type_map = {
+            "constraint": TestType.CONSTRAINT,
+            "outcome": TestType.SUCCESS_CRITERIA,
+            "edge_case": TestType.EDGE_CASE,
+        }
+        filter_types = {type_map.get(t) for t in types_list if t in type_map}
+        tests = [t for t in tests if t.test_type in filter_types]
+
+    if not tests:
+        return json.dumps({
+            "goal_id": goal_id,
+            "error": "No approved tests found",
+            "hint": "Generate and approve tests first using generate_constraint_tests and approve_tests",
+        })
+
+    # Configure runner
+    config = ParallelConfig(
+        num_workers=parallel if parallel > 0 else 1,
+        fail_fast=fail_fast,
+    )
+
+    # Run tests - use AgentFactory for picklable parallel execution
+    runner = ParallelTestRunner(config, storage)
+    result = runner.run_all(
+        goal_id=goal_id,
+        agent_factory=AgentFactory(agent_path),
+        tests=tests,
+    )
+
+    return json.dumps({
+        "goal_id": goal_id,
+        "overall_passed": result.all_passed,
+        "summary": {
+            "total": result.total,
+            "passed": result.passed,
+            "failed": result.failed,
+            "pass_rate": f"{result.pass_rate:.1%}",
+        },
+        "duration_ms": result.duration_ms,
+        "results": [r.summary_dict() for r in result.results],
+    })
+
+
+@mcp.tool()
+def debug_test(
+    goal_id: Annotated[str, "ID of the goal"],
+    test_id: Annotated[str, "ID of the failed test"],
+    run_id: Annotated[str, "Optional Runtime run ID for detailed logs"] = "",
+) -> str:
+    """
+    Get detailed debug info for a failed test.
+
+    Includes error categorization, logs, and fix suggestions.
+    """
+    storage = TestStorage(DEFAULT_TEST_STORAGE_PATH / goal_id)
+
+    # Optionally load runtime storage
+    runtime_storage = None
+    try:
+        from framework.storage.backend import FileStorage
+        runtime_storage = FileStorage(f"data/runtime/{goal_id}")
+    except Exception:
+        pass
+
+    debug_tool = DebugTool(storage, runtime_storage)
+    info = debug_tool.analyze(goal_id, test_id, run_id or None)
+
+    return json.dumps(info.to_dict(), indent=2, default=str)
+
+
+@mcp.tool()
+def list_tests(
+    goal_id: Annotated[str, "ID of the goal"],
+    status: Annotated[str, "Filter by approval status: pending, approved, modified, rejected, all"] = "all",
+) -> str:
+    """
+    List tests for a goal.
+
+    Returns test metadata without full code (use debug_test for details).
+    """
+    storage = TestStorage(DEFAULT_TEST_STORAGE_PATH / goal_id)
+    tests = storage.get_tests_by_goal(goal_id)
+
+    # Filter by status
+    if status != "all":
+        try:
+            filter_status = ApprovalStatus(status)
+            tests = [t for t in tests if t.approval_status == filter_status]
+        except ValueError:
+            pass
+
+    return json.dumps({
+        "goal_id": goal_id,
+        "total": len(tests),
+        "tests": [
+            {
+                "id": t.id,
+                "test_name": t.test_name,
+                "test_type": t.test_type.value,
+                "parent_criteria_id": t.parent_criteria_id,
+                "approval_status": t.approval_status.value,
+                "last_result": t.last_result,
+                "confidence": t.llm_confidence,
+            }
+            for t in tests
+        ],
+    })
+
+
+@mcp.tool()
+def get_pending_tests(
+    goal_id: Annotated[str, "ID of the goal"],
+) -> str:
+    """
+    Get pending tests awaiting approval.
+
+    Returns tests that have been generated but not yet approved.
+    """
+    if goal_id not in _pending_tests:
+        return json.dumps({
+            "goal_id": goal_id,
+            "pending_count": 0,
+            "tests": [],
+        })
+
+    tests = _pending_tests[goal_id]
+    return json.dumps({
+        "goal_id": goal_id,
+        "pending_count": len(tests),
+        "tests": [
+            {
+                "id": t.id,
+                "test_name": t.test_name,
+                "test_type": t.test_type.value,
+                "parent_criteria_id": t.parent_criteria_id,
+                "description": t.description,
+                "confidence": t.llm_confidence,
+                "test_code": t.test_code,
+                "input": t.input,
+                "expected_output": t.expected_output,
+            }
+            for t in tests
+        ],
+    })
 
 
 # =============================================================================

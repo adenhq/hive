@@ -10,9 +10,11 @@ Build goal-driven agents that use LLM reasoning to accomplish tasks.
 ## Quick Start
 
 1. Define the goal (what success looks like)
-2. Add nodes (units of work)
-3. Connect with edges (flow between nodes)
-4. Validate and test
+2. Generate constraint tests from goal → Approve tests
+3. Add nodes (units of work) - validate against constraint tests
+4. Connect with edges (flow between nodes)
+5. Validate and test graph
+6. Handoff to testing-agent skill for final evaluation
 
 ## Core Concepts
 
@@ -117,10 +119,15 @@ For each component (goal, node, edge):
 
 ```
 Agent Build Progress:
+
+GOAL STAGE:
 - [ ] Define goal with success criteria → ASK APPROVAL (clickable: Approve/Reject/Pause) ✓
 - [ ] Define goal constraints → ASK APPROVAL (clickable: Approve/Reject/Pause) ✓
-- [ ] Add entry node → TEST NODE → ASK APPROVAL (clickable: Approve/Reject/Pause) ✓
-- [ ] Add each processing node → TEST NODE → ASK APPROVAL (clickable: Approve/Reject/Pause) ✓
+- [ ] Generate constraint tests → ASK APPROVAL (clickable: Approve/Reject/Skip) for each test ✓  (NEW)
+
+AGENT STAGE:
+- [ ] Add entry node → TEST NODE → VALIDATE AGAINST CONSTRAINTS → ASK APPROVAL (clickable: Approve/Reject/Pause) ✓
+- [ ] Add each processing node → TEST NODE → VALIDATE AGAINST CONSTRAINTS → ASK APPROVAL (clickable: Approve/Reject/Pause) ✓
 - [ ] Add pause nodes (if HITL needed) → TEST NODE → ASK APPROVAL (clickable: Approve/Reject/Pause) ✓
 - [ ] Add resume entry points (for pause nodes) → ASK APPROVAL (clickable: Approve/Reject/Pause) ✓
 - [ ] Add terminal node(s) → TEST NODE → ASK APPROVAL (clickable: Approve/Reject/Pause) ✓
@@ -129,6 +136,11 @@ Agent Build Progress:
 - [ ] Validate full graph → TEST GRAPH → SHOW RESULTS
 - [ ] Final approval → ASK APPROVAL (clickable: Approve & Export/Reject/Pause) ✓
 - [ ] Export to exports/{agent-name}/
+
+EVAL STAGE (handoff to testing-agent skill):
+- [ ] Generate success criteria tests → ASK APPROVAL (clickable: Approve/Reject/Skip) for each test ✓
+- [ ] Run all tests (constraint + success criteria)
+- [ ] Debug failures and iterate
 ```
 
 ### Testing During Approval
@@ -146,6 +158,31 @@ Show the human:
 - What the LLM prompt looks like
 - What tools are available
 - What outputs will be written
+
+**Validate against constraint tests** (if available):
+
+After approving constraint tests, reference them during node development:
+
+```python
+# When presenting a node for approval, show constraint alignment:
+"""
+**NODE: search_node**
+
+Test Results: [test_node output]
+
+Constraint Test Alignment:
+✓ test_constraint_api_limits_respected
+  → Node uses rate-limited tool wrapper ✓
+✓ test_constraint_content_safety_filter
+  → Output includes safety_score field ✓
+
+Validation: ✅ PASS
+"""
+```
+
+**IMPORTANT**: Constraint tests may not fully execute until the agent is complete,
+but their test definitions guide node design. Review the test code to ensure
+your nodes handle the constraint scenarios.
 
 **Before final approval**, use `test_graph` to simulate full execution:
 ```
@@ -425,6 +462,7 @@ Goal(
             description="What the agent must NOT do",
             constraint_type="hard",  # hard = must not violate
             category="safety",
+            check="llm_judge",  # Optional: how to validate ("llm_judge", expression, or function)
         ),
     ],
 )
@@ -432,6 +470,98 @@ Goal(
 
 **Good goals**: Specific, measurable, constrained
 **Bad goals**: Vague, unmeasurable, no boundaries
+
+## Constraint Test Generation
+
+**CRITICAL**: After approving the goal, generate constraint tests BEFORE building nodes.
+
+Constraint tests verify that the agent will respect its defined constraints (safety, rate limits, etc.).
+These tests are **agent-agnostic** - they test boundaries, not implementation. This means they can be
+generated before any nodes exist.
+
+### Why Generate Tests Before Building?
+
+1. **Early Validation**: Catch constraint violations during node development, not after
+2. **Design Guidance**: Tests make constraints concrete and testable
+3. **Incremental Feedback**: Review constraint tests while designing each node
+
+### Generation Workflow
+
+```python
+# 1. After goal is approved, generate constraint tests
+result = generate_constraint_tests(
+    goal_id=goal_data["id"],
+    goal_json=json.dumps(goal_data)
+)
+
+# 2. Tests are returned with PENDING status
+# The MCP tool returns approval_required=True
+
+# 3. Display each test to the human for approval
+┌─────────────────────────────────────────────────────────────────┐
+│ [1/3] test_constraint_api_limits_respected                       │
+│       Constraint: api_limits                                     │
+│       Confidence: 88%                                            │
+│                                                                  │
+│       def test_constraint_api_limits_respected(agent):           │
+│           ...                                                    │
+│                                                                  │
+│       [a]pprove  [r]eject  [e]dit  [s]kip                       │
+└─────────────────────────────────────────────────────────────────┘
+
+# 4. Use AskUserQuestion with approval options
+AskUserQuestion(
+    questions=[{
+        "question": "Do you approve this constraint test?",
+        "header": "Test Approval",
+        "options": [
+            {"label": "✓ Approve (Recommended)", "description": "Test looks good"},
+            {"label": "✗ Reject", "description": "Test is invalid"},
+            {"label": "✎ Edit", "description": "Modify before accepting"},
+            {"label": "⏭ Skip", "description": "Decide later"}
+        ],
+        "multiSelect": false
+    }]
+)
+
+# 5. Call approve_tests with the decisions
+approve_tests(
+    goal_id=goal_data["id"],
+    approvals='[{"test_id": "...", "action": "approve"}, ...]'
+)
+
+# 6. Verify no pending tests before proceeding to nodes
+pending = get_pending_tests(goal_id=goal_data["id"])
+if json.loads(pending)["pending_count"] > 0:
+    # Prompt user to handle remaining tests
+    print("⚠️ Pending tests must be resolved before building nodes")
+```
+
+### Approval Rules
+
+- **All tests must be reviewed** - no auto-approval
+- **Approved/Modified tests are stored** for use during node validation
+- **Rejected tests are not stored** (with reason tracked)
+- **Skipped tests remain pending** - must be resolved before export
+
+### Using Constraint Tests During Node Building
+
+Once constraint tests are approved, reference them when designing nodes:
+
+```python
+# Before adding a node that makes API calls, review constraint tests:
+"""
+Creating node: search_node (llm_tool_use)
+Tools: youtube_search, video_details
+
+Constraint Test Review:
+✓ test_constraint_api_limits_respected - checks rate limits
+  → Ensure search_node handles rate limit responses gracefully
+
+✓ test_constraint_content_safety_filter - checks safe content
+  → Ensure output_keys include safety flags for filtering
+"""
+```
 
 ## Integrating External Tools (MCP Servers)
 
@@ -772,11 +902,29 @@ analyze → needs_clarification? → YES → request-clarification (PAUSE)
 | `export_graph` | Export the completed agent |
 | `get_session_status` | View current build progress |
 
-### Testing Tools (for HITL approval)
-| Tool | Purpose |
-|------|---------|
-| `test_node` | Run a single node with sample inputs to show behavior |
-| `test_graph` | Simulate full graph execution to show the complete flow |
+### Testing Tools by Stage
+
+#### Goal Stage (this skill) - Generate constraint tests
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| `generate_constraint_tests` | Generate tests from constraints | Immediately after goal approval |
+| `approve_tests` | Approve/reject/modify tests | After generation, before building nodes |
+| `get_pending_tests` | List tests awaiting approval | Before proceeding to node building |
+
+#### Agent Stage (this skill) - Build and validate nodes
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| `test_node` | Run a single node with sample inputs | Before each node approval |
+| `test_graph` | Simulate full graph execution | Before final approval |
+
+#### Eval Stage (testing-agent skill) - Final evaluation
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| `generate_success_tests` | Generate tests from success criteria | After agent export |
+| `run_tests` | Run all tests in parallel | After test approval |
+| `debug_test` | Debug failed tests | After test failures |
+
+See the [testing-agent skill](../testing-agent/SKILL.md) for the full Eval stage workflow.
 
 ## Using the Exported Agent
 
@@ -917,3 +1065,72 @@ result = await runner.run(context)
 ```
 
 For complete API details, see [reference/api.md](reference/api.md).
+
+## Handoff to Testing-Agent Skill
+
+After exporting the agent, switch to the **testing-agent** skill for final evaluation (Eval Stage).
+
+### What Transfers
+
+1. **Goal definition** (with constraints and success criteria)
+2. **Approved constraint tests** (generated in Goal Stage)
+3. **Exported agent** at `exports/{agent-name}/`
+
+### What Happens in Testing-Agent
+
+1. Generate **success criteria tests** (these need agent details, so generated after build)
+2. Run **all tests** (constraint + success criteria) in parallel
+3. Debug failures and categorize errors
+4. Iterate based on error type
+
+### Triggering the Handoff
+
+After `export_graph` completes successfully, display:
+
+```
+✅ Agent exported to exports/{agent-name}/
+
+Next Steps (Eval Stage):
+1. Switch to testing-agent skill
+2. Generate success criteria tests
+3. Run full evaluation
+4. Debug any failures
+
+Command: "Run /testing-agent for exports/{agent-name}"
+```
+
+### Error Category Routing
+
+If tests fail in the Eval stage, the error category determines where to go:
+
+| Error Category | Meaning | Action |
+|---------------|---------|--------|
+| `LOGIC_ERROR` | Goal definition is wrong | Return to Goal Stage - update goal, regenerate constraint tests |
+| `IMPLEMENTATION_ERROR` | Code bug in nodes/edges | Return to Agent Stage - fix nodes/edges, re-export |
+| `EDGE_CASE` | New scenario discovered | Stay in Eval Stage - add edge case test, continue |
+
+### Flow Diagram
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                GOAL STAGE (building-agents skill)            │
+│  1. Define success_criteria and constraints → APPROVE        │
+│  2. Generate CONSTRAINT TESTS from constraints               │
+│  3. APPROVE each constraint test                             │
+└──────────────────────────────────────────────────────────────┘
+                              ↓
+┌──────────────────────────────────────────────────────────────┐
+│               AGENT STAGE (building-agents skill)            │
+│  1. Add nodes - review constraint tests for design guidance  │
+│  2. Test each node - validate against constraint expectations│
+│  3. Connect edges → Validate graph → Export                  │
+└──────────────────────────────────────────────────────────────┘
+                              ↓
+┌──────────────────────────────────────────────────────────────┐
+│                EVAL STAGE (testing-agent skill)              │
+│  1. Generate SUCCESS_CRITERIA TESTS → APPROVE                │
+│  2. Run ALL tests (constraint + success criteria)            │
+│  3. Debug failures → Categorize errors                       │
+│  4. Route back based on error category (if needed)           │
+└──────────────────────────────────────────────────────────────┘
+```

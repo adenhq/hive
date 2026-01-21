@@ -18,14 +18,14 @@ class AnthropicProvider(LLMProvider):
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = "claude-sonnet-4-20250514",
+        model: str = "claude-haiku-4-5-20251001",
     ):
         """
         Initialize the Anthropic provider.
 
         Args:
             api_key: Anthropic API key. If not provided, uses ANTHROPIC_API_KEY env var.
-            model: Model to use (default: claude-sonnet-4-20250514)
+            model: Model to use (default: claude-haiku-4-5-20251001)
         """
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not self.api_key:

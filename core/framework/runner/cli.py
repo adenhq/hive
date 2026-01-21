@@ -189,7 +189,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         runner = AgentRunner.load(
             args.agent_path,
             mock_mode=args.mock,
-            model=getattr(args, "model", "claude-sonnet-4-20250514"),
+            model=getattr(args, "model", "claude-haiku-4-5-20251001"),
         )
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
