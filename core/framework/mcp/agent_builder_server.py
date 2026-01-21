@@ -9,6 +9,7 @@ Usage:
 
 import json
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated
 
 from mcp.server import FastMCP
@@ -21,27 +22,149 @@ from framework.graph.edge import GraphSpec
 mcp = FastMCP("agent-builder")
 
 
+# Session persistence directory
+SESSIONS_DIR = Path(".agent-builder-sessions")
+ACTIVE_SESSION_FILE = SESSIONS_DIR / ".active"
+
+
 # Session storage
 class BuildSession:
-    """In-memory build session."""
+    """Build session with persistence support."""
 
-    def __init__(self, name: str):
-        self.id = f"build_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    def __init__(self, name: str, session_id: str | None = None):
+        self.id = session_id or f"build_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.name = name
         self.goal: Goal | None = None
         self.nodes: list[NodeSpec] = []
         self.edges: list[EdgeSpec] = []
         self.mcp_servers: list[dict] = []  # MCP server configurations
+        self.created_at = datetime.now().isoformat()
+        self.last_modified = datetime.now().isoformat()
+
+    def to_dict(self) -> dict:
+        """Serialize session to dictionary."""
+        return {
+            "session_id": self.id,
+            "name": self.name,
+            "goal": self.goal.model_dump() if self.goal else None,
+            "nodes": [n.model_dump() for n in self.nodes],
+            "edges": [e.model_dump() for e in self.edges],
+            "mcp_servers": self.mcp_servers,
+            "created_at": self.created_at,
+            "last_modified": self.last_modified,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "BuildSession":
+        """Deserialize session from dictionary."""
+        session = cls(name=data["name"], session_id=data["session_id"])
+        session.created_at = data.get("created_at", session.created_at)
+        session.last_modified = data.get("last_modified", session.last_modified)
+
+        # Restore goal
+        if data.get("goal"):
+            goal_data = data["goal"]
+            session.goal = Goal(
+                id=goal_data["id"],
+                name=goal_data["name"],
+                description=goal_data["description"],
+                success_criteria=[
+                    SuccessCriterion(**sc) for sc in goal_data.get("success_criteria", [])
+                ],
+                constraints=[
+                    Constraint(**c) for c in goal_data.get("constraints", [])
+                ],
+            )
+
+        # Restore nodes
+        session.nodes = [NodeSpec(**n) for n in data.get("nodes", [])]
+
+        # Restore edges
+        edges_data = data.get("edges", [])
+        for e in edges_data:
+            # Convert condition string back to enum
+            condition_str = e.get("condition")
+            if isinstance(condition_str, str):
+                condition_map = {
+                    "always": EdgeCondition.ALWAYS,
+                    "on_success": EdgeCondition.ON_SUCCESS,
+                    "on_failure": EdgeCondition.ON_FAILURE,
+                    "conditional": EdgeCondition.CONDITIONAL,
+                }
+                e["condition"] = condition_map.get(condition_str, EdgeCondition.ON_SUCCESS)
+            session.edges.append(EdgeSpec(**e))
+
+        # Restore MCP servers
+        session.mcp_servers = data.get("mcp_servers", [])
+
+        return session
 
 
 # Global session
 _session: BuildSession | None = None
 
 
+def _ensure_sessions_dir():
+    """Ensure sessions directory exists."""
+    SESSIONS_DIR.mkdir(exist_ok=True)
+
+
+def _save_session(session: BuildSession):
+    """Save session to disk."""
+    _ensure_sessions_dir()
+
+    # Update last modified
+    session.last_modified = datetime.now().isoformat()
+
+    # Save session file
+    session_file = SESSIONS_DIR / f"{session.id}.json"
+    with open(session_file, "w") as f:
+        json.dump(session.to_dict(), f, indent=2, default=str)
+
+    # Update active session pointer
+    with open(ACTIVE_SESSION_FILE, "w") as f:
+        f.write(session.id)
+
+
+def _load_session(session_id: str) -> BuildSession:
+    """Load session from disk."""
+    session_file = SESSIONS_DIR / f"{session_id}.json"
+    if not session_file.exists():
+        raise ValueError(f"Session '{session_id}' not found")
+
+    with open(session_file, "r") as f:
+        data = json.load(f)
+
+    return BuildSession.from_dict(data)
+
+
+def _load_active_session() -> BuildSession | None:
+    """Load the active session if one exists."""
+    if not ACTIVE_SESSION_FILE.exists():
+        return None
+
+    try:
+        with open(ACTIVE_SESSION_FILE, "r") as f:
+            session_id = f.read().strip()
+
+        if session_id:
+            return _load_session(session_id)
+    except Exception:
+        pass
+
+    return None
+
+
 def get_session() -> BuildSession:
     global _session
+
+    # Try to load active session if no session in memory
+    if _session is None:
+        _session = _load_active_session()
+
     if _session is None:
         raise ValueError("No active session. Call create_session first.")
+
     return _session
 
 
@@ -54,11 +177,120 @@ def create_session(name: Annotated[str, "Name for the agent being built"]) -> st
     """Create a new agent building session. Call this first before building an agent."""
     global _session
     _session = BuildSession(name)
+    _save_session(_session)  # Auto-save
     return json.dumps({
         "session_id": _session.id,
         "name": name,
         "status": "created",
+        "persisted": True,
     })
+
+
+@mcp.tool()
+def list_sessions() -> str:
+    """List all saved agent building sessions."""
+    _ensure_sessions_dir()
+
+    sessions = []
+    if SESSIONS_DIR.exists():
+        for session_file in SESSIONS_DIR.glob("*.json"):
+            try:
+                with open(session_file, "r") as f:
+                    data = json.load(f)
+                    sessions.append({
+                        "session_id": data["session_id"],
+                        "name": data["name"],
+                        "created_at": data.get("created_at"),
+                        "last_modified": data.get("last_modified"),
+                        "node_count": len(data.get("nodes", [])),
+                        "edge_count": len(data.get("edges", [])),
+                        "has_goal": data.get("goal") is not None,
+                    })
+            except Exception:
+                pass  # Skip corrupted files
+
+    # Check which session is currently active
+    active_id = None
+    if ACTIVE_SESSION_FILE.exists():
+        try:
+            with open(ACTIVE_SESSION_FILE, "r") as f:
+                active_id = f.read().strip()
+        except Exception:
+            pass
+
+    return json.dumps({
+        "sessions": sorted(sessions, key=lambda s: s["last_modified"], reverse=True),
+        "total": len(sessions),
+        "active_session_id": active_id,
+    }, indent=2)
+
+
+@mcp.tool()
+def load_session_by_id(session_id: Annotated[str, "ID of the session to load"]) -> str:
+    """Load a previously saved agent building session by its ID."""
+    global _session
+
+    try:
+        _session = _load_session(session_id)
+
+        # Update active session pointer
+        with open(ACTIVE_SESSION_FILE, "w") as f:
+            f.write(session_id)
+
+        return json.dumps({
+            "success": True,
+            "session_id": _session.id,
+            "name": _session.name,
+            "node_count": len(_session.nodes),
+            "edge_count": len(_session.edges),
+            "has_goal": _session.goal is not None,
+            "created_at": _session.created_at,
+            "last_modified": _session.last_modified,
+            "message": f"Session '{_session.name}' loaded successfully"
+        })
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        })
+
+
+@mcp.tool()
+def delete_session(session_id: Annotated[str, "ID of the session to delete"]) -> str:
+    """Delete a saved agent building session."""
+    global _session
+
+    session_file = SESSIONS_DIR / f"{session_id}.json"
+    if not session_file.exists():
+        return json.dumps({
+            "success": False,
+            "error": f"Session '{session_id}' not found"
+        })
+
+    try:
+        # Remove session file
+        session_file.unlink()
+
+        # Clear active session if it was the deleted one
+        if _session and _session.id == session_id:
+            _session = None
+
+        if ACTIVE_SESSION_FILE.exists():
+            with open(ACTIVE_SESSION_FILE, "r") as f:
+                active_id = f.read().strip()
+                if active_id == session_id:
+                    ACTIVE_SESSION_FILE.unlink()
+
+        return json.dumps({
+            "success": True,
+            "deleted_session_id": session_id,
+            "message": f"Session '{session_id}' deleted successfully"
+        })
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        })
 
 
 @mcp.tool()
@@ -121,6 +353,8 @@ def set_goal(
         errors.append("Goal must have at least one success criterion")
     if not constraint_list:
         warnings.append("Consider adding constraints")
+
+    _save_session(session)  # Auto-save
 
     return json.dumps({
         "valid": len(errors) == 0,
@@ -205,6 +439,8 @@ def add_node(
     if node_type in ("llm_generate", "llm_tool_use") and not system_prompt:
         warnings.append(f"LLM node '{node_id}' should have a system_prompt")
 
+    _save_session(session)  # Auto-save
+
     return json.dumps({
         "valid": len(errors) == 0,
         "errors": errors,
@@ -280,6 +516,8 @@ def add_edge(
         errors.append(f"Target node '{target}' not found")
     if edge_condition == EdgeCondition.CONDITIONAL and not condition_expr:
         errors.append(f"Conditional edge '{edge_id}' needs condition_expr")
+
+    _save_session(session)  # Auto-save
 
     return json.dumps({
         "valid": len(errors) == 0,
@@ -364,6 +602,8 @@ def update_node(
     if node.node_type in ("llm_generate", "llm_tool_use") and not node.system_prompt:
         warnings.append(f"LLM node '{node_id}' should have a system_prompt")
 
+    _save_session(session)  # Auto-save
+
     return json.dumps({
         "valid": len(errors) == 0,
         "errors": errors,
@@ -421,6 +661,8 @@ def delete_node(
         if not (e.source == node_id or e.target == node_id)
     ]
 
+    _save_session(session)  # Auto-save
+
     return json.dumps({
         "valid": True,
         "deleted_node": removed_node.model_dump(),
@@ -450,6 +692,8 @@ def delete_edge(
 
     # Remove the edge
     removed_edge = session.edges.pop(edge_idx)
+
+    _save_session(session)  # Auto-save
 
     return json.dumps({
         "valid": True,
@@ -1161,6 +1405,7 @@ def add_mcp_server(
 
             # Add to session
             session.mcp_servers.append(server_config)
+            _save_session(session)  # Auto-save
 
             return json.dumps({
                 "success": True,
@@ -1280,6 +1525,7 @@ def remove_mcp_server(
     for i, server in enumerate(session.mcp_servers):
         if server["name"] == name:
             session.mcp_servers.pop(i)
+            _save_session(session)  # Auto-save
             return json.dumps({
                 "success": True,
                 "removed": name,
