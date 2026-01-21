@@ -195,8 +195,12 @@ class AgentRunner:
             self._storage_path = storage_path
             self._temp_dir = None
         else:
-            self._temp_dir = tempfile.TemporaryDirectory()
-            self._storage_path = Path(self._temp_dir.name) / "runtime"
+            # Use persistent storage in ~/.hive by default
+            home = Path.home()
+            default_storage = home / ".hive" / "storage" / agent_path.name
+            default_storage.mkdir(parents=True, exist_ok=True)
+            self._storage_path = default_storage
+            self._temp_dir = None
 
         # Initialize components
         self._tool_registry = ToolRegistry()
@@ -365,6 +369,18 @@ class AgentRunner:
         """Set up runtime, LLM, and executor."""
         # Create runtime
         self._runtime = Runtime(storage_path=self._storage_path)
+
+        # Set up session context for tools (workspace_id, agent_id, session_id)
+        workspace_id = "default"  # Could be derived from storage path
+        agent_id = self.graph.id or "unknown"
+        # Use "current" as a stable session_id for persistent memory
+        session_id = "current"
+
+        self._tool_registry.set_session_context(
+            workspace_id=workspace_id,
+            agent_id=agent_id,
+            session_id=session_id,
+        )
 
         # Create LLM provider (if not mock mode and API key available)
         if not self.mock_mode and os.environ.get("ANTHROPIC_API_KEY"):

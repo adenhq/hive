@@ -1,9 +1,9 @@
 {
   "mcpServers": {
     "agent-builder": {
-      "command": "python",
-      "args": ["-m", "framework.mcp.agent_builder_server"],
-      "cwd": "/home/timothy/oss/hive/core"
+      "command": "bash",
+      "args": ["-c", "cd core && exec python -m framework.mcp.agent_builder_server"],
+      "cwd": "core"
     }
   }
 }

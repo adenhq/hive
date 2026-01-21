@@ -20,6 +20,19 @@ Environment Variables:
 """
 import argparse
 import os
+import sys
+
+# Suppress FastMCP banner in STDIO mode
+if "--stdio" in sys.argv:
+    # Monkey-patch rich Console to redirect to stderr
+    import rich.console
+    _original_console_init = rich.console.Console.__init__
+
+    def _patched_console_init(self, *args, **kwargs):
+        kwargs['file'] = sys.stderr  # Force all rich output to stderr
+        _original_console_init(self, *args, **kwargs)
+
+    rich.console.Console.__init__ = _patched_console_init
 
 from fastmcp import FastMCP
 from starlette.requests import Request
@@ -31,7 +44,9 @@ mcp = FastMCP("aden-tools")
 from aden_tools.tools import register_all_tools
 
 tools = register_all_tools(mcp)
-print(f"[MCP] Registered {len(tools)} tools: {tools}")
+# Only print to stdout in HTTP mode (STDIO mode requires clean stdout for JSON-RPC)
+if "--stdio" not in sys.argv:
+    print(f"[MCP] Registered {len(tools)} tools: {tools}")
 
 
 @mcp.custom_route("/health", methods=["GET"])
@@ -68,7 +83,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.stdio:
-        print("[MCP] Starting with STDIO transport")
+        # STDIO mode: only JSON-RPC messages go to stdout
         mcp.run(transport="stdio")
     else:
         print(f"[MCP] Starting HTTP server on {args.host}:{args.port}")
