@@ -81,80 +81,48 @@ docker compose up
 Traditional agent frameworks require you to manually design workflows, define agent interactions, and handle failures reactively. Aden flips this paradigm—**you describe outcomes, and the system builds itself**.
 
 ```mermaid
-flowchart TB
-    subgraph USER["👤 User"]
-        GOAL[("🎯 Define Goal<br/>(Natural Language)")]
+flowchart LR
+    subgraph BUILD["🏗️ BUILD"]
+        GOAL["Define Goal<br/>+ Success Criteria"] --> NODES["Add Nodes<br/>LLM/Router/Function"]
+        NODES --> EDGES["Connect Edges<br/>on_success/failure/conditional"]
+        EDGES --> TEST["Test & Validate"] --> APPROVE["Approve & Export"]
     end
 
-    subgraph CODING["🤖 Coding Agent"]
+    subgraph EXPORT["📦 EXPORT"]
         direction TB
-        GENERATE["Generate Agent Graph"]
-        CONNECTION["Create Connection Code"]
-        TESTGEN["Generate Test Cases"]
-        EVOLVE["Evolve on Failure"]
+        JSON["agent.json<br/>(GraphSpec)"]
+        TOOLS["tools.py<br/>(Functions)"]
+        MCP["mcp_servers.json<br/>(Integrations)"]
     end
 
-    subgraph WORKERS["⚙️ Worker Agents"]
-        direction TB
-        subgraph NODE1["SDK-Wrapped Node"]
-            N1_MEM["Memory (STM/LTM)"]
-            N1_TOOLS["Tools Access"]
-            N1_LLM["LLM Integration"]
-            N1_MON["Monitoring"]
+    subgraph RUN["🚀 RUNTIME"]
+        LOAD["AgentRunner<br/>Load + Parse"] --> SETUP["Setup Runtime<br/>+ ToolRegistry"]
+        SETUP --> EXEC["GraphExecutor<br/>Execute Nodes"]
+
+        subgraph DECISION["Decision Recording"]
+            DEC1["runtime.decide()<br/>intent → options → choice"]
+            DEC2["runtime.record_outcome()<br/>success, result, metrics"]
         end
-        subgraph NODE2["SDK-Wrapped Node"]
-            N2_MEM["Memory (STM/LTM)"]
-            N2_TOOLS["Tools Access"]
-            N2_LLM["LLM Integration"]
-            N2_MON["Monitoring"]
-        end
-        HITL["🙋 Human-in-the-Loop<br/>Intervention Points"]
     end
 
-    subgraph CONTROL["🎛️ Hive Control Plane"]
-        direction TB
-        BUDGET["Budget & Cost Control"]
-        POLICY["Policy Management"]
-        METRICS["Real-time Metrics"]
-        MCP["19 MCP Tools"]
+    subgraph INFRA["⚙️ INFRASTRUCTURE"]
+        CTX["NodeContext<br/>memory • llm • tools"]
+        STORE[("FileStorage<br/>Runs & Decisions")]
     end
 
-    subgraph STORAGE["💾 Storage Layer"]
-        TSDB[("TimescaleDB<br/>Metrics & Events")]
-        MONGO[("MongoDB<br/>Policies")]
-        POSTGRES[("PostgreSQL<br/>Users & Config")]
-    end
+    APPROVE --> EXPORT
+    EXPORT --> LOAD
+    EXEC --> DECISION
+    EXEC --> CTX
+    DECISION --> STORE
+    STORE -.->|"Analyze & Improve"| NODES
 
-    subgraph DASHBOARD["📊 Dashboard (Honeycomb)"]
-        ANALYTICS["Analytics & KPIs"]
-        AGENTS["Agent Monitoring"]
-        COSTS["Cost Tracking"]
-    end
-
-    GOAL --> GENERATE
-    GENERATE --> CONNECTION
-    CONNECTION --> TESTGEN
-    TESTGEN --> NODE1
-    TESTGEN --> NODE2
-
-    NODE1 <--> NODE2
-    NODE1 & NODE2 --> HITL
-
-    NODE1 & NODE2 -->|Events| CONTROL
-    CONTROL -->|Policies| NODE1 & NODE2
-    CONTROL <-->|WebSocket| DASHBOARD
-
-    CONTROL --> STORAGE
-
-    NODE1 & NODE2 -->|Failure Data| EVOLVE
-    EVOLVE -->|Updated Graph| GENERATE
-
-    style USER fill:#e8f5e9,stroke:#2e7d32
-    style CODING fill:#e3f2fd,stroke:#1565c0
-    style WORKERS fill:#fff3e0,stroke:#ef6c00
-    style CONTROL fill:#fce4ec,stroke:#c2185b
-    style STORAGE fill:#f3e5f5,stroke:#7b1fa2
-    style DASHBOARD fill:#e0f7fa,stroke:#00838f
+    style BUILD fill:#ffbe42,stroke:#cc5d00,stroke-width:3px,color:#333
+    style EXPORT fill:#fff59d,stroke:#ed8c00,stroke-width:2px,color:#333
+    style RUN fill:#ffb100,stroke:#cc5d00,stroke-width:3px,color:#333
+    style DECISION fill:#ffcc80,stroke:#ed8c00,stroke-width:2px,color:#333
+    style INFRA fill:#e8763d,stroke:#cc5d00,stroke-width:3px,color:#fff
+    style STORE fill:#ed8c00,stroke:#cc5d00,stroke-width:2px,color:#fff
 ```
 
 ### The Aden Advantage

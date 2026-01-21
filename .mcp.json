@@ -4,11 +4,6 @@
       "command": "python",
       "args": ["-m", "framework.mcp.agent_builder_server"],
       "cwd": "/home/timothy/oss/hive/core"
-    },
-    "aden-tools": {
-      "command": "python",
-      "args": ["-m", "aden_tools.mcp_server", "--stdio"],
-      "cwd": "/home/timothy/oss/hive/aden-tools"
     }
   }
 }
