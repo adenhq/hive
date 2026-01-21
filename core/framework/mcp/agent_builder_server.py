@@ -474,6 +474,18 @@ def validate_graph() -> str:
         errors.append("No nodes defined")
         return json.dumps({"valid": False, "errors": errors})
 
+    # === DETECT PAUSE/RESUME ARCHITECTURE ===
+    # Identify pause nodes (nodes marked as PAUSE in description)
+    pause_nodes = [n.id for n in session.nodes if "PAUSE" in n.description.upper()]
+
+    # Identify resume entry points (nodes marked as RESUME ENTRY POINT in description)
+    resume_entry_points = [n.id for n in session.nodes if "RESUME" in n.description.upper() and "ENTRY" in n.description.upper()]
+
+    is_pause_resume_agent = len(pause_nodes) > 0 or len(resume_entry_points) > 0
+
+    if is_pause_resume_agent:
+        warnings.append(f"Pause/resume architecture detected. Pause nodes: {pause_nodes}, Resume entry points: {resume_entry_points}")
+
     # Find entry node (no incoming edges)
     entry_candidates = []
     for node in session.nodes:
@@ -482,7 +494,8 @@ def validate_graph() -> str:
 
     if not entry_candidates:
         errors.append("No entry node found (all nodes have incoming edges)")
-    elif len(entry_candidates) > 1:
+    elif len(entry_candidates) > 1 and not is_pause_resume_agent:
+        # Multiple entry points are expected for pause/resume agents
         warnings.append(f"Multiple entry candidates: {entry_candidates}")
 
     # Find terminal nodes (no outgoing edges)
@@ -497,7 +510,13 @@ def validate_graph() -> str:
     # Check reachability
     if entry_candidates:
         reachable = set()
-        to_visit = [entry_candidates[0]]
+
+        # For pause/resume agents, start from ALL entry points (including resume)
+        if is_pause_resume_agent:
+            to_visit = list(entry_candidates)  # All nodes without incoming edges
+        else:
+            to_visit = [entry_candidates[0]]  # Just the primary entry
+
         while to_visit:
             current = to_visit.pop()
             if current in reachable:
@@ -513,7 +532,14 @@ def validate_graph() -> str:
 
         unreachable = [n.id for n in session.nodes if n.id not in reachable]
         if unreachable:
-            errors.append(f"Unreachable nodes: {unreachable}")
+            # For pause/resume agents, nodes might be reachable only from resume entry points
+            if is_pause_resume_agent:
+                # Filter out resume entry points from unreachable list
+                unreachable_non_resume = [n for n in unreachable if n not in resume_entry_points]
+                if unreachable_non_resume:
+                    warnings.append(f"Nodes unreachable from primary entry (may be resume-only nodes): {unreachable_non_resume}")
+            else:
+                errors.append(f"Unreachable nodes: {unreachable}")
 
     # === CONTEXT FLOW VALIDATION ===
     # Build dependency map (node_id -> list of nodes it depends on)
@@ -583,27 +609,64 @@ def validate_graph() -> str:
         node = nodes_by_id.get(node_id)
         deps = dependencies.get(node_id, [])
 
+        # Check if this is a resume entry point
+        is_resume_entry = node_id in resume_entry_points
+
         if not deps:
             # Entry node - inputs must come from initial runtime context
-            context_warnings.append(
-                f"Node '{node_id}' requires inputs {missing} from initial context. "
-                f"Ensure these are provided when running the agent."
-            )
+            if is_resume_entry:
+                context_warnings.append(
+                    f"Resume entry node '{node_id}' requires inputs {missing} from resumed invocation context. "
+                    f"These will be provided by the runtime when resuming (e.g., user's answers)."
+                )
+            else:
+                context_warnings.append(
+                    f"Node '{node_id}' requires inputs {missing} from initial context. "
+                    f"Ensure these are provided when running the agent."
+                )
         else:
-            # Find which dependency could provide each missing input
-            suggestions = []
-            for key in missing:
-                # Check if any existing node produces this
-                producers = [n.id for n in session.nodes if key in n.output_keys]
-                if producers:
-                    suggestions.append(f"'{key}' is produced by {producers} - add dependency edge")
-                else:
-                    suggestions.append(f"'{key}' is not produced by any node - add a node that outputs it")
+            # Check if this is a common external input key for resume nodes
+            external_input_keys = ["input", "user_response", "user_input", "answer", "answers"]
+            unproduced_external = [k for k in missing if k in external_input_keys]
 
-            context_errors.append(
-                f"Node '{node_id}' requires {missing} but dependencies {deps} don't provide them. "
-                f"Suggestions: {'; '.join(suggestions)}"
-            )
+            if is_resume_entry and unproduced_external:
+                # Resume entry points can receive external inputs from resumed invocations
+                other_missing = [k for k in missing if k not in external_input_keys]
+
+                if unproduced_external:
+                    context_warnings.append(
+                        f"Resume entry node '{node_id}' expects external inputs {unproduced_external} from resumed invocation. "
+                        f"These will be injected by the runtime when the user responds."
+                    )
+
+                if other_missing:
+                    # Still need to check other keys
+                    suggestions = []
+                    for key in other_missing:
+                        producers = [n.id for n in session.nodes if key in n.output_keys]
+                        if producers:
+                            suggestions.append(f"'{key}' is produced by {producers} - ensure edge exists")
+                        else:
+                            suggestions.append(f"'{key}' is not produced - add node or include in external inputs")
+
+                    context_errors.append(
+                        f"Resume node '{node_id}' requires {other_missing} but dependencies {deps} don't provide them. "
+                        f"Suggestions: {'; '.join(suggestions)}"
+                    )
+            else:
+                # Non-resume node or no external input keys - standard validation
+                suggestions = []
+                for key in missing:
+                    producers = [n.id for n in session.nodes if key in n.output_keys]
+                    if producers:
+                        suggestions.append(f"'{key}' is produced by {producers} - add dependency edge")
+                    else:
+                        suggestions.append(f"'{key}' is not produced by any node - add a node that outputs it")
+
+                context_errors.append(
+                    f"Node '{node_id}' requires {missing} but dependencies {deps} don't provide them. "
+                    f"Suggestions: {'; '.join(suggestions)}"
+                )
 
     errors.extend(context_errors)
     warnings.extend(context_warnings)
@@ -616,6 +679,10 @@ def validate_graph() -> str:
         "terminal_nodes": terminal_candidates,
         "node_count": len(session.nodes),
         "edge_count": len(session.edges),
+        "pause_resume_detected": is_pause_resume_agent,
+        "pause_nodes": pause_nodes,
+        "resume_entry_points": resume_entry_points,
+        "all_entry_points": entry_candidates,
         "context_flow": {
             node_id: list(keys) for node_id, keys in available_context.items()
         } if available_context else None,

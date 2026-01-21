@@ -61,3 +61,5 @@ __pycache__/
 .cache/
 tmp/
 temp/
+
+exports/*
