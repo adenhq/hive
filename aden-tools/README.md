@@ -13,6 +13,27 @@ For development:
 pip install -e "aden-tools[dev]"
 ```
 
+## Environment Setup
+
+Some tools require API keys to function. Copy the example file and add your credentials:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Required For | Get Key |
+|----------|--------------|---------|
+| `ANTHROPIC_API_KEY` | MCP server startup, LLM nodes | [console.anthropic.com](https://console.anthropic.com/) |
+| `BRAVE_SEARCH_API_KEY` | `web_search` tool | [brave.com/search/api](https://brave.com/search/api/) |
+
+Alternatively, export as environment variables:
+```bash
+export ANTHROPIC_API_KEY=your-key-here
+export BRAVE_SEARCH_API_KEY=your-key-here
+```
+
+See [.env.example](.env.example) for details.
+
 ## Quick Start
 
 ### As an MCP Server

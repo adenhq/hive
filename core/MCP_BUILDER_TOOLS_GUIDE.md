@@ -332,3 +332,59 @@ You can register any MCP server that follows the Model Context Protocol specific
 - Verify you registered at least one MCP server
 - Check `get_session_status` to see `mcp_servers_count > 0`
 - Re-export the agent after registering servers
+
+## Credential Validation
+
+When adding nodes with tools that require API keys (like `web_search`), the agent builder automatically validates that the required credentials are available.
+
+### How It Works
+
+When you call `add_node` or `update_node` with a `tools` parameter, the agent builder:
+
+1. Checks which tools require credentials (e.g., `web_search` requires `BRAVE_SEARCH_API_KEY`)
+2. Validates those credentials are set in the environment or `.env` file
+3. Returns an error if any credentials are missing
+
+### Missing Credentials Error
+
+If credentials are missing, you'll receive a response like:
+
+```json
+{
+  "valid": false,
+  "errors": ["Missing credentials for tools: ['BRAVE_SEARCH_API_KEY']"],
+  "missing_credentials": [
+    {
+      "credential": "brave_search",
+      "env_var": "BRAVE_SEARCH_API_KEY",
+      "tools_affected": ["web_search"],
+      "help_url": "https://brave.com/search/api/",
+      "description": "API key for Brave Search"
+    }
+  ],
+  "action_required": "Add the credentials to your .env file and retry",
+  "example": "Add to .env:\nBRAVE_SEARCH_API_KEY=your_key_here",
+  "message": "Cannot add node: missing API credentials. Add them to .env and retry this command."
+}
+```
+
+### Fixing Credential Errors
+
+1. Get the required API key from the URL in `help_url`
+2. Add it to your environment:
+   ```bash
+   # Option 1: Export directly
+   export BRAVE_SEARCH_API_KEY=your-key-here
+
+   # Option 2: Add to aden-tools/.env
+   echo "BRAVE_SEARCH_API_KEY=your-key-here" >> aden-tools/.env
+   ```
+3. Retry the `add_node` command
+
+### Required Credentials by Tool
+
+| Tool | Credential | Get Key |
+|------|------------|---------|
+| `web_search` | `BRAVE_SEARCH_API_KEY` | [brave.com/search/api](https://brave.com/search/api/) |
+
+Note: The MCP server itself requires `ANTHROPIC_API_KEY` at startup for LLM operations.

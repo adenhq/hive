@@ -83,6 +83,17 @@ The `setup` script performs these actions:
 2. Generates `.env` files from your `config.yaml`
 3. Reports any issues
 
+### AI Agent Tools (Optional)
+
+If working with the agent framework:
+
+```bash
+# Set up aden-tools credentials
+cd aden-tools
+cp .env.example .env
+# Edit .env with your ANTHROPIC_API_KEY and BRAVE_SEARCH_API_KEY
+```
+
 ### Verify Setup
 
 ```bash

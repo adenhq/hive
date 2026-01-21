@@ -97,6 +97,26 @@ hive/
 └── config.yaml         # Application configuration
 ```
 
+## AI Agent Tools Setup (Optional)
+
+If you're using the AI agent framework with aden-tools:
+
+```bash
+# 1. Navigate to aden-tools
+cd aden-tools
+
+# 2. Copy environment template
+cp .env.example .env
+
+# 3. Add your API keys to .env
+# - ANTHROPIC_API_KEY: Required for LLM operations
+# - BRAVE_SEARCH_API_KEY: Required for web search tool
+```
+
+Get your API keys:
+- **Anthropic**: [console.anthropic.com](https://console.anthropic.com/)
+- **Brave Search**: [brave.com/search/api](https://brave.com/search/api/)
+
 ## Next Steps
 
 1. **Configure the Application**: See [Configuration Guide](configuration.md)
