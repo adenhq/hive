@@ -16,6 +16,8 @@ Show your support by starring our repo!
 1. Go to [github.com/adenhq/hive](https://github.com/adenhq/hive)
 2. Click the **Star** button in the top right
 3. **Screenshot** your starred repo (showing the star count)
+<img width="2880" height="1540" alt="image" src="https://github.com/user-attachments/assets/0b0e4ecb-de99-4b3d-959f-56ebfe98baa9" />
+
 
 ### Task 1.2: Watch the Repository 👁️
 Stay updated with our latest changes!
@@ -23,6 +25,8 @@ Stay updated with our latest changes!
 1. Click the **Watch** button
 2. Select **"All Activity"** to get notifications
 3. **Screenshot** your watch settings
+<img width="2868" height="1344" alt="image" src="https://github.com/user-attachments/assets/547a9f21-f543-446a-adef-d4d1f5b13346" />
+
 
 ### Task 1.3: Fork the Repository 🍴
 Create your own copy to experiment with!
@@ -30,6 +34,8 @@ Create your own copy to experiment with!
 1. Click the **Fork** button
 2. Keep the default settings and create the fork
 3. **Screenshot** your forked repository
+<img width="2880" height="1354" alt="image" src="https://github.com/user-attachments/assets/517cc104-1a48-4b97-8969-ff5c2f8d2caf" />
+
 
 ### Task 1.4: Join Discord 💬
 Connect with our community!
@@ -37,6 +43,8 @@ Connect with our community!
 1. Join our [Discord server](https://discord.com/invite/MXE49hrKDk)
 2. Introduce yourself in `#introductions`
 3. **Screenshot** your introduction message
+<img width="1564" height="428" alt="image" src="https://github.com/user-attachments/assets/16f675d7-f33d-47b1-b11d-b5501af38ee0" />
+
 
 ---
 
