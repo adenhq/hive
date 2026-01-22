@@ -22,7 +22,6 @@ except ImportError:
 
 class Colors:
     """ANSI color codes for terminal output."""
-    # Disable colors on Windows if colorama is not available
     _use_colors = COLORAMA_AVAILABLE or platform.system() != 'Windows'
     GREEN = '\033[0;32m' if _use_colors else ''
     YELLOW = '\033[1;33m' if _use_colors else ''
