@@ -7,18 +7,28 @@ This script installs the framework and configures the MCP server.
 
 import json
 import os
+import platform
 import subprocess
 import sys
 from pathlib import Path
 
+try:
+    import colorama
+    colorama.init()
+    COLORAMA_AVAILABLE = True
+except ImportError:
+    COLORAMA_AVAILABLE = False
+
 
 class Colors:
     """ANSI color codes for terminal output."""
-    GREEN = '\033[0;32m'
-    YELLOW = '\033[1;33m'
-    RED = '\033[0;31m'
-    BLUE = '\033[0;34m'
-    NC = '\033[0m'  # No Color
+    # Disable colors on Windows if colorama is not available
+    _use_colors = COLORAMA_AVAILABLE or platform.system() != 'Windows'
+    GREEN = '\033[0;32m' if _use_colors else ''
+    YELLOW = '\033[1;33m' if _use_colors else ''
+    RED = '\033[0;31m' if _use_colors else ''
+    BLUE = '\033[0;34m' if _use_colors else ''
+    NC = '\033[0m' if _use_colors else ''
 
 
 def print_step(message: str, color: str = Colors.YELLOW):
@@ -36,15 +46,18 @@ def print_error(message: str):
     print(f"{Colors.RED}✗ {message}{Colors.NC}", file=sys.stderr)
 
 
-def run_command(cmd: list, error_msg: str) -> bool:
-    """Run a command and return success status."""
+def run_command(cmd: list, error_msg: str) -> tuple[bool, str]:
+    """Run a command and return success status and output."""
     try:
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
-        return True
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        return True, result.stdout
     except subprocess.CalledProcessError as e:
         print_error(error_msg)
-        print(f"Error output: {e.stderr}", file=sys.stderr)
-        return False
+        if e.stderr:
+            print(f"Error output: {e.stderr}", file=sys.stderr)
+        if e.stdout:
+            print(f"Command output: {e.stdout}", file=sys.stderr)
+        return False, e.stderr
 
 
 def main():
@@ -56,28 +69,49 @@ def main():
     script_dir = Path(__file__).parent.absolute()
     os.chdir(script_dir)
 
-    # Step 1: Install framework package
-    print_step("Step 1: Installing framework package...")
-    if not run_command(
+    # Step 1: Check Python version
+    print_step("Step 1: Checking Python version...")
+    py_version = sys.version.split()[0]
+    print(f"Python version: {py_version}")
+    if sys.version_info < (3, 11):
+        print_error(f"Python 3.11+ required, found {py_version}")
+        sys.exit(1)
+    print_success(f"Python {py_version} OK")
+    print()
+
+    # Step 2: Install framework package
+    print_step("Step 2: Installing framework package...")
+    success, output = run_command(
         [sys.executable, "-m", "pip", "install", "-e", "."],
         "Failed to install framework package"
-    ):
+    )
+    if not success:
         sys.exit(1)
     print_success("Framework package installed")
     print()
 
-    # Step 2: Install MCP dependencies
-    print_step("Step 2: Installing MCP dependencies...")
-    if not run_command(
+    # Step 3: Install MCP dependencies
+    print_step("Step 3: Installing MCP dependencies...")
+    success, output = run_command(
         [sys.executable, "-m", "pip", "install", "mcp", "fastmcp"],
         "Failed to install MCP dependencies"
-    ):
+    )
+    if not success:
         sys.exit(1)
     print_success("MCP dependencies installed")
+    
+    # Report installed versions
+    try:
+        import mcp
+        import fastmcp
+        print(f"  mcp version: {getattr(mcp, '__version__', 'unknown')}")
+        print(f"  fastmcp version: {getattr(fastmcp, '__version__', 'unknown')}")
+    except ImportError:
+        pass
     print()
 
-    # Step 3: Verify/create MCP configuration
-    print_step("Step 3: Verifying MCP server configuration...")
+    # Step 4: Verify/create MCP configuration
+    print_step("Step 4: Verifying MCP server configuration...")
     mcp_config_path = script_dir / ".mcp.json"
 
     if mcp_config_path.exists():
@@ -106,8 +140,8 @@ def main():
         print_success("Created .mcp.json")
     print()
 
-    # Step 4: Test MCP server
-    print_step("Step 4: Testing MCP server...")
+    # Step 5: Test MCP server
+    print_step("Step 5: Testing MCP server...")
     try:
         # Try importing the MCP server module
         result = subprocess.run(
@@ -128,7 +162,10 @@ def main():
     print()
     print("The MCP server is now ready to use!")
     print()
-    print(f"{Colors.BLUE}To start the MCP server manually:{Colors.NC}")
+    is_windows = platform.system() == 'Windows'
+    shell_name = "PowerShell" if is_windows else "shell"
+    
+    print(f"{Colors.BLUE}To start the MCP server manually ({shell_name}):{Colors.NC}")
     print(f"  python -m framework.mcp.agent_builder_server")
     print()
     print(f"{Colors.BLUE}MCP Configuration location:{Colors.NC}")

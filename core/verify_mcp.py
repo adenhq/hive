@@ -6,17 +6,27 @@ This script checks if the MCP server is properly installed and configured.
 """
 
 import json
+import platform
 import subprocess
 import sys
 from pathlib import Path
 
+try:
+    import colorama
+    colorama.init()
+    COLORAMA_AVAILABLE = True
+except ImportError:
+    COLORAMA_AVAILABLE = False
+
 
 class Colors:
-    GREEN = '\033[0;32m'
-    YELLOW = '\033[1;33m'
-    RED = '\033[0;31m'
-    BLUE = '\033[0;34m'
-    NC = '\033[0m'
+    # Disable colors on Windows if colorama is not available
+    _use_colors = COLORAMA_AVAILABLE or platform.system() != 'Windows'
+    GREEN = '\033[0;32m' if _use_colors else ''
+    YELLOW = '\033[1;33m' if _use_colors else ''
+    RED = '\033[0;31m' if _use_colors else ''
+    BLUE = '\033[0;34m' if _use_colors else ''
+    NC = '\033[0m' if _use_colors else ''
 
 
 def check(description: str) -> bool:
@@ -48,46 +58,73 @@ def main():
     script_dir = Path(__file__).parent.absolute()
     all_checks_passed = True
 
+    # Check 0: Python version
+    check("Python version")
+    py_version = sys.version.split()[0]
+    py_major_minor = f"{sys.version_info.major}.{sys.version_info.minor}"
+    if sys.version_info >= (3, 11):
+        success(f"{py_version} (>= 3.11)")
+    else:
+        warning(f"{py_version} (3.11+ recommended)")
+    print()
+
     # Check 1: Framework package installed
     check("framework package installation")
     try:
         result = subprocess.run(
-            [sys.executable, "-c", "import framework; print(framework.__file__)"],
+            [sys.executable, "-c", "import framework; print(framework.__file__); print(getattr(framework, '__version__', 'unknown'))"],
             capture_output=True,
             text=True,
             check=True
         )
-        framework_path = result.stdout.strip()
-        success(f"installed at {framework_path}")
-    except subprocess.CalledProcessError:
+        lines = result.stdout.strip().split('\n')
+        framework_path = lines[0] if lines else 'unknown'
+        framework_version = lines[1] if len(lines) > 1 else 'unknown'
+        success(f"v{framework_version} at {framework_path}")
+    except subprocess.CalledProcessError as e:
         error("framework package not found")
-        print(f"  Run: pip install -e {script_dir}")
+        is_windows = platform.system() == 'Windows'
+        if is_windows:
+            print(f"  Run (PowerShell): python -m pip install -e {script_dir}")
+        else:
+            print(f"  Run: pip install -e {script_dir}")
+        if e.stderr:
+            print(f"  Error: {e.stderr}")
         all_checks_passed = False
 
     # Check 2: MCP dependencies
     check("MCP dependencies")
     missing_deps = []
+    installed_versions = {}
     for dep in ["mcp", "fastmcp"]:
         try:
-            subprocess.run(
-                [sys.executable, "-c", f"import {dep}"],
+            result = subprocess.run(
+                [sys.executable, "-c", f"import {dep}; print(getattr({dep}, '__version__', 'unknown'))"],
                 capture_output=True,
+                text=True,
                 check=True
             )
+            version = result.stdout.strip()
+            installed_versions[dep] = version
         except subprocess.CalledProcessError:
             missing_deps.append(dep)
 
     if missing_deps:
         error(f"missing: {', '.join(missing_deps)}")
-        print(f"  Run: pip install {' '.join(missing_deps)}")
+        is_windows = platform.system() == 'Windows'
+        if is_windows:
+            print(f"  Run (PowerShell): python -m pip install {' '.join(missing_deps)}")
+        else:
+            print(f"  Run: pip install {' '.join(missing_deps)}")
         all_checks_passed = False
     else:
-        success("all installed")
+        versions_str = ', '.join([f"{k} v{v}" for k, v in installed_versions.items()])
+        success(f"installed ({versions_str})")
 
     # Check 3: MCP server module
     check("MCP server module")
     try:
-        subprocess.run(
+        result = subprocess.run(
             [sys.executable, "-c", "from framework.mcp import agent_builder_server"],
             capture_output=True,
             text=True,
@@ -96,7 +133,11 @@ def main():
         success("loads successfully")
     except subprocess.CalledProcessError as e:
         error("failed to import")
-        print(f"  Error: {e.stderr}")
+        if e.stderr:
+            print(f"  Error: {e.stderr}")
+        if e.stdout:
+            print(f"  Output: {e.stdout}")
+        print(f"  Hint: Ensure framework package is installed with MCP dependencies")
         all_checks_passed = False
 
     # Check 4: MCP configuration file
@@ -176,12 +217,15 @@ def main():
 
     print()
     print("=" * 40)
+    is_windows = platform.system() == 'Windows'
+    shell_name = "PowerShell" if is_windows else "shell"
+    
     if all_checks_passed:
         print(f"{Colors.GREEN}✓ All checks passed!{Colors.NC}")
         print()
         print("Your MCP server is ready to use.")
         print()
-        print(f"{Colors.BLUE}To start the server:{Colors.NC}")
+        print(f"{Colors.BLUE}To start the server ({shell_name}):{Colors.NC}")
         print(f"  python -m framework.mcp.agent_builder_server")
         print()
         print(f"{Colors.BLUE}To use with Claude Desktop:{Colors.NC}")
@@ -190,7 +234,7 @@ def main():
     else:
         print(f"{Colors.RED}✗ Some checks failed{Colors.NC}")
         print()
-        print("To fix issues, run:")
+        print(f"To fix issues, run ({shell_name}):")
         print(f"  python {script_dir / 'setup_mcp.py'}")
     print()
 
