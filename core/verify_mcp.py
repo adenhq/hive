@@ -163,7 +163,7 @@ def main():
     else:
         warning("not found (optional)")
         print(f"  Location would be: {mcp_config}")
-        print(f"  Run setup_mcp.py to create it")
+        print("  Run setup_mcp.py to create it")
 
     # Check 5: Framework modules
     check("core framework modules")
@@ -225,12 +225,12 @@ def main():
         print()
         print("Your MCP server is ready to use.")
         print()
-        print(f"{Colors.BLUE}To start the server ({shell_name}):{Colors.NC}")
-        print(f"  python -m framework.mcp.agent_builder_server")
+        print(f"{Colors.BLUE}To start the server:{Colors.NC}")
+        print("  python -m framework.mcp.agent_builder_server")
         print()
         print(f"{Colors.BLUE}To use with Claude Desktop:{Colors.NC}")
-        print(f"  Add the configuration from .mcp.json to your")
-        print(f"  Claude Desktop MCP settings")
+        print("  Add the configuration from .mcp.json to your")
+        print("  Claude Desktop MCP settings")
     else:
         print(f"{Colors.RED}✗ Some checks failed{Colors.NC}")
         print()
