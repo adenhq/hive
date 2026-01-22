@@ -68,4 +68,4 @@ temp/
 
 exports/*
 
-core/.agent-builder-sessions/*
+.agent-builder-sessions/*
