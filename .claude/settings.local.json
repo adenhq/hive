@@ -13,7 +13,25 @@
       "mcp__agent-builder__test_node",
       "mcp__agent-builder__add_node",
       "mcp__agent-builder__add_edge",
-      "mcp__agent-builder__validate_graph"
+      "mcp__agent-builder__validate_graph",
+      "mcp__agent-builder__list_mcp_tools",
+      "Bash(PYTHONPATH=core:exports python:*)",
+      "mcp__agent-builder__list_tests",
+      "mcp__agent-builder__generate_constraint_tests",
+      "mcp__agent-builder__generate_success_tests",
+      "mcp__agent-builder__get_pending_tests",
+      "mcp__agent-builder__approve_tests",
+      "Bash(python:*)",
+      "mcp__agent-builder__run_tests",
+      "Bash(export CEREBRAS_API_KEY=csk-c9dncrdheh2x8vmy29hpn84hktm6cx4f942cxcct3whjcfxv)",
+      "Bash(PYTHONPATH=core:. pytest:*)",
+      "Bash(PYTHONPATH=core:. python:*)",
+      "Bash(echo $CEREBRAS_API_KEY)",
+      "Bash(source ~/.bashrc)",
+      "Skill(testing-agent)",
+      "Skill(testing-agent:*)",
+      "Bash(timeout 30 bash -c \"PYTHONPATH=core:exports python -c \"\"\nimport asyncio\nfrom exports.influencer_scouting_agent import default_agent\n\nasync def test\\(\\):\n    result = await default_agent.run\\({\n        ''brand_values'': [''sustainability''],\n        ''min_engagement_rate'': 3.5,\n        ''platforms'': [''instagram''],\n        ''filters'': {}\n    }, mock_mode=False\\)\n    print\\(''Success:'', result.success\\)\n    print\\(''Steps:'', result.steps_executed\\)\n    print\\(''Output keys:'', list\\(result.output.keys\\(\\)\\) if result.output else []\\)\n    if result.error:\n        print\\(''Error:'', result.error[:200]\\)\n\nasyncio.run\\(test\\(\\)\\)\n\"\" 2>&1\")",
+      "Bash(PYTHONPATH=core:exports MOCK_MODE=1 pytest:*)"
     ]
   }
 }
