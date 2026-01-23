@@ -172,7 +172,7 @@ class TestEmailService:
         mock_client.send.return_value = {"id": "email_456"}
         service.emails_client = mock_client
         
-        result = await service.send_budget_alert(budget_alert_critical)
+        await service.send_budget_alert(budget_alert_critical)
 
         call_kwargs = mock_client.send.call_args[0][0]
         assert "CRITICAL" in call_kwargs["subject"] or "🚨" in call_kwargs["subject"]
