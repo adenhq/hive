@@ -287,3 +287,302 @@ class TestEmailService:
         assert "33.3%" in subject or "33.4%" in subject  # Rounding
         assert "$333.33" in html
 
+
+class TestGenericEmailMethods:
+    """Test generic email sending methods for tool usage."""
+
+    @pytest.mark.asyncio
+    async def test_send_email_text(self, email_config_enabled):
+        """Test sending plain text email."""
+        service = EmailService(email_config_enabled)
+        
+        mock_client = MagicMock()
+        mock_client.send.return_value = {"id": "email_789"}
+        service.emails_client = mock_client
+        
+        result = await service.send_email(
+            to=["user@example.com"],
+            subject="Test Email",
+            body="This is a test message.",
+            body_type="text",
+        )
+
+        assert result["success"] is True
+        assert "email_id" in result
+        mock_client.send.assert_called_once()
+
+        call_kwargs = mock_client.send.call_args[0][0]
+        assert call_kwargs["to"] == ["user@example.com"]
+        assert call_kwargs["subject"] == "Test Email"
+        assert call_kwargs["text"] == "This is a test message."
+        assert "html" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_send_email_html(self, email_config_enabled):
+        """Test sending HTML email."""
+        service = EmailService(email_config_enabled)
+        
+        mock_client = MagicMock()
+        mock_client.send.return_value = {"id": "email_abc"}
+        service.emails_client = mock_client
+        
+        result = await service.send_email(
+            to=["user@example.com"],
+            subject="HTML Test",
+            body="<h1>Hello</h1><p>World</p>",
+            body_type="html",
+        )
+
+        assert result["success"] is True
+        call_kwargs = mock_client.send.call_args[0][0]
+        assert call_kwargs["html"] == "<h1>Hello</h1><p>World</p>"
+        assert "text" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_send_email_custom_from(self, email_config_enabled):
+        """Test sending email with custom from address."""
+        service = EmailService(email_config_enabled)
+        
+        mock_client = MagicMock()
+        mock_client.send.return_value = {"id": "email_def"}
+        service.emails_client = mock_client
+        
+        result = await service.send_email(
+            to=["user@example.com"],
+            subject="Custom From",
+            body="Test",
+            from_email="custom@example.com",
+        )
+
+        assert result["success"] is True
+        call_kwargs = mock_client.send.call_args[0][0]
+        assert call_kwargs["from"] == "custom@example.com"
+
+    @pytest.mark.asyncio
+    async def test_send_email_disabled_service(self, email_config_disabled):
+        """Test sending email when service is disabled."""
+        service = EmailService(email_config_disabled)
+        
+        result = await service.send_email(
+            to=["user@example.com"],
+            subject="Test",
+            body="Test",
+        )
+
+        assert result["success"] is False
+        assert "not enabled" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_send_email_no_recipients(self, email_config_enabled):
+        """Test sending email with no recipients."""
+        service = EmailService(email_config_enabled)
+        service.emails_client = MagicMock()
+        
+        result = await service.send_email(
+            to=[],
+            subject="Test",
+            body="Test",
+        )
+
+        assert result["success"] is False
+        assert "No recipients" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_send_email_missing_subject(self, email_config_enabled):
+        """Test sending email without subject."""
+        service = EmailService(email_config_enabled)
+        service.emails_client = MagicMock()
+        
+        result = await service.send_email(
+            to=["user@example.com"],
+            subject="",
+            body="Test",
+        )
+
+        assert result["success"] is False
+        assert "required" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_send_email_api_error(self, email_config_enabled):
+        """Test handling API errors in send_email."""
+        service = EmailService(email_config_enabled)
+        
+        mock_client = MagicMock()
+        mock_client.send.side_effect = Exception("API Error")
+        service.emails_client = mock_client
+        
+        result = await service.send_email(
+            to=["user@example.com"],
+            subject="Test",
+            body="Test",
+        )
+
+        assert result["success"] is False
+        assert "API Error" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_send_from_template_notification(self, email_config_enabled):
+        """Test sending email from notification template."""
+        service = EmailService(email_config_enabled)
+        
+        mock_client = MagicMock()
+        mock_client.send.return_value = {"id": "email_notif"}
+        service.emails_client = mock_client
+        
+        result = await service.send_from_template(
+            to=["user@example.com"],
+            template_name="notification",
+            variables={
+                "subject": "Test Notification",
+                "title": "Update",
+                "message": "<p>System updated</p>",
+                "icon": "🔔",
+            },
+        )
+
+        assert result["success"] is True
+        call_kwargs = mock_client.send.call_args[0][0]
+        assert call_kwargs["subject"] == "Test Notification"
+        assert "Update" in call_kwargs["html"]
+        assert "🔔" in call_kwargs["html"]
+
+    @pytest.mark.asyncio
+    async def test_send_from_template_report(self, email_config_enabled):
+        """Test sending email from report template."""
+        service = EmailService(email_config_enabled)
+        
+        mock_client = MagicMock()
+        mock_client.send.return_value = {"id": "email_report"}
+        service.emails_client = mock_client
+        
+        result = await service.send_from_template(
+            to=["user@example.com"],
+            template_name="report",
+            variables={
+                "subject": "Weekly Report",
+                "title": "Sales Report",
+                "content": "<p>Total: $50,000</p>",
+                "date": "2026-01-24",
+            },
+        )
+
+        assert result["success"] is True
+        call_kwargs = mock_client.send.call_args[0][0]
+        assert "Sales Report" in call_kwargs["html"]
+        assert "2026-01-24" in call_kwargs["html"]
+
+    @pytest.mark.asyncio
+    async def test_send_from_template_approval_request(self, email_config_enabled):
+        """Test sending approval request template."""
+        service = EmailService(email_config_enabled)
+        
+        mock_client = MagicMock()
+        mock_client.send.return_value = {"id": "email_approval"}
+        service.emails_client = mock_client
+        
+        result = await service.send_from_template(
+            to=["manager@example.com"],
+            template_name="approval_request",
+            variables={
+                "subject": "Approval Needed",
+                "title": "Purchase Approval",
+                "description": "Need approval for $5,000",
+                "action_url": "https://example.com/approve",
+            },
+        )
+
+        assert result["success"] is True
+        call_kwargs = mock_client.send.call_args[0][0]
+        assert "Purchase Approval" in call_kwargs["html"]
+        assert "https://example.com/approve" in call_kwargs["html"]
+
+    @pytest.mark.asyncio
+    async def test_send_from_template_completion(self, email_config_enabled):
+        """Test sending completion template."""
+        service = EmailService(email_config_enabled)
+        
+        mock_client = MagicMock()
+        mock_client.send.return_value = {"id": "email_complete"}
+        service.emails_client = mock_client
+        
+        result = await service.send_from_template(
+            to=["user@example.com"],
+            template_name="completion",
+            variables={
+                "subject": "Task Complete",
+                "title": "Analysis Complete",
+                "task_name": "Data Analysis",
+                "summary": "Analysis completed successfully.",
+            },
+        )
+
+        assert result["success"] is True
+        call_kwargs = mock_client.send.call_args[0][0]
+        assert "Data Analysis" in call_kwargs["html"]
+        assert "Analysis completed successfully" in call_kwargs["html"]
+
+    def test_render_template_unknown(self, email_config_enabled):
+        """Test rendering unknown template raises error."""
+        service = EmailService(email_config_enabled)
+        
+        with pytest.raises(ValueError) as exc_info:
+            service._render_template("unknown_template", {})
+        
+        assert "Unknown template" in str(exc_info.value)
+
+    def test_render_notification_template(self, email_config_enabled):
+        """Test notification template rendering."""
+        service = EmailService(email_config_enabled)
+        
+        html = service._render_notification_template({
+            "title": "Test Title",
+            "message": "<p>Test message</p>",
+            "icon": "📢",
+        })
+
+        assert "Test Title" in html
+        assert "<p>Test message</p>" in html
+        assert "📢" in html
+        assert "<!DOCTYPE html>" in html
+
+    def test_render_report_template(self, email_config_enabled):
+        """Test report template rendering."""
+        service = EmailService(email_config_enabled)
+        
+        html = service._render_report_template({
+            "title": "Monthly Report",
+            "content": "<h2>Summary</h2>",
+            "date": "2026-01-24",
+        })
+
+        assert "Monthly Report" in html
+        assert "<h2>Summary</h2>" in html
+        assert "2026-01-24" in html
+
+    def test_render_approval_request_template(self, email_config_enabled):
+        """Test approval request template rendering."""
+        service = EmailService(email_config_enabled)
+        
+        html = service._render_approval_request_template({
+            "title": "Approval Required",
+            "description": "Please approve this request",
+            "action_url": "https://example.com/approve",
+        })
+
+        assert "Approval Required" in html
+        assert "Please approve this request" in html
+        assert "https://example.com/approve" in html
+
+    def test_render_completion_template(self, email_config_enabled):
+        """Test completion template rendering."""
+        service = EmailService(email_config_enabled)
+        
+        html = service._render_completion_template({
+            "title": "Task Complete",
+            "task_name": "Research",
+            "summary": "Research completed.",
+        })
+
+        assert "Task Complete" in html
+        assert "Research" in html
+        assert "Research completed." in html

@@ -358,3 +358,401 @@ class EmailService:
             True if service is enabled with a valid client, False otherwise
         """
         return self.config.enabled and self.emails_client is not None
+
+    async def send_email(
+        self,
+        to: list[str],
+        subject: str,
+        body: str,
+        body_type: str = "text",
+        from_email: Optional[str] = None,
+    ) -> dict:
+        """
+        Send a generic email (for tool usage).
+        
+        Args:
+            to: List of recipient email addresses
+            subject: Email subject line
+            body: Email body content (text or HTML)
+            body_type: "text" for plain text, "html" for HTML content
+            from_email: Sender email (optional, uses default from config)
+            
+        Returns:
+            Dict with {"success": True, "email_id": "..."} or {"success": False, "error": "..."}
+        """
+        if not self.is_enabled():
+            logger.debug("Email service disabled, skipping email")
+            return {"success": False, "error": "Email service is not enabled"}
+
+        if not to:
+            return {"success": False, "error": "No recipients specified"}
+
+        if not subject or not body:
+            return {"success": False, "error": "Subject and body are required"}
+
+        try:
+            sender = from_email or self.config.from_email
+            email_payload = {
+                "from": sender,
+                "to": to,
+                "subject": subject,
+            }
+
+            if body_type == "html":
+                email_payload["html"] = body
+            else:
+                email_payload["text"] = body
+
+            response = self.emails_client.send(email_payload)
+
+            logger.info(f"Email sent to {', '.join(to)} - Subject: {subject}")
+            return {"success": True, "email_id": str(response.get("id", ""))}
+
+        except Exception as e:
+            logger.error(f"Failed to send email: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def send_from_template(
+        self,
+        to: list[str],
+        template_name: str,
+        variables: dict,
+        from_email: Optional[str] = None,
+    ) -> dict:
+        """
+        Send email from a predefined template.
+        
+        Args:
+            to: List of recipient email addresses
+            template_name: Name of the template to use
+            variables: Dict of variables to inject into template
+            from_email: Sender email (optional)
+            
+        Returns:
+            Dict with {"success": True, "email_id": "..."} or {"success": False, "error": "..."}
+        """
+        try:
+            html_content = self._render_template(template_name, variables)
+            subject = variables.get("subject", f"Notification from {template_name}")
+            
+            return await self.send_email(
+                to=to,
+                subject=subject,
+                body=html_content,
+                body_type="html",
+                from_email=from_email,
+            )
+        except Exception as e:
+            logger.error(f"Failed to send templated email: {e}")
+            return {"success": False, "error": str(e)}
+
+    def _render_template(self, template_name: str, variables: dict) -> str:
+        """
+        Render HTML template with variables.
+        
+        Args:
+            template_name: Name of the template
+            variables: Variables to inject into template
+            
+        Returns:
+            Rendered HTML string
+        """
+        # Template registry - maps template names to rendering functions
+        templates = {
+            "notification": self._render_notification_template,
+            "report": self._render_report_template,
+            "approval_request": self._render_approval_request_template,
+            "completion": self._render_completion_template,
+        }
+        
+        renderer = templates.get(template_name)
+        if not renderer:
+            raise ValueError(f"Unknown template: {template_name}. Available templates: {list(templates.keys())}")
+        
+        return renderer(variables)
+
+    def _render_notification_template(self, variables: dict) -> str:
+        """Render notification template."""
+        title = variables.get("title", "Notification")
+        message = variables.get("message", "")
+        icon = variables.get("icon", "📢")
+        
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }}
+        .header {{
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 2px solid #007bff;
+        }}
+        .header h1 {{
+            margin: 0;
+            color: #222;
+            font-size: 24px;
+        }}
+        .content {{
+            padding: 30px 20px;
+        }}
+        .footer {{
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{icon} {title}</h1>
+        </div>
+        <div class="content">
+            {message}
+        </div>
+        <div class="footer">
+            <p>This is an automated notification.</p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+    def _render_report_template(self, variables: dict) -> str:
+        """Render report template."""
+        title = variables.get("title", "Report")
+        content = variables.get("content", "")
+        date = variables.get("date", "")
+        
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }}
+        .container {{
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }}
+        .header {{
+            text-align: center;
+            padding: 20px 0;
+            background-color: #f8f9fa;
+            border-radius: 8px 8px 0 0;
+        }}
+        .header h1 {{
+            margin: 0;
+            color: #222;
+            font-size: 28px;
+        }}
+        .meta {{
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-top: 10px;
+        }}
+        .content {{
+            padding: 30px 20px;
+        }}
+        .footer {{
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 {title}</h1>
+            {f'<div class="meta">{date}</div>' if date else ''}
+        </div>
+        <div class="content">
+            {content}
+        </div>
+        <div class="footer">
+            <p>This report was generated automatically.</p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+    def _render_approval_request_template(self, variables: dict) -> str:
+        """Render approval request template."""
+        title = variables.get("title", "Approval Required")
+        description = variables.get("description", "")
+        action_url = variables.get("action_url", "#")
+        
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }}
+        .header {{
+            text-align: center;
+            padding: 20px 0;
+            background-color: #fff3cd;
+            border-radius: 8px 8px 0 0;
+        }}
+        .header h1 {{
+            margin: 0;
+            color: #222;
+            font-size: 24px;
+        }}
+        .content {{
+            padding: 30px 20px;
+        }}
+        .button {{
+            display: inline-block;
+            padding: 12px 24px;
+            margin: 20px 0;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 600;
+        }}
+        .footer {{
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✋ {title}</h1>
+        </div>
+        <div class="content">
+            <p>{description}</p>
+            <div style="text-align: center;">
+                <a href="{action_url}" class="button">Review and Approve</a>
+            </div>
+        </div>
+        <div class="footer">
+            <p>Please review and take action as needed.</p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+    def _render_completion_template(self, variables: dict) -> str:
+        """Render task completion template."""
+        title = variables.get("title", "Task Completed")
+        task_name = variables.get("task_name", "")
+        summary = variables.get("summary", "")
+        
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }}
+        .header {{
+            text-align: center;
+            padding: 20px 0;
+            background-color: #d4edda;
+            border-radius: 8px 8px 0 0;
+        }}
+        .header h1 {{
+            margin: 0;
+            color: #155724;
+            font-size: 24px;
+        }}
+        .content {{
+            padding: 30px 20px;
+        }}
+        .task-name {{
+            font-weight: bold;
+            color: #007bff;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }}
+        .footer {{
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✅ {title}</h1>
+        </div>
+        <div class="content">
+            {f'<div class="task-name">{task_name}</div>' if task_name else ''}
+            <p>{summary}</p>
+        </div>
+        <div class="footer">
+            <p>Task completed successfully.</p>
+        </div>
+    </div>
+</body>
+</html>"""
