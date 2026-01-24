@@ -18,14 +18,13 @@
       "Bash(PYTHONPATH=core:exports python:*)",
       "mcp__agent-builder__list_tests",
       "mcp__agent-builder__generate_constraint_tests",
-      "mcp__agent-builder__list_sessions",
-      "mcp__agent-builder__export_graph",
-      "mcp__agent-builder__generate_success_tests",
-      "mcp__agent-builder__debug_test",
-      "mcp__agent-builder__run_tests",
+      "Bash(python -m agent:*)",
+      "Bash(python agent.py:*)",
+      "Bash(python -c:*)",
+      "Bash(done)",
+      "Bash(xargs cat:*)",
       "mcp__agent-builder__list_mcp_tools",
-      "mcp__agent-builder__test_graph",
-      "Bash(python:*)"
+      "mcp__agent-builder__add_mcp_server"
     ]
   }
 }
