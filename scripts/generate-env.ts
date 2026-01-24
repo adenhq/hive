@@ -8,9 +8,9 @@
  * Usage: npx tsx scripts/generate-env.ts
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { parse } from 'yaml';
-import { join, dirname } from 'path';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -153,6 +153,16 @@ FEATURE_MCP_SERVER=${config.features.mcp_server}
 `;
 }
 
+function createOrAppend(path: string, content: string) {
+  let options = {};
+  if (existsSync(path)) {
+    options['flag'] = 'a';
+  } else {
+    mkdirSync(dirname(path), { recursive: true });
+  }
+  writeFileSync(path, content, options);
+}
+
 function main() {
   console.log('Generating environment files from config.yaml...\n');
 
@@ -160,17 +170,17 @@ function main() {
 
   // Generate root .env (for docker-compose)
   const rootEnvPath = join(PROJECT_ROOT, '.env');
-  writeFileSync(rootEnvPath, generateRootEnv(config));
+  createOrAppend(rootEnvPath, generateRootEnv(config));
   console.log(`✓ Generated ${rootEnvPath}`);
 
   // Generate frontend .env
   const frontendEnvPath = join(PROJECT_ROOT, 'honeycomb', '.env');
-  writeFileSync(frontendEnvPath, generateFrontendEnv(config));
+  createOrAppend(frontendEnvPath, generateFrontendEnv(config));
   console.log(`✓ Generated ${frontendEnvPath}`);
 
   // Generate backend .env
   const backendEnvPath = join(PROJECT_ROOT, 'hive', '.env');
-  writeFileSync(backendEnvPath, generateBackendEnv(config));
+  createOrAppend(backendEnvPath, generateBackendEnv(config));
   console.log(`✓ Generated ${backendEnvPath}`);
 
   console.log('\nDone! Environment files have been generated.');

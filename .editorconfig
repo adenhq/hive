@@ -19,3 +19,6 @@ indent_size = 2
 
 [Makefile]
 indent_style = tab
+
+[.sh]
+max_line_length = 80

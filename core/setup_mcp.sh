@@ -3,47 +3,47 @@
 # Setup script for Aden Hive Framework MCP Server
 # This script installs the framework and configures the MCP server
 
-set -e  # Exit on error
+set -e
 
-echo "=== Aden Hive Framework MCP Server Setup ==="
-echo ""
-
-# Color codes for output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
+# Colors for output
+NC='[0m' # No Color
+BOLD='[1m'
+RED='[91m'
+GREEN='[92m'
+YELLOW='[93m'
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
 cd "$SCRIPT_DIR"
 
-echo -e "${YELLOW}Step 1: Installing framework package...${NC}"
-pip install -e . || {
-    echo -e "${RED}Failed to install framework package${NC}"
-    exit 1
-}
-echo -e "${GREEN}✓ Framework package installed${NC}"
-echo ""
+warn () { echo "$YELLOW$*$NC"; } >&2
 
-echo -e "${YELLOW}Step 2: Installing MCP dependencies...${NC}"
-pip install mcp fastmcp || {
-    echo -e "${RED}Failed to install MCP dependencies${NC}"
-    exit 1
-}
-echo -e "${GREEN}✓ MCP dependencies installed${NC}"
-echo ""
+die () { echo "$RED$*$NC"; exit 1; } >&2
 
-echo -e "${YELLOW}Step 3: Verifying MCP server configuration...${NC}"
+echo "$BOLD=== Aden Hive Framework MCP Server Setup ===$NC"
+echo
+
+warn "Step 1: Installing framework package..."
+pip install -e . || die "Failed to install framework package"
+echo "$GREEN✓ Framework package installed$NC"
+echo
+
+warn "Step 2: Installing MCP dependencies..."
+pip install mcp fastmcp || die "Failed to install MCP dependencies"
+echo "$GREEN✓ MCP dependencies installed$NC"
+echo
+
+warn "Step 3: Verifying MCP server configuration..."
 if [ -f ".mcp.json" ]; then
-    echo -e "${GREEN}✓ MCP configuration found at .mcp.json${NC}"
-    echo "Configuration:"
-    cat .mcp.json
+  echo "$GREEN✓ MCP configuration found at .mcp.json$NC"
+  echo "Configuration:"
+  cat .mcp.json
 else
-    echo -e "${RED}✗ No .mcp.json found${NC}"
-    echo "Creating default MCP configuration..."
+  echo "$RED✗ No .mcp.json found$NC"
+  echo "Creating default MCP configuration..."
 
-    cat > .mcp.json <<EOF
+  cat > .mcp.json <<EOF
 {
   "mcpServers": {
     "agent-builder": {
@@ -54,31 +54,30 @@ else
   }
 }
 EOF
-    echo -e "${GREEN}✓ Created .mcp.json${NC}"
+  echo "$GREEN✓ Created .mcp.json$NC"
 fi
-echo ""
+echo
 
-echo -e "${YELLOW}Step 4: Testing MCP server...${NC}"
-python -c "from framework.mcp import agent_builder_server; print('✓ MCP server module loads successfully')" || {
-    echo -e "${RED}Failed to import MCP server module${NC}"
-    exit 1
-}
-echo -e "${GREEN}✓ MCP server module verified${NC}"
-echo ""
+warn "Step 4: Testing MCP server..."
+python -c "from framework.mcp import agent_builder_server; \
+print('✓ MCP server module loads successfully')" ||
+  die "Failed to import MCP server module"
+echo "$GREEN✓ MCP server module verified$NC"
+echo
 
-echo -e "${GREEN}=== Setup Complete ===${NC}"
-echo ""
+echo "$GREEN=== Setup Complete ===$NC"
+echo
 echo "The MCP server is now ready to use!"
-echo ""
+echo
 echo "To start the MCP server manually:"
 echo "  python -m framework.mcp.agent_builder_server"
-echo ""
+echo
 echo "MCP Configuration location:"
 echo "  $SCRIPT_DIR/.mcp.json"
-echo ""
+echo
 echo "To use with Claude Desktop or other MCP clients,"
 echo "add the following to your MCP client configuration:"
-echo ""
+echo
 echo "{
   \"mcpServers\": {
     \"agent-builder\": {
@@ -88,4 +87,4 @@ echo "{
     }
   }
 }"
-echo ""
+echo
