@@ -1,6 +1,5 @@
 """Tests for list_dir tool."""
 import os
-import sys
 import pytest
 from pathlib import Path
 from fastmcp import FastMCP

@@ -18,7 +18,9 @@ def register_tools(mcp: FastMCP) -> None:
 
         Rules & Constraints
             Path must point to an existing directory
-            Returns file names, types, and sizes
+            Returns file names, types, sizes, and per-entry paths
+            Type can be 'file', 'directory', or 'symlink'
+            Includes 'broken' flag for entries (true for broken symlinks)
             Does not recurse into subdirectories
 
         Args:
