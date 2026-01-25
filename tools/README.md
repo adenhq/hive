@@ -57,14 +57,20 @@ python mcp_server.py
 
 ## Available Tools
 
-| Tool           | Description                              |
-| -------------- | ---------------------------------------- |
-| `example_tool` | Template tool demonstrating the pattern  |
-| `file_read`    | Read contents of local files             |
-| `file_write`   | Write content to local files             |
-| `web_search`   | Search the web using Brave Search API    |
-| `web_scrape`   | Scrape and extract content from webpages |
-| `pdf_read`     | Read and extract text from PDF files     |
+| Tool                | Description                                         |
+| ------------------- | --------------------------------------------------- |
+| `example_tool`      | Template tool demonstrating the registration flow  |
+| `web_search`        | Search the web using the Brave Search API          |
+| `web_scrape`        | Scrape and extract content from webpages           |
+| `pdf_read`          | Read and extract text from PDF files               |
+| `view_file`         | Read contents of a local file                      |
+| `write_to_file`     | Write or overwrite file contents                   |
+| `list_dir`          | List directories and files in a folder             |
+| `replace_file_content` | Search-and-replace file contents within the workspace |
+| `apply_diff`        | Apply a unified diff patch to a file               |
+| `apply_patch`       | Similar to `apply_diff` but tuned for small edits  |
+| `grep_search`       | Search workspace files for text patterns          |
+| `execute_command_tool` | Execute shell commands inside the workspace sandbox |
 
 ## Project Structure
 
@@ -75,11 +81,18 @@ tools/
 │   ├── utils/               # Utility functions
 │   └── tools/               # Tool implementations
 │       ├── example_tool/
-│       ├── file_read_tool/
-│       ├── file_write_tool/
 │       ├── web_search_tool/
 │       ├── web_scrape_tool/
-│       └── pdf_read_tool/
+│       ├── pdf_read_tool/
+│       └── file_system_toolkits/
+│           ├── apply_diff/
+│           ├── apply_patch/
+│           ├── execute_command_tool/
+│           ├── grep_search/
+│           ├── list_dir/
+│           ├── replace_file_content/
+│           ├── view_file/
+│           └── write_to_file/
 ├── tests/                   # Test suite
 ├── mcp_server.py            # MCP server entry point
 ├── README.md

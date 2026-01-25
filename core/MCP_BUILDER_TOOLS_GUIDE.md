@@ -72,14 +72,20 @@ Register an MCP server as a tool source for your agent.
     "cwd": "../tools",
     "description": "Aden tools..."
   },
-  "tools_discovered": 6,
+  "tools_discovered": 12,
   "tools": [
-    "web_search",
-    "web_scrape",
-    "file_read",
-    "file_write",
+    "example_tool",
+    "execute_command_tool",
+    "apply_diff",
+    "apply_patch",
+    "grep_search",
+    "list_dir",
     "pdf_read",
-    "example_tool"
+    "replace_file_content",
+    "view_file",
+    "web_scrape",
+    "web_search",
+    "write_to_file"
   ],
   "total_mcp_servers": 1,
   "note": "MCP server 'tools' registered with 6 tools. These tools can now be used in llm_tool_use nodes."
@@ -325,8 +331,13 @@ Provides:
 
 - `web_search` - Brave Search API integration
 - `web_scrape` - Web page content extraction
-- `file_read` / `file_write` - File operations
 - `pdf_read` - PDF text extraction
+- `view_file` / `write_to_file` - Read and write workspace files
+- `list_dir` - Inspect directories and file listings
+- `replace_file_content` - Search/replace text inside files
+- `apply_diff` / `apply_patch` - Apply patch-style edits
+- `grep_search` - Search for text across files
+- `execute_command_tool` - Run shell commands within the workspace
 
 ### Custom MCP Servers
 

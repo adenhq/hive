@@ -151,11 +151,18 @@ Tools from MCP servers can be referenced in your agent.json just like built-in t
 
 When you register the `tools` MCP server, the following tools become available:
 
-- **web_search**: Search the web using Brave Search API
+- **web_search**: Search the web using the Brave Search API
 - **web_scrape**: Scrape content from a URL
-- **file_read**: Read file contents
-- **file_write**: Write content to a file
 - **pdf_read**: Extract text from PDF files
+- **view_file**: Read contents of a workspace file
+- **write_to_file**: Create or overwrite files in the workspace
+- **list_dir**: List directories and files inside a folder
+- **replace_file_content**: Replace or edit text blocks inside a file
+- **apply_diff**: Apply a unified diff patch to a file
+- **apply_patch**: Apply targeted edits to workspace files
+- **grep_search**: Search workspace files for matching text
+- **execute_command_tool**: Execute shell commands inside the workspace sandbox
+- **example_tool**: Template helper used in tutorials
 
 ## Environment Variables
 

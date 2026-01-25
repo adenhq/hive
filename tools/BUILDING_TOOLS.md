@@ -293,6 +293,6 @@ Mock external APIs to keep tests fast and deterministic.
 
 ## Naming Conventions
 
-- **Folder name**: `snake_case` with `_tool` suffix (e.g., `file_read_tool`)
-- **Function name**: `snake_case` (e.g., `file_read`)
+- **Folder name**: `snake_case` with `_tool` suffix (e.g., `view_file_tool`)
+- **Function name**: `snake_case` (e.g., `view_file`)
 - **Tool description**: Clear, actionable docstring

@@ -256,7 +256,7 @@ class CredentialManager:
 
         Example:
             creds = CredentialManager()
-            creds.validate_for_tools(["web_search", "file_read"])
+            creds.validate_for_tools(["web_search", "view_file"])
             # Raises CredentialError if BRAVE_SEARCH_API_KEY is not set
         """
         missing = self.get_missing_for_tools(tool_names)

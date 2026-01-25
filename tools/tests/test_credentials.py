@@ -107,7 +107,7 @@ class TestCredentialManagerToolMapping:
         """get_credential_for_tool() returns None for tools without credentials."""
         creds = CredentialManager()
 
-        assert creds.get_credential_for_tool("file_read") is None
+        assert creds.get_credential_for_tool("view_file") is None
         assert creds.get_credential_for_tool("unknown_tool") is None
 
     def test_get_missing_for_tools_returns_missing(self, monkeypatch, tmp_path):
@@ -115,7 +115,7 @@ class TestCredentialManagerToolMapping:
         monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
 
         creds = CredentialManager(dotenv_path=tmp_path / ".env")
-        missing = creds.get_missing_for_tools(["web_search", "file_read"])
+        missing = creds.get_missing_for_tools(["web_search", "view_file"])
 
         assert len(missing) == 1
         cred_name, spec = missing[0]
@@ -127,7 +127,7 @@ class TestCredentialManagerToolMapping:
         monkeypatch.setenv("BRAVE_SEARCH_API_KEY", "test-key")
 
         creds = CredentialManager()
-        missing = creds.get_missing_for_tools(["web_search", "file_read"])
+        missing = creds.get_missing_for_tools(["web_search", "view_file"])
 
         assert missing == []
 
@@ -175,14 +175,14 @@ class TestCredentialManagerValidation:
         creds = CredentialManager()
 
         # Should not raise
-        creds.validate_for_tools(["web_search", "file_read"])
+        creds.validate_for_tools(["web_search", "view_file"])
 
     def test_validate_for_tools_passes_for_tools_without_credentials(self):
         """validate_for_tools() succeeds for tools that don't need credentials."""
         creds = CredentialManager()
 
-        # Should not raise - file_read doesn't need credentials
-        creds.validate_for_tools(["file_read"])
+        # Should not raise - view_file doesn't need credentials
+        creds.validate_for_tools(["view_file"])
 
     def test_validate_for_tools_passes_for_empty_list(self):
         """validate_for_tools() succeeds for empty tool list."""
@@ -318,9 +318,9 @@ class TestCredentialSpecs:
         assert spec.tools == []
         assert "llm_generate" in spec.node_types
         assert "llm_tool_use" in spec.node_types
-        assert spec.required is True
-        assert spec.startup_required is True
-        assert "anthropic.com" in spec.help_url
+        assert spec.required is False
+        assert spec.startup_required is False
+        assert "console.anthropic.com" in spec.help_url
 
 
 class TestNodeTypeValidation:
@@ -328,15 +328,28 @@ class TestNodeTypeValidation:
 
     def test_get_missing_for_node_types_returns_missing(self, monkeypatch, tmp_path):
         """get_missing_for_node_types() returns missing credentials."""
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        ENV_VAR = "REQUIRED_LLM_KEY"
+        monkeypatch.delenv(ENV_VAR, raising=False)
 
-        creds = CredentialManager(dotenv_path=tmp_path / ".env")
+        custom_specs = {
+            "required_llm": CredentialSpec(
+                env_var=ENV_VAR,
+                tools=[],
+                node_types=["llm_generate", "llm_tool_use"],
+                required=True,
+                startup_required=False,
+                help_url="https://example.com/keys",
+                description="Test-only required LLM key",
+            )
+        }
+
+        creds = CredentialManager(specs=custom_specs, dotenv_path=tmp_path / ".env")
         missing = creds.get_missing_for_node_types(["llm_generate", "llm_tool_use"])
 
         assert len(missing) == 1
         cred_name, spec = missing[0]
-        assert cred_name == "anthropic"
-        assert spec.env_var == "ANTHROPIC_API_KEY"
+        assert cred_name == "required_llm"
+        assert spec.env_var == ENV_VAR
 
     def test_get_missing_for_node_types_returns_empty_when_present(self, monkeypatch):
         """get_missing_for_node_types() returns empty when credentials present."""
@@ -358,15 +371,28 @@ class TestNodeTypeValidation:
 
     def test_validate_for_node_types_raises_for_missing(self, monkeypatch, tmp_path):
         """validate_for_node_types() raises CredentialError when missing."""
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        ENV_VAR = "REQUIRED_LLM_KEY"
+        monkeypatch.delenv(ENV_VAR, raising=False)
 
-        creds = CredentialManager(dotenv_path=tmp_path / ".env")
+        custom_specs = {
+            "required_llm": CredentialSpec(
+                env_var=ENV_VAR,
+                tools=[],
+                node_types=["llm_generate", "llm_tool_use"],
+                required=True,
+                startup_required=False,
+                help_url="https://example.com/keys",
+                description="Test-only required LLM key",
+            )
+        }
+
+        creds = CredentialManager(specs=custom_specs, dotenv_path=tmp_path / ".env")
 
         with pytest.raises(CredentialError) as exc_info:
             creds.validate_for_node_types(["llm_generate"])
 
         error_msg = str(exc_info.value)
-        assert "ANTHROPIC_API_KEY" in error_msg
+        assert ENV_VAR in error_msg
         assert "llm_generate" in error_msg
 
     def test_validate_for_node_types_passes_when_present(self, monkeypatch):
@@ -384,15 +410,28 @@ class TestStartupValidation:
 
     def test_validate_startup_raises_for_missing(self, monkeypatch, tmp_path):
         """validate_startup() raises CredentialError when startup creds missing."""
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        ENV_VAR = "STARTUP_KEY"
+        monkeypatch.delenv(ENV_VAR, raising=False)
 
-        creds = CredentialManager(dotenv_path=tmp_path / ".env")
+        custom_specs = {
+            "startup_required": CredentialSpec(
+                env_var=ENV_VAR,
+                tools=[],
+                node_types=[],
+                required=True,
+                startup_required=True,
+                help_url="https://example.com/startup",
+                description="Startup-only credential",
+            )
+        }
+
+        creds = CredentialManager(specs=custom_specs, dotenv_path=tmp_path / ".env")
 
         with pytest.raises(CredentialError) as exc_info:
             creds.validate_startup()
 
         error_msg = str(exc_info.value)
-        assert "ANTHROPIC_API_KEY" in error_msg
+        assert ENV_VAR in error_msg
         assert "Server startup failed" in error_msg
 
     def test_validate_startup_passes_when_present(self, monkeypatch):

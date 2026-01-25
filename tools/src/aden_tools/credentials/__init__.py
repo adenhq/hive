@@ -13,7 +13,7 @@ Usage:
     credentials.validate_startup()
 
     # In agent runner (validate at agent load time)
-    credentials.validate_for_tools(["web_search", "file_read"])
+    credentials.validate_for_tools(["web_search", "view_file"])
 
     # In tools
     api_key = credentials.get("brave_search")
