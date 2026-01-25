@@ -63,17 +63,23 @@ git --version       # Any recent version
 git clone https://github.com/adenhq/hive.git
 cd hive
 
-# 2. Run automated Python setup
+# 2. Run automated Python setup (creates .venv automatically)
 ./scripts/setup-python.sh
+
+# 3. Activate the virtual environment
+source .venv/bin/activate
 ```
 
 The setup script performs these actions:
 
 1. Checks Python version (3.11+)
-2. Installs `framework` package from `/core` (editable mode)
-3. Installs `aden_tools` package from `/tools` (editable mode)
-4. Fixes package compatibility (upgrades openai for litellm)
-5. Verifies all installations
+2. Creates and activates a virtual environment at `.venv/`
+3. Installs `framework` package from `/core` (editable mode)
+4. Installs `aden_tools` package from `/tools` (editable mode)
+5. Fixes package compatibility (upgrades openai for litellm)
+6. Verifies all installations
+
+**Important:** Always activate the virtual environment with `source .venv/bin/activate` before running agents or installing packages.
 
 ### API Keys (Optional)
 
@@ -107,6 +113,9 @@ This installs:
 ### Verify Setup
 
 ```bash
+# Activate virtual environment first
+source .venv/bin/activate
+
 # Verify package imports
 python -c "import framework; print('✓ framework OK')"
 python -c "import aden_tools; print('✓ aden_tools OK')"
@@ -576,6 +585,9 @@ logger.debug("Processing request", {
 ### Adding Python Dependencies
 
 ```bash
+# Activate virtual environment first
+source .venv/bin/activate
+
 # Add to core framework
 cd core
 pip install <package>

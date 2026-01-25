@@ -70,6 +70,28 @@ fi
 echo -e "${GREEN}✓${NC} pip detected"
 echo ""
 
+# Check if we're in a virtual environment, if not, create one
+VENV_DIR="$PROJECT_ROOT/.venv"
+if [ -z "$VIRTUAL_ENV" ]; then
+    echo "No virtual environment detected."
+    if [ -d "$VENV_DIR" ]; then
+        echo "Found existing venv at $VENV_DIR"
+        echo "Activating virtual environment..."
+        source "$VENV_DIR/bin/activate"
+    else
+        echo "Creating virtual environment at $VENV_DIR..."
+        $PYTHON_CMD -m venv "$VENV_DIR"
+        echo "Activating virtual environment..."
+        source "$VENV_DIR/bin/activate"
+        echo -e "${GREEN}✓${NC} Virtual environment created and activated"
+    fi
+    # Update PYTHON_CMD to use the venv python
+    PYTHON_CMD="python"
+else
+    echo "Already in virtual environment: $VIRTUAL_ENV"
+fi
+echo ""
+
 # Upgrade pip, setuptools, and wheel
 echo "Upgrading pip, setuptools, and wheel..."
 if ! $PYTHON_CMD -m pip install --upgrade pip setuptools wheel; then
@@ -183,14 +205,17 @@ echo "=================================================="
 echo "  Setup Complete!"
 echo "=================================================="
 echo ""
-echo "Python packages installed:"
+echo "Python packages installed in: $VENV_DIR"
 echo "  • framework (core agent runtime)"
 echo "  • aden_tools (tools and MCP servers)"
 echo "  • All dependencies and compatibility fixes applied"
 echo ""
+echo "IMPORTANT: Activate the virtual environment before running agents:"
+echo "  ${BLUE}source .venv/bin/activate${NC}"
+echo ""
 echo "To run agents, use:"
 echo ""
-echo "  ${BLUE}# From project root:${NC}"
+echo "  ${BLUE}# From project root (after activating venv):${NC}"
 echo "  PYTHONPATH=core:exports python -m agent_name validate"
 echo "  PYTHONPATH=core:exports python -m agent_name info"
 echo "  PYTHONPATH=core:exports python -m agent_name run --input '{...}'"

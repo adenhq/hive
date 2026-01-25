@@ -74,8 +74,11 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 git clone https://github.com/adenhq/hive.git
 cd hive
 
-# Run Python environment setup
+# Run Python environment setup (creates .venv automatically)
 ./scripts/setup-python.sh
+
+# Activate the virtual environment
+source .venv/bin/activate
 ```
 
 This installs:
@@ -95,6 +98,7 @@ claude> /building-agents
 # Test your agent
 claude> /testing-agent
 
+# After activating venv
 # Run your agent
 PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'
 ```
@@ -238,13 +242,16 @@ hive/
 For building and running goal-driven agents with the framework:
 
 ```bash
-# One-time setup
+# One-time setup (creates .venv)
 ./scripts/setup-python.sh
+
+# Activate virtual environment
+source .venv/bin/activate
 
 # This installs:
 # - framework package (core runtime)
 # - aden_tools package (19 MCP tools)
-# - All dependencies
+# - All dependencies in isolated environment
 
 # Build new agents using Claude Code skills
 claude> /building-agents
@@ -252,7 +259,7 @@ claude> /building-agents
 # Test agents
 claude> /testing-agent
 
-# Run agents
+# Run agents (with venv activated)
 PYTHONPATH=core:exports python -m agent_name run --input '{...}'
 ```
 

@@ -19,8 +19,11 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 ## Development Setup
 
 ```bash
-# Install Python packages
+# Install Python packages (creates .venv automatically)
 ./scripts/setup-python.sh
+
+# Activate the virtual environment
+source .venv/bin/activate
 
 # Verify installation
 python -c "import framework; import aden_tools; print('✓ Setup complete')"
@@ -28,6 +31,8 @@ python -c "import framework; import aden_tools; print('✓ Setup complete')"
 # Install Claude Code skills (optional)
 ./quickstart.sh
 ```
+
+**Note:** The setup script creates a Python virtual environment at `.venv/` to isolate dependencies. Remember to activate it with `source .venv/bin/activate` before running agents or tests.
 
 ## Commit Convention
 
@@ -93,6 +98,9 @@ feat(component): add new feature description
 ## Testing
 
 ```bash
+# Activate virtual environment first
+source .venv/bin/activate
+
 # Run all tests for the framework
 cd core && python -m pytest
 
