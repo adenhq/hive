@@ -12,7 +12,7 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/hive.git`
 3. Create a feature branch: `git checkout -b feature/your-feature-name`
 4. Make your changes
-5. Run tests: `PYTHONPATH=core:exports python -m pytest`
+5. Run tests (see [Testing](#testing) section below)
 6. Commit your changes following our commit conventions
 7. Push to your fork and submit a Pull Request
 
