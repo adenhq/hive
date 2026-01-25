@@ -13,12 +13,23 @@ def get_secure_path(path: str, workspace_id: str, agent_id: str, session_id: str
     os.makedirs(session_dir, exist_ok=True)
     
     # Resolve absolute path
+    # Resolve absolute path
     if os.path.isabs(path):
-        # Treat absolute paths as relative to the session root if they start with /
+        # Treat absolute paths as relative to the session root if they start with / or \
         rel_path = path.lstrip(os.sep)
+        # Handle case where os.sep is backslash but path uses forward slash (common in some tools)
+        if os.sep == '\\' and path.startswith('/'):
+             rel_path = path.lstrip('/')
+        
         final_path = os.path.abspath(os.path.join(session_dir, rel_path))
     else:
-        final_path = os.path.abspath(os.path.join(session_dir, path))
+        # Handle "drive root" paths on Windows (e.g. /etc/passwd) which aren't technically absolute 
+        # (missing drive letter) but start with a separator and should be treated as relative to session
+        if path.startswith('/') or path.startswith('\\'):
+             rel_path = path.lstrip('/\\')
+             final_path = os.path.abspath(os.path.join(session_dir, rel_path))
+        else:
+             final_path = os.path.abspath(os.path.join(session_dir, path))
     
     # Verify path is within session_dir
     common_prefix = os.path.commonpath([final_path, session_dir])

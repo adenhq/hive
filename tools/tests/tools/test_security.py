@@ -49,9 +49,13 @@ class TestGetSecurePath:
     def test_absolute_path_treated_as_relative(self, ids):
         """Absolute paths are treated as relative to session root."""
         from aden_tools.tools.file_system_toolkits.security import get_secure_path
-
-        result = get_secure_path("/etc/passwd", **ids)
-
+        
+        # Test with /etc/passwd style path regardless of OS
+        # On Windows, this isn't strictly absolute (no drive), but security.py should treat it as relative
+        path = "/etc/passwd"
+        result = get_secure_path(path, **ids)
+        
+        # Expect the path components to be joined to session dir
         expected = self.workspaces_dir / "test-workspace" / "test-agent" / "test-session" / "etc" / "passwd"
         assert result == str(expected)
 

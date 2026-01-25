@@ -11,7 +11,7 @@ PYTEST_TEST_FILE_HEADER = '''"""
 
 {description}
 
-REQUIRES: ANTHROPIC_API_KEY for real testing.
+REQUIRES: Valid LLM API key (e.g. ANTHROPIC_API_KEY, OPENAI_API_KEY) or MOCK_MODE.
 """
 
 import os
@@ -21,20 +21,31 @@ from exports.{agent_module} import default_agent
 
 def _get_api_key():
     """Get API key from CredentialManager or environment."""
+    # Check for common API keys
+    keys = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "AZURE_OPENAI_API_KEY"]
+    
+    # 1. Try CredentialManager
     try:
         from aden_tools.credentials import CredentialManager
         creds = CredentialManager()
-        if creds.is_available("anthropic"):
-            return creds.get("anthropic")
+        for k in ["anthropic", "openai", "gemini", "azure"]:
+            if creds.is_available(k):
+                return True
     except ImportError:
         pass
-    return os.environ.get("ANTHROPIC_API_KEY")
+        
+    # 2. Check environment variables
+    for key in keys:
+        if os.environ.get(key):
+            return os.environ.get(key)
+            
+    return None
 
 
 # Skip all tests if no API key and not in mock mode
 pytestmark = pytest.mark.skipif(
     not _get_api_key() and not os.environ.get("MOCK_MODE"),
-    reason="API key required. Set ANTHROPIC_API_KEY or use MOCK_MODE=1."
+    reason="API key required. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, etc. or use MOCK_MODE=1."
 )
 
 
@@ -49,14 +60,25 @@ import pytest
 
 def _get_api_key():
     """Get API key from CredentialManager or environment."""
+    # Check for common API keys
+    keys = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "AZURE_OPENAI_API_KEY"]
+    
+    # 1. Try CredentialManager
     try:
         from aden_tools.credentials import CredentialManager
         creds = CredentialManager()
-        if creds.is_available("anthropic"):
-            return creds.get("anthropic")
+        for k in ["anthropic", "openai", "gemini", "azure"]:
+            if creds.is_available(k):
+                return True
     except ImportError:
         pass
-    return os.environ.get("ANTHROPIC_API_KEY")
+        
+    # 2. Check environment variables
+    for key in keys:
+        if os.environ.get(key):
+            return os.environ.get(key)
+            
+    return None
 
 
 @pytest.fixture
@@ -72,13 +94,14 @@ def check_api_key():
         if os.environ.get("MOCK_MODE"):
             print("\\n⚠️  Running in MOCK MODE - structure validation only")
             print("   This does NOT test LLM behavior or agent quality")
-            print("   Set ANTHROPIC_API_KEY for real testing\\n")
+            print("   Set an API key (e.g. ANTHROPIC_API_KEY) for real testing\\n")
         else:
             pytest.fail(
-                "\\n❌ ANTHROPIC_API_KEY not set!\\n\\n"
+                "\\n❌ No LLM API key set!\\n\\n"
                 "Real testing requires an API key. Choose one:\\n"
                 "1. Set API key (RECOMMENDED):\\n"
                 "   export ANTHROPIC_API_KEY='your-key-here'\\n"
+                "   OR export OPENAI_API_KEY='your-key-here'\\n"
                 "2. Run structure validation only:\\n"
                 "   MOCK_MODE=1 pytest exports/{agent_name}/tests/\\n\\n"
                 "Note: Mock mode does NOT validate agent behavior or quality."

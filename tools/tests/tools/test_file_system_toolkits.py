@@ -1,5 +1,6 @@
 """Tests for file_system_toolkits tools (FastMCP)."""
 import os
+import sys
 import pytest
 from unittest.mock import patch
 
@@ -519,8 +520,9 @@ class TestExecuteCommandTool:
         # Create a test file
         (tmp_path / "testfile.txt").write_text("content")
 
+        cmd = "dir" if sys.platform == "win32" else "ls"
         result = execute_command_fn(
-            command=f"ls {tmp_path}",
+            command=f"{cmd} {tmp_path}",
             **mock_workspace
         )
 
@@ -530,8 +532,15 @@ class TestExecuteCommandTool:
 
     def test_execute_command_with_pipe(self, execute_command_fn, mock_workspace, mock_secure_path):
         """Executing a command with pipe works correctly."""
+        # Use python for cross-platform pipe test since 'tr' is not on Windows
+        if sys.platform == "win32":
+             # CMD echo doesn't need quotes for string, but we want to test uppercase
+             command = "echo hello world | python -c \"import sys; print(sys.stdin.read().upper())\""
+        else:
+             command = "echo 'hello world' | tr 'a-z' 'A-Z'"
+
         result = execute_command_fn(
-            command="echo 'hello world' | tr 'a-z' 'A-Z'",
+            command=command,
             **mock_workspace
         )
 

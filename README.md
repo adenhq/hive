@@ -76,6 +76,9 @@ cd hive
 
 # Run Python environment setup
 ./scripts/setup-python.sh
+
+# Windows Users (PowerShell)
+powershell -ExecutionPolicy Bypass -File scripts/setup-python.ps1
 ```
 
 This installs:
