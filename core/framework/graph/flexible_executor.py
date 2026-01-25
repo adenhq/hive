@@ -13,11 +13,18 @@ using a Worker-Judge loop:
 7. If all steps complete → return success
 
 This keeps planning external while execution/evaluation is internal.
+
+Error Handling:
+- All errors classified as ExecutionError with specific codes and categories
+- Retriable errors trigger automatic retries
+- Fatal errors terminate execution immediately
+- Consistent error contract ensures predictable failure semantics
 """
 
 from typing import Any, Callable
 from dataclasses import dataclass
 from datetime import datetime
+import logging
 
 from framework.runtime.core import Runtime
 from framework.graph.goal import Goal
@@ -37,6 +44,14 @@ from framework.graph.judge import HybridJudge, create_default_judge
 from framework.graph.worker_node import WorkerNode, StepExecutionResult
 from framework.graph.code_sandbox import CodeSandbox
 from framework.llm.provider import LLMProvider, Tool
+from framework.graph.execution_errors import (
+    ExecutionError,
+    FatalExecutionError,
+    RetriableExecutionError,
+    UserExecutionError,
+    ErrorCode,
+    classify_error,
+)
 
 # Type alias for approval callback
 ApprovalCallback = Callable[[ApprovalRequest], ApprovalResult]
@@ -105,6 +120,7 @@ class FlexibleGraphExecutor:
         self.functions = functions or {}
         self.config = config or ExecutorConfig()
         self.approval_callback = approval_callback
+        self.logger = logging.getLogger(__name__)
 
         # Create judge
         self.judge = judge or create_default_judge(llm)
@@ -135,22 +151,25 @@ class FlexibleGraphExecutor:
 
         Returns:
             PlanExecutionResult with status and feedback
+        
+        Raises:
+            ExecutionError: For unrecoverable errors during execution
         """
-        context = context or {}
-        context.update(plan.context)  # Merge plan's accumulated context
-
-        # Start run
-        _run_id = self.runtime.start_run(
-            goal_id=goal.id,
-            goal_description=goal.description,
-            input_data={"plan_id": plan.id, "revision": plan.revision},
-        )
-
-        steps_executed = 0
-        total_tokens = 0
-        total_latency = 0
-
         try:
+            context = context or {}
+            context.update(plan.context)  # Merge plan's accumulated context
+
+            # Start run
+            _run_id = self.runtime.start_run(
+                goal_id=goal.id,
+                goal_description=goal.description,
+                input_data={"plan_id": plan.id, "revision": plan.revision},
+            )
+
+            steps_executed = 0
+            total_tokens = 0
+            total_latency = 0
+
             while steps_executed < self.config.max_total_steps:
                 # Get next ready steps
                 ready_steps = plan.get_ready_steps()
@@ -161,14 +180,11 @@ class FlexibleGraphExecutor:
                         break
                     else:
                         # No ready steps but not complete - something's wrong
-                        return self._create_result(
-                            status=ExecutionStatus.NEEDS_REPLAN,
-                            plan=plan,
-                            context=context,
-                            feedback="No executable steps available but plan not complete. Check dependencies.",
-                            steps_executed=steps_executed,
-                            total_tokens=total_tokens,
-                            total_latency=total_latency,
+                        error_msg = "No executable steps available but plan not complete. Check dependencies."
+                        raise FatalExecutionError(
+                            code=ErrorCode.EXECUTION_FAILED,
+                            message=error_msg,
+                            context={"plan_id": plan.id, "total_steps": len(plan.steps)}
                         )
 
                 # Execute next step (for now, sequential; could be parallel)
@@ -196,19 +212,19 @@ class FlexibleGraphExecutor:
                     if approval_result.decision == ApprovalDecision.REJECT:
                         step.status = StepStatus.REJECTED
                         step.error = approval_result.reason or "Rejected by human"
-                        # Skip this step and continue with dependents marked as skipped
-                        self._skip_dependent_steps(plan, step.id)
-                        continue
+                        
+                        # Raise error for consistent handling
+                        raise UserExecutionError(
+                            code=ErrorCode.APPROVAL_REJECTED,
+                            message=f"Step '{step.id}' was rejected: {step.error}",
+                            context={"step_id": step.id, "reason": step.error}
+                        )
 
                     if approval_result.decision == ApprovalDecision.ABORT:
-                        return self._create_result(
-                            status=ExecutionStatus.ABORTED,
-                            plan=plan,
-                            context=context,
-                            feedback=approval_result.reason or "Aborted by human",
-                            steps_executed=steps_executed,
-                            total_tokens=total_tokens,
-                            total_latency=total_latency,
+                        raise UserExecutionError(
+                            code=ErrorCode.APPROVAL_ABORTED,
+                            message=approval_result.reason or "Aborted by human",
+                            context={"step_id": step.id}
                         )
 
                     if approval_result.decision == ApprovalDecision.MODIFY:
@@ -223,18 +239,37 @@ class FlexibleGraphExecutor:
                 step.attempts += 1
 
                 # WORK
-                work_result = await self.worker.execute(step, context)
+                try:
+                    work_result = await self.worker.execute(step, context)
+                except ExecutionError:
+                    # Re-raise ExecutionErrors
+                    raise
+                except Exception as e:
+                    # Wrap execution errors
+                    exec_error = classify_error(e, default_code=ErrorCode.EXECUTION_FAILED)
+                    exec_error.context.update({"step_id": step.id})
+                    raise exec_error
+
                 steps_executed += 1
                 total_tokens += work_result.tokens_used
                 total_latency += work_result.latency_ms
 
                 # JUDGE
-                judgment = await self.judge.evaluate(
-                    step=step,
-                    result=work_result.__dict__,
-                    goal=goal,
-                    context=context,
-                )
+                try:
+                    judgment = await self.judge.evaluate(
+                        step=step,
+                        result=work_result.__dict__,
+                        goal=goal,
+                        context=context,
+                    )
+                except ExecutionError:
+                    # Re-raise ExecutionErrors
+                    raise
+                except Exception as e:
+                    # Wrap judgment errors
+                    exec_error = classify_error(e, default_code=ErrorCode.EXECUTION_FAILED)
+                    exec_error.context.update({"step_id": step.id, "phase": "judgment"})
+                    raise exec_error
 
                 # Handle judgment
                 result = await self._handle_judgment(
@@ -273,7 +308,11 @@ class FlexibleGraphExecutor:
                 total_latency=total_latency,
             )
 
-        except Exception as e:
+        except ExecutionError as e:
+            # Log and report the structured error
+            self.logger.error(f"❌ Execution error: {e}")
+            self.logger.debug(f"   Error details: {e.to_dict()}")
+            
             self.runtime.report_problem(
                 severity="critical",
                 description=str(e),
@@ -283,10 +322,36 @@ class FlexibleGraphExecutor:
                 narrative=f"Execution failed: {e}",
             )
 
+            # Return failed result with error details
             return PlanExecutionResult(
                 status=ExecutionStatus.FAILED,
                 error=str(e),
                 feedback=f"Execution error: {e}",
+                feedback_context=plan.to_feedback_context(),
+                completed_steps=[s.id for s in plan.get_completed_steps()],
+                steps_executed=steps_executed,
+                total_tokens=total_tokens,
+                total_latency_ms=total_latency,
+            )
+        except Exception as e:
+            # Catch any remaining unexpected exceptions and wrap them
+            exec_error = classify_error(e, default_code=ErrorCode.UNKNOWN_ERROR)
+            self.logger.error(f"❌ Unexpected error: {exec_error}")
+            self.logger.debug(f"   Error details: {exec_error.to_dict()}")
+            
+            self.runtime.report_problem(
+                severity="critical",
+                description=str(exec_error),
+            )
+            self.runtime.end_run(
+                success=False,
+                narrative=f"Execution failed: {exec_error}",
+            )
+            
+            return PlanExecutionResult(
+                status=ExecutionStatus.FAILED,
+                error=str(exec_error),
+                feedback=f"Execution error: {exec_error}",
                 feedback_context=plan.to_feedback_context(),
                 completed_steps=[s.id for s in plan.get_completed_steps()],
                 steps_executed=steps_executed,
