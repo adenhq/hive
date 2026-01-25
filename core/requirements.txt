@@ -14,3 +14,7 @@ pytest-asyncio>=0.23
 pytest-xdist>=3.0
 tenacity>=8.0
 pyyaml>=6.0
+
+# Secrets Managers (Optional)
+hvac>=1.1.0
+boto3>=1.28.0

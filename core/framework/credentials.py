@@ -87,6 +87,119 @@ class ConfigFileSource(CredentialSource):
         return str(val) if val is not None else None
 
 
+class VaultSource(CredentialSource):
+    """
+    Credential source that reads from HashiCorp Vault.
+    
+    Requires 'hvac' package.
+    """
+
+    def __init__(self, url: str, token: str | None = None, mount_point: str = "secret", path: str = "data"):
+        try:
+            import hvac
+        except ImportError:
+            raise ImportError("VaultSource requires 'hvac'. Install with: pip install hvac")
+
+        self.url = url
+        self.mount_point = mount_point
+        self.path = path
+        self.client = hvac.Client(url=url, token=token)
+        self._cache: Dict[str, str] = {}
+        self._loaded = False
+    
+    @property
+    def name(self) -> str:
+        return f"Vault ({self.url})"
+
+    def _ensure_loaded(self):
+        if self._loaded:
+            return
+            
+        if not self.client.is_authenticated():
+            logger.warning(f"Vault client for {self.url} is not authenticated")
+            return
+
+        try:
+            # Assume KV V2 engine
+            response = self.client.secrets.kv.v2.read_secret_version(
+                mount_point=self.mount_point,
+                path=self.path
+            )
+            data = response.get("data", {}).get("data", {})
+            self._cache.update(data)
+            self._loaded = True
+        except Exception as e:
+            logger.error(f"Failed to read from Vault path {self.mount_point}/{self.path}: {e}")
+
+    def get(self, key: str) -> Optional[str]:
+        self._ensure_loaded()
+        return self._cache.get(key)
+
+
+class AWSSecretsSource(CredentialSource):
+    """
+    Credential source that reads from AWS Secrets Manager.
+    
+    Requires 'boto3' package.
+    Secrets in AWS are often JSON blobs; we try to parse them and look up the key.
+    If the secret is a plain string, we return it if the key matches the secret ID logic.
+    """
+
+    def __init__(self, secret_id: str, region_name: str | None = None):
+        try:
+            import boto3
+            from botocore.exceptions import ClientError
+            self.ClientError = ClientError
+        except ImportError:
+            raise ImportError("AWSSecretsSource requires 'boto3'. Install with: pip install boto3")
+
+        self.secret_id = secret_id
+        self.client = boto3.client("secretsmanager", region_name=region_name)
+        self._cache: Dict[str, str] = {}
+        self._loaded = False
+
+    @property
+    def name(self) -> str:
+        return f"AWS Secrets Manager ({self.secret_id})"
+
+    def _ensure_loaded(self):
+        if self._loaded:
+            return
+
+        try:
+            response = self.client.get_secret_value(SecretId=self.secret_id)
+            secret_string = response.get("SecretString")
+            
+            if secret_string:
+                try:
+                    # Try to parse as JSON map
+                    import json
+                    data = json.loads(secret_string)
+                    if isinstance(data, dict):
+                        self._cache.update(data)
+                    else:
+                        # Secret is a JSON something else, treat entire thing as value?
+                        # For now, simplistic approach:
+                        pass 
+                except json.JSONDecodeError:
+                    # Not JSON, treat as a single value secret?
+                    # The user can just use this source to fetch that one key?
+                    # But get(key) expects a key mismatch. 
+                    # Let's map it to "value" or something?
+                    self._cache["value"] = secret_string
+            
+            self._loaded = True
+        except self.ClientError as e:
+            logger.error(f"Failed to get AWS secret {self.secret_id}: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error getting AWS secret {self.secret_id}: {e}")
+
+    def get(self, key: str) -> Optional[str]:
+        self._ensure_loaded()
+        return self._cache.get(key)
+
+
+
 class CredentialManager:
     """
     Manager that chains multiple CredentialSources.

@@ -23,6 +23,10 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0",
 ]
+secrets = [
+    "hvac>=1.1.0",
+    "boto3>=1.28.0",
+]
 
 [build-system]
 requires = ["hatchling"]
