@@ -8,6 +8,12 @@ Complete setup guide for building and running goal-driven agents with the Aden A
 # Run the automated setup script
 ./scripts/setup-python.sh
 ```
+> 💡 **Recommended:** Use a virtual environment to avoid dependency conflicts.
+>
+> ```bash
+> python -m venv .venv
+> source .venv/bin/activate
+> ```
 
 This will:
 
@@ -51,6 +57,15 @@ python -c "import litellm; print('✓ litellm OK')"
 ```
 
 ## Requirements
+
+### Supported Platforms
+
+- macOS (Apple Silicon & Intel)
+- Linux (Ubuntu, Debian, Arch)
+- Windows via WSL2
+
+> Native Windows (without WSL) is not officially supported.
+
 
 ### Python Version
 
@@ -151,6 +166,16 @@ claude> /testing-agent
 Creates comprehensive test suites for your agent.
 
 ## Troubleshooting
+
+### "Permission denied" when running setup script
+
+If you see `permission denied: ./scripts/setup-python.sh`
+**Solution:** Run:
+
+```bash
+chmod +x ./scripts/setup-python.sh
+./scripts/setup-python.sh
+
 
 ### "ModuleNotFoundError: No module named 'framework'"
 
