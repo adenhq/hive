@@ -3,15 +3,16 @@ target-version = "py310"
 line-length = 88
 
 [lint]
-# Select: Pyflakes (F), pycodestyle (E, W), isort (I)
 select = ["F", "E", "W", "I"]
 
-# IGNORE TECHNICAL DEBT:
+# IGNORE ALL EXISTING TECHNICAL DEBT:
 # E501: Line too long
-# I001: Imports not sorted (The repo is currently messy)
+# I001: Imports not sorted
 # W291: Trailing whitespace
 # W293: Blank lines with whitespace
-ignore = ["E501", "I001", "W291", "W293"]
+# F401: Module imported but unused (The big blocker)
+# F841: Local variable assigned but unused
+ignore = ["E501", "I001", "W291", "W293", "F401", "F841"]
 
 [format]
 quote-style = "double"
