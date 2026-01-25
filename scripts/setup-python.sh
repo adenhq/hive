@@ -161,12 +161,81 @@ else
     echo -e "${YELLOW}  Note: This may be OK if you don't need the framework${NC}"
 fi
 
-# Test aden_tools import
-if $PYTHON_CMD -c "import aden_tools; print('aden_tools OK')" > /dev/null 2>&1; then
+# Test aden_tools import with better error reporting
+echo "Testing aden_tools import..."
+IMPORT_OUTPUT=$($PYTHON_CMD -c "import aden_tools; print('aden_tools OK')" 2>&1)
+IMPORT_EXIT_CODE=$?
+
+if [ $IMPORT_EXIT_CODE -eq 0 ]; then
     echo -e "${GREEN}✓${NC} aden_tools package imports successfully"
 else
     echo -e "${RED}✗${NC} aden_tools package import failed"
-    exit 1
+    echo ""
+    echo -e "${YELLOW}Error details:${NC}"
+    echo "$IMPORT_OUTPUT" | sed 's/^/  /'
+    echo ""
+    
+    # First, verify the package is actually installed
+    PACKAGE_INFO=$($PYTHON_CMD -m pip show tools 2>&1)
+    if echo "$PACKAGE_INFO" | grep -q "Name: tools"; then
+        echo -e "${GREEN}✓${NC} Package 'tools' is installed"
+        PACKAGE_LOCATION=$(echo "$PACKAGE_INFO" | grep "^Location:" | cut -d' ' -f2-)
+        echo -e "${BLUE}  Location: ${PACKAGE_LOCATION}${NC}"
+    else
+        echo -e "${RED}✗${NC} Package 'tools' is not installed"
+        echo -e "${YELLOW}  Attempting to reinstall...${NC}"
+        cd "$PROJECT_ROOT/tools"
+        if $PYTHON_CMD -m pip install -e . > /dev/null 2>&1; then
+            echo -e "${GREEN}✓${NC} Package reinstalled"
+            cd "$PROJECT_ROOT"
+            # Retry import
+            if $PYTHON_CMD -c "import aden_tools; print('aden_tools OK')" > /dev/null 2>&1; then
+                echo -e "${GREEN}✓${NC} aden_tools package imports successfully after reinstall"
+            else
+                echo -e "${RED}✗${NC} Import still failing after reinstall"
+                echo -e "${YELLOW}  See error details above${NC}"
+                exit 1
+            fi
+        else
+            echo -e "${RED}✗${NC} Failed to reinstall package"
+            exit 1
+        fi
+        cd "$PROJECT_ROOT"
+    fi
+    
+    # Check if it's a missing dependency issue
+    if echo "$IMPORT_OUTPUT" | grep -q "ModuleNotFoundError.*No module named"; then
+        MISSING_MODULE=$(echo "$IMPORT_OUTPUT" | grep -oE "No module named ['\"]([^'\"]+)['\"]" | head -1 | sed "s/No module named ['\"]//" | sed "s/['\"]//")
+        if [ -n "$MISSING_MODULE" ]; then
+            echo -e "${YELLOW}Missing dependency detected: ${MISSING_MODULE}${NC}"
+            echo -e "${YELLOW}Installing missing dependency...${NC}"
+            if $PYTHON_CMD -m pip install "$MISSING_MODULE" > /dev/null 2>&1; then
+                echo -e "${GREEN}✓${NC} Installed: $MISSING_MODULE"
+                echo "Retrying import..."
+                if $PYTHON_CMD -c "import aden_tools; print('aden_tools OK')" > /dev/null 2>&1; then
+                    echo -e "${GREEN}✓${NC} aden_tools package imports successfully after dependency fix"
+                else
+                    echo -e "${RED}✗${NC} Import still failing"
+                    echo -e "${YELLOW}  Please check the error message above for details${NC}"
+                    exit 1
+                fi
+            else
+                echo -e "${RED}✗${NC} Failed to install: $MISSING_MODULE"
+                echo -e "${YELLOW}  Please install manually: pip install $MISSING_MODULE${NC}"
+                exit 1
+            fi
+        fi
+    fi
+    
+    # If we get here, it's a different type of error
+    if [ $IMPORT_EXIT_CODE -ne 0 ]; then
+        echo -e "${YELLOW}Troubleshooting steps:${NC}"
+        echo -e "${YELLOW}  1. Verify package installation: pip show tools${NC}"
+        echo -e "${YELLOW}  2. Reinstall package: cd tools && pip install -e .${NC}"
+        echo -e "${YELLOW}  3. Check Python path: python -c 'import sys; [print(p) for p in sys.path]'${NC}"
+        echo -e "${YELLOW}  4. Try manual import: python -c 'import aden_tools'${NC}"
+        exit 1
+    fi
 fi
 
 # Test litellm + openai compatibility
