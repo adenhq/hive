@@ -3,7 +3,6 @@
 import pytest
 from framework.llm.cost import LLMCostCalculator
 from framework.llm.provider import LLMResponse
-from framework.llm.litellm import LiteLLMProvider
 from framework.graph.node import NodeResult
 from framework.graph.executor import ExecutionResult
 
@@ -11,60 +10,30 @@ from framework.graph.executor import ExecutionResult
 class TestLLMCostCalculator:
     """Test the LLM cost calculator utility."""
 
-    def test_calculate_gpt4o_cost(self):
-        """Test cost calculation for GPT-4o."""
-        cost = LLMCostCalculator.calculate(
-            model="gpt-4o",
-            input_tokens=1000,
-            output_tokens=500,
-        )
-        # 1000 * 2.50 / 1M + 500 * 10.00 / 1M = 0.0025 + 0.005 = 0.0075
-        assert cost == pytest.approx(0.0075, abs=0.0001)
-
-    def test_calculate_gpt4o_mini_cost(self):
-        """Test cost calculation for GPT-4o-mini."""
-        cost = LLMCostCalculator.calculate(
-            model="gpt-4o-mini",
-            input_tokens=10000,
-            output_tokens=2000,
-        )
-        # 10000 * 0.15 / 1M + 2000 * 0.60 / 1M = 0.0015 + 0.0012 = 0.0027
-        assert cost == pytest.approx(0.0027, abs=0.0001)
-
-    def test_calculate_claude_sonnet_cost(self):
-        """Test cost calculation for Claude 3.5 Sonnet."""
-        cost = LLMCostCalculator.calculate(
-            model="claude-3-5-sonnet-20241022",
-            input_tokens=5000,
-            output_tokens=1000,
-        )
-        # 5000 * 3.00 / 1M + 1000 * 15.00 / 1M = 0.015 + 0.015 = 0.03
-        assert cost == pytest.approx(0.03, abs=0.0001)
-
-    def test_calculate_claude_haiku_cost(self):
-        """Test cost calculation for Claude 3.5 Haiku."""
-        cost = LLMCostCalculator.calculate(
-            model="claude-3-5-haiku-20241022",
-            input_tokens=10000,
-            output_tokens=5000,
-        )
-        # 10000 * 0.80 / 1M + 5000 * 4.00 / 1M = 0.008 + 0.02 = 0.028
-        assert cost == pytest.approx(0.028, abs=0.0001)
-
-    def test_calculate_gemini_flash_cost(self):
-        """Test cost calculation for Gemini 1.5 Flash."""
-        cost = LLMCostCalculator.calculate(
-            model="gemini-1.5-flash",
-            input_tokens=100000,
-            output_tokens=10000,
-        )
-        # 100000 * 0.075 / 1M + 10000 * 0.30 / 1M = 0.0075 + 0.003 = 0.0105
-        assert cost == pytest.approx(0.0105, abs=0.0001)
+    def test_calculate_returns_positive_cost_for_known_models(self):
+        """Test that cost calculation returns positive values for known models."""
+        models = [
+            "gpt-5.2",
+            "gpt-5-mini",
+            "gpt-4o",
+            "claude-opus-4-5-20251101",
+            "claude-sonnet-4-5-20250929",
+            "claude-haiku-4-5-20251001",
+        ]
+        
+        for model in models:
+            cost = LLMCostCalculator.calculate(
+                model=model,
+                input_tokens=1000,
+                output_tokens=500,
+            )
+            assert cost > 0, f"Model {model} should have positive cost"
+            assert isinstance(cost, float), f"Model {model} should return float cost"
 
     def test_calculate_unknown_model_returns_zero(self):
         """Test that unknown models return zero cost."""
         cost = LLMCostCalculator.calculate(
-            model="unknown-model-xyz",
+            model="unknown-model-xyz-12345",
             input_tokens=1000,
             output_tokens=500,
         )
@@ -73,31 +42,73 @@ class TestLLMCostCalculator:
     def test_calculate_with_zero_tokens(self):
         """Test cost calculation with zero tokens."""
         cost = LLMCostCalculator.calculate(
-            model="gpt-4o",
+            model="gpt-5.2",
             input_tokens=0,
             output_tokens=0,
         )
         assert cost == 0.0
 
-    def test_calculate_large_token_counts(self):
-        """Test cost calculation with large token counts."""
-        cost = LLMCostCalculator.calculate(
-            model="gpt-4o-mini",
-            input_tokens=1_000_000,  # 1M tokens
-            output_tokens=500_000,   # 0.5M tokens
+    def test_calculate_scales_with_tokens(self):
+        """Test that cost scales proportionally with token count."""
+        model = "gpt-5-mini"
+        
+        # Small request
+        cost_small = LLMCostCalculator.calculate(
+            model=model,
+            input_tokens=100,
+            output_tokens=50,
         )
-        # 1M * 0.15 / 1M + 0.5M * 0.60 / 1M = 0.15 + 0.30 = 0.45
-        assert cost == pytest.approx(0.45, abs=0.001)
+        
+        # Large request (10x tokens)
+        cost_large = LLMCostCalculator.calculate(
+            model=model,
+            input_tokens=1000,
+            output_tokens=500,
+        )
+        
+        assert cost_small > 0
+        assert cost_large > 0
+        assert cost_large > cost_small, "More tokens should cost more"
+        
+        # Should scale roughly 10x (allowing for rounding)
+        ratio = cost_large / cost_small
+        assert 9.5 < ratio < 10.5, f"Expected ~10x cost, got {ratio:.2f}x"
 
-    def test_get_pricing_known_model(self):
-        """Test getting pricing for a known model."""
-        pricing = LLMCostCalculator.get_pricing("gpt-4o")
-        assert pricing == (2.50, 10.00)
+    def test_more_expensive_models_cost_more(self):
+        """Test that premium models cost more than economy models."""
+        tokens = (5000, 2000)  # Same token counts
+        
+        # Economy model
+        cost_mini = LLMCostCalculator.calculate("gpt-5-mini", *tokens)
+        
+        # Premium model
+        cost_pro = LLMCostCalculator.calculate("gpt-5.2-pro", *tokens)
+        
+        assert cost_mini > 0
+        assert cost_pro > 0
+        assert cost_pro > cost_mini, "Pro model should cost more than mini"
 
-    def test_get_pricing_unknown_model(self):
-        """Test getting pricing for an unknown model."""
-        pricing = LLMCostCalculator.get_pricing("unknown-model")
-        assert pricing is None
+    def test_output_tokens_cost_more_than_input(self):
+        """Test that output tokens typically cost more than input tokens."""
+        model = "gpt-5.2"
+        
+        # More input tokens
+        cost_input_heavy = LLMCostCalculator.calculate(
+            model=model,
+            input_tokens=10000,
+            output_tokens=1000,
+        )
+        
+        # More output tokens (same total)
+        cost_output_heavy = LLMCostCalculator.calculate(
+            model=model,
+            input_tokens=1000,
+            output_tokens=10000,
+        )
+        
+        assert cost_input_heavy > 0
+        assert cost_output_heavy > 0
+        assert cost_output_heavy > cost_input_heavy, "Output tokens typically cost more"
 
     def test_format_cost_small(self):
         """Test formatting small costs."""
@@ -114,14 +125,6 @@ class TestLLMCostCalculator:
         assert LLMCostCalculator.format_cost(1.23) == "$1.23"
         assert LLMCostCalculator.format_cost(45.67) == "$45.67"
 
-    def test_all_models_have_valid_pricing(self):
-        """Test that all models in the pricing table have valid values."""
-        for model, (input_cost, output_cost) in LLMCostCalculator.PRICING.items():
-            assert input_cost >= 0, f"Model {model} has negative input cost"
-            assert output_cost >= 0, f"Model {model} has negative output cost"
-            assert isinstance(input_cost, (int, float)), f"Model {model} has invalid input cost type"
-            assert isinstance(output_cost, (int, float)), f"Model {model} has invalid output cost type"
-
 
 class TestLLMResponseCostTracking:
     """Test that LLMResponse includes cost information."""
@@ -130,23 +133,23 @@ class TestLLMResponseCostTracking:
         """Test that LLMResponse has cost fields."""
         response = LLMResponse(
             content="test",
-            model="gpt-4o",
+            model="gpt-5.2",
             input_tokens=100,
             output_tokens=50,
             estimated_cost_usd=0.0015,
-            cost_breakdown={"input_tokens": 100, "output_tokens": 50, "model": "gpt-4o"},
+            cost_breakdown={"input_tokens": 100, "output_tokens": 50, "model": "gpt-5.2"},
         )
         
         assert response.estimated_cost_usd == 0.0015
         assert response.cost_breakdown["input_tokens"] == 100
         assert response.cost_breakdown["output_tokens"] == 50
-        assert response.cost_breakdown["model"] == "gpt-4o"
+        assert response.cost_breakdown["model"] == "gpt-5.2"
 
     def test_llm_response_defaults_to_zero_cost(self):
         """Test that LLMResponse defaults to zero cost."""
         response = LLMResponse(
             content="test",
-            model="gpt-4o",
+            model="gpt-5.2",
         )
         
         assert response.estimated_cost_usd == 0.0
@@ -164,11 +167,11 @@ class TestNodeResultCostTracking:
             tokens_used=150,
             latency_ms=500,
             cost_usd=0.002,
-            llm_model="gpt-4o",
+            llm_model="gpt-5.2",
         )
         
         assert result.cost_usd == 0.002
-        assert result.llm_model == "gpt-4o"
+        assert result.llm_model == "gpt-5.2"
 
     def test_node_result_defaults_to_zero_cost(self):
         """Test that NodeResult defaults to zero cost."""
@@ -192,12 +195,12 @@ class TestExecutionResultCostTracking:
             steps_executed=3,
             total_tokens=500,
             total_cost_usd=0.015,
-            cost_by_model={"gpt-4o": 0.010, "gpt-4o-mini": 0.005},
+            cost_by_model={"gpt-5.2": 0.010, "gpt-5-mini": 0.005},
         )
         
         assert result.total_cost_usd == 0.015
-        assert result.cost_by_model["gpt-4o"] == 0.010
-        assert result.cost_by_model["gpt-4o-mini"] == 0.005
+        assert result.cost_by_model["gpt-5.2"] == 0.010
+        assert result.cost_by_model["gpt-5-mini"] == 0.005
 
     def test_execution_result_defaults_to_zero_cost(self):
         """Test that ExecutionResult defaults to zero cost."""
@@ -210,57 +213,73 @@ class TestExecutionResultCostTracking:
         assert result.cost_by_model == {}
 
 
-class TestCostCalculationAccuracy:
-    """Test accuracy of cost calculations against known values."""
+class TestCostCalculationBehavior:
+    """Test cost calculation behavior across different scenarios."""
 
-    def test_realistic_conversation_cost(self):
-        """Test cost for a realistic conversation."""
+    def test_realistic_conversation_cost_is_reasonable(self):
+        """Test that realistic conversation costs are in expected range."""
         # Typical user message: ~50 tokens input, ~200 tokens output
         cost = LLMCostCalculator.calculate(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             input_tokens=50,
             output_tokens=200,
         )
-        # 50 * 0.15 / 1M + 200 * 0.60 / 1M = 0.0000075 + 0.00012 = 0.0001275
-        assert cost == pytest.approx(0.0001275, abs=0.00001)
-        assert cost < 0.001, "Single message should cost less than $0.001"
+        assert cost > 0, "Cost should be positive"
+        assert cost < 0.01, "Single message should cost less than $0.01"
 
     def test_long_document_processing_cost(self):
         """Test cost for processing a long document."""
         # Long document: ~50k tokens input, ~2k tokens summary output
         cost = LLMCostCalculator.calculate(
-            model="claude-3-5-haiku-20241022",
+            model="claude-haiku-4-5-20251001",
             input_tokens=50000,
             output_tokens=2000,
         )
-        # 50000 * 0.80 / 1M + 2000 * 4.00 / 1M = 0.04 + 0.008 = 0.048
-        assert cost == pytest.approx(0.048, abs=0.001)
-        assert cost < 0.10, "Long document should cost less than $0.10"
+        assert cost > 0, "Cost should be positive"
+        assert cost < 1.0, "Long document should cost less than $1.00"
 
-    def test_agent_workflow_cost(self):
-        """Test cost for a multi-step agent workflow."""
-        # Agent workflow: 3 LLM calls
+    def test_premium_model_workflow_cost(self):
+        """Test cost for a multi-step agent workflow with premium models."""
         total_cost = 0.0
         
         # Step 1: Understand request (small)
         total_cost += LLMCostCalculator.calculate(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             input_tokens=100,
             output_tokens=50,
         )
         
-        # Step 2: Process (medium)
+        # Step 2: Deep reasoning (large)
         total_cost += LLMCostCalculator.calculate(
-            model="gpt-4o",
-            input_tokens=500,
-            output_tokens=300,
+            model="gpt-5.2",
+            input_tokens=5000,
+            output_tokens=2000,
         )
         
         # Step 3: Format response (small)
         total_cost += LLMCostCalculator.calculate(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             input_tokens=200,
             output_tokens=100,
         )
         
-        assert total_cost < 0.01, "3-step workflow should cost less than $0.01"
+        assert total_cost > 0, "Total cost should be positive"
+        assert total_cost < 1.0, "3-step workflow should cost less than $1.00"
+
+    def test_cost_calculation_handles_edge_cases(self):
+        """Test that cost calculation handles edge cases gracefully."""
+        # Very large token counts
+        cost = LLMCostCalculator.calculate(
+            model="gpt-5.2",
+            input_tokens=1_000_000,
+            output_tokens=500_000,
+        )
+        assert cost > 0, "Should handle large token counts"
+        
+        # Single token
+        cost = LLMCostCalculator.calculate(
+            model="gpt-5.2",
+            input_tokens=1,
+            output_tokens=1,
+        )
+        assert cost > 0, "Should handle single tokens"

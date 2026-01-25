@@ -133,13 +133,9 @@ class LiteLLMProvider(LLMProvider):
         input_tokens = usage.prompt_tokens if usage else 0
         output_tokens = usage.completion_tokens if usage else 0
 
-        # Calculate cost
+        # Calculate cost using LiteLLM's built-in cost tracking
         model_name = response.model or self.model
-        estimated_cost = LLMCostCalculator.calculate(
-            model=model_name,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-        )
+        estimated_cost = LLMCostCalculator.calculate_from_response(response)
 
         return LLMResponse(
             content=content,
@@ -206,11 +202,7 @@ class LiteLLMProvider(LLMProvider):
             # Check if we're done (no tool calls)
             if choice.finish_reason == "stop" or not message.tool_calls:
                 model_name = response.model or self.model
-                estimated_cost = LLMCostCalculator.calculate(
-                    model=model_name,
-                    input_tokens=total_input_tokens,
-                    output_tokens=total_output_tokens,
-                )
+                estimated_cost = LLMCostCalculator.calculate_from_response(response)
                 return LLMResponse(
                     content=message.content or "",
                     model=model_name,
@@ -268,6 +260,7 @@ class LiteLLMProvider(LLMProvider):
                 })
 
         # Max iterations reached
+        # For max_iterations case, calculate from tokens since we don't have a response
         estimated_cost = LLMCostCalculator.calculate(
             model=self.model,
             input_tokens=total_input_tokens,

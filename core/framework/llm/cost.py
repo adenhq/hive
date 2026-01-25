@@ -1,54 +1,19 @@
 """LLM cost calculation utilities for tracking API usage costs."""
 
-from typing import ClassVar
+from typing import Any
+import litellm
 
 
 class LLMCostCalculator:
     """
     Calculate estimated costs for LLM API calls.
 
-    Pricing is based on publicly available pricing as of January 2025.
-    Prices are in USD per 1 million tokens (input, output).
+    Delegates to LiteLLM's built-in cost tracking, which maintains
+    up-to-date pricing for all supported models. This eliminates the
+    need to manually maintain pricing tables.
 
-    Note: Prices may change over time. Update this table periodically.
+    See: https://docs.litellm.ai/docs/completion/token_usage
     """
-
-    PRICING: ClassVar[dict[str, tuple[float, float]]] = {
-        # OpenAI models (input, output) per 1M tokens
-        "gpt-4o": (2.50, 10.00),
-        "gpt-4o-2024-11-20": (2.50, 10.00),
-        "gpt-4o-mini": (0.15, 0.60),
-        "gpt-4o-mini-2024-07-18": (0.15, 0.60),
-        "gpt-4-turbo": (10.00, 30.00),
-        "gpt-4-turbo-2024-04-09": (10.00, 30.00),
-        "gpt-4": (30.00, 60.00),
-        "gpt-3.5-turbo": (0.50, 1.50),
-        "gpt-3.5-turbo-0125": (0.50, 1.50),
-        # Anthropic Claude models
-        "claude-3-5-sonnet-20241022": (3.00, 15.00),
-        "claude-3-5-sonnet-20240620": (3.00, 15.00),
-        "claude-3-5-haiku-20241022": (0.80, 4.00),
-        "claude-haiku-4-5-20251001": (0.80, 4.00),
-        "claude-3-opus-20240229": (15.00, 75.00),
-        "claude-3-sonnet-20240229": (3.00, 15.00),
-        "claude-3-haiku-20240307": (0.25, 1.25),
-        # Google Gemini models
-        "gemini-pro": (0.50, 1.50),
-        "gemini-1.5-pro": (1.25, 5.00),
-        "gemini-1.5-flash": (0.075, 0.30),
-        "gemini/gemini-pro": (0.50, 1.50),
-        "gemini/gemini-1.5-pro": (1.25, 5.00),
-        "gemini/gemini-1.5-flash": (0.075, 0.30),
-        # Mistral models
-        "mistral-large-latest": (0.50, 1.50),
-        "mistral-medium-latest": (0.40, 2.00),
-        "mistral-small-latest": (0.10, 0.30),
-        # Groq models
-        "groq/openai/gpt-oss-20b": (0.075, 0.30),
-        "groq/openai/gpt-oss-120b": (0.15, 0.075),
-        "groq/llama-3.3-70b-versatile": (0.59, 0.79),
-        "groq/meta-llama/llama-4-maverick-17b-128e-instruct": (0.20, 0.60)
-    }
 
     @classmethod
     def calculate(
@@ -60,36 +25,46 @@ class LLMCostCalculator:
         """
         Calculate the estimated cost for an LLM API call.
 
+        Uses LiteLLM's built-in cost tracking, which maintains up-to-date
+        pricing for all supported models. This includes:
+        - All model versions and snapshots
+        - Prompt caching costs
+        - Regional pricing variations
+
         Args:
-            model: Model identifier (e.g., "gpt-4o-mini", "claude-3-5-haiku-20241022")
+            model: Model identifier (e.g., "gpt-5.2", "claude-sonnet-4-5-20250929")
             input_tokens: Number of input/prompt tokens
             output_tokens: Number of output/completion tokens
 
         Returns:
-            Estimated cost in USD. Returns 0.0 if model pricing is not available.
+            Estimated cost in USD. Returns 0.0 if model pricing is not available
+            or if an error occurs.
         """
-        if model not in cls.PRICING:
-            return 0.0 # TODO: Add error handling, or need to let user know the model is not supported for cost calculation
-
-        input_cost_per_1m, output_cost_per_1m = cls.PRICING[model]
-
-        input_cost = (input_tokens * input_cost_per_1m) / 1_000_000
-        output_cost = (output_tokens * output_cost_per_1m) / 1_000_000
-
-        return input_cost + output_cost
+        try:
+            prompt_cost, completion_cost = litellm.cost_per_token(
+                model=model,
+                prompt_tokens=input_tokens,
+                completion_tokens=output_tokens,
+            )
+            return prompt_cost + completion_cost
+        except Exception:
+            return 0.0
 
     @classmethod
-    def get_pricing(cls, model: str) -> tuple[float, float] | None:
+    def calculate_from_response(cls, response: Any) -> float:
         """
-        Get pricing information for a model.
+        Calculate cost directly from a LiteLLM response object.
 
         Args:
-            model: Model identifier
+            response: LiteLLM completion response object
 
         Returns:
-            Tuple of (input_cost_per_1m, output_cost_per_1m) or None if not available
+            Estimated cost in USD. Returns 0.0 if calculation fails.
         """
-        return cls.PRICING.get(model)
+        try:
+            return litellm.completion_cost(completion_response=response)
+        except Exception:
+            return 0.0
 
     @classmethod
     def format_cost(cls, cost_usd: float) -> str:
