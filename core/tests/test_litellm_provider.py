@@ -83,6 +83,13 @@ class TestLiteLLMProviderComplete:
         assert result.output_tokens == 20
         assert result.stop_reason == "stop"
 
+        # Verify cost tracking fields exist and are valid
+        assert hasattr(result, "estimated_cost_usd")
+        assert isinstance(result.estimated_cost_usd, float)
+        assert result.estimated_cost_usd >= 0.0
+        assert hasattr(result, "cost_breakdown")
+        assert isinstance(result.cost_breakdown, dict)
+
         # Verify litellm.completion was called correctly
         mock_completion.assert_called_once()
         call_kwargs = mock_completion.call_args[1]
@@ -209,6 +216,13 @@ class TestLiteLLMProviderToolUse:
         assert result.input_tokens == 50  # 20 + 30
         assert result.output_tokens == 25  # 15 + 10
         assert mock_completion.call_count == 2
+
+        # Verify cost tracking fields exist and are valid for tool use
+        assert hasattr(result, "estimated_cost_usd")
+        assert isinstance(result.estimated_cost_usd, float)
+        assert result.estimated_cost_usd >= 0.0
+        assert hasattr(result, "cost_breakdown")
+        assert isinstance(result.cost_breakdown, dict)
 
 
 class TestToolConversion:
