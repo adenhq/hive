@@ -39,12 +39,28 @@ def register_tools(mcp: FastMCP) -> None:
             entries = []
             for item in items:
                 full_path = os.path.join(secure_path, item)
+                is_symlink = os.path.islink(full_path)
                 is_dir = os.path.isdir(full_path)
+                
+                # Handle size carefully for symlinks and broken symlinks
+                size_bytes = None
+                if not is_dir:
+                    try:
+                        size_bytes = os.path.getsize(full_path)
+                    except (OSError, FileNotFoundError):
+                        # Broken symlink or inaccessible file
+                        size_bytes = None
+                
                 entry = {
                     "name": item,
-                    "type": "directory" if is_dir else "file",
-                    "size_bytes": os.path.getsize(full_path) if not is_dir else None
+                    "type": "symlink" if is_symlink else ("directory" if is_dir else "file"),
+                    "size_bytes": size_bytes,
                 }
+                
+                # Add broken status for broken symlinks
+                if is_symlink and not os.path.exists(full_path):
+                    entry["broken"] = True
+                    
                 entries.append(entry)
 
             return {
