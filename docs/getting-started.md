@@ -107,6 +107,22 @@ PYTHONPATH=core:exports python -m my_agent run --input '{
 
 # Run in mock mode (no LLM calls)
 PYTHONPATH=core:exports python -m my_agent run --mock --input '{...}'
+
+### About PYTHONPATH (Required)
+PYTHONPATH tells Python where to find the framework and agent packages when running Hive locally.
+
+Hive uses a monorepo layout. The following commands include:
+
+PYTHONPATH=core:exports
+
+This tells Python where to find:
+- core/framework (runtime)
+- exports (agent packages)
+
+You can also export this once per session:
+
+export PYTHONPATH=core:exports
+
 ```
 
 ## API Keys Setup
