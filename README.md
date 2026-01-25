@@ -83,6 +83,9 @@ This installs:
 - **aden_tools** - 19 MCP tools for agent capabilities
 - All required dependencies
 
+
+> **💡 Windows Users:** Follow the [Windows Setup Guide](docs/windows-setup.md) for PowerShell-specific installation steps.
+
 ### Build Your First Agent
 
 ```bash
