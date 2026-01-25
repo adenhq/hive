@@ -152,6 +152,20 @@ Creates comprehensive test suites for your agent.
 
 ## Troubleshooting
 
+### Windows Troubleshooting
+
+This section applies primarily to Windows users installing Hive with Poetry.
+
+If `poetry` is not found or you see PATH-related warnings after running
+`pip install poetry` or `pip install -e .`, try the following:
+
+- Add `%USERPROFILE%\.local\bin` to your system `PATH`, then open a new terminal.
+- Alternatively, run commands as `python -m poetry install` and
+`python -m poetry shell` instead of `poetry install` / `poetry shell`.
+- Verify the installation with `poetry --version`.
+
+If the issue persists, restart the terminal or your system to ensure PATH
+updates are applied correctly.
 ### "ModuleNotFoundError: No module named 'framework'"
 
 **Solution:** Install the core package:
