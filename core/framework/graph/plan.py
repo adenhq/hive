@@ -358,6 +358,82 @@ class Plan(BaseModel):
             "context": self.context,
         }
 
+    def validate(self) -> None:
+        """
+        Validate the plan structure before execution.
+
+        Ensures:
+        1. Plan is not empty
+        2. All dependencies exist
+        3. Plan is a valid DAG (no cycles)
+        4. All steps are reachable from roots
+
+        Raises:
+            ValueError: If validation fails
+        """
+        self._validate_not_empty()
+        self._validate_dependencies_exist()
+        self._validate_dag_and_reachability()
+
+    def _validate_not_empty(self) -> None:
+        """Ensure plan has steps."""
+        if not self.steps:
+            raise ValueError("Plan validation failed: Plan must contain at least one step.")
+
+    def _validate_dependencies_exist(self) -> None:
+        """Ensure all dependencies refer to existing steps."""
+        step_ids = {s.id for s in self.steps}
+        for step in self.steps:
+            for dep_id in step.dependencies:
+                if dep_id not in step_ids:
+                    raise ValueError(
+                        f"Plan validation failed: Step '{step.id}' depends on missing step '{dep_id}'"
+                    )
+
+    def _validate_dag_and_reachability(self) -> None:
+        """
+        Validate that the plan is a DAG (no cycles) and all steps are reachable.
+        
+        Uses Kahn's algorithm for topological sort to detect cycles and 
+        ensure all nodes are visited (reachable).
+        """
+        # Build adjacency graph and in-degree count
+        adj: dict[str, list[str]] = {s.id: [] for s in self.steps}
+        in_degree: dict[str, int] = {s.id: 0 for s in self.steps}
+
+        for step in self.steps:
+            for dep_id in step.dependencies:
+                adj[dep_id].append(step.id)
+                in_degree[step.id] += 1
+
+        # Initialize queue with root nodes (in-degree 0)
+        # These are steps with no dependencies (valid start nodes)
+        queue = [sid for sid, degree in in_degree.items() if degree == 0]
+        
+        # Check if we have valid start nodes
+        if not queue:
+            raise ValueError("Plan validation failed: No valid start node found (all steps have dependencies, implying a cycle).")
+
+        # Process queue (Kahn's algorithm)
+        processed_count = 0
+        while queue:
+            current_id = queue.pop(0)
+            processed_count += 1
+            
+            for neighbor in adj[current_id]:
+                in_degree[neighbor] -= 1
+                if in_degree[neighbor] == 0:
+                    queue.append(neighbor)
+
+        # Check for cycles
+        if processed_count != len(self.steps):
+            # Identify nodes involved in cycle or unreachable
+            # Nodes with in_degree > 0 were never added to queue -> involved in cycle or depend on cycle
+            problematic_nodes = [sid for sid, degree in in_degree.items() if degree > 0]
+            raise ValueError(
+                f"Plan validation failed: Cycle detected or unreachable nodes. Steps involved: {problematic_nodes}"
+            )
+
 
 class ExecutionStatus(str, Enum):
     """Status of plan execution."""
