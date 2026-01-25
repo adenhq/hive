@@ -90,7 +90,7 @@ This installs:
 ./quickstart.sh
 
 # Build an agent using Claude Code
-claude> /building-agents
+claude> /agent-workflow
 
 # Test your agent
 claude> /testing-agent
@@ -99,7 +99,10 @@ claude> /testing-agent
 PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'
 ```
 
-**[📖 Complete Setup Guide](ENVIRONMENT_SETUP.md)** - Detailed instructions for agent development
+**Guides:**
+- [Building Your First Agent](docs/guides/building-your-first-agent.md) - Step-by-step tutorial with examples
+- [Local LLM Setup (Ollama)](docs/guides/local-llm-setup.md) - Run agents without API keys
+- [Complete Setup Guide](ENVIRONMENT_SETUP.md) - Detailed environment instructions
 
 ## Features
 
@@ -247,7 +250,7 @@ For building and running goal-driven agents with the framework:
 # - All dependencies
 
 # Build new agents using Claude Code skills
-claude> /building-agents
+claude> /agent-workflow
 
 # Test agents
 claude> /testing-agent
@@ -261,6 +264,8 @@ See [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) for complete setup instructions
 ## Documentation
 
 - **[Developer Guide](DEVELOPER.md)** - Comprehensive guide for developers
+- [Building Your First Agent](docs/guides/building-your-first-agent.md) - Step-by-step tutorial
+- [Local LLM Setup (Ollama)](docs/guides/local-llm-setup.md) - Run agents without API keys
 - [Getting Started](docs/getting-started.md) - Quick setup instructions
 - [Configuration Guide](docs/configuration.md) - All configuration options
 - [Architecture Overview](docs/architecture.md) - System design and structure
