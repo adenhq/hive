@@ -25,17 +25,19 @@ echo "  Aden Agent Framework - Python Setup"
 echo "=================================================="
 echo ""
 
-# Check for Python
-if ! command -v python &> /dev/null && ! command -v python3 &> /dev/null; then
+# Check for Python (allow override via PYTHON env var, prefer python3.11)
+if [ -n "$PYTHON" ]; then
+    PYTHON_CMD="$PYTHON"
+elif command -v python3.11 >/dev/null 2>&1; then
+    PYTHON_CMD="python3.11"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_CMD="python3"
+elif command -v python >/dev/null 2>&1; then
+    PYTHON_CMD="python"
+else
     echo -e "${RED}Error: Python is not installed.${NC}"
     echo "Please install Python 3.11+ from https://python.org"
     exit 1
-fi
-
-# Use python3 if available, otherwise python
-PYTHON_CMD="python3"
-if ! command -v python3 &> /dev/null; then
-    PYTHON_CMD="python"
 fi
 
 # Check Python version
