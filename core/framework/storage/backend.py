@@ -227,10 +227,11 @@ class FileStorage:
                 time.sleep(0.01)
                 
         # If failed after retries, try one last time without catch
-        if index_path.exists():
+        try:
             with open(index_path) as f:
                 return json.load(f)
-        return []
+        except FileNotFoundError:
+            return []
 
     def _add_to_index(self, index_type: str, key: str, value: str) -> None:
         """Add a value to an index."""
