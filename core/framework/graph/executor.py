@@ -7,6 +7,12 @@ The executor:
 3. Executes nodes following edges
 4. Records all decisions to Runtime
 5. Returns the final result
+
+Error Handling:
+- All errors are classified as ExecutionError with specific codes and categories
+- Retriable errors trigger automatic retries
+- Fatal errors terminate execution immediately
+- Consistent error contract ensures predictable failure semantics
 """
 
 import logging
@@ -29,6 +35,16 @@ from framework.graph.edge import GraphSpec
 from framework.graph.validator import OutputValidator
 from framework.graph.output_cleaner import OutputCleaner, CleansingConfig
 from framework.llm.provider import LLMProvider, Tool
+from framework.graph.execution_errors import (
+    ExecutionError,
+    FatalExecutionError,
+    RetriableExecutionError,
+    ValidationExecutionError,
+    DependencyExecutionError,
+    ErrorCode,
+    ErrorCategory,
+    classify_error,
+)
 
 
 @dataclass
@@ -142,73 +158,82 @@ class GraphExecutor:
 
         Returns:
             ExecutionResult with output and metrics
+        
+        Raises:
+            ExecutionError: For unrecoverable failures after max retries
         """
-        # Validate graph
-        errors = graph.validate()
-        if errors:
-            return ExecutionResult(
-                success=False,
-                error=f"Invalid graph: {errors}",
-            )
-
-        # Validate tool availability
-        tool_errors = self._validate_tools(graph)
-        if tool_errors:
-            self.logger.error("❌ Tool validation failed:")
-            for err in tool_errors:
-                self.logger.error(f"   • {err}")
-            return ExecutionResult(
-                success=False,
-                error=f"Missing tools: {'; '.join(tool_errors)}. Register tools via ToolRegistry or remove tool declarations from nodes.",
-            )
-
-        # Initialize execution state
-        memory = SharedMemory()
-
-        # Restore session state if provided
-        if session_state and "memory" in session_state:
-            # Restore memory from previous session
-            for key, value in session_state["memory"].items():
-                memory.write(key, value)
-            self.logger.info(f"📥 Restored session state with {len(session_state['memory'])} memory keys")
-
-        # Write new input data to memory (each key individually)
-        if input_data:
-            for key, value in input_data.items():
-                memory.write(key, value)
-
-        path: list[str] = []
-        total_tokens = 0
-        total_latency = 0
-        node_retry_counts: dict[str, int] = {}  # Track retries per node
-        max_retries_per_node = 3
-
-        # Determine entry point (may differ if resuming)
-        current_node_id = graph.get_entry_point(session_state)
-        steps = 0
-
-        if session_state and current_node_id != graph.entry_node:
-            self.logger.info(f"🔄 Resuming from: {current_node_id}")
-
-        # Start run
-        _run_id = self.runtime.start_run(
-            goal_id=goal.id,
-            goal_description=goal.description,
-            input_data=input_data or {},
-        )
-
-        self.logger.info(f"🚀 Starting execution: {goal.name}")
-        self.logger.info(f"   Goal: {goal.description}")
-        self.logger.info(f"   Entry node: {graph.entry_node}")
-
         try:
+            # Validate graph
+            errors = graph.validate()
+            if errors:
+                raise FatalExecutionError(
+                    code=ErrorCode.INVALID_CONFIGURATION,
+                    message=f"Invalid graph: {errors}",
+                    context={"graph_id": graph.id}
+                )
+
+            # Validate tool availability
+            tool_errors = self._validate_tools(graph)
+            if tool_errors:
+                self.logger.error("❌ Tool validation failed:")
+                for err in tool_errors:
+                    self.logger.error(f"   • {err}")
+                raise FatalExecutionError(
+                    code=ErrorCode.MISSING_TOOL,
+                    message=f"Missing tools: {'; '.join(tool_errors)}. Register tools via ToolRegistry or remove tool declarations from nodes.",
+                    context={"graph_id": graph.id, "errors": tool_errors}
+                )
+
+            # Initialize execution state
+            memory = SharedMemory()
+
+            # Restore session state if provided
+            if session_state and "memory" in session_state:
+                # Restore memory from previous session
+                for key, value in session_state["memory"].items():
+                    memory.write(key, value)
+                self.logger.info(f"📥 Restored session state with {len(session_state['memory'])} memory keys")
+
+            # Write new input data to memory (each key individually)
+            if input_data:
+                for key, value in input_data.items():
+                    memory.write(key, value)
+
+            path: list[str] = []
+            total_tokens = 0
+            total_latency = 0
+            node_retry_counts: dict[str, int] = {}  # Track retries per node
+            max_retries_per_node = 3
+
+            # Determine entry point (may differ if resuming)
+            current_node_id = graph.get_entry_point(session_state)
+            steps = 0
+
+            if session_state and current_node_id != graph.entry_node:
+                self.logger.info(f"🔄 Resuming from: {current_node_id}")
+
+            # Start run
+            _run_id = self.runtime.start_run(
+                goal_id=goal.id,
+                goal_description=goal.description,
+                input_data=input_data or {},
+            )
+
+            self.logger.info(f"🚀 Starting execution: {goal.name}")
+            self.logger.info(f"   Goal: {goal.description}")
+            self.logger.info(f"   Entry node: {graph.entry_node}")
+
             while steps < graph.max_steps:
                 steps += 1
 
                 # Get current node
                 node_spec = graph.get_node(current_node_id)
                 if node_spec is None:
-                    raise RuntimeError(f"Node not found: {current_node_id}")
+                    raise FatalExecutionError(
+                        code=ErrorCode.NODE_NOT_FOUND,
+                        message=f"Node not found: {current_node_id}",
+                        context={"node_id": current_node_id, "graph_id": graph.id}
+                    )
 
                 path.append(current_node_id)
 
@@ -243,7 +268,19 @@ class GraphExecutor:
                             self.logger.info(f"      {key}: {value_str}")
 
                 # Get or create node implementation
-                node_impl = self._get_node_implementation(node_spec)
+                try:
+                    node_impl = self._get_node_implementation(node_spec)
+                except ExecutionError:
+                    # Re-raise ExecutionErrors as-is
+                    raise
+                except Exception as e:
+                    # Wrap unexpected errors
+                    raise FatalExecutionError(
+                        code=ErrorCode.INVALID_NODE_TYPE,
+                        message=f"Failed to instantiate node '{node_spec.id}': {str(e)}",
+                        context={"node_id": node_spec.id, "node_type": node_spec.node_type},
+                        original_error=e
+                    )
 
                 # Validate inputs
                 validation_errors = node_impl.validate_input(ctx)
@@ -256,24 +293,41 @@ class GraphExecutor:
 
                 # Execute node
                 self.logger.info("   Executing...")
-                result = await node_impl.execute(ctx)
+                try:
+                    result = await node_impl.execute(ctx)
+                except ExecutionError:
+                    # Re-raise ExecutionErrors
+                    raise
+                except Exception as e:
+                    # Wrap execution errors
+                    exec_error = classify_error(e, default_code=ErrorCode.EXECUTION_FAILED)
+                    exec_error.context.update({"node_id": node_spec.id})
+                    raise exec_error
 
                 if result.success:
                     # Validate output before accepting it
                     if result.output and node_spec.output_keys:
-                        validation = self.validator.validate_all(
-                            output=result.output,
-                            expected_keys=node_spec.output_keys,
-                            check_hallucination=True,
-                        )
-                        if not validation.success:
-                            self.logger.error(f"   ✗ Output validation failed: {validation.error}")
-                            result = NodeResult(
-                                success=False,
-                                error=f"Output validation failed: {validation.error}",
-                                output={},
-                                tokens_used=result.tokens_used,
-                                latency_ms=result.latency_ms,
+                        try:
+                            validation = self.validator.validate_all(
+                                output=result.output,
+                                expected_keys=node_spec.output_keys,
+                                check_hallucination=True,
+                            )
+                            if not validation.success:
+                                self.logger.error(f"   ✗ Output validation failed: {validation.error}")
+                                result = NodeResult(
+                                    success=False,
+                                    error=f"Output validation failed: {validation.error}",
+                                    output={},
+                                    tokens_used=result.tokens_used,
+                                    latency_ms=result.latency_ms,
+                                )
+                        except Exception as e:
+                            # Wrap validation errors
+                            raise ValidationExecutionError(
+                                message=f"Output validation failed: {str(e)}",
+                                context={"node_id": node_spec.id},
+                                original_error=e
                             )
 
                 if result.success:
@@ -314,19 +368,17 @@ class GraphExecutor:
                             severity="critical",
                             description=f"Node {current_node_id} failed after {max_retries_per_node} attempts: {result.error}",
                         )
-                        self.runtime.end_run(
-                            success=False,
-                            output_data=memory.read_all(),
-                            narrative=f"Failed at {node_spec.name} after {max_retries_per_node} retries: {result.error}",
-                        )
-                        return ExecutionResult(
-                            success=False,
-                            error=f"Node '{node_spec.name}' failed after {max_retries_per_node} attempts: {result.error}",
-                            output=memory.read_all(),
-                            steps_executed=steps,
-                            total_tokens=total_tokens,
-                            total_latency_ms=total_latency,
-                            path=path,
+                        
+                        # Raise consistent error
+                        raise FatalExecutionError(
+                            code=ErrorCode.EXECUTION_FAILED,
+                            message=f"Node '{node_spec.name}' failed after {max_retries_per_node} attempts: {result.error}",
+                            context={
+                                "node_id": current_node_id,
+                                "node_name": node_spec.name,
+                                "attempts": max_retries_per_node,
+                                "error": result.error
+                            }
                         )
 
                 # Check if we just executed a pause node - if so, save state and return
@@ -412,18 +464,45 @@ class GraphExecutor:
                 path=path,
             )
 
-        except Exception as e:
+        except ExecutionError as e:
+            # Log and report the structured error
+            self.logger.error(f"❌ Execution error: {e}")
+            self.logger.debug(f"   Error details: {e.to_dict()}")
+            
             self.runtime.report_problem(
                 severity="critical",
                 description=str(e),
             )
             self.runtime.end_run(
                 success=False,
-                narrative=f"Failed at step {steps}: {e}",
+                narrative=f"Execution failed: {e}",
             )
+            
+            # Return failed result (don't re-raise for expected ExecutionErrors)
             return ExecutionResult(
                 success=False,
                 error=str(e),
+                steps_executed=steps,
+                path=path,
+            )
+        except Exception as e:
+            # Catch any remaining unexpected exceptions and wrap them
+            exec_error = classify_error(e, default_code=ErrorCode.UNKNOWN_ERROR)
+            self.logger.error(f"❌ Unexpected error: {exec_error}")
+            self.logger.debug(f"   Error details: {exec_error.to_dict()}")
+            
+            self.runtime.report_problem(
+                severity="critical",
+                description=str(exec_error),
+            )
+            self.runtime.end_run(
+                success=False,
+                narrative=f"Failed: {exec_error}",
+            )
+            
+            return ExecutionResult(
+                success=False,
+                error=str(exec_error),
                 steps_executed=steps,
                 path=path,
             )
@@ -459,9 +538,6 @@ class GraphExecutor:
             goal=goal,  # Pass Goal object for LLM-powered routers
         )
 
-    # Valid node types - no ambiguous "llm" type allowed
-    VALID_NODE_TYPES = {"llm_tool_use", "llm_generate", "router", "function", "human_input"}
-
     def _get_node_implementation(self, node_spec: NodeSpec) -> NodeProtocol:
         """Get or create a node implementation."""
         # Check registry first
@@ -470,18 +546,22 @@ class GraphExecutor:
 
         # Validate node type
         if node_spec.node_type not in self.VALID_NODE_TYPES:
-            raise RuntimeError(
-                f"Invalid node type '{node_spec.node_type}' for node '{node_spec.id}'. "
-                f"Must be one of: {sorted(self.VALID_NODE_TYPES)}. "
-                f"Use 'llm_tool_use' for nodes that call tools, 'llm_generate' for text generation."
+            raise FatalExecutionError(
+                code=ErrorCode.INVALID_NODE_TYPE,
+                message=f"Invalid node type '{node_spec.node_type}' for node '{node_spec.id}'. "
+                        f"Must be one of: {sorted(self.VALID_NODE_TYPES)}. "
+                        f"Use 'llm_tool_use' for nodes that call tools, 'llm_generate' for text generation.",
+                context={"node_id": node_spec.id, "node_type": node_spec.node_type, "valid_types": list(self.VALID_NODE_TYPES)}
             )
 
         # Create based on type
         if node_spec.node_type == "llm_tool_use":
             if not node_spec.tools:
-                raise RuntimeError(
-                    f"Node '{node_spec.id}' is type 'llm_tool_use' but declares no tools. "
-                    "Either add tools to the node or change type to 'llm_generate'."
+                raise FatalExecutionError(
+                    code=ErrorCode.INVALID_CONFIGURATION,
+                    message=f"Node '{node_spec.id}' is type 'llm_tool_use' but declares no tools. "
+                            "Either add tools to the node or change type to 'llm_generate'.",
+                    context={"node_id": node_spec.id, "node_type": "llm_tool_use"}
                 )
             return LLMNode(tool_executor=self.tool_executor, require_tools=True)
 
@@ -493,9 +573,11 @@ class GraphExecutor:
 
         if node_spec.node_type == "function":
             # Function nodes need explicit registration
-            raise RuntimeError(
-                f"Function node '{node_spec.id}' not registered. "
-                "Register with node_registry."
+            raise FatalExecutionError(
+                code=ErrorCode.INVALID_CONFIGURATION,
+                message=f"Function node '{node_spec.id}' not registered. "
+                        "Register with node_registry.",
+                context={"node_id": node_spec.id, "node_type": "function"}
             )
 
         if node_spec.node_type == "human_input":
@@ -503,7 +585,11 @@ class GraphExecutor:
             return LLMNode(tool_executor=None, require_tools=False)
 
         # Should never reach here due to validation above
-        raise RuntimeError(f"Unhandled node type: {node_spec.node_type}")
+        raise FatalExecutionError(
+            code=ErrorCode.INVALID_NODE_TYPE,
+            message=f"Unhandled node type: {node_spec.node_type}",
+            context={"node_id": node_spec.id, "node_type": node_spec.node_type}
+        )
 
     def _follow_edges(
         self,
