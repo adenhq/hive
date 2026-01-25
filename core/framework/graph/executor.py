@@ -28,6 +28,12 @@ from framework.graph.node import (
 from framework.graph.edge import GraphSpec
 from framework.graph.validator import OutputValidator
 from framework.graph.output_cleaner import OutputCleaner, CleansingConfig
+from framework.graph.execution_errors import (
+    ExecutionError,
+    ExecutionErrorType,
+    from_exception,
+    create_execution_error,
+)
 from framework.llm.provider import LLMProvider, Tool
 
 
@@ -36,13 +42,22 @@ class ExecutionResult:
     """Result of executing a graph."""
     success: bool
     output: dict[str, Any] = field(default_factory=dict)
+    execution_error: ExecutionError | None = None
+    
+    # Backward compatibility - deprecated, use execution_error instead
     error: str | None = None
+    
     steps_executed: int = 0
     total_tokens: int = 0
     total_latency_ms: int = 0
     path: list[str] = field(default_factory=list)  # Node IDs traversed
     paused_at: str | None = None  # Node ID where execution paused for HITL
     session_state: dict[str, Any] = field(default_factory=dict)  # State to resume from
+    
+    def __post_init__(self):
+        """Ensure backward compatibility by syncing error fields."""
+        if self.execution_error and not self.error:
+            self.error = self.execution_error.message
 
 
 class GraphExecutor:
@@ -299,29 +314,49 @@ class GraphExecutor:
 
                 # Handle failure
                 if not result.success:
+                    # Get error from result - prefer execution_error if available
+                    node_error = None
+                    if hasattr(result, 'execution_error') and result.execution_error:
+                        node_error = result.execution_error
+                    elif result.error:
+                        # Create ExecutionError from string error for consistency
+                        node_error = create_execution_error(
+                            ExecutionErrorType.FATAL_EXCEPTION,
+                            result.error,
+                            source=f"node.{current_node_id}",
+                        )
+                    
                     # Track retries per node
                     node_retry_counts[current_node_id] = node_retry_counts.get(current_node_id, 0) + 1
 
-                    if node_retry_counts[current_node_id] < max_retries_per_node:
+                    # Check if error is retriable
+                    is_retriable = node_error and node_error.retriable if node_error else False
+                    
+                    if is_retriable and node_retry_counts[current_node_id] < max_retries_per_node:
                         # Retry - don't increment steps for retries
                         steps -= 1
                         self.logger.info(f"   ↻ Retrying ({node_retry_counts[current_node_id]}/{max_retries_per_node})...")
+                        if node_error:
+                            self.logger.info(f"   Reason: {node_error.message} [{node_error.error_type.value}]")
                         continue
                     else:
-                        # Max retries exceeded - fail the execution
-                        self.logger.error(f"   ✗ Max retries ({max_retries_per_node}) exceeded for node {current_node_id}")
+                        # Max retries exceeded or fatal error - fail the execution
+                        failure_reason = "fatal error" if not is_retriable else f"max retries ({max_retries_per_node}) exceeded"
+                        error_msg = node_error.message if node_error else result.error or "Unknown error"
+                        
+                        self.logger.error(f"   ✗ Node failed: {failure_reason}")
                         self.runtime.report_problem(
                             severity="critical",
-                            description=f"Node {current_node_id} failed after {max_retries_per_node} attempts: {result.error}",
+                            description=f"Node {current_node_id} failed: {error_msg}",
                         )
                         self.runtime.end_run(
                             success=False,
                             output_data=memory.read_all(),
-                            narrative=f"Failed at {node_spec.name} after {max_retries_per_node} retries: {result.error}",
+                            narrative=f"Failed at {node_spec.name}: {error_msg}",
                         )
                         return ExecutionResult(
                             success=False,
-                            error=f"Node '{node_spec.name}' failed after {max_retries_per_node} attempts: {result.error}",
+                            execution_error=node_error,
                             output=memory.read_all(),
                             steps_executed=steps,
                             total_tokens=total_tokens,
@@ -413,6 +448,9 @@ class GraphExecutor:
             )
 
         except Exception as e:
+            # Classify exception into structured error
+            exec_error = from_exception(e, source="executor")
+            
             self.runtime.report_problem(
                 severity="critical",
                 description=str(e),
@@ -423,7 +461,7 @@ class GraphExecutor:
             )
             return ExecutionResult(
                 success=False,
-                error=str(e),
+                execution_error=exec_error,
                 steps_executed=steps,
                 path=path,
             )

@@ -22,6 +22,12 @@ from framework.graph.plan import (
     ActionType,
 )
 from framework.graph.code_sandbox import CodeSandbox
+from framework.graph.execution_errors import (
+    ExecutionError,
+    ExecutionErrorType,
+    from_exception,
+    create_execution_error,
+)
 from framework.runtime.core import Runtime
 from framework.llm.provider import LLMProvider, Tool
 
@@ -89,13 +95,22 @@ class StepExecutionResult:
     """Result of executing a plan step."""
     success: bool
     outputs: dict[str, Any] = field(default_factory=dict)
+    execution_error: ExecutionError | None = None
+    
+    # Backward compatibility - deprecated, use execution_error instead
     error: str | None = None
-    error_type: str | None = None  # For judge rules: timeout, rate_limit, etc.
+    error_type: str | None = None
 
     # Metadata
     tokens_used: int = 0
     latency_ms: int = 0
     executor_type: str = ""
+    
+    def __post_init__(self):
+        """Ensure backward compatibility by syncing error fields."""
+        if self.execution_error and not self.error:
+            self.error = self.execution_error.message
+            self.error_type = self.execution_error.error_type.value
 
 
 class WorkerNode:
@@ -195,6 +210,9 @@ class WorkerNode:
 
         except Exception as e:
             latency_ms = int((time.time() - start_time) * 1000)
+            
+            # Classify exception into structured error
+            exec_error = from_exception(e, source="worker_node")
 
             self.runtime.record_outcome(
                 decision_id=decision_id,
@@ -205,8 +223,7 @@ class WorkerNode:
 
             return StepExecutionResult(
                 success=False,
-                error=str(e),
-                error_type="exception",
+                execution_error=exec_error,
                 latency_ms=latency_ms,
             )
 
@@ -253,8 +270,11 @@ class WorkerNode:
         else:
             return StepExecutionResult(
                 success=False,
-                error=f"Unknown action type: {action.action_type}",
-                error_type="invalid_action",
+                execution_error=create_execution_error(
+                    ExecutionErrorType.FATAL_CONFIGURATION,
+                    f"Unknown action type: {action.action_type}",
+                    source="worker_node.dispatch",
+                ),
             )
 
     async def _execute_llm_call(
@@ -267,8 +287,11 @@ class WorkerNode:
         if self.llm is None:
             return StepExecutionResult(
                 success=False,
-                error="No LLM provider configured",
-                error_type="configuration",
+                execution_error=create_execution_error(
+                    ExecutionErrorType.FATAL_CONFIGURATION,
+                    "No LLM provider configured",
+                    source="worker_node.llm_call",
+                ),
                 executor_type="llm_call",
             )
 
@@ -321,11 +344,21 @@ class WorkerNode:
             )
 
         except Exception as e:
-            error_type = "rate_limit" if "rate" in str(e).lower() else "llm_error"
+            # Classify LLM errors - rate limits are retriable
+            error_msg = str(e).lower()
+            if "rate" in error_msg and "limit" in error_msg:
+                exec_error = create_execution_error(
+                    ExecutionErrorType.RETRIABLE_TRANSIENT,
+                    str(e),
+                    source="worker_node.llm_call",
+                    details={"error_type": "rate_limit"},
+                )
+            else:
+                exec_error = from_exception(e, source="worker_node.llm_call")
+            
             return StepExecutionResult(
                 success=False,
-                error=str(e),
-                error_type=error_type,
+                execution_error=exec_error,
                 executor_type="llm_call",
             )
 
@@ -339,8 +372,11 @@ class WorkerNode:
         if not tool_name:
             return StepExecutionResult(
                 success=False,
-                error="No tool name specified",
-                error_type="invalid_action",
+                execution_error=create_execution_error(
+                    ExecutionErrorType.FATAL_CONFIGURATION,
+                    "No tool name specified",
+                    source="worker_node.tool_use",
+                ),
                 executor_type="tool_use",
             )
 
@@ -389,8 +425,7 @@ class WorkerNode:
             except Exception as e:
                 return StepExecutionResult(
                     success=False,
-                    error=str(e),
-                    error_type="tool_exception",
+                    execution_error=from_exception(e, source="worker_node.tool_use"),
                     executor_type="tool_use",
                 )
 
@@ -398,16 +433,23 @@ class WorkerNode:
         if tool_name not in self.tools:
             return StepExecutionResult(
                 success=False,
-                error=f"Tool '{tool_name}' not found",
-                error_type="missing_tool",
+                execution_error=create_execution_error(
+                    ExecutionErrorType.FATAL_CONFIGURATION,
+                    f"Tool '{tool_name}' not found",
+                    source="worker_node.tool_use",
+                    details={"tool_name": tool_name, "available_tools": list(self.tools.keys())},
+                ),
                 executor_type="tool_use",
             )
 
         if self.tool_executor is None:
             return StepExecutionResult(
                 success=False,
-                error="No tool executor configured",
-                error_type="configuration",
+                execution_error=create_execution_error(
+                    ExecutionErrorType.FATAL_CONFIGURATION,
+                    "No tool executor configured",
+                    source="worker_node.tool_use",
+                ),
                 executor_type="tool_use",
             )
 
@@ -426,8 +468,12 @@ class WorkerNode:
                 return StepExecutionResult(
                     success=False,
                     outputs={},
-                    error=result.content,
-                    error_type="tool_error",
+                    execution_error=create_execution_error(
+                        ExecutionErrorType.RETRIABLE_VALIDATION,
+                        result.content,
+                        source="worker_node.tool_use",
+                        details={"tool_name": tool_name},
+                    ),
                     executor_type="tool_use",
                 )
 
@@ -452,8 +498,7 @@ class WorkerNode:
         except Exception as e:
             return StepExecutionResult(
                 success=False,
-                error=str(e),
-                error_type="tool_exception",
+                execution_error=from_exception(e, source="worker_node.tool_use"),
                 executor_type="tool_use",
             )
 
@@ -467,8 +512,11 @@ class WorkerNode:
         if self.sub_graph_executor is None:
             return StepExecutionResult(
                 success=False,
-                error="No sub-graph executor configured",
-                error_type="configuration",
+                execution_error=create_execution_error(
+                    ExecutionErrorType.FATAL_CONFIGURATION,
+                    "No sub-graph executor configured",
+                    source="worker_node.sub_graph",
+                ),
                 executor_type="sub_graph",
             )
 
@@ -476,8 +524,11 @@ class WorkerNode:
         if not graph_id:
             return StepExecutionResult(
                 success=False,
-                error="No graph ID specified",
-                error_type="invalid_action",
+                execution_error=create_execution_error(
+                    ExecutionErrorType.FATAL_CONFIGURATION,
+                    "No graph ID specified",
+                    source="worker_node.sub_graph",
+                ),
                 executor_type="sub_graph",
             )
 
@@ -495,8 +546,7 @@ class WorkerNode:
         except Exception as e:
             return StepExecutionResult(
                 success=False,
-                error=str(e),
-                error_type="sub_graph_exception",
+                execution_error=from_exception(e, source="worker_node.sub_graph"),
                 executor_type="sub_graph",
             )
 
@@ -510,16 +560,23 @@ class WorkerNode:
         if not func_name:
             return StepExecutionResult(
                 success=False,
-                error="No function name specified",
-                error_type="invalid_action",
+                execution_error=create_execution_error(
+                    ExecutionErrorType.FATAL_CONFIGURATION,
+                    "No function name specified",
+                    source="worker_node.function",
+                ),
                 executor_type="function",
             )
 
         if func_name not in self.functions:
             return StepExecutionResult(
                 success=False,
-                error=f"Function '{func_name}' not registered",
-                error_type="missing_function",
+                execution_error=create_execution_error(
+                    ExecutionErrorType.FATAL_CONFIGURATION,
+                    f"Function '{func_name}' not registered",
+                    source="worker_node.function",
+                    details={"function_name": func_name, "available_functions": list(self.functions.keys())},
+                ),
                 executor_type="function",
             )
 
@@ -545,8 +602,7 @@ class WorkerNode:
         except Exception as e:
             return StepExecutionResult(
                 success=False,
-                error=str(e),
-                error_type="function_exception",
+                execution_error=from_exception(e, source="worker_node.function"),
                 executor_type="function",
             )
 
@@ -561,8 +617,11 @@ class WorkerNode:
         if not code:
             return StepExecutionResult(
                 success=False,
-                error="No code specified",
-                error_type="invalid_action",
+                execution_error=create_execution_error(
+                    ExecutionErrorType.FATAL_CONFIGURATION,
+                    "No code specified",
+                    source="worker_node.code_execution",
+                ),
                 executor_type="code_execution",
             )
 
@@ -583,11 +642,23 @@ class WorkerNode:
                 latency_ms=sandbox_result.execution_time_ms,
             )
         else:
-            error_type = "security" if "Security" in (sandbox_result.error or "") else "code_error"
+            # Classify sandbox errors - security violations are fatal
+            if "Security" in (sandbox_result.error or "") or "blocked" in (sandbox_result.error or "").lower():
+                exec_error = create_execution_error(
+                    ExecutionErrorType.FATAL_SECURITY,
+                    sandbox_result.error or "Code execution failed",
+                    source="worker_node.code_execution",
+                )
+            else:
+                exec_error = create_execution_error(
+                    ExecutionErrorType.RETRIABLE_VALIDATION,
+                    sandbox_result.error or "Code execution failed",
+                    source="worker_node.code_execution",
+                )
+            
             return StepExecutionResult(
                 success=False,
-                error=sandbox_result.error,
-                error_type=error_type,
+                execution_error=exec_error,
                 executor_type="code_execution",
                 latency_ms=sandbox_result.execution_time_ms,
             )

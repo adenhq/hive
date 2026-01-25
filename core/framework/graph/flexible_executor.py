@@ -36,6 +36,11 @@ from framework.graph.plan import (
 from framework.graph.judge import HybridJudge, create_default_judge
 from framework.graph.worker_node import WorkerNode, StepExecutionResult
 from framework.graph.code_sandbox import CodeSandbox
+from framework.graph.execution_errors import (
+    ExecutionError,
+    ExecutionErrorType,
+    from_exception,
+)
 from framework.llm.provider import LLMProvider, Tool
 
 # Type alias for approval callback
@@ -274,6 +279,9 @@ class FlexibleGraphExecutor:
             )
 
         except Exception as e:
+            # Classify exception and create structured error
+            exec_error = from_exception(e, source="flexible_executor")
+            
             self.runtime.report_problem(
                 severity="critical",
                 description=str(e),
