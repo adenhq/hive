@@ -49,10 +49,12 @@ class LLMProvider(ABC):
     - Request/response formatting
     - Token counting
     - Error handling
+    
+    All methods are async to support concurrent execution and streaming.
     """
 
     @abstractmethod
-    def complete(
+    async def complete(
         self,
         messages: list[dict[str, Any]],
         system: str = "",
@@ -62,7 +64,7 @@ class LLMProvider(ABC):
         json_mode: bool = False,
     ) -> LLMResponse:
         """
-        Generate a completion from the LLM.
+        Generate a completion from the LLM asynchronously.
 
         Args:
             messages: Conversation history [{role: "user"|"assistant", content: str}]
@@ -81,7 +83,7 @@ class LLMProvider(ABC):
         pass
 
     @abstractmethod
-    def complete_with_tools(
+    async def complete_with_tools(
         self,
         messages: list[dict[str, Any]],
         system: str,
@@ -90,13 +92,14 @@ class LLMProvider(ABC):
         max_iterations: int = 10,
     ) -> LLMResponse:
         """
-        Run a tool-use loop until the LLM produces a final response.
+        Run a tool-use loop until the LLM produces a final response asynchronously.
 
         Args:
             messages: Initial conversation
             system: System prompt
             tools: Available tools
             tool_executor: Function to execute tools: (ToolUse) -> ToolResult
+                          Note: tool_executor may be async or sync
             max_iterations: Max tool calls before stopping
 
         Returns:

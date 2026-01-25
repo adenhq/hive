@@ -59,8 +59,9 @@ class TestLiteLLMProviderInit:
 class TestLiteLLMProviderComplete:
     """Test LiteLLMProvider.complete() method."""
 
+    @pytest.mark.asyncio
     @patch("litellm.completion")
-    def test_complete_basic(self, mock_completion):
+    async def test_complete_basic(self, mock_completion):
         """Test basic completion call."""
         # Mock response
         mock_response = MagicMock()
@@ -73,7 +74,7 @@ class TestLiteLLMProviderComplete:
         mock_completion.return_value = mock_response
 
         provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
-        result = provider.complete(
+        result = await provider.complete(
             messages=[{"role": "user", "content": "Hello"}]
         )
 

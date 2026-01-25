@@ -7,6 +7,7 @@ Groq, and local models.
 See: https://docs.litellm.ai/docs/providers
 """
 
+import asyncio
 import json
 from typing import Any
 
@@ -72,7 +73,7 @@ class LiteLLMProvider(LLMProvider):
         self.api_base = api_base
         self.extra_kwargs = kwargs
 
-    def complete(
+    async def complete(
         self,
         messages: list[dict[str, Any]],
         system: str = "",
@@ -81,7 +82,11 @@ class LiteLLMProvider(LLMProvider):
         response_format: dict[str, Any] | None = None,
         json_mode: bool = False,
     ) -> LLMResponse:
-        """Generate a completion using LiteLLM."""
+        """Generate a completion using LiteLLM asynchronously.
+        
+        Wraps blocking litellm.completion() in an executor to prevent
+        blocking the event loop during concurrent execution.
+        """
         # Prepare messages with system prompt
         full_messages = []
         if system:
@@ -121,8 +126,12 @@ class LiteLLMProvider(LLMProvider):
         if response_format:
             kwargs["response_format"] = response_format
 
-        # Make the call
-        response = litellm.completion(**kwargs)
+        # Run blocking LLM call in executor to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: litellm.completion(**kwargs)
+        )
 
         # Extract content
         content = response.choices[0].message.content or ""
@@ -141,7 +150,7 @@ class LiteLLMProvider(LLMProvider):
             raw_response=response,
         )
 
-    def complete_with_tools(
+    async def complete_with_tools(
         self,
         messages: list[dict[str, Any]],
         system: str,
@@ -149,7 +158,7 @@ class LiteLLMProvider(LLMProvider):
         tool_executor: callable,
         max_iterations: int = 10,
     ) -> LLMResponse:
-        """Run a tool-use loop until the LLM produces a final response."""
+        """Run a tool-use loop until the LLM produces a final response asynchronously."""
         # Prepare messages with system prompt
         current_messages = []
         if system:
@@ -161,6 +170,8 @@ class LiteLLMProvider(LLMProvider):
 
         # Convert tools to OpenAI format
         openai_tools = [self._tool_to_openai_format(t) for t in tools]
+
+        loop = asyncio.get_event_loop()
 
         for _ in range(max_iterations):
             # Build kwargs
@@ -177,7 +188,11 @@ class LiteLLMProvider(LLMProvider):
             if self.api_base:
                 kwargs["api_base"] = self.api_base
 
-            response = litellm.completion(**kwargs)
+            # Run blocking LLM call in executor
+            response = await loop.run_in_executor(
+                None,
+                lambda: litellm.completion(**kwargs)
+            )
 
             # Track tokens
             usage = response.usage
@@ -231,7 +246,14 @@ class LiteLLMProvider(LLMProvider):
                     input=args,
                 )
 
-                result = tool_executor(tool_use)
+                # Execute tool (may be sync or async)
+                if asyncio.iscoroutinefunction(tool_executor):
+                    result = await tool_executor(tool_use)
+                else:
+                    result = await loop.run_in_executor(
+                        None,
+                        lambda tu=tool_use: tool_executor(tu)
+                    )
 
                 # Add tool result message
                 current_messages.append({
