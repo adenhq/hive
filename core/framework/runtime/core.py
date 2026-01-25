@@ -285,6 +285,94 @@ class Runtime:
             suggested_fix=suggested_fix,
         )
 
+    # === FAILURE RECORDING ===
+
+    def record_failure(
+        self,
+        node_id: str | None,
+        error: Exception | str,
+        input_data: dict[str, Any] | None = None,
+        memory_snapshot: dict[str, Any] | None = None,
+        severity: str = "error",
+    ) -> str:
+        """
+        Record a failure for analysis.
+        
+        Args:
+            node_id: The node where failure occurred
+            error: The exception or error message
+            input_data: Input context
+            memory_snapshot: Memory state at time of failure
+            severity: "critical", "error", or "warning"
+            
+        Returns:
+            The failure ID
+        """
+        if self._current_run is None:
+            logger.error(f"Cannot record failure without active run: {error}")
+            return ""
+            
+        try:
+            # Lazy import to avoid circular dependency
+            from framework.testing.failure_record import FailureRecord, FailureSeverity
+            from framework.testing.failure_storage import FailureStorage
+            import traceback
+            import asyncio
+            import platform
+            import sys
+            import hashlib
+            
+            # Initialize storage if needed
+            if not hasattr(self, "_failure_storage"):
+                self._failure_storage = FailureStorage(self.storage.base_path)
+            
+            error_type = type(error).__name__ if isinstance(error, Exception) else "Error"
+            error_message = str(error)
+            stack_trace = "".join(traceback.format_tb(error.__traceback__)) if isinstance(error, Exception) else None
+            
+            # Generate fingerprint
+            fingerprint_base = f"{node_id or 'unknown'}:{error_type}:{error_message}"
+            fingerprint = hashlib.sha256(fingerprint_base.encode()).hexdigest()
+            
+            # Use fingerprint as ID for deduplication if desired, or simpler random+hash
+            # User request: "Se o erro for o mesmo, o ID deve ser o mesmo (Hash)"
+            # So we use the fingerprint as the ID.
+            record_id = f"fail_{fingerprint[:16]}"
+            
+            record = FailureRecord(
+                id=record_id,
+                run_id=self._current_run.id,
+                goal_id=self._current_run.goal_id,
+                node_id=node_id,
+                severity=FailureSeverity(severity),
+                error_type=error_type,
+                error_message=error_message,
+                stack_trace=stack_trace,
+                fingerprint=fingerprint,
+                input_data=input_data or {},
+                memory_snapshot=memory_snapshot or {},
+                timestamp=datetime.now(),
+                environment={
+                    "python_version": sys.version.split()[0],
+                    "os": platform.system().lower(),
+                    "arch": platform.machine(),
+                    "processor": platform.processor() or "unknown"
+                }
+            )
+            
+            # Fire and forget attempt in loop
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._failure_storage.record_failure(record))
+            except RuntimeError:
+                pass
+                
+            return record.id
+            
+        except Exception as e:
+            logger.error(f"Failed to record failure: {e}")
+            return ""
+
     # === CONVENIENCE METHODS ===
 
     def decide_and_execute(
