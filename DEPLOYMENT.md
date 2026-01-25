@@ -1,13 +1,9 @@
-﻿# 🚀 Hive AWS Deployment (Terraform)
+﻿# 🚀 Hive AWS Deployment
+This repository now contains a modular Terraform setup for AWS.
 
-This project now includes a production-ready Infrastructure as Code (IaC) layer.
+## Structure
+- `/infra/terraform/main.tf`: Root configuration.
+- `/infra/terraform/modules/vpc`: Reusable networking module.
 
-## Improvements
-- **Modular Networking:** Separated VPC logic into a reusable module.
-- **Automated Provisioning:** Standardized AWS provider configuration.
-- **Deployment Documentation:** Clear path for new developers to spin up cloud environments.
-
-## Quick Start
-1. Navigate to `infra/terraform`.
-2. Run `terraform init`.
-3. Run `terraform plan` to verify the AWS resources.
+## How to use
+Run `terraform init` and `terraform plan` inside the `/infra/terraform` directory.
