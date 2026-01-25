@@ -220,7 +220,6 @@ pip uninstall -y framework tools
 3. Toggle **OFF** all entries for `python.exe` and `python3.exe`.
 4. Re-run `scripts/setup-python.sh` or use the `py` launcher.
 
-
 ## Package Structure
 
 The Hive framework consists of three Python packages:
