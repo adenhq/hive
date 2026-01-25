@@ -308,18 +308,17 @@ class GraphExecutor:
                         self.logger.info(f"   ↻ Retrying ({node_retry_counts[current_node_id]}/{max_retries_per_node})...")
                         continue
                     else:
-                        # Max retries exceeded - fail the execution
                         self.logger.error(f"   ✗ Max retries ({max_retries_per_node}) exceeded for node {current_node_id}")
+                        
                         self.runtime.report_problem(
                             severity="critical",
                             description=f"Node {current_node_id} failed after {max_retries_per_node} attempts: {result.error}",
                         )
                         
-                        # Record critical failure
                         self.runtime.record_failure(
                             node_id=current_node_id,
                             error=f"Max retries ({max_retries_per_node}) exceeded: {result.error}",
-                            input_data={}, # Snapshot taken at node level already
+                            input_data={}, # Snapshot capturado no nível do nó
                             memory_snapshot=memory.read_all(),
                             severity="critical"
                         )

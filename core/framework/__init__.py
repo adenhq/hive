@@ -30,16 +30,18 @@ from framework.llm import LLMProvider, AnthropicProvider
 from framework.runner import AgentRunner, AgentOrchestrator
 
 # Testing framework
-# Testing framework
-# from framework.testing import (
-#     Test,
-#     TestResult,
-#     TestSuiteResult,
-#     TestStorage,
-#     ApprovalStatus,
-#     ErrorCategory,
-#     DebugTool,
-# )
+from framework.testing import (
+    Test,
+    TestResult,
+    TestSuiteResult,
+    TestStorage,
+    ApprovalStatus,
+    ErrorCategory,
+    DebugTool,
+)
+# New: Failure Recording exports (Sua contribuição)
+from framework.testing.failure_record import FailureRecord, FailureSeverity
+from framework.testing.failure_storage import FailureStorage
 
 __all__ = [
     # Schemas
@@ -61,11 +63,15 @@ __all__ = [
     "AgentRunner",
     "AgentOrchestrator",
     # Testing
-    # "Test",
-    # "TestResult",
-    # "TestSuiteResult",
-    # "TestStorage",
-    # "ApprovalStatus",
-    # "ErrorCategory",
-    # "DebugTool",
+"Test",
+    "TestResult",
+    "TestSuiteResult",
+    "TestStorage",
+    "ApprovalStatus",
+    "ErrorCategory",
+    "DebugTool",
+    # Failure Recording (Adicione estes aqui no final da lista)
+    "FailureRecord",
+    "FailureSeverity",
+    "FailureStorage",
 ]

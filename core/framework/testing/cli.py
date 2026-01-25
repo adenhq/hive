@@ -102,7 +102,6 @@ def register_testing_commands(subparsers: argparse._SubParsersAction) -> None:
     )
     stats_parser.set_defaults(func=cmd_test_stats)
 
-    # failure commands group
     failures_parser = subparsers.add_parser(
         "failures",
         help="Inspect recorded agent failures",
@@ -127,7 +126,6 @@ def register_testing_commands(subparsers: argparse._SubParsersAction) -> None:
     stats_f_parser.add_argument("agent_path", help="Path to agent project")
     stats_f_parser.add_argument("--goal", required=True, help="Goal ID to analyze")
     stats_f_parser.set_defaults(func=cmd_failures_stats)
-
 
 def cmd_test_run(args: argparse.Namespace) -> int:
     """Run tests for an agent using pytest subprocess."""
