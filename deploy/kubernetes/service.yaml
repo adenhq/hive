@@ -1,0 +1,57 @@
+# Hive Tools - Service and Ingress Configuration
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-tools
+  namespace: hive
+  labels:
+    app: hive-tools
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 4001
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: hive-tools
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hive-ingress
+  namespace: hive
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts:
+        - api.hive.example.com
+      secretName: hive-tls
+  rules:
+    - host: api.hive.example.com
+      http:
+        paths:
+          - path: /mcp
+            pathType: Prefix
+            backend:
+              service:
+                name: hive-tools
+                port:
+                  number: 4001
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: hive-tools
+                port:
+                  number: 4001

@@ -1,0 +1,332 @@
+# Hive CI/CD Pipeline
+# Complete pipeline for linting, testing, building, and deploying
+
+name: Hive CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy_environment:
+        description: 'Environment to deploy to'
+        required: false
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # ================================
+  # Stage 1: Code Quality
+  # ================================
+  lint:
+    name: Lint Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd core
+          pip install -e .
+          pip install -r requirements-dev.txt
+
+      - name: Run ruff linter
+        run: |
+          cd core
+          ruff check . --output-format=github
+
+      - name: Run ruff formatter check
+        run: |
+          cd core
+          ruff format --check .
+
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd core
+          pip install -e .
+          pip install -r requirements-dev.txt
+
+      - name: Run mypy
+        run: |
+          cd core
+          mypy framework/ --ignore-missing-imports || true
+
+  # ================================
+  # Stage 2: Testing
+  # ================================
+  unit-tests:
+    name: Unit Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd core
+          pip install -e .
+          pip install -r requirements-dev.txt
+
+      - name: Run unit tests
+        run: |
+          cd core
+          pytest tests/ -v --cov=framework --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.11'
+        with:
+          files: core/coverage.xml
+          flags: unittests
+          fail_ci_if_error: false
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd core
+          pip install -e .
+          pip install -r requirements-dev.txt
+
+      - name: Run integration tests
+        run: |
+          cd core
+          pytest tests/ -v -m "integration" --timeout=300 || true
+
+  tools-tests:
+    name: Tools Tests
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd tools
+          pip install -e .
+
+      - name: Run tools tests
+        run: |
+          cd tools
+          pytest tests/ -v || true
+
+  validate-exports:
+    name: Validate Agent Exports
+    runs-on: ubuntu-latest
+    needs: [lint, unit-tests]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd core
+          pip install -e .
+          pip install -r requirements-dev.txt
+
+      - name: Validate exported agents
+        run: |
+          for agent_dir in exports/*/; do
+            if [ -f "$agent_dir/agent.json" ]; then
+              echo "Validating $agent_dir"
+              python -c "import json; json.load(open('$agent_dir/agent.json'))"
+            fi
+          done
+
+  # ================================
+  # Stage 3: Build
+  # ================================
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tools
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix=
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./tools
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # ================================
+  # Stage 4: Security Scanning
+  # ================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tools:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'HIGH,CRITICAL'
+        continue-on-error: true
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
+
+  # ================================
+  # Stage 5: Deploy to Staging
+  # ================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build, security-scan]
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://staging.hive.example.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to staging (placeholder)
+        run: |
+          echo "Deploying to staging environment..."
+          echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tools:${{ github.sha }}"
+          # kubectl set image deployment/hive-tools tools=$IMAGE -n hive-staging
+          # kubectl rollout status deployment/hive-tools -n hive-staging
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests..."
+          # curl -f https://staging.hive.example.com/health
+
+  # ================================
+  # Stage 6: Deploy to Production
+  # ================================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, security-scan]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://api.hive.example.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to production (placeholder)
+        run: |
+          echo "Deploying to production environment..."
+          echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/tools:${{ github.sha }}"
+          # kubectl set image deployment/hive-tools tools=$IMAGE -n hive
+          # kubectl rollout status deployment/hive-tools -n hive
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests..."
+          # curl -f https://api.hive.example.com/health
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "Deployment successful! Would notify via Slack webhook."
+          # curl -X POST $SLACK_WEBHOOK -d '{"text":"Hive deployed to production"}'

@@ -1,0 +1,27 @@
+# Hive Configuration - ConfigMap
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hive-config
+  namespace: hive
+data:
+  # Server configuration
+  MCP_PORT: "4001"
+  MCP_HOST: "0.0.0.0"
+
+  # Logging
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+
+  # Environment
+  ENVIRONMENT: "production"
+
+  # Metrics
+  ENABLE_METRICS: "true"
+  METRICS_PORT: "9090"
+
+  # Performance
+  MAX_CONNECTIONS: "100"
+  REQUEST_TIMEOUT: "300"
+  HEALTHCHECK_INTERVAL: "30"

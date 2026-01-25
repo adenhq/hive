@@ -1,0 +1,79 @@
+# Promtail Configuration for Hive
+# Collects logs from Docker containers and sends to Loki
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Docker container logs
+  - job_name: containers
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: containerlogs
+          __path__: /var/lib/docker/containers/*/*log
+
+    pipeline_stages:
+      # Parse Docker JSON log format
+      - json:
+          expressions:
+            output: log
+            stream: stream
+            timestamp: time
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      - labels:
+          stream:
+      - output:
+          source: output
+
+  # Hive application logs (if writing to file)
+  - job_name: hive-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: hive
+          __path__: /var/log/hive/*.log
+
+    pipeline_stages:
+      # Parse JSON logs
+      - json:
+          expressions:
+            level: level
+            service: service
+            message: message
+            trace_id: trace_id
+      - labels:
+          level:
+          service:
+      - output:
+          source: message
+
+  # System logs
+  - job_name: syslog
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: syslog
+          __path__: /var/log/syslog
+
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\w+\s+\d+\s+\d+:\d+:\d+)\s+(?P<hostname>\w+)\s+(?P<app>\w+)(?:\[(?P<pid>\d+)\])?:\s+(?P<message>.*)$'
+      - labels:
+          hostname:
+          app:
+      - timestamp:
+          source: timestamp
+          format: "Jan  2 15:04:05"

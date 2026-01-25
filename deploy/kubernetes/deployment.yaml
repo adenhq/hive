@@ -1,0 +1,116 @@
+# Hive Tools MCP Server - Kubernetes Deployment
+# Designed for production with HA, security, and observability
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hive-tools
+  namespace: hive
+  labels:
+    app: hive-tools
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hive-tools
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: hive-tools
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "4001"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: hive-tools
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+      containers:
+        - name: tools
+          image: ghcr.io/hive/tools:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 4001
+              protocol: TCP
+          env:
+            - name: MCP_PORT
+              value: "4001"
+            - name: MCP_HOST
+              value: "0.0.0.0"
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: hive-config
+                  key: LOG_LEVEL
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hive-secrets
+                  key: anthropic-api-key
+            - name: BRAVE_SEARCH_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hive-secrets
+                  key: brave-api-key
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: workspaces
+              mountPath: /app/workdir/workspaces
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: workspaces
+          persistentVolumeClaim:
+            claimName: hive-workspaces
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: hive-tools
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: hive-tools
+                topologyKey: kubernetes.io/hostname

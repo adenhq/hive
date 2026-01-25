@@ -1,0 +1,111 @@
+# Alertmanager Configuration for Hive
+
+global:
+  # The smarthost and SMTP sender used for mail notifications.
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_from: 'alertmanager@hive.example.com'
+  smtp_auth_username: 'alertmanager@hive.example.com'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+
+  # Slack webhook URL
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+
+  # Default resolver timeout
+  resolve_timeout: 5m
+
+# The directory from which notification templates are read.
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Route tree
+route:
+  # Default receiver
+  receiver: 'slack-notifications'
+
+  # Group alerts by alertname and severity
+  group_by: ['alertname', 'severity']
+
+  # Wait before sending first notification
+  group_wait: 30s
+
+  # Wait before sending additional notifications
+  group_interval: 5m
+
+  # Wait before resending
+  repeat_interval: 4h
+
+  # Child routes
+  routes:
+    # Critical alerts go to PagerDuty
+    - match:
+        severity: critical
+      receiver: 'pagerduty-critical'
+      continue: true
+
+    # Also send to Slack
+    - match:
+        severity: critical
+      receiver: 'slack-critical'
+
+    # Warning alerts go to Slack
+    - match:
+        severity: warning
+      receiver: 'slack-warnings'
+
+# Inhibition rules
+inhibit_rules:
+  # If service is down, don't alert on latency/errors
+  - source_match:
+      alertname: 'ServiceDown'
+    target_match_re:
+      alertname: '(HighLatency|HighErrorRate)'
+    equal: ['instance']
+
+# Receivers
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      - channel: '#hive-alerts'
+        send_resolved: true
+        title: '{{ template "slack.default.title" . }}'
+        text: '{{ template "slack.default.text" . }}'
+
+  - name: 'slack-critical'
+    slack_configs:
+      - channel: '#hive-critical'
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+        title: '[CRITICAL] {{ .CommonAnnotations.summary }}'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          {{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ end }}
+
+  - name: 'slack-warnings'
+    slack_configs:
+      - channel: '#hive-alerts'
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
+        title: '[WARNING] {{ .CommonAnnotations.summary }}'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          {{ end }}
+
+  - name: 'pagerduty-critical'
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_SERVICE_KEY}'
+        severity: critical
+        description: '{{ .CommonAnnotations.summary }}'
+        details:
+          alertname: '{{ .CommonLabels.alertname }}'
+          description: '{{ .CommonAnnotations.description }}'
+
+  - name: 'email-notifications'
+    email_configs:
+      - to: 'oncall@hive.example.com'
+        send_resolved: true

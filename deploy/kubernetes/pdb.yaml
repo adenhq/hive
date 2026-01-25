@@ -1,0 +1,84 @@
+# Hive Tools - Pod Disruption Budget
+# Ensures minimum availability during voluntary disruptions
+
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hive-tools-pdb
+  namespace: hive
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: hive-tools
+
+---
+# Service Account for Hive Tools
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hive-tools
+  namespace: hive
+
+---
+# Namespace (create first if not exists)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hive
+  labels:
+    name: hive
+    environment: production
+
+---
+# Network Policy - Restrict ingress/egress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hive-tools-netpol
+  namespace: hive
+spec:
+  podSelector:
+    matchLabels:
+      app: hive-tools
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - port: 4001
+          protocol: TCP
+    # Allow from within namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: hive
+      ports:
+        - port: 4001
+          protocol: TCP
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+    # Allow HTTPS to external APIs (LLM providers)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+          protocol: TCP

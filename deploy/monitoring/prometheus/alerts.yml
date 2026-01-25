@@ -1,0 +1,146 @@
+# Prometheus Alerting Rules for Hive
+
+groups:
+  - name: hive-critical
+    rules:
+      # Alert 1: High Error Rate
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+          / sum(rate(http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+          runbook_url: "https://wiki.example.com/runbooks/high-error-rate"
+
+      # Alert 2: Service Down
+      - alert: ServiceDown
+        expr: up{job="hive-tools"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Hive service is down"
+          description: "{{ $labels.instance }} has been down for more than 1 minute"
+          runbook_url: "https://wiki.example.com/runbooks/service-down"
+
+      # Alert 3: High Latency
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
+          > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request latency detected"
+          description: "P99 latency is {{ $value | humanizeDuration }} (threshold: 2s)"
+          runbook_url: "https://wiki.example.com/runbooks/high-latency"
+
+      # Alert 4: Budget Exceeded
+      - alert: LLMBudgetExceeded
+        expr: |
+          sum(increase(llm_cost_dollars_total[24h])) > 500
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Daily LLM budget exceeded"
+          description: "LLM costs today: ${{ $value | printf \"%.2f\" }} (budget: $500)"
+
+      # Alert 5: Database Connection Issues
+      - alert: DatabaseConnectionFailures
+        expr: |
+          sum(rate(mongodb_connection_errors_total[5m])) > 5
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection failures"
+          description: "{{ $value | printf \"%.1f\" }} connection errors/sec"
+          runbook_url: "https://wiki.example.com/runbooks/database-issues"
+
+      # Alert 6: Memory Pressure
+      - alert: HighMemoryUsage
+        expr: |
+          (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)
+          / node_memory_MemTotal_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }} of total"
+
+      # Alert 7: Pod Restart Loop (Kubernetes)
+      - alert: PodRestartLoop
+        expr: |
+          increase(kube_pod_container_status_restarts_total{namespace="hive"}[1h]) > 5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pod in restart loop"
+          description: "{{ $labels.pod }} has restarted {{ $value }} times in the last hour"
+
+      # Alert 8: LLM Provider Errors
+      - alert: LLMProviderErrors
+        expr: |
+          sum(rate(llm_requests_total{status="error"}[5m]))
+          / sum(rate(llm_requests_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High LLM provider error rate"
+          description: "{{ $value | humanizePercentage }} of LLM requests are failing"
+
+      # Alert 9: Disk Space Low
+      - alert: DiskSpaceLow
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space"
+          description: "Only {{ $value | humanizePercentage }} disk space remaining on {{ $labels.instance }}"
+
+      # Alert 10: High CPU Usage
+      - alert: HighCPUUsage
+        expr: |
+          100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value | printf \"%.1f\" }}% on {{ $labels.instance }}"
+
+  - name: hive-slo
+    rules:
+      # SLO: 99.9% availability
+      - alert: SLOAvailabilityBreach
+        expr: |
+          1 - (sum(rate(http_requests_total{status!~"5.."}[30d]))
+          / sum(rate(http_requests_total[30d]))) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SLO availability breach"
+          description: "30-day error budget is exhausted. Current error rate: {{ $value | humanizePercentage }}"
+
+      # SLO: P99 latency < 2s
+      - alert: SLOLatencyBreach
+        expr: |
+          histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[30d])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SLO latency breach"
+          description: "30-day P99 latency is {{ $value | humanizeDuration }} (target: 2s)"
