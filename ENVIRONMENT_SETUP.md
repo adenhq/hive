@@ -78,7 +78,7 @@ All agent commands must be run from the project root with `PYTHONPATH` set:
 
 ```bash
 # From /hive/ directory
-PYTHONPATH=core:exports python -m agent_name COMMAND
+PYTHONPATH=core:exports python -m support_ticket_agent validate
 ```
 
 ### Example: Support Ticket Agent
