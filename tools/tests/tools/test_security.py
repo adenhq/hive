@@ -2,7 +2,22 @@
 import os
 import pytest
 from unittest.mock import patch
+import os
+import tempfile
 
+def can_create_symlink() -> bool:
+    if os.name != "nt":
+        return True
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = os.path.join(tmp, "target.txt")
+            link = os.path.join(tmp, "link.txt")
+            with open(target, "w") as f:
+                f.write("test")
+            os.symlink(target, link)
+        return True
+    except (OSError, NotImplementedError):
+        return False
 
 class TestGetSecurePath:
     """Tests for get_secure_path() function."""
@@ -166,7 +181,10 @@ class TestGetSecurePath:
 
         expected = self.workspaces_dir / "test-workspace" / "test-agent" / "test-session"
         assert result == str(expected)
-
+    @pytest.mark.skipif(
+    not can_create_symlink(),
+    reason="Symlink creation not permitted on this system (Windows without admin/dev mode)"
+    )
     def test_symlink_within_sandbox_works(self, ids):
         """Symlinks that stay within the sandbox are allowed."""
         from aden_tools.tools.file_system_toolkits.security import get_secure_path
@@ -185,7 +203,10 @@ class TestGetSecurePath:
         result = get_secure_path("link_to_target", **ids)
 
         assert result == str(symlink_path)
-
+    @pytest.mark.skipif(
+    not can_create_symlink(),
+    reason="Symlink creation not permitted on this system (Windows without admin/dev mode)"
+    )
     def test_symlink_escape_detected_with_realpath(self, ids):
         """Symlinks pointing outside sandbox can be detected using realpath.
 
