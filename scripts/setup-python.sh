@@ -91,6 +91,14 @@ if [ -f "pyproject.toml" ]; then
     $PYTHON_CMD -m pip install -e . > /dev/null 2>&1
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✓${NC} Framework package installed"
+        # Install test dependencies for framework package (if test extra is available)
+        echo "Installing test dependencies for framework package..."
+        if $PYTHON_CMD -m pip install -e ".[test]" > /dev/null 2>&1; then
+            echo -e "${GREEN}✓${NC} Framework test dependencies installed"
+        else
+            # Framework already has pytest in main dependencies, so this is optional
+            echo -e "${GREEN}✓${NC} Framework test dependencies available (pytest in main deps)"
+        fi
     else
         echo -e "${YELLOW}⚠${NC} Framework installation encountered issues (may be OK if already installed)"
     fi
@@ -111,6 +119,16 @@ if [ -f "pyproject.toml" ]; then
     $PYTHON_CMD -m pip install -e . > /dev/null 2>&1
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✓${NC} Tools package installed"
+        # Install test dependencies for tools package (if test extra is available)
+        echo "Installing test dependencies for tools package..."
+        if $PYTHON_CMD -m pip install -e ".[test]" > /dev/null 2>&1; then
+            echo -e "${GREEN}✓${NC} Tools test dependencies installed"
+        else
+            # Fallback: install test dependencies manually if test extra not available
+            echo "Installing test dependencies directly..."
+            $PYTHON_CMD -m pip install "pytest>=7.0.0" "pytest-asyncio>=0.21.0" "pytest-xdist>=3.0" > /dev/null 2>&1
+            echo -e "${GREEN}✓${NC} Tools test dependencies installed"
+        fi
     else
         echo -e "${RED}✗${NC} Tools installation failed"
         exit 1

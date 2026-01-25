@@ -93,14 +93,24 @@ feat(component): add new feature description
 ## Testing
 
 ```bash
-# Run all tests for the framework
+# Run all tests from repository root (recommended)
+# This uses pytest.ini configuration for proper test discovery
+pytest
+
+# Run all tests for the framework only
 cd core && python -m pytest
 
-# Run all tests for tools
+# Run all tests for tools only
 cd tools && python -m pytest
 
 # Run tests for a specific agent
 PYTHONPATH=core:exports python -m agent_name test
+
+# Run tests with verbose output
+pytest -v
+
+# Run tests in parallel (faster)
+pytest -n auto
 ```
 
 ## Questions?
