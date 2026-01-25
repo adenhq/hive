@@ -3,12 +3,30 @@ File-based storage backend for runtime data.
 
 Stores runs as JSON files with indexes for efficient querying.
 Uses Pydantic's built-in serialization.
+
+Note: All file operations use UTF-8 encoding for cross-platform compatibility,
+especially for Unicode characters like ✓ and ✗ used in decision summaries.
+
+Modified by: sandeepnaik (January 2026)
+- Fixed UnicodeEncodeError on Windows by adding UTF-8 encoding to all file operations
+- Added _open_utf8() helper function for consistent cross-platform file handling
 """
 
 import json
 from pathlib import Path
+from typing import TextIO
 
 from framework.schemas.run import Run, RunSummary, RunStatus
+
+
+def _open_utf8(path: Path, mode: str = "r") -> TextIO:
+    """
+    Open a file with UTF-8 encoding for cross-platform compatibility.
+    
+    Added by: sandeepnaik
+    Fixes Windows UnicodeEncodeError when writing Unicode characters (✓ ✗).
+    """
+    return open(path, mode, encoding="utf-8")
 
 
 class FileStorage:
@@ -52,13 +70,13 @@ class FileStorage:
         """Save a run to storage."""
         # Save full run using Pydantic's model_dump_json
         run_path = self.base_path / "runs" / f"{run.id}.json"
-        with open(run_path, "w") as f:
+        with _open_utf8(run_path, "w") as f:
             f.write(run.model_dump_json(indent=2))
 
         # Save summary
         summary = RunSummary.from_run(run)
         summary_path = self.base_path / "summaries" / f"{run.id}.json"
-        with open(summary_path, "w") as f:
+        with _open_utf8(summary_path, "w") as f:
             f.write(summary.model_dump_json(indent=2))
 
         # Update indexes
@@ -72,7 +90,7 @@ class FileStorage:
         run_path = self.base_path / "runs" / f"{run_id}.json"
         if not run_path.exists():
             return None
-        with open(run_path) as f:
+        with _open_utf8(run_path) as f:
             return Run.model_validate_json(f.read())
 
     def load_summary(self, run_id: str) -> RunSummary | None:
@@ -85,7 +103,7 @@ class FileStorage:
                 return RunSummary.from_run(run)
             return None
 
-        with open(summary_path) as f:
+        with _open_utf8(summary_path) as f:
             return RunSummary.model_validate_json(f.read())
 
     def delete_run(self, run_id: str) -> bool:
@@ -143,7 +161,7 @@ class FileStorage:
         index_path = self.base_path / "indexes" / index_type / f"{key}.json"
         if not index_path.exists():
             return []
-        with open(index_path) as f:
+        with _open_utf8(index_path) as f:
             return json.load(f)
 
     def _add_to_index(self, index_type: str, key: str, value: str) -> None:
@@ -152,7 +170,7 @@ class FileStorage:
         values = self._get_index(index_type, key)
         if value not in values:
             values.append(value)
-            with open(index_path, "w") as f:
+            with _open_utf8(index_path, "w") as f:
                 json.dump(values, f)
 
     def _remove_from_index(self, index_type: str, key: str, value: str) -> None:
@@ -161,7 +179,7 @@ class FileStorage:
         values = self._get_index(index_type, key)
         if value in values:
             values.remove(value)
-            with open(index_path, "w") as f:
+            with _open_utf8(index_path, "w") as f:
                 json.dump(values, f)
 
     # === UTILITY ===

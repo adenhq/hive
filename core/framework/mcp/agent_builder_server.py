@@ -5,13 +5,16 @@ Exposes tools for building goal-driven agents via the Model Context Protocol.
 
 Usage:
     python -m framework.mcp.agent_builder_server
+
+Modified by: sandeepnaik (January 2026)
+- Added UTF-8 encoding to session file operations for Windows compatibility
 """
 
 import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, TextIO
 
 from mcp.server import FastMCP
 
@@ -22,6 +25,11 @@ from framework.graph.plan import Plan
 from framework.testing.prompts import (
     PYTEST_TEST_FILE_HEADER,
 )
+
+
+def _open_utf8(path: Path, mode: str = "r") -> TextIO:
+    """Open a file with UTF-8 encoding. Added by: sandeepnaik"""
+    return open(path, mode, encoding="utf-8")
 
 
 # Initialize MCP server
@@ -124,11 +132,11 @@ def _save_session(session: BuildSession):
 
     # Save session file
     session_file = SESSIONS_DIR / f"{session.id}.json"
-    with open(session_file, "w") as f:
+    with _open_utf8(session_file, "w") as f:
         json.dump(session.to_dict(), f, indent=2, default=str)
 
     # Update active session pointer
-    with open(ACTIVE_SESSION_FILE, "w") as f:
+    with _open_utf8(ACTIVE_SESSION_FILE, "w") as f:
         f.write(session.id)
 
 
@@ -138,7 +146,7 @@ def _load_session(session_id: str) -> BuildSession:
     if not session_file.exists():
         raise ValueError(f"Session '{session_id}' not found")
 
-    with open(session_file, "r") as f:
+    with _open_utf8(session_file, "r") as f:
         data = json.load(f)
 
     return BuildSession.from_dict(data)
@@ -150,7 +158,7 @@ def _load_active_session() -> BuildSession | None:
         return None
 
     try:
-        with open(ACTIVE_SESSION_FILE, "r") as f:
+        with _open_utf8(ACTIVE_SESSION_FILE, "r") as f:
             session_id = f.read().strip()
 
         if session_id:
@@ -201,7 +209,7 @@ def list_sessions() -> str:
     if SESSIONS_DIR.exists():
         for session_file in SESSIONS_DIR.glob("*.json"):
             try:
-                with open(session_file, "r") as f:
+                with _open_utf8(session_file, "r") as f:
                     data = json.load(f)
                     sessions.append({
                         "session_id": data["session_id"],
@@ -219,7 +227,7 @@ def list_sessions() -> str:
     active_id = None
     if ACTIVE_SESSION_FILE.exists():
         try:
-            with open(ACTIVE_SESSION_FILE, "r") as f:
+            with _open_utf8(ACTIVE_SESSION_FILE, "r") as f:
                 active_id = f.read().strip()
         except Exception:
             pass
@@ -240,7 +248,7 @@ def load_session_by_id(session_id: Annotated[str, "ID of the session to load"]) 
         _session = _load_session(session_id)
 
         # Update active session pointer
-        with open(ACTIVE_SESSION_FILE, "w") as f:
+        with _open_utf8(ACTIVE_SESSION_FILE, "w") as f:
             f.write(session_id)
 
         return json.dumps({
@@ -282,7 +290,7 @@ def delete_session(session_id: Annotated[str, "ID of the session to delete"]) ->
             _session = None
 
         if ACTIVE_SESSION_FILE.exists():
-            with open(ACTIVE_SESSION_FILE, "r") as f:
+            with _open_utf8(ACTIVE_SESSION_FILE, "r") as f:
                 active_id = f.read().strip()
                 if active_id == session_id:
                     ACTIVE_SESSION_FILE.unlink()
@@ -1368,13 +1376,13 @@ def export_graph() -> str:
 
     # Write agent.json
     agent_json_path = exports_dir / "agent.json"
-    with open(agent_json_path, "w") as f:
+    with _open_utf8(agent_json_path, "w") as f:
         json.dump(export_data, f, indent=2, default=str)
 
     # Generate README.md
     readme_content = _generate_readme(session, export_data, all_tools)
     readme_path = exports_dir / "README.md"
-    with open(readme_path, "w") as f:
+    with _open_utf8(readme_path, "w") as f:
         f.write(readme_content)
 
     # Write mcp_servers.json if MCP servers are configured
@@ -1385,7 +1393,7 @@ def export_graph() -> str:
             "servers": session.mcp_servers
         }
         mcp_servers_path = exports_dir / "mcp_servers.json"
-        with open(mcp_servers_path, "w") as f:
+        with _open_utf8(mcp_servers_path, "w") as f:
             json.dump(mcp_config, f, indent=2)
         mcp_servers_size = mcp_servers_path.stat().st_size
 

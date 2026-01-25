@@ -1,5 +1,13 @@
 # Issue: Remove LLM Dependency from Agent Builder MCP Server
 
+## Status: ✅ RESOLVED
+
+**Resolution Date:** January 2026  
+**Resolved By:** sandeepnaik  
+**Resolution:** Option A was implemented - LLM dependency removed entirely.
+
+---
+
 ## Summary
 
 The `agent_builder_server.py` MCP server has a hardcoded dependency on `AnthropicProvider` for test generation, which:
