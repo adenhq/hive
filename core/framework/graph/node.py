@@ -301,24 +301,24 @@ class NodeResult:
         if not self.output:
             return "✓ Completed (no output)"
 
-        # Use Haiku to generate intelligent summary
-        import os
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-
-        if not api_key:
-            # Fallback: simple key-value listing
-            parts = [f"✓ Completed with {len(self.output)} outputs:"]
-            for key, value in list(self.output.items())[:5]:  # Limit to 5 keys
-                value_str = str(value)[:100]
-                if len(str(value)) > 100:
-                    value_str += "..."
-                parts.append(f"  • {key}: {value_str}")
-            return "\n".join(parts)
-
-        # Use Haiku to generate intelligent summary
+        # Use generic LLM to generate intelligent summary
         try:
-            import anthropic
             import json
+            from framework.llm.litellm import LiteLLMProvider
+            
+            # Use environment variables for configuration
+            model = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+            api_key = os.environ.get("LLM_API_KEY")
+            
+            if not api_key:
+                # Fallback: simple key-value listing
+                parts = [f"✓ Completed with {len(self.output)} outputs:"]
+                for key, value in list(self.output.items())[:5]:  # Limit to 5 keys
+                    value_str = str(value)[:100]
+                    if len(str(value)) > 100:
+                        value_str += "..."
+                    parts.append(f"  • {key}: {value_str}")
+                return "\n".join(parts)
 
             node_context = ""
             if node_spec:
@@ -331,14 +331,14 @@ Node output:
 
 Provide a concise, clear summary that a human can quickly understand. Focus on the key information produced."""
 
-            client = anthropic.Anthropic(api_key=api_key)
-            message = client.messages.create(
-                model="claude-3-5-haiku-20241022",
-                max_tokens=200,
-                messages=[{"role": "user", "content": prompt}]
+            llm = LiteLLMProvider(model=model, api_key=api_key)
+            result = llm.complete(
+                messages=[{"role": "user", "content": prompt}],
+                system="You are a helpful assistant. Summarize the output concisely.",
+                max_tokens=200
             )
 
-            summary = message.content[0].text.strip()
+            summary = result.content.strip()
             return f"✓ {summary}"
 
         except Exception:
@@ -696,22 +696,22 @@ class LLMNode(NodeProtocol):
         # All local extraction methods failed - use LLM as last resort
         # Prefer Cerebras (faster/cheaper), fallback to Anthropic Haiku
         import os
-        api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise ValueError("Cannot parse JSON and no API key for LLM cleanup (set CEREBRAS_API_KEY or ANTHROPIC_API_KEY)")
-
-        # Use fast LLM to clean the response (Cerebras llama-3.3-70b preferred)
         from framework.llm.litellm import LiteLLMProvider
-        if os.environ.get("CEREBRAS_API_KEY"):
-            cleaner_llm = LiteLLMProvider(
-                api_key=os.environ.get("CEREBRAS_API_KEY"),
-                model="cerebras/llama-3.3-70b",
-                temperature=0.0
-            )
-        else:
-            # Fallback to Anthropic Haiku
-            from framework.llm.anthropic import AnthropicProvider
-            cleaner_llm = AnthropicProvider(model="claude-3-5-haiku-20241022")
+
+        model = os.environ.get("LLM_MODEL")
+        api_key = os.environ.get("LLM_API_KEY")
+        if not model:
+            # Fallback to default if not set, consistent with other methods
+            model = "gpt-4o-mini"
+
+        if not api_key:
+             raise ValueError("Cannot parse JSON and no API key for LLM cleanup (set LLM_API_KEY)")
+
+        cleaner_llm = LiteLLMProvider(
+            model=model,
+            api_key=api_key,
+            temperature=0.0
+        )
 
         prompt = f"""Extract the JSON object from this LLM response.
 
@@ -753,12 +753,12 @@ Output ONLY the JSON object, nothing else."""
 
     def _build_messages(self, ctx: NodeContext) -> list[dict]:
         """Build the message list for the LLM."""
-        # Use Haiku to intelligently format inputs from memory
-        user_content = self._format_inputs_with_haiku(ctx)
+        # Use LLM to intelligently format inputs from memory
+        user_content = self._format_inputs_with_llm(ctx)
         return [{"role": "user", "content": user_content}]
 
-    def _format_inputs_with_haiku(self, ctx: NodeContext) -> str:
-        """Use Haiku to intelligently extract and format inputs from memory."""
+    def _format_inputs_with_llm(self, ctx: NodeContext) -> str:
+        """Use LLM to intelligently extract and format inputs from memory."""
         if not ctx.node_spec.input_keys:
             return str(ctx.input_data)
 
@@ -775,9 +775,11 @@ Output ONLY the JSON object, nothing else."""
                     parts.append(f"{key}: {value}")
             return "\n".join(parts) if parts else str(ctx.input_data)
 
-        # Use Haiku to intelligently extract relevant data
+        # Use generic LLM to intelligently extract relevant data
         import os
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        model = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+        api_key = os.environ.get("LLM_API_KEY")
+
         if not api_key:
             # Fallback to simple formatting if no API key
             parts = []
@@ -787,7 +789,7 @@ Output ONLY the JSON object, nothing else."""
                     parts.append(f"{key}: {value}")
             return "\n".join(parts)
 
-        # Build prompt for Haiku to extract clean values
+        # Build prompt for LLM to extract clean values
         import json
 
         # Smart truncation: truncate individual values rather than corrupting JSON structure
@@ -812,16 +814,17 @@ Extract ONLY the clean values for the required fields. Ignore nested structures,
 Output as JSON with the exact field names requested."""
 
         try:
-            import anthropic
-            client = anthropic.Anthropic(api_key=api_key)
-            message = client.messages.create(
-                model="claude-3-5-haiku-20241022",
-                max_tokens=1000,
-                messages=[{"role": "user", "content": prompt}]
+            from framework.llm.litellm import LiteLLMProvider
+            llm = LiteLLMProvider(model=model, api_key=api_key)
+            
+            result = llm.complete(
+                messages=[{"role": "user", "content": prompt}],
+                system="Extract clean JSON values from context.",
+                max_tokens=1000
             )
 
-            # Parse Haiku's response
-            response_text = message.content[0].text.strip()
+            # Parse response
+            response_text = result.content.strip()
 
             # Try to extract JSON using balanced brace matching
             json_str = find_json_object(response_text)

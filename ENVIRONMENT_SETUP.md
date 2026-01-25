@@ -69,7 +69,9 @@ python -c "import litellm; print('✓ litellm OK')"
 For running agents with real LLMs:
 
 ```bash
-export ANTHROPIC_API_KEY="your-key-here"
+# Universal LLM Configuration
+export LLM_API_KEY="your-key-here"
+export LLM_MODEL="gpt-4o" # Optional, defaults to gpt-4o-mini
 ```
 
 ## Running Agents
@@ -308,7 +310,9 @@ Add to `.vscode/settings.json`:
 ### Required for LLM Operations
 
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
+# Universal LLM Configuration
+export LLM_API_KEY="sk-..."
+export LLM_MODEL="gpt-4o" # Optional, defaults to gpt-4o-mini
 ```
 
 ### Optional Configuration
