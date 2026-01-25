@@ -22,6 +22,7 @@ from .example_tool import register_tools as register_example
 from .web_search_tool import register_tools as register_web_search
 from .web_scrape_tool import register_tools as register_web_scrape
 from .pdf_read_tool import register_tools as register_pdf_read
+from .audit_trail_tool import register_tools as register_audit_trail
 
 # Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
@@ -54,6 +55,7 @@ def register_all_tools(
     register_web_search(mcp)
     register_web_scrape(mcp)
     register_pdf_read(mcp)
+    register_audit_trail(mcp)
 
     # Tools that need credentials (pass credentials if provided)
     register_web_search(mcp, credentials=credentials)
@@ -81,6 +83,9 @@ def register_all_tools(
         "apply_patch",
         "grep_search",
         "execute_command_tool",
+        "generate_audit_trail",
+        "analyze_decision_patterns",
+        "compare_decision_outcomes",
     ]
 
 
