@@ -13,6 +13,7 @@ from typing import Any
 import litellm
 
 from framework.llm.provider import LLMProvider, LLMResponse, Tool, ToolUse
+from framework.llm.cost import LLMCostCalculator
 
 
 class LiteLLMProvider(LLMProvider):
@@ -132,13 +133,27 @@ class LiteLLMProvider(LLMProvider):
         input_tokens = usage.prompt_tokens if usage else 0
         output_tokens = usage.completion_tokens if usage else 0
 
+        # Calculate cost
+        model_name = response.model or self.model
+        estimated_cost = LLMCostCalculator.calculate(
+            model=model_name,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
         return LLMResponse(
             content=content,
-            model=response.model or self.model,
+            model=model_name,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             stop_reason=response.choices[0].finish_reason or "",
             raw_response=response,
+            estimated_cost_usd=estimated_cost,
+            cost_breakdown={
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "model": model_name,
+            },
         )
 
     def complete_with_tools(
@@ -190,13 +205,25 @@ class LiteLLMProvider(LLMProvider):
 
             # Check if we're done (no tool calls)
             if choice.finish_reason == "stop" or not message.tool_calls:
+                model_name = response.model or self.model
+                estimated_cost = LLMCostCalculator.calculate(
+                    model=model_name,
+                    input_tokens=total_input_tokens,
+                    output_tokens=total_output_tokens,
+                )
                 return LLMResponse(
                     content=message.content or "",
-                    model=response.model or self.model,
+                    model=model_name,
                     input_tokens=total_input_tokens,
                     output_tokens=total_output_tokens,
                     stop_reason=choice.finish_reason or "stop",
                     raw_response=response,
+                    estimated_cost_usd=estimated_cost,
+                    cost_breakdown={
+                        "input_tokens": total_input_tokens,
+                        "output_tokens": total_output_tokens,
+                        "model": model_name,
+                    },
                 )
 
             # Process tool calls.
@@ -241,6 +268,11 @@ class LiteLLMProvider(LLMProvider):
                 })
 
         # Max iterations reached
+        estimated_cost = LLMCostCalculator.calculate(
+            model=self.model,
+            input_tokens=total_input_tokens,
+            output_tokens=total_output_tokens,
+        )
         return LLMResponse(
             content="Max tool iterations reached",
             model=self.model,
@@ -248,6 +280,12 @@ class LiteLLMProvider(LLMProvider):
             output_tokens=total_output_tokens,
             stop_reason="max_iterations",
             raw_response=None,
+            estimated_cost_usd=estimated_cost,
+            cost_breakdown={
+                "input_tokens": total_input_tokens,
+                "output_tokens": total_output_tokens,
+                "model": self.model,
+            },
         )
 
     def _tool_to_openai_format(self, tool: Tool) -> dict[str, Any]:

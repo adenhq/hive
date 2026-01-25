@@ -43,6 +43,8 @@ class ExecutionResult:
     path: list[str] = field(default_factory=list)  # Node IDs traversed
     paused_at: str | None = None  # Node ID where execution paused for HITL
     session_state: dict[str, Any] = field(default_factory=dict)  # State to resume from
+    total_cost_usd: float = 0.0  # Total estimated cost of LLM calls
+    cost_by_model: dict[str, float] = field(default_factory=dict)  # Cost breakdown by model
 
 
 class GraphExecutor:
@@ -180,6 +182,8 @@ class GraphExecutor:
         path: list[str] = []
         total_tokens = 0
         total_latency = 0
+        total_cost = 0.0  # Track total cost
+        cost_by_model: dict[str, float] = {}  # Track cost by model
         node_retry_counts: dict[str, int] = {}  # Track retries per node
         max_retries_per_node = 3
 
@@ -296,6 +300,13 @@ class GraphExecutor:
 
                 total_tokens += result.tokens_used
                 total_latency += result.latency_ms
+                total_cost += result.cost_usd
+                
+                # Track cost by model
+                if result.llm_model and result.cost_usd > 0:
+                    if result.llm_model not in cost_by_model:
+                        cost_by_model[result.llm_model] = 0.0
+                    cost_by_model[result.llm_model] += result.cost_usd
 
                 # Handle failure
                 if not result.success:
@@ -327,6 +338,8 @@ class GraphExecutor:
                             total_tokens=total_tokens,
                             total_latency_ms=total_latency,
                             path=path,
+                            total_cost_usd=total_cost,
+                            cost_by_model=cost_by_model,
                         )
 
                 # Check if we just executed a pause node - if so, save state and return
@@ -356,6 +369,8 @@ class GraphExecutor:
                         path=path,
                         paused_at=node_spec.id,
                         session_state=session_state_out,
+                        total_cost_usd=total_cost,
+                        cost_by_model=cost_by_model,
                     )
 
                 # Check if this is a terminal node - if so, we're done
@@ -410,6 +425,8 @@ class GraphExecutor:
                 total_tokens=total_tokens,
                 total_latency_ms=total_latency,
                 path=path,
+                total_cost_usd=total_cost,
+                cost_by_model=cost_by_model,
             )
 
         except Exception as e:
