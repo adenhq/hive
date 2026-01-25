@@ -113,7 +113,7 @@ python -c "import aden_tools; print('✓ aden_tools OK')"
 python -c "import litellm; print('✓ litellm OK')"
 
 # Run an example agent
-PYTHONPATH=core:exports python -m support_ticket_agent validate
+PYTHONPATH=core:exports python -m hello_agent validate
 ```
 
 ---
@@ -172,11 +172,7 @@ hive/                                    # Repository root
 │   └── README.md                        # Tools documentation
 │
 ├── exports/                             # AGENT PACKAGES
-│   ├── support_ticket_agent/            # Example: Support ticket handler
-│   ├── market_research_agent/           # Example: Market research
-│   ├── outbound_sales_agent/            # Example: Sales outreach
-│   ├── personal_assistant_agent/        # Example: Personal assistant
-│   └── ...                              # More agent examples
+│   └── hello_agent/                     # Example: Minimal onboarding agent
 │
 ├── docs/                                # Documentation
 │   ├── getting-started.md               # Quick start guide
@@ -421,7 +417,7 @@ my_agent/
 | Functions/Variables | snake_case       | `process_ticket()`       |
 | Constants           | UPPER_SNAKE_CASE | `MAX_RETRIES = 3`        |
 | Test files          | `test_` prefix   | `test_ticket_handler.py` |
-| Agent packages      | snake_case       | `support_ticket_agent/`  |
+| Agent packages      | snake_case       | `hello_agent/`           |
 
 ### Import Order
 
@@ -597,7 +593,7 @@ pip install -e .
 claude> /building-agents
 
 # Option 2: Copy from example
-cp -r exports/support_ticket_agent exports/my_new_agent
+cp -r exports/hello_agent exports/my_new_agent
 cd exports/my_new_agent
 # Edit agent.json, tools.py, README.md
 

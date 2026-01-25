@@ -47,7 +47,7 @@ Follow the interactive prompts to:
 
 ```bash
 # Copy an example agent
-cp -r exports/support_ticket_agent exports/my_agent
+cp -r exports/hello_agent exports/my_agent
 
 # Customize the agent
 cd exports/my_agent
@@ -79,9 +79,7 @@ hive/
 │       └── mcp_server.py   # HTTP MCP server
 │
 ├── exports/                # Agent Packages
-│   ├── support_ticket_agent/
-│   ├── market_research_agent/
-│   └── ...                 # Your agents go here
+│   └── hello_agent/        # Example agent for onboarding
 │
 ├── .claude/                # Claude Code Skills
 │   └── skills/

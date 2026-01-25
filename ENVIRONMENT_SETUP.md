@@ -81,38 +81,30 @@ All agent commands must be run from the project root with `PYTHONPATH` set:
 PYTHONPATH=core:exports python -m agent_name COMMAND
 ```
 
-### Example: Support Ticket Agent
+### Example: Hello Agent
 
 ```bash
 # Validate agent structure
-PYTHONPATH=core:exports python -m support_ticket_agent validate
+PYTHONPATH=core:exports python -m hello_agent validate
 
 # Show agent information
-PYTHONPATH=core:exports python -m support_ticket_agent info
+PYTHONPATH=core:exports python -m hello_agent info
 
 # Run agent with input
-PYTHONPATH=core:exports python -m support_ticket_agent run --input '{
-  "ticket_content": "My login is broken. Error 401.",
-  "customer_id": "CUST-123",
-  "ticket_id": "TKT-456"
+PYTHONPATH=core:exports python -m hello_agent run --input '{
+  "user_name": "Alice"
 }'
 
 # Run in mock mode (no LLM calls)
-PYTHONPATH=core:exports python -m support_ticket_agent run --mock --input '{...}'
+PYTHONPATH=core:exports python -m hello_agent run --mock --input '{"user_name": "Bob"}'
 ```
 
-### Example: Other Agents
+### Example: Building Your Own Agent
 
-```bash
-# Market Research Agent
-PYTHONPATH=core:exports python -m market_research_agent info
-
-# Outbound Sales Agent
-PYTHONPATH=core:exports python -m outbound_sales_agent validate
-
-# Personal Assistant Agent
-PYTHONPATH=core:exports python -m personal_assistant_agent run --input '{...}'
-```
+Use the `/building-agents` skill to create custom agents like:
+- Market research agents
+- Customer support agents
+- Personal assistant agents
 
 ## Building New Agents
 
@@ -184,14 +176,14 @@ Or run the setup script:
 pip install --upgrade "openai>=1.0.0"
 ```
 
-### "No module named 'support_ticket_agent'"
+### "No module named 'hello_agent'"
 
 **Cause:** Not running from project root or missing PYTHONPATH
 
-**Solution:** Ensure you're in `/home/timothy/oss/hive/` and use:
+**Solution:** Ensure you're in the hive root directory and use:
 
 ```bash
-PYTHONPATH=core:exports python -m support_ticket_agent validate
+PYTHONPATH=core:exports python -m hello_agent validate
 ```
 
 ### Agent imports fail with "broken installation"
@@ -226,10 +218,7 @@ hive/
 │   └── README.md
 │
 └── exports/                 # Agent packages (your agents go here)
-    ├── support_ticket_agent/
-    ├── market_research_agent/
-    ├── outbound_sales_agent/
-    └── personal_assistant_agent/
+    └── hello_agent/         # Example agent for onboarding
 ```
 
 ### Why PYTHONPATH is Required
@@ -263,7 +252,7 @@ Enter goal: "Build an agent that processes customer support tickets"
 ### 3. Validate Agent
 
 ```bash
-PYTHONPATH=core:exports python -m support_ticket_agent validate
+PYTHONPATH=core:exports python -m hello_agent validate
 ```
 
 ### 4. Test Agent
@@ -275,7 +264,7 @@ claude> /testing-agent
 ### 5. Run Agent
 
 ```bash
-PYTHONPATH=core:exports python -m support_ticket_agent run --input '{...}'
+PYTHONPATH=core:exports python -m hello_agent run --input '{"user_name": "Alice"}'
 ```
 
 ## IDE Setup
