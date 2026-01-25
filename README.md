@@ -66,6 +66,11 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 
 - [Python 3.11+](https://www.python.org/downloads/) for agent development
 - [Docker](https://docs.docker.com/get-docker/) (v20.10+) - Optional, for containerized tools
+- Node.js 18+ for backend/frontend components
+- npm (comes with Node.js)
+
+> Windows users: Use WSL or Git Bash to run .sh scripts.  
+> It is recommended to use a Python virtual environment (venv or conda).
 
 ### Installation
 
@@ -82,6 +87,14 @@ This installs:
 - **framework** - Core agent runtime and graph executor
 - **aden_tools** - 19 MCP tools for agent capabilities
 - All required dependencies
+
+### Claude Code CLI Setup
+
+The `claude` commands below require the Claude Code CLI.
+
+Please install Claude Code and log in before continuing.
+See: https://docs.anthropic.com/claude/docs/claude-code
+
 
 ### Build Your First Agent
 
