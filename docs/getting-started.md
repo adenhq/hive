@@ -13,6 +13,8 @@ This guide will help you set up the Aden Agent Framework and build your first ag
 
 The fastest way to get started:
 
+### Linux / macOS
+
 ```bash
 # 1. Clone the repository
 git clone https://github.com/adenhq/hive.git
@@ -24,6 +26,24 @@ cd hive
 # 3. Verify installation
 python -c "import framework; import aden_tools; print('✓ Setup complete')"
 ```
+
+### Windows (PowerShell)
+
+```powershell
+# 1. Clone the repository
+git clone https://github.com/adenhq/hive.git
+cd hive
+
+# 2. Install packages manually
+cd core; pip install -e .; cd ..
+cd tools; pip install -e .; cd ..
+pip install --upgrade "openai>=1.0.0"
+
+# 3. Verify installation
+python -c "import framework; import aden_tools; print('Setup complete')"
+```
+
+> **Note:** Windows users can also use Git Bash to run `./scripts/setup-python.sh` directly.
 
 ## Building Your First Agent
 
@@ -93,6 +113,8 @@ hive/
 
 ## Running an Agent
 
+### Linux / macOS
+
 ```bash
 # Validate agent structure
 PYTHONPATH=core:exports python -m my_agent validate
@@ -107,6 +129,25 @@ PYTHONPATH=core:exports python -m my_agent run --input '{
 
 # Run in mock mode (no LLM calls)
 PYTHONPATH=core:exports python -m my_agent run --mock --input '{...}'
+```
+
+### Windows (PowerShell)
+
+```powershell
+# Set PYTHONPATH for your session (use semicolons on Windows)
+$env:PYTHONPATH = "core;exports"
+
+# Validate agent structure
+python -m my_agent validate
+
+# Show agent information
+python -m my_agent info
+
+# Run agent with input
+python -m my_agent run --input '{\"task\": \"Your input here\"}'
+
+# Run in mock mode (no LLM calls)  
+python -m my_agent run --mock --input '{...}'
 ```
 
 ## API Keys Setup
