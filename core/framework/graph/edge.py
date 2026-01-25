@@ -689,7 +689,7 @@ class GraphSpec(BaseModel):
         # Check for cycles
         cycle_errors, cycles = self._find_cycles()
         if allow_cycles:
-            warnings.extend(cycle_errors)
+            pass
         else:
             errors.extend(cycle_errors)
 
