@@ -25,6 +25,19 @@ class CredentialSource(ABC):
         pass
 
     @property
+    def ttl_seconds(self) -> Optional[int]:
+        """Time-to-live in seconds. None means no expiration."""
+        return None
+
+    def needs_refresh(self) -> bool:
+        """Check if the source needs to be refreshed."""
+        return False
+
+    def refresh(self):
+        """Force refresh of cached credentials."""
+        pass
+
+    @property
     @abstractmethod
     def name(self) -> str:
         """Name of the source for logging/audit."""
@@ -94,7 +107,7 @@ class VaultSource(CredentialSource):
     Requires 'hvac' package.
     """
 
-    def __init__(self, url: str, token: str | None = None, mount_point: str = "secret", path: str = "data"):
+    def __init__(self, url: str, token: str | None = None, mount_point: str = "secret", path: str = "data", ttl_seconds: int = 300):
         try:
             import hvac
         except ImportError:
@@ -103,18 +116,35 @@ class VaultSource(CredentialSource):
         self.url = url
         self.mount_point = mount_point
         self.path = path
+        self._ttl_seconds = ttl_seconds
         self.client = hvac.Client(url=url, token=token)
         self._cache: Dict[str, str] = {}
-        self._loaded = False
-    
+        self._last_loaded = 0.0
+
     @property
     def name(self) -> str:
         return f"Vault ({self.url})"
 
+    @property
+    def ttl_seconds(self) -> Optional[int]:
+        return self._ttl_seconds
+
+    def needs_refresh(self) -> bool:
+        if not self._last_loaded:
+            return True
+        import time
+        return (time.time() - self._last_loaded) > self._ttl_seconds
+
+    def refresh(self):
+        self._cache = {}
+        self._last_loaded = 0.0
+        self._ensure_loaded()
+
     def _ensure_loaded(self):
-        if self._loaded:
+        if not self.needs_refresh():
             return
             
+        import time
         if not self.client.is_authenticated():
             logger.warning(f"Vault client for {self.url} is not authenticated")
             return
@@ -126,8 +156,8 @@ class VaultSource(CredentialSource):
                 path=self.path
             )
             data = response.get("data", {}).get("data", {})
-            self._cache.update(data)
-            self._loaded = True
+            self._cache = data
+            self._last_loaded = time.time()
         except Exception as e:
             logger.error(f"Failed to read from Vault path {self.mount_point}/{self.path}: {e}")
 
@@ -145,7 +175,7 @@ class AWSSecretsSource(CredentialSource):
     If the secret is a plain string, we return it if the key matches the secret ID logic.
     """
 
-    def __init__(self, secret_id: str, region_name: str | None = None):
+    def __init__(self, secret_id: str, region_name: str | None = None, ttl_seconds: int = 300):
         try:
             import boto3
             from botocore.exceptions import ClientError
@@ -154,18 +184,35 @@ class AWSSecretsSource(CredentialSource):
             raise ImportError("AWSSecretsSource requires 'boto3'. Install with: pip install boto3")
 
         self.secret_id = secret_id
+        self._ttl_seconds = ttl_seconds
         self.client = boto3.client("secretsmanager", region_name=region_name)
         self._cache: Dict[str, str] = {}
-        self._loaded = False
+        self._last_loaded = 0.0
 
     @property
     def name(self) -> str:
         return f"AWS Secrets Manager ({self.secret_id})"
 
+    @property
+    def ttl_seconds(self) -> Optional[int]:
+        return self._ttl_seconds
+
+    def needs_refresh(self) -> bool:
+        if not self._last_loaded:
+            return True
+        import time
+        return (time.time() - self._last_loaded) > self._ttl_seconds
+
+    def refresh(self):
+        self._cache = {}
+        self._last_loaded = 0.0
+        self._ensure_loaded()
+
     def _ensure_loaded(self):
-        if self._loaded:
+        if not self.needs_refresh():
             return
 
+        import time
         try:
             response = self.client.get_secret_value(SecretId=self.secret_id)
             secret_string = response.get("SecretString")
@@ -176,19 +223,13 @@ class AWSSecretsSource(CredentialSource):
                     import json
                     data = json.loads(secret_string)
                     if isinstance(data, dict):
-                        self._cache.update(data)
+                        self._cache = data
                     else:
-                        # Secret is a JSON something else, treat entire thing as value?
-                        # For now, simplistic approach:
-                        pass 
+                        pass
                 except json.JSONDecodeError:
-                    # Not JSON, treat as a single value secret?
-                    # The user can just use this source to fetch that one key?
-                    # But get(key) expects a key mismatch. 
-                    # Let's map it to "value" or something?
-                    self._cache["value"] = secret_string
+                    self._cache = {"value": secret_string}
             
-            self._loaded = True
+            self._last_loaded = time.time()
         except self.ClientError as e:
             logger.error(f"Failed to get AWS secret {self.secret_id}: {e}")
         except Exception as e:
@@ -215,6 +256,31 @@ class CredentialManager:
         else:
             self.sources = sources
 
+    @classmethod
+    def from_environment(cls, env: str = "local") -> "CredentialManager":
+        """
+        Create a CredentialManager configured for a specific environment.
+        
+        Look for credentials.{env}.yaml in local directory or ~/.aden/.
+        
+        Args:
+            env: Environment name (e.g. "dev", "prod", "local")
+        """
+        sources: List[CredentialSource] = [EnvVarSource()]
+        
+        # Check standard paths
+        paths = [
+            Path(f"credentials.{env}.yaml"),
+            Path.home() / ".aden" / f"credentials.{env}.yaml"
+        ]
+        
+        for path in paths:
+            if path.exists():
+                logger.info(f"Loading credentials from {path}")
+                sources.append(ConfigFileSource(path))
+                
+        return cls(sources=sources)
+
     def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
         """
         Retrieve a credential by checking sources in order.
@@ -228,10 +294,12 @@ class CredentialManager:
         """
         for source in self.sources:
             try:
+                # Provide audit logging access
                 val = source.get(key)
                 if val is not None:
-                    # Optional: Add audit logging here (Phase 3)
-                    # logger.debug(f"Found credential {key} in {source.name}")
+                    # AUDIT LOG (Phase 3)
+                    safe_source = getattr(source, "name", str(source))
+                    logger.debug(f"[AUDIT] Access credential '{key}' from source '{safe_source}'")
                     return val
             except Exception as e:
                 logger.warning(f"Error reading from credential source {source.name}: {e}")
