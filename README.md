@@ -61,6 +61,19 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 - **[Report Issues](https://github.com/adenhq/hive/issues)** - Bug reports and feature requests
 
 ## Quick Start
+## For First-Time Contributors
+
+If you're new to Hive or AI agent frameworks, you can start without deep knowledge
+of the internal architecture.
+
+Recommended steps:
+1. Read the Overview section to understand the goal-driven approach
+2. Follow ENVIRONMENT_SETUP.md for Python setup
+3. Review example agents in the exports/ directory
+4. Join the Discord community if you get stuck
+
+You do not need to fully understand self-evolving agents to begin contributing.
+Documentation improvements and onboarding feedback are valuable contributions.
 
 ### Prerequisites
 
