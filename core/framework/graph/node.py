@@ -693,63 +693,24 @@ class LLMNode(NodeProtocol):
             except json.JSONDecodeError:
                 pass
 
-        # All local extraction methods failed - use LLM as last resort
-        # Prefer Cerebras (faster/cheaper), fallback to Anthropic Haiku
-        import os
-        api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise ValueError("Cannot parse JSON and no API key for LLM cleanup (set CEREBRAS_API_KEY or ANTHROPIC_API_KEY)")
-
-        # Use fast LLM to clean the response (Cerebras llama-3.3-70b preferred)
-        from framework.llm.litellm import LiteLLMProvider
-        if os.environ.get("CEREBRAS_API_KEY"):
-            cleaner_llm = LiteLLMProvider(
-                api_key=os.environ.get("CEREBRAS_API_KEY"),
-                model="cerebras/llama-3.3-70b",
-                temperature=0.0
-            )
-        else:
-            # Fallback to Anthropic Haiku
-            from framework.llm.anthropic import AnthropicProvider
-            cleaner_llm = AnthropicProvider(model="claude-3-5-haiku-20241022")
-
-        prompt = f"""Extract the JSON object from this LLM response.
-
-Expected output keys: {output_keys}
-
-LLM Response:
-{raw_response}
-
-Output ONLY the JSON object, nothing else."""
-
-        try:
-            result = cleaner_llm.complete(
-                messages=[{"role": "user", "content": prompt}],
-                system="Extract JSON from text. Output only valid JSON.",
-                json_mode=True,
-            )
-
-            cleaned = result.content.strip()
-            # Remove markdown if LLM added it
-            if cleaned.startswith("```"):
-                match = re.search(r'^```(?:json)?\s*\n([\s\S]*?)\n```\s*$', cleaned)
-                if match:
-                    cleaned = match.group(1).strip()
-                else:
-                    # Fallback: strip first/last lines
-                    lines = cleaned.split('\n')
-                    if lines[0].startswith('```') and lines[-1].strip() == '```':
-                        cleaned = '\n'.join(lines[1:-1]).strip()
-
-            parsed = json.loads(cleaned)
-            logger.info("      ✓ LLM cleaned JSON output")
-            return parsed
-
-        except ValueError:
-            raise  # Re-raise our descriptive error
-        except Exception as e:
-            logger.warning(f"      ⚠ LLM JSON extraction failed: {e}")
-            raise
+        # All local extraction methods failed
+        # SECURITY: Previously this used a fallback LLM call to "clean" the JSON,
+        # which caused cost amplification (every failed parse = another API call).
+        # Now we fail explicitly and let the retry mechanism handle it.
+        # 
+        # The node will retry up to max_retries times, and the executor will
+        # handle the failure appropriately.
+        
+        logger.warning(
+            f"      ⚠ JSON extraction failed for all local methods. "
+            f"Expected keys: {output_keys}. "
+            f"Raw response preview: {raw_response[:200]}..."
+        )
+        
+        raise ValueError(
+            f"Failed to extract JSON from LLM response. Expected keys: {output_keys}. "
+            "The response did not contain valid JSON. This will be retried."
+        )
 
     def _build_messages(self, ctx: NodeContext) -> list[dict]:
         """Build the message list for the LLM."""
