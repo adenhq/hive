@@ -69,6 +69,7 @@ def register_all_tools(
     register_execute_command(mcp)
 
     return [
+        "csv_analysis_tool",
         "example_tool",
         "web_search",
         "web_scrape",
