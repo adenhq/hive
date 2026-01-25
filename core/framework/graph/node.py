@@ -694,24 +694,35 @@ class LLMNode(NodeProtocol):
                 pass
 
         # All local extraction methods failed - use LLM as last resort
-        # Prefer Cerebras (faster/cheaper), fallback to Anthropic Haiku
+        # Support multiple providers: Cerebras, OpenAI, Anthropic, Groq, etc.
         import os
-        api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise ValueError("Cannot parse JSON and no API key for LLM cleanup (set CEREBRAS_API_KEY or ANTHROPIC_API_KEY)")
-
-        # Use fast LLM to clean the response (Cerebras llama-3.3-70b preferred)
         from framework.llm.litellm import LiteLLMProvider
-        if os.environ.get("CEREBRAS_API_KEY"):
-            cleaner_llm = LiteLLMProvider(
-                api_key=os.environ.get("CEREBRAS_API_KEY"),
-                model="cerebras/llama-3.3-70b",
-                temperature=0.0
+        
+        # Check for available API keys in order of preference (faster/cheaper first)
+        llm_configs = [
+            ("CEREBRAS_API_KEY", "cerebras/llama-3.3-70b"),
+            ("GROQ_API_KEY", "groq/llama-3.3-70b-versatile"),
+            ("OPENAI_API_KEY", "gpt-4o-mini"),
+            ("ANTHROPIC_API_KEY", "claude-3-5-haiku-20241022"),
+        ]
+        
+        cleaner_llm = None
+        for env_key, model in llm_configs:
+            api_key = os.environ.get(env_key)
+            if api_key:
+                cleaner_llm = LiteLLMProvider(
+                    api_key=api_key,
+                    model=model,
+                    temperature=0.0
+                )
+                break
+        
+        if cleaner_llm is None:
+            supported_keys = ", ".join(k for k, _ in llm_configs)
+            raise ValueError(
+                f"Cannot parse JSON and no API key found for LLM cleanup. "
+                f"Set one of: {supported_keys}"
             )
-        else:
-            # Fallback to Anthropic Haiku
-            from framework.llm.anthropic import AnthropicProvider
-            cleaner_llm = AnthropicProvider(model="claude-3-5-haiku-20241022")
 
         prompt = f"""Extract the JSON object from this LLM response.
 
