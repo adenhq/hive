@@ -84,6 +84,16 @@ This installs:
 - All required dependencies
 
 ### Build Your First Agent
+#### What Does `quickstart.sh` Do?
+
+The `quickstart.sh` script prepares your local environment for building agents with Hive.
+
+Specifically, it:
+- Installs required Claude Code skills (one-time setup)
+- Configures tooling needed for agent generation
+- Prepares the environment for interactive `claude>` commands
+
+The script is safe to re-run if your environment changes or setup needs to be refreshed.
 
 ```bash
 # Install Claude Code skills (one-time)
