@@ -181,7 +181,8 @@ class GraphExecutor:
         total_tokens = 0
         total_latency = 0
         node_retry_counts: dict[str, int] = {}  # Track retries per node
-        max_retries_per_node = 3
+        max_retries_limit = graph.max_retries_per_node or 3
+
 
         # Determine entry point (may differ if resuming)
         current_node_id = graph.get_entry_point(session_state)
@@ -296,6 +297,9 @@ class GraphExecutor:
 
                 total_tokens += result.tokens_used
                 total_latency += result.latency_ms
+
+                # Use node-level config if specified, otherwise graph-level, otherwise default 3
+                max_retries_per_node = node_spec.max_retries or max_retries_limit
 
                 # Handle failure
                 if not result.success:
