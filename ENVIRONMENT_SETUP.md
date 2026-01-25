@@ -208,6 +208,31 @@ pip uninstall -y framework tools
 ./scripts/setup-python.sh
 ```
 
+### Editable installs fail or hang (WSL/mounted filesystems)
+
+**Cause:** Some filesystems (like WSL's Plan9 on Windows-mounted drives) don't fully support symlinks and file operations needed for `pip install -e`.
+
+**Solution:** Use a native Linux filesystem and Python 3.11+:
+
+```bash
+# Clone the project directly into the Linux filesystem (home directory), not into a Windows-mounted path.
+cd ~
+git clone https://github.com/adenhq/hive.git
+cd hive
+
+# Create the virutal environment
+python3 -m venv .venv
+# Activate the virtual environment
+source .venv/bin/activate
+
+# Fix script line endings if needed
+dos2unix scripts/*.sh
+chmod +x scripts/*.sh
+
+# Run setup
+./scripts/setup-python.sh
+```
+
 ## Package Structure
 
 The Hive framework consists of three Python packages:
