@@ -4,8 +4,17 @@ Complete setup guide for building and running goal-driven agents with the Aden A
 
 ## Quick Setup
 
+### 0. Create Virtual Environment (Required)
+To avoid permission errors (PEP 668) and conflicts:
+
 ```bash
-# Run the automated setup script
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+### 1. Install Dependencies
+```bash
+# Run the automated setup script inside your venv
 ./scripts/setup-python.sh
 ```
 
@@ -81,7 +90,9 @@ All agent commands must be run from the project root with `PYTHONPATH` set:
 PYTHONPATH=core:exports python -m agent_name COMMAND
 ```
 
-### Example: Support Ticket Agent
+### Example Usage (For an agent named `support_ticket_agent`)
+
+> **Note:** The `support_ticket_agent` is used here as an example. You must build an agent first (see below) before you can run these commands.
 
 ```bash
 # Validate agent structure
@@ -116,23 +127,32 @@ PYTHONPATH=core:exports python -m personal_assistant_agent run --input '{...}'
 
 ## Building New Agents
 
-Use Claude Code CLI with the agent building skills:
+## Building New Agents: What is Claude Code?
 
-### 1. Install Skills (One-time)
+Hive uses **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)**—an agentic CLI by Anthropic—to help you build agents faster. While you can write code manually, Claude Code serves as a "pair programmer" that understands the Hive framework.
+
+### 1. Install Claude Code
+(If you haven't already):
+Follow the [Anthropic installation guide](https://docs.anthropic.com/en/docs/claude-code) to install and authenticate the `claude` CLI.
+
+### 2. Install Hive Skills (One-time)
 
 ```bash
 ./quickstart.sh
 ```
 
-This installs:
+This installs specialized commands into Claude Code:
+- `/building-agents` - Interactive workflow to generate new agents
+- `/testing-agent` - Test suite generator
 
-- `/building-agents` - Build new agents
-- `/testing-agent` - Test agents
+### 3. Build an Agent
 
-### 2. Build an Agent
+Start the Claude Code CLI:
 
-```
-claude> /building-agents
+```bash
+claude
+# Inside the claude REPL:
+> /building-agents
 ```
 
 Follow the prompts to:
@@ -150,7 +170,20 @@ claude> /testing-agent
 
 Creates comprehensive test suites for your agent.
 
-## Troubleshooting
+## Common Setup Issues
+
+### "error: externally-managed-environment" (PEP 668)
+**Cause:** You are trying to `pip install` globally on a protected system (like Ubuntu 24.04+ or macOS).
+**Solution:** You MUST use a virtual environment.
+```bash
+python3 -m venv venv
+source venv/bin/activate
+# Now run your setup script
+```
+
+### "claude: command not found"
+**Cause:** Claude Code is not installed.
+**Solution:** Hive does not bundle Claude Code. You must install it separately from Anthropic.
 
 ### "ModuleNotFoundError: No module named 'framework'"
 
