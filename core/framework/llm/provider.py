@@ -14,6 +14,8 @@ class LLMResponse:
     output_tokens: int = 0
     stop_reason: str = ""
     raw_response: Any = None
+    estimated_cost_usd: float = 0.0
+    cost_breakdown: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

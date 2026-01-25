@@ -287,6 +287,8 @@ class NodeResult:
     # Metadata
     tokens_used: int = 0
     latency_ms: int = 0
+    cost_usd: float = 0.0  # Estimated cost of LLM calls in this node
+    llm_model: str | None = None  # Model used (for cost tracking)
 
     def to_summary(self, node_spec: Any = None) -> str:
         """
@@ -613,6 +615,8 @@ class LLMNode(NodeProtocol):
                 output=output,
                 tokens_used=response.input_tokens + response.output_tokens,
                 latency_ms=latency_ms,
+                cost_usd=response.estimated_cost_usd,
+                llm_model=response.model,
             )
 
         except Exception as e:
