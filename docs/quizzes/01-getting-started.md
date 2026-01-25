@@ -53,26 +53,26 @@ Connect with our community!
 ### Task 2.1: README Scavenger Hunt 🔍
 Find the answers to these questions by reading our README:
 
-1. What are the **three LLM providers** Aden supports out of the box?
-2. How many **MCP tools** does the Hive Control Plane provide?
-3. What is the name of the **frontend dashboard**?
-4. In the "How It Works" section, what is **Step 5**?
-5. What city is Aden made with passion in?
+1. What are the **three LLM providers** Aden supports out of the box? OpenAI, Gemini, Anthropic
+2. How many **MCP tools** does the Hive Control Plane provide? 19
+3. What is the name of the **frontend dashboard**? Honeycomb
+4. In the "How It Works" section, what is **Step 5**? Self-Improve
+5. What city is Aden made with passion in? San Francisco
 
 ### Task 2.2: Architecture Quiz 🏗️
 Based on the architecture diagram in the README:
 
-1. What are the three databases in the Storage Layer?
-2. Name two components inside an "SDK-Wrapped Node"
-3. What connects the Control Plane to the Dashboard?
-4. Where does "Failure Data" flow to in the diagram?
+1. What are the three databases in the Storage Layer? PostgreSQL, DuckDB, MongoDB
+2. Name two components inside an "SDK-Wrapped Node" Local RLM Memory and LLM access outside of the box
+3. What connects the Control Plane to the Dashboard? API Server, Multi Agent Decision Executor, and the MCP Server
+4. Where does "Failure Data" flow to in the diagram? Into the Multi Agent System to evolve and redeploy the agent
 
 ### Task 2.3: Comparison Challenge 📊
 From the Comparison Table, answer:
 
-1. What category is CrewAI in?
-2. What's the Aden difference compared to LangChain?
-3. Which framework focuses on "emergent behavior in large-scale simulations"?
+1. What category is CrewAI in? Multi-Agent Orchestration
+2. What's the Aden difference compared to LangChain? Generates entire graph and connection code upfront
+3. Which framework focuses on "emergent behavior in large-scale simulations"? CAMEL
 
 ---
 
@@ -88,17 +88,17 @@ cd hive
 
 Answer these questions:
 
-1. What is the main frontend folder called?
-2. What is the main backend folder called?
-3. What file would you edit to configure the application?
-4. What's the Docker command to start all services (hint: check README)?
+1. What is the main frontend folder called? Honeycomb
+2. What is the main backend folder called? Hive
+3. What file would you edit to configure the application? config.yaml.example
+4. What's the Docker command to start all services (hint: check README)? docker compose up
 
 ### Task 3.2: Find the Features 🎯
 Look through the codebase to find:
 
-1. Where are the MCP tools defined? (provide the file path)
-2. What port does the API run on? (hint: check README or docker-compose)
-3. Find one TypeScript interface related to agents (provide file path and interface name)
+1. Where are the MCP tools defined? (provide the file path) hive/core/.mcp.json
+2. What port does the API run on? (hint: check README or docker-compose) 4000
+3. Find one TypeScript interface related to agents (provide file path and interface name) hive/src/mcp/tools/agents.ts agents.ts/Control Emitter
 
 ---
 
@@ -107,7 +107,7 @@ Look through the codebase to find:
 ### Task 4.1: Agent Idea 💡
 Aden can build self-improving agents for any use case. Propose ONE creative agent idea:
 
-1. **Name:** Give your agent a catchy name
+1. **Name:** Give your agent a catchy name. 
 2. **Goal:** What problem does it solve? (2-3 sentences)
 3. **Self-Improvement:** How would it get better over time when things fail?
 4. **Human-in-the-Loop:** When would it need human input?
