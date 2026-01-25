@@ -4,46 +4,58 @@ This document describes the high-level architecture of Hive.
 
 ## System Overview
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         Client                              │
-│                    (Web Browser)                            │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Docker Network                           │
-│                                                             │
-│  ┌─────────────────────┐      ┌─────────────────────────┐  │
-│  │     honeycomb       │      │         hive            │  │
-│  │   (Frontend)        │ ───▶ │       (Backend)         │  │
-│  │                     │      │                         │  │
-│  │  React + Vite       │      │  Express + TypeScript   │  │
-│  │  Port: 3000         │      │  Port: 4000             │  │
-│  │                     │      │                         │  │
-│  │  ┌───────────────┐  │      │  ┌─────────────────┐    │  │
-│  │  │    Nginx      │  │      │  │     Routes      │    │  │
-│  │  │  (production) │  │      │  │   /api, /health │    │  │
-│  │  └───────────────┘  │      │  └────────┬────────┘    │  │
-│  └─────────────────────┘      │           │             │  │
-│                               │           ▼             │  │
-│                               │  ┌─────────────────┐    │  │
-│                               │  │   Controllers   │    │  │
-│                               │  └────────┬────────┘    │  │
-│                               │           │             │  │
-│                               │           ▼             │  │
-│                               │  ┌─────────────────┐    │  │
-│                               │  │    Services     │    │  │
-│                               │  └────────┬────────┘    │  │
-│                               │           │             │  │
-│                               └───────────┼─────────────┘  │
-└───────────────────────────────────────────┼────────────────┘
-                                            │
-                                            ▼
-                               ┌─────────────────────────┐
-                               │       Database          │
-                               │    (PostgreSQL/etc)     │
-                               └─────────────────────────┘
+```mermaid
+flowchart LR
+    Client["Client<br/>(Web Browser)"]
+    Client --> DockerNetwork
+    subgraph DockerNetwork["Docker Network"]
+
+        direction TB
+
+        subgraph Honeycomb["honeycomb<br/>(Frontend)<br/>React + Vite<br/>Port: 3000"]
+
+            spacerH2[" "]
+            Nginx["Nginx<br/>(production)"]
+            
+            spacerH2 ~~~ Nginx
+        end
+
+        subgraph Hive["hive<br/>(Backend)<br/>Express + TypeScript<br/>Port: 4000"]
+
+            spacerB2[" "]
+            Routes["Routes<br/>/api, /health"]
+            Controllers["Controllers"]
+            Services["Services"]                        
+            
+            spacerB2 ~~~ Services
+            Routes --> Controllers
+            Controllers --> Services
+        end
+        
+        Honeycomb --> Hive
+             
+    end
+    
+    Services --> Database[("Database<br/>(PostgreSQL/etc)")]
+    
+    style spacerH2 fill:none,stroke:none
+    style spacerB2 fill:none,stroke:none
+
+    classDef clientStyle fill:#e1f5ff,stroke:#01579b,stroke-width:2px,color:#000
+    classDef frontendStyle fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000
+    classDef backendStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px,color:#000
+    classDef databaseStyle fill:#fff9c4,stroke:#f57f17,stroke-width:2px,color:#000
+    classDef componentStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
+
+    class Client clientStyle
+    class Nginx,Routes,Controllers,Services componentStyle
+    class Honeycomb frontendStyle
+    class Hive backendStyle
+    class Database databaseStyle
+
+    linkStyle 3 stroke:#1b5e20,stroke-width:2px
+    linkStyle 4 stroke:#1b5e20,stroke-width:2px
+    linkStyle 6 stroke:#1b5e20,stroke-width:2px
 ```
 
 ## Components
