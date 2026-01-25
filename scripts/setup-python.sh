@@ -60,6 +60,27 @@ fi
 echo -e "${GREEN}✓${NC} Python version check passed"
 echo ""
 
+# ------------------------------------------------------------
+# Setup project virtual environment (pyvenv)
+# ------------------------------------------------------------
+VENV_DIR="$PROJECT_ROOT/.venv"
+if [ -z "$VIRTUAL_ENV" ]; then
+    echo -e "${BLUE}Using virtual environment:${NC} $VENV_DIR"
+    if [ ! -d "$VENV_DIR" ]; then
+        echo "Creating virtual environment..."
+        if ! $PYTHON_CMD -m venv "$VENV_DIR"; then
+            echo -e "${RED}✗${NC} Failed to create virtual environment"
+            exit 1
+        fi
+    fi
+    # Activate the venv for this shell
+    . "$VENV_DIR/bin/activate"
+    PYTHON_CMD="python"
+else
+    echo -e "${BLUE}Using active virtual environment:${NC} $VIRTUAL_ENV"
+    PYTHON_CMD="python"
+fi
+
 # Check for pip
 if ! $PYTHON_CMD -m pip --version &> /dev/null; then
     echo -e "${RED}Error: pip is not installed${NC}"
@@ -190,7 +211,7 @@ echo "  • All dependencies and compatibility fixes applied"
 echo ""
 echo "To run agents, use:"
 echo ""
-echo "  ${BLUE}# From project root:${NC}"
+echo -e "  ${BLUE}# From project root:${NC}"
 echo "  PYTHONPATH=core:exports python -m agent_name validate"
 echo "  PYTHONPATH=core:exports python -m agent_name info"
 echo "  PYTHONPATH=core:exports python -m agent_name run --input '{...}'"
