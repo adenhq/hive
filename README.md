@@ -38,6 +38,17 @@ Build reliable, self-improving AI agents without hardcoding workflows. Define yo
 
 Visit [adenhq.com](https://adenhq.com) for complete documentation, examples, and guides.
 
+## Open-Source Scope
+This repository contains the open-source core of the Aden Agent Framework,
+focused primarily on the Python-based agent runtime, tools, and examples.
+
+Other platform components such as the hosted control plane, web dashboard,
+and frontend UI (React/TypeScript) are part of Aden’s managed platform and
+are not included in this repository.
+
+If you are getting started as a contributor, please refer to the Python-based
+agent development workflow described below and in the Getting Started guide.
+
 ## What is Aden
 
 <p align="center">
