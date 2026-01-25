@@ -32,6 +32,7 @@ elif command -v python3.11 >/dev/null 2>&1; then
     PYTHON_CMD="python3.11"
 elif command -v python3 >/dev/null 2>&1; then
     PYTHON_CMD="python3"
+# Use python3 if available, otherwise python
 elif command -v python >/dev/null 2>&1; then
     PYTHON_CMD="python"
 else
