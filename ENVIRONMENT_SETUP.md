@@ -81,7 +81,11 @@ All agent commands must be run from the project root with `PYTHONPATH` set:
 PYTHONPATH=core:exports python -m agent_name COMMAND
 ```
 
-### Example: Support Ticket Agent
+> **Note:** The `exports/` directory is where your custom agents are stored. It is intentionally excluded from the repository (via `.gitignore`) since agents are user-generated. You must first create an agent using the `/building-agents` skill (see [Building New Agents](#building-new-agents)) before running these commands.
+
+### Example Commands
+
+Once you've built an agent (e.g., `support_ticket_agent`), you can run:
 
 ```bash
 # Validate agent structure
@@ -101,7 +105,9 @@ PYTHONPATH=core:exports python -m support_ticket_agent run --input '{
 PYTHONPATH=core:exports python -m support_ticket_agent run --mock --input '{...}'
 ```
 
-### Example: Other Agents
+### Other Agent Examples
+
+These are example agent names you might create:
 
 ```bash
 # Market Research Agent
@@ -186,13 +192,19 @@ pip install --upgrade "openai>=1.0.0"
 
 ### "No module named 'support_ticket_agent'"
 
-**Cause:** Not running from project root or missing PYTHONPATH
+**Cause:** Agent not created yet, not running from project root, or missing PYTHONPATH
 
-**Solution:** Ensure you're in `/home/timothy/oss/hive/` and use:
+**Solution:**
 
-```bash
-PYTHONPATH=core:exports python -m support_ticket_agent validate
-```
+1. First, create an agent using Claude Code:
+   ```
+   claude> /building-agents
+   ```
+
+2. Then run from the project root with PYTHONPATH:
+   ```bash
+   PYTHONPATH=core:exports python -m your_agent_name validate
+   ```
 
 ### Agent imports fail with "broken installation"
 
@@ -225,11 +237,8 @@ hive/
 │   ├── pyproject.toml
 │   └── README.md
 │
-└── exports/                 # Agent packages (your agents go here)
-    ├── support_ticket_agent/
-    ├── market_research_agent/
-    ├── outbound_sales_agent/
-    └── personal_assistant_agent/
+└── exports/                 # Agent packages (your agents go here, not in repo)
+    └── your_agent_name/     # Created via /building-agents skill
 ```
 
 ### Why PYTHONPATH is Required
@@ -325,7 +334,7 @@ export AGENT_STORAGE_PATH="/custom/storage"
 
 - **Framework Documentation:** [core/README.md](core/README.md)
 - **Tools Documentation:** [tools/README.md](tools/README.md)
-- **Example Agents:** [exports/](exports/)
+- **Example Agents:** Create your own using `/building-agents` skill
 - **Agent Building Guide:** [.claude/skills/building-agents-construction/SKILL.md](.claude/skills/building-agents-construction/SKILL.md)
 - **Testing Guide:** [.claude/skills/testing-agent/SKILL.md](.claude/skills/testing-agent/SKILL.md)
 
