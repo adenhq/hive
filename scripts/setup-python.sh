@@ -70,6 +70,59 @@ fi
 echo -e "${GREEN}✓${NC} pip detected"
 echo ""
 
+# Check if we're in a virtual environment or if Python is externally managed
+VENV_NEEDED=false
+VENV_PATH="$PROJECT_ROOT/venv"
+
+# Check if we're already in a virtual environment
+if [[ "$VIRTUAL_ENV" != "" ]]; then
+    echo -e "${GREEN}✓${NC} Already in virtual environment: $VIRTUAL_ENV"
+else
+    # Test if pip install works (to detect externally-managed environments)
+    echo "Checking if Python environment allows package installation..."
+    if ! $PYTHON_CMD -m pip install --upgrade pip --dry-run &> /dev/null; then
+        echo -e "${YELLOW}⚠${NC} Python environment is externally managed (likely Homebrew)"
+        VENV_NEEDED=true
+    else
+        # Try a test upgrade to be sure
+        if ! $PYTHON_CMD -m pip install --upgrade pip setuptools wheel --dry-run &> /dev/null; then
+            VENV_NEEDED=true
+        fi
+    fi
+fi
+
+# Create virtual environment if needed
+if [ "$VENV_NEEDED" = true ]; then
+    echo ""
+    echo "================================================"
+    echo "Setting up Virtual Environment"
+    echo "================================================"
+    echo ""
+    
+    if [ ! -d "$VENV_PATH" ]; then
+        echo "Creating virtual environment at: $VENV_PATH"
+        $PYTHON_CMD -m venv "$VENV_PATH"
+        echo -e "${GREEN}✓${NC} Virtual environment created"
+    else
+        echo -e "${GREEN}✓${NC} Virtual environment already exists"
+    fi
+    
+    # Activate virtual environment
+    echo "Activating virtual environment..."
+    
+    # Platform-specific activation
+    if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "win32" ]]; then
+        # Windows (Git Bash, Cygwin, etc.)
+        source "$VENV_PATH/Scripts/activate"
+    else
+        # Unix-like (macOS, Linux)
+        source "$VENV_PATH/bin/activate"
+    fi
+    
+    echo -e "${GREEN}✓${NC} Virtual environment activated"
+    echo ""
+fi
+
 # Upgrade pip, setuptools, and wheel
 echo "Upgrading pip, setuptools, and wheel..."
 if ! $PYTHON_CMD -m pip install --upgrade pip setuptools wheel; then
@@ -188,6 +241,19 @@ echo "  • framework (core agent runtime)"
 echo "  • aden_tools (tools and MCP servers)"
 echo "  • All dependencies and compatibility fixes applied"
 echo ""
+# Add virtual environment instructions if we created one
+if [ "$VENV_NEEDED" = true ]; then
+    echo -e "${BLUE}Virtual Environment Setup:${NC}"
+    echo "  A virtual environment was created at: $VENV_PATH"
+    echo ""
+    echo "  To activate it in future sessions:"
+    if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "win32" ]]; then
+        echo "    ${BLUE}source venv/Scripts/activate${NC}    # Windows"
+    else
+        echo "    ${BLUE}source venv/bin/activate${NC}        # macOS/Linux"
+    fi
+    echo ""
+fi
 echo "To run agents, use:"
 echo ""
 echo "  ${BLUE}# From project root:${NC}"
