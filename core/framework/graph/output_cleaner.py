@@ -21,7 +21,7 @@ class CleansingConfig:
     """Configuration for output cleansing."""
 
     enabled: bool = True
-    fast_model: str = "cerebras/llama-3.3-70b"  # Fast, cheap model for cleaning
+    fast_model: str | None = None  # Fast model for cleaning. If None, auto-selects based on available API keys
     max_retries: int = 2
     cache_successful_patterns: bool = True
     fallback_to_raw: bool = True  # If cleaning fails, pass raw output
@@ -42,10 +42,22 @@ class OutputCleaner:
     """
     Framework-level output validation and cleaning.
 
-    Uses fast LLM (llama-3.3-70b) to clean malformed outputs
-    before they flow to the next node.
+    Uses a fast LLM to clean malformed outputs before they flow to the next node.
+    Automatically selects an available provider based on API keys, with preference
+    for fast and cheap models: Cerebras > Groq > OpenAI > Anthropic.
 
     Example:
+        # Auto-select provider based on available API keys
+        cleaner = OutputCleaner(
+            config=CleansingConfig(enabled=True),
+        )
+
+        # Or specify a custom model
+        cleaner = OutputCleaner(
+            config=CleansingConfig(enabled=True, fast_model="gpt-4o-mini"),
+        )
+
+        # Or provide your own LLM provider
         cleaner = OutputCleaner(
             config=CleansingConfig(enabled=True),
             llm_provider=llm,
@@ -75,7 +87,8 @@ class OutputCleaner:
         Args:
             config: Cleansing configuration
             llm_provider: Optional LLM provider. If None and cleaning is enabled,
-                         will create a LiteLLMProvider with the configured fast_model.
+                         will create a LiteLLMProvider with an available fast model.
+                         Tries providers in order: Cerebras, Groq, OpenAI, Anthropic.
         """
         self.config = config
         self.success_cache: dict[str, Any] = {}  # Cache successful patterns
@@ -86,31 +99,122 @@ class OutputCleaner:
         if llm_provider:
             self.llm = llm_provider
         elif config.enabled:
-            # Create dedicated fast LLM provider for cleaning
-            try:
-                from framework.llm.litellm import LiteLLMProvider
-                import os
+            self.llm = self._initialize_llm_provider()
+        else:
+            self.llm = None
 
-                api_key = os.environ.get("CEREBRAS_API_KEY")
+    def _initialize_llm_provider(self):
+        """
+        Initialize LLM provider for output cleaning.
+
+        Auto-selects a fast, cheap model based on available API keys.
+        Priority: Cerebras > Groq > OpenAI > Anthropic
+
+        Returns:
+            LiteLLMProvider instance or None if no provider is available
+        """
+        try:
+            from framework.llm.litellm import LiteLLMProvider
+            import os
+
+            # If user specified a model, use it
+            if self.config.fast_model:
+                model = self.config.fast_model
+                api_key_env = self._get_api_key_env_var(model)
+
+                if api_key_env:
+                    api_key = os.environ.get(api_key_env)
+                    if api_key:
+                        llm = LiteLLMProvider(
+                            api_key=api_key,
+                            model=model,
+                            temperature=0.0,  # Deterministic cleaning
+                        )
+                        logger.info(f"✓ Initialized OutputCleaner with {model}")
+                        return llm
+                    else:
+                        logger.warning(
+                            f"⚠ {api_key_env} not found for model {model}, trying fallback providers"
+                        )
+                else:
+                    # Local model like ollama, no API key needed
+                    llm = LiteLLMProvider(
+                        model=model,
+                        temperature=0.0,
+                    )
+                    logger.info(f"✓ Initialized OutputCleaner with {model}")
+                    return llm
+
+            # Auto-select based on available API keys (prefer fast, cheap models)
+            providers = [
+                ("CEREBRAS_API_KEY", "cerebras/llama-3.3-70b"),
+                ("GROQ_API_KEY", "groq/llama-3.1-70b-versatile"),
+                ("OPENAI_API_KEY", "gpt-4o-mini"),
+                ("ANTHROPIC_API_KEY", "claude-3-5-haiku-20241022"),
+            ]
+
+            for api_key_env, model in providers:
+                api_key = os.environ.get(api_key_env)
                 if api_key:
-                    self.llm = LiteLLMProvider(
+                    llm = LiteLLMProvider(
                         api_key=api_key,
-                        model=config.fast_model,
+                        model=model,
                         temperature=0.0,  # Deterministic cleaning
                     )
                     logger.info(
-                        f"✓ Initialized OutputCleaner with {config.fast_model}"
+                        f"✓ Initialized OutputCleaner with {model} (auto-selected from {api_key_env})"
                     )
-                else:
-                    logger.warning(
-                        "⚠ CEREBRAS_API_KEY not found, output cleaning will be disabled"
-                    )
-                    self.llm = None
-            except ImportError:
-                logger.warning("⚠ LiteLLMProvider not available, output cleaning disabled")
-                self.llm = None
-        else:
-            self.llm = None
+                    return llm
+
+            # No providers available
+            logger.warning(
+                "⚠ No LLM provider API keys found. Output cleaning will be disabled.\n"
+                "  Set one of: CEREBRAS_API_KEY, GROQ_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY"
+            )
+            return None
+
+        except ImportError:
+            logger.warning("⚠ LiteLLMProvider not available, output cleaning disabled")
+            return None
+
+    def _get_api_key_env_var(self, model: str) -> str | None:
+        """
+        Get the environment variable name for API key based on model name.
+
+        Args:
+            model: Model name (e.g., "gpt-4o-mini", "claude-3-haiku", "cerebras/llama-3.3-70b")
+
+        Returns:
+            Environment variable name or None for local models
+        """
+        model_lower = model.lower()
+
+        # Check provider prefixes
+        if model_lower.startswith("gpt-") or model_lower.startswith("openai/"):
+            return "OPENAI_API_KEY"
+        elif model_lower.startswith("claude") or model_lower.startswith("anthropic/"):
+            return "ANTHROPIC_API_KEY"
+        elif model_lower.startswith("gemini/") or model_lower.startswith("google/"):
+            return "GOOGLE_API_KEY"
+        elif model_lower.startswith("mistral/"):
+            return "MISTRAL_API_KEY"
+        elif model_lower.startswith("groq/"):
+            return "GROQ_API_KEY"
+        elif model_lower.startswith("cerebras/"):
+            return "CEREBRAS_API_KEY"
+        elif model_lower.startswith("azure/"):
+            return "AZURE_API_KEY"
+        elif model_lower.startswith("cohere/"):
+            return "COHERE_API_KEY"
+        elif model_lower.startswith("replicate/"):
+            return "REPLICATE_API_KEY"
+        elif model_lower.startswith("together/"):
+            return "TOGETHER_API_KEY"
+        elif model_lower.startswith("ollama/"):
+            return None  # Local, no API key needed
+
+        # Default to None for unknown providers
+        return None
 
     def validate_output(
         self,
