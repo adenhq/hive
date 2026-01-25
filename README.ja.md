@@ -83,6 +83,21 @@ cd hive
 - **aden_tools** - エージェント機能のための19個のMCPツール
 - すべての必要な依存関係
 
+> **macOS ユーザー / Homebrew ユーザーへの注意**
+>
+> macOS をご利用の場合、または Python インストールが Homebrew（または PEP 668 に準拠する他のパッケージマネージャー）によって管理されている場合、セットアップスクリプトの実行時に `externally-managed-environment` エラーが表示されることがあります。
+>
+> このリポジトリの新しいバージョンでは、セットアップスクリプトは自動的にローカル仮想環境を作成して使用します。
+> 古いバージョンを使用している場合は、手動で修正できます。
+>
+> ```bash
+> python3 -m venv .venv
+> source .venv/bin/activate
+> ./scripts/setup-python.sh
+> ```
+>
+> 詳細については、[ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) を参照してください。
+
 ### 最初のエージェントを構築
 
 ```bash

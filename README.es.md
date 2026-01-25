@@ -79,9 +79,25 @@ cd hive
 ```
 
 Esto instala:
+
 - **framework** - Runtime del agente principal y ejecutor de grafos
 - **aden_tools** - 19 herramientas MCP para capacidades de agentes
 - Todas las dependencias requeridas
+
+> **Nota para usuarios de macOS / usuarios de Homebrew**
+>
+> Si está en macOS o su instalación de Python está administrada por Homebrew (u otro administrador de paquetes que sigue PEP 668), es posible que vea un error `externally-managed-environment` cuando ejecute el script de instalación.
+>
+> En las versiones más recientes de este repositorio, el script de configuración creará y usará automáticamente un entorno virtual local.
+> Si está ejecutando una versión anterior, puede solucionar esto manualmente:
+>
+> ```bash
+> python3 -m venv .venv
+> source .venv/bin/activate
+> ./scripts/setup-python.sh
+> ```
+>
+> Consulte [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) para obtener más detalles.
 
 ### Construye Tu Primer Agente
 
@@ -163,14 +179,14 @@ flowchart LR
 
 ### La Ventaja de Aden
 
-| Frameworks Tradicionales | Aden |
-|--------------------------|------|
-| Codificar flujos de trabajo de agentes | Describir objetivos en lenguaje natural |
-| Definición manual de grafos | Grafos de agentes auto-generados |
-| Manejo reactivo de errores | Auto-evolución proactiva |
-| Configuraciones de herramientas estáticas | Nodos dinámicos envueltos en SDK |
-| Configuración de monitoreo separada | Observabilidad en tiempo real integrada |
-| Gestión de presupuesto DIY | Controles de costos y degradación integrados |
+| Frameworks Tradicionales                  | Aden                                         |
+| ----------------------------------------- | -------------------------------------------- |
+| Codificar flujos de trabajo de agentes    | Describir objetivos en lenguaje natural      |
+| Definición manual de grafos               | Grafos de agentes auto-generados             |
+| Manejo reactivo de errores                | Auto-evolución proactiva                     |
+| Configuraciones de herramientas estáticas | Nodos dinámicos envueltos en SDK             |
+| Configuración de monitoreo separada       | Observabilidad en tiempo real integrada      |
+| Gestión de presupuesto DIY                | Controles de costos y degradación integrados |
 
 ### Cómo Funciona
 

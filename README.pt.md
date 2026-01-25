@@ -83,6 +83,21 @@ Isto instala:
 - **aden_tools** - 19 ferramentas MCP para capacidades de agentes
 - Todas as dependências necessárias
 
+> **Nota para usuários de macOS / usuários do Homebrew**
+>
+>Se você estiver usando macOS ou se sua instalação do Python for gerenciada pelo Homebrew (ou outro gerenciador de pacotes que siga a PEP 668), você poderá ver um erro de `ambiente gerenciado externamente` ao executar o script de configuração.
+>
+>Em versões mais recentes deste repositório, o script de configuração criará e usará automaticamente um ambiente virtual local.
+>
+>Se você estiver executando uma versão mais antiga, poderá corrigir isso manualmente:
+>
+>```bash
+> python3 -m venv .venv
+> source .venv/bin/activate
+> ./scripts/setup-python.sh
+> ```
+> Consulte [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) para obter mais detalhes.
+
 ### Construa Seu Primeiro Agente
 
 ```bash
