@@ -299,6 +299,16 @@ fi
 
 echo ""
 
+# Install Claude CLI if missing
+echo -e "${BLUE}Installing Claude CLI...${NC}"
+if command -v npm &> /dev/null; then
+    npm install -g @anthropic-ai/claude-code
+    echo -e "${GREEN}  ✓ Claude CLI installed${NC}"
+else
+    echo -e "${YELLOW}  ⚠ npm not found, skipping Claude CLI install${NC}"
+fi
+echo ""
+
 # ============================================================
 # Step 7: Success Summary
 # ============================================================
