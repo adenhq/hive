@@ -65,6 +65,7 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 ### Prerequisites
 
 - [Python 3.11+](https://www.python.org/downloads/) for agent development
+- [Node.js & npm](https://nodejs.org/) for JS tools and frontend scripts
 - [Docker](https://docs.docker.com/get-docker/) (v20.10+) - Optional, for containerized tools
 
 ### Installation
@@ -82,6 +83,36 @@ This installs:
 - **framework** - Core agent runtime and graph executor
 - **aden_tools** - 19 MCP tools for agent capabilities
 - All required dependencies
+
+```bash
+# Install npm dependencies
+npm install
+```
+
+This installs:
+- **CLI Tools** - JavaScript/TypeScript command-line utilities for building, testing, and managing agents 
+- **Frontend Tooling** - Dependencies for any React/TypeScript-based interfaces or dashboards  
+- **Helper Scripts** - Scripts for automation, agent helpers, and project maintenance  
+- **Node.js Dependencies** - All required packages listed in `package.json`, including version-locked modules for consistent development
+  
+## Development Workflows
+
+The project supports **two main workflows**, depending on what you want to work on:
+
+### 1. Python Agent Development
+- Use `./scripts/setup-python.sh` or the manual Python setup.
+- Required for building, testing, and running agents.
+- Needed for most core logic, LLM interactions, and Python-based tools.
+
+### 2. Node.js / npm Tooling
+- Run `npm install` in the project root.
+- Required for JavaScript-based CLI scripts, frontend tooling, or agent helpers.
+- Not needed if you only work with Python agents.
+
+### Choosing a Workflow
+- **Only building/testing agents:** Python setup is enough.  
+- **Contributing JS tools or scripts:** Run **both Python and npm setups**.
+
 
 ### Build Your First Agent
 
