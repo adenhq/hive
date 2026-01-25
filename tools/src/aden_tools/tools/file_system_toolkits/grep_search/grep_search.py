@@ -3,6 +3,25 @@ import re
 from mcp.server.fastmcp import FastMCP
 from ..security import get_secure_path, WORKSPACES_DIR
 
+# --- SMART FILTERING CONFIG ---
+# Folders to completely ignore during recursive searches
+IGNORED_DIRS = {
+    'node_modules', '.git', '.idea', '.vscode', '__pycache__', 
+    'venv', 'env', '.DS_Store', 'dist', 'build', 'coverage',
+    'target', 'bin', 'obj' # Added common build folders
+}
+
+# File extensions to skip (prevent opening binaries as text)
+BINARY_EXTENSIONS = {
+    '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.webp',
+    '.pdf', '.zip', '.tar', '.gz', '.7z', '.rar',
+    '.exe', '.dll', '.so', '.dylib', '.bin',
+    '.pyc', '.pyo', '.pyd', '.class', '.o', '.obj',
+    '.db', '.sqlite', '.sqlite3', '.parquet'
+}
+
+MAX_MATCHES = 1000  # Safety cap to prevent context window crash
+
 def register_tools(mcp: FastMCP) -> None:
     """Register grep search tools with the MCP server."""
 
@@ -25,8 +44,7 @@ def register_tools(mcp: FastMCP) -> None:
         Returns:
             Dict with search results and match details, or error dict
         """
-        # 1. Early Regex Validation (Issue #55 Acceptance Criteria)
-        # Using .msg for a cleaner, less noisy error response
+        # 1. Early Regex Validation
         try:
             regex = re.compile(pattern)
         except re.error as e:
@@ -38,34 +56,69 @@ def register_tools(mcp: FastMCP) -> None:
             session_root = os.path.join(WORKSPACES_DIR, workspace_id, agent_id, session_id)
 
             matches = []
+            
+            # Helper to check if file should be processed
+            def is_skippable(file_name):
+                _, ext = os.path.splitext(file_name)
+                return ext.lower() in BINARY_EXTENSIONS
 
-            if os.path.isfile(secure_path):
-                files = [secure_path]
-            elif recursive:
-                files = []
-                for root, _, filenames in os.walk(secure_path):
-                    for filename in filenames:
-                        files.append(os.path.join(root, filename))
-            else:
-                files = [os.path.join(secure_path, f) for f in os.listdir(secure_path) if os.path.isfile(os.path.join(secure_path, f))]
+            # Helper to search a single file
+            def search_file(f_path):
+                # Optimization: Stop if we already hit the limit
+                if len(matches) >= MAX_MATCHES:
+                    return
 
-            for file_path in files:
                 # Calculate relative path for display
-                display_path = os.path.relpath(file_path, session_root)
+                display_path = os.path.relpath(f_path, session_root)
+                
                 try:
-                    with open(file_path, "r", encoding="utf-8") as f:
+                    with open(f_path, "r", encoding="utf-8") as f:
                         for i, line in enumerate(f, 1):
                             if regex.search(line):
                                 matches.append({
                                     "file": display_path,
                                     "line_number": i,
-                                    "line_content": line.strip()
+                                    "line_content": line.strip()[:300]  # Truncate extremely long lines
                                 })
+                                if len(matches) >= MAX_MATCHES:
+                                    return
                 except (UnicodeDecodeError, PermissionError):
-                    # As per README: Skips the files that cannot be decoded or have permission errors
-                    continue
+                    # Skip files that aren't valid UTF-8 text or are locked
+                    return
 
-            return {
+            # --- MAIN LOOP OPTIMIZATION ---
+            
+            if os.path.isfile(secure_path):
+                search_file(secure_path)
+            
+            elif recursive:
+                # Optimized Recursive Walk
+                for root, dirs, filenames in os.walk(secure_path):
+                    # 1. PRUNE IGNORED DIRECTORIES IN-PLACE
+                    # This modifies the 'dirs' list used by os.walk, preventing it 
+                    # from entering node_modules, .git, etc.
+                    dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
+                    
+                    if len(matches) >= MAX_MATCHES:
+                        break
+
+                    for filename in filenames:
+                        if not is_skippable(filename):
+                            search_file(os.path.join(root, filename))
+                            if len(matches) >= MAX_MATCHES:
+                                break
+            else:
+                # Non-recursive directory list
+                if os.path.isdir(secure_path):
+                    for filename in os.listdir(secure_path):
+                        full_path = os.path.join(secure_path, filename)
+                        # Check if it is a file and not a binary
+                        if os.path.isfile(full_path) and not is_skippable(filename):
+                            search_file(full_path)
+                            if len(matches) >= MAX_MATCHES:
+                                break
+
+            result = {
                 "success": True,
                 "pattern": pattern,
                 "path": path,
@@ -74,12 +127,14 @@ def register_tools(mcp: FastMCP) -> None:
                 "total_matches": len(matches)
             }
 
-        # 2. Specific Exception Handling (Issue #55 Requirements)
+            if len(matches) >= MAX_MATCHES:
+                result["warning"] = f"Match limit reached ({MAX_MATCHES}). Please refine your search."
+
+            return result
+
         except FileNotFoundError:
             return {"error": f"Directory or file not found: {path}"}
         except PermissionError:
             return {"error": f"Permission denied accessing: {path}"}
         except Exception as e:
-            # 3. Generic Fallback
             return {"error": f"Failed to perform grep search: {str(e)}"}
-
