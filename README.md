@@ -101,6 +101,51 @@ PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'
 
 **[📖 Complete Setup Guide](ENVIRONMENT_SETUP.md)** - Detailed instructions for agent development
 
+### Windows Notes for Testing
+
+If you're running tests on Windows, be aware of the following:
+
+**Recommended Setup:**
+- Use **Git Bash** or **WSL (Windows Subsystem for Linux)** for the best compatibility
+- These provide Unix-like shell environments that support all test features
+
+**Known Limitations on Windows:**
+
+1. **Symlink Tests**: Some security tests use symlinks, which require:
+   - Windows 10/11 with **Developer Mode** enabled, OR
+   - Running as Administrator
+   - Without these, symlink-related tests will be skipped or fail
+   - **Workaround**: Use Git Bash or WSL where symlinks work natively
+
+2. **Shell Pipes**: The `execute_command_tool` uses shell pipes (`|`) which work differently in `cmd.exe`:
+   - `cmd.exe` has limited pipe support compared to Unix shells
+   - **Workaround**: Use Git Bash or WSL for full shell compatibility
+
+3. **Path Separators**: Most tests handle Windows paths correctly, but some edge cases may differ
+
+**Quick Start on Windows:**
+```bash
+# Option 1: Use Git Bash (recommended)
+# Install Git for Windows, then use Git Bash terminal
+./scripts/setup-python.sh
+pytest
+
+# Option 2: Use WSL
+# Install WSL2, then run commands in WSL terminal
+./scripts/setup-python.sh
+pytest
+
+# Option 3: Use PowerShell/CMD (limited compatibility)
+# Some tests may be skipped due to symlink/shell limitations
+./scripts/setup-python.sh
+pytest
+```
+
+**Environment Variables:**
+- See [.env.example](.env.example) for optional API keys
+- API keys are **not required** for running tests (mock mode is used by default)
+- Set `ANTHROPIC_API_KEY` only if you want to run real LLM tests
+
 ## Features
 
 - **Goal-Driven Development** - Define objectives in natural language; the coding agent generates the agent graph and connection code to achieve them

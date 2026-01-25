@@ -25,9 +25,16 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 # Verify installation
 python -c "import framework; import aden_tools; print('✓ Setup complete')"
 
+# (Optional) Set up environment variables
+# Copy .env.example to .env and fill in your API keys if needed
+# Note: API keys are optional - tests work in mock mode without them
+cp .env.example .env  # Edit .env with your keys if needed
+
 # Install Claude Code skills (optional)
 ./quickstart.sh
 ```
+
+**Note for Windows users:** See [Windows Notes for Testing](README.md#windows-notes-for-testing) in the README for platform-specific considerations.
 
 ## Commit Convention
 
