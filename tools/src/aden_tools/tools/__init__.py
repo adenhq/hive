@@ -22,6 +22,7 @@ from .example_tool import register_tools as register_example
 from .web_search_tool import register_tools as register_web_search
 from .web_scrape_tool import register_tools as register_web_scrape
 from .pdf_read_tool import register_tools as register_pdf_read
+from .http_request_tool import register_tools as register_http_request
 
 # Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
@@ -53,6 +54,7 @@ def register_all_tools(
     register_example(mcp)
     register_web_scrape(mcp)
     register_pdf_read(mcp)
+    register_http_request(mcp)
 
     # Tools that need credentials (pass credentials if provided)
     # web_search handles both credential sources internally:
@@ -75,6 +77,7 @@ def register_all_tools(
         "web_search",
         "web_scrape",
         "pdf_read",
+        "http_request",
         "view_file",
         "write_to_file",
         "list_dir",
