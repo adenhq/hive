@@ -6,6 +6,15 @@ Groq, and local models.
 
 See: https://docs.litellm.ai/docs/providers
 """
+import logging
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    before_sleep_log,
+)
+
 
 import json
 from typing import Any
@@ -17,6 +26,14 @@ except ImportError:
 
 from framework.llm.provider import LLMProvider, LLMResponse, Tool, ToolUse
 
+logger = logging.getLogger(__name__)
+# Transient errors that should be retried with backoff
+TRANSIENT_EXCEPTIONS = (
+    litellm.RateLimitError,
+    litellm.Timeout, 
+    litellm.APIConnectionError,
+    litellm.ServiceUnavailableError,
+)
 
 class LiteLLMProvider(LLMProvider):
     """
@@ -80,6 +97,17 @@ class LiteLLMProvider(LLMProvider):
                 "LiteLLM is not installed. Please install it with: pip install litellm"
             )
 
+    def _create_retry_decorator(self):
+        """Create a retry decorator for LLM calls with exponential backoff."""
+        return retry(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=2, max=60),
+            retry=retry_if_exception_type(TRANSIENT_EXCEPTIONS),
+            before_sleep=before_sleep_log(logger, logging.WARNING),
+            reraise=True,
+        )
+    
+
     def complete(
         self,
         messages: list[dict[str, Any]],
@@ -130,7 +158,17 @@ class LiteLLMProvider(LLMProvider):
             kwargs["response_format"] = response_format
 
         # Make the call
-        response = litellm.completion(**kwargs)
+        # response = litellm.completion(**kwargs)
+        
+        # Make the call with retry logic for transient errors
+        retry_decorator = self._create_retry_decorator()
+        
+        @retry_decorator
+        def _make_completion_call():
+            return litellm.completion(**kwargs)
+        
+        response = _make_completion_call()
+
 
         # Extract content
         content = response.choices[0].message.content or ""
@@ -185,7 +223,17 @@ class LiteLLMProvider(LLMProvider):
             if self.api_base:
                 kwargs["api_base"] = self.api_base
 
-            response = litellm.completion(**kwargs)
+            # response = litellm.completion(**kwargs)
+            
+            # Make the call with retry logic for transient errors
+            retry_decorator = self._create_retry_decorator()
+            
+            @retry_decorator
+            def _make_completion_call():
+                return litellm.completion(**kwargs)
+            
+            response = _make_completion_call()
+
 
             # Track tokens
             usage = response.usage
