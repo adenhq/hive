@@ -443,6 +443,10 @@ class LLMNode(NodeProtocol):
 
     def _strip_code_blocks(self, content: str) -> str:
         """Strip markdown code block wrappers from content.
+
+        LLMs often wrap JSON output in ```json...``` blocks.
+        This method removes those wrappers to get clean content.
+        """
         content = content.strip()
         # Match ```json or ``` at start and ``` at end (greedy to handle nested)
         match = re.match(r'^```(?:json|JSON)?\s*\n?(.*)\n?```\s*$', content, re.DOTALL)
