@@ -1,10 +1,13 @@
 """Anthropic Claude LLM provider - backward compatible wrapper around LiteLLM."""
 
+import logging
 import os
 from typing import Any
 
-from framework.llm.provider import LLMProvider, LLMResponse, Tool
 from framework.llm.litellm import LiteLLMProvider
+from framework.llm.provider import LLMProvider, LLMResponse, Tool
+
+logger = logging.getLogger(__name__)
 
 
 def _get_api_key_from_credential_manager() -> str | None:
@@ -13,15 +16,31 @@ def _get_api_key_from_credential_manager() -> str | None:
     Priority:
     1. CredentialManager (supports .env hot-reload)
     2. os.environ fallback
+
+    Returns:
+        API key string or None if not found
     """
     try:
         from aden_tools.credentials import CredentialManager
 
         creds = CredentialManager()
         if creds.is_available("anthropic"):
+            logger.debug("Retrieved Anthropic API key from CredentialManager")
             return creds.get("anthropic")
+        else:
+            logger.debug("CredentialManager available but Anthropic key not configured")
     except ImportError:
-        pass
+        logger.debug(
+            "aden_tools not installed, falling back to environment variable. "
+            "Install aden_tools for .env hot-reload support."
+        )
+    except Exception as e:
+        # Log unexpected errors from CredentialManager but don't fail
+        logger.warning(
+            "CredentialManager raised unexpected error, falling back to environment: %s",
+            str(e),
+        )
+
     return os.environ.get("ANTHROPIC_API_KEY")
 
 
@@ -55,7 +74,7 @@ class AnthropicProvider(LLMProvider):
             )
 
         self.model = model
-        
+
         self._provider = LiteLLMProvider(
             model=model,
             api_key=self.api_key,
