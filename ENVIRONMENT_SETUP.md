@@ -80,7 +80,22 @@ All agent commands must be run from the project root with `PYTHONPATH` set:
 # From /hive/ directory
 PYTHONPATH=core:exports python -m agent_name COMMAND
 ```
+### Setting PYTHONPATH on Windows
 
+The `exports/` directory is not installed as a Python package, so it must be
+included in `PYTHONPATH` when running agents.
+
+Environment variable syntax differs by shell.
+
+#### macOS / Linux / Git Bash
+```bash
+PYTHONPATH=core:exports python -m agent_name COMMAND
+```
+#### Windows PowerShell
+```powershell
+$env:PYTHONPATH="core;exports"
+python -m agent_name COMMAND
+```
 ### Example: Support Ticket Agent
 
 ```bash
