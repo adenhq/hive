@@ -1,13 +1,14 @@
 import logging
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any, Tuple, Optional
 from collections import deque
+from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger(__name__)
 
 class ValidationResult:
     """
     Resultado de validação unificado. 
-    Prioriza a estrutura da 'main' com compatibilidade para 'valid'.
+    Suporta 'success' (padrão main) e 'valid' (retrocompatibilidade).
     """
     def __init__(self, success: bool, errors: List[str] = None):
         self.success = success
@@ -16,7 +17,6 @@ class ValidationResult:
 
     @property
     def error(self) -> str:
-        """Retorna as mensagens de erro combinadas em uma única string."""
         return "; ".join(self.errors) if self.errors else ""
 
     def __bool__(self):
@@ -24,32 +24,28 @@ class ValidationResult:
 
 class GraphValidator:
     """
-    Valida a integridade topológica e a segurança contra injeção de código.
+    Valida a integridade topológica, segurança de código e conformidade de esquema.
     """
 
     @staticmethod
     def validate(graph_spec: Any) -> ValidationResult:
-        """
-        Validação Topológica: Verifica integridade, ciclos (DFS) e conectividade (BFS).
-        """
-        # 1. Verificação de Atributos Básicos
+        """Verifica integridade, ciclos (DFS) e conectividade (BFS)."""
         if not all(hasattr(graph_spec, attr) for attr in ["nodes", "edges", "entry_node"]):
-            return ValidationResult(False, ["GraphSpec missing required attributes (nodes, edges, entry_node)"])
+            return ValidationResult(False, ["GraphSpec missing required attributes"])
 
         node_ids = {n.id for n in graph_spec.nodes}
         adj_list = {n_id: [] for n_id in node_ids}
         
         for edge in graph_spec.edges:
             if edge.source not in node_ids or edge.target not in node_ids:
-                return ValidationResult(False, [f"Edge references invalid node: {edge.source}->{edge.target}"])
+                return ValidationResult(False, [f"Invalid edge: {edge.source}->{edge.target}"])
             adj_list[edge.source].append(edge.target)
 
         if graph_spec.entry_node not in node_ids:
             return ValidationResult(False, [f"Entry node '{graph_spec.entry_node}' not found"])
 
-        # 2. Detecção de Ciclos (DFS)
+        # DFS para Ciclos
         visited, rec_stack = set(), set()
-        
         def has_cycle(u):
             visited.add(u)
             rec_stack.add(u)
@@ -63,12 +59,11 @@ class GraphValidator:
         for node_id in node_ids:
             if node_id not in visited:
                 if has_cycle(node_id):
-                    return ValidationResult(False, [f"Cycle detected involving node '{node_id}'"])
+                    return ValidationResult(False, [f"Cycle detected at node '{node_id}'"])
 
-        # 3. Verificação de Conectividade (BFS)
+        # BFS para Alcance
         reachable = {graph_spec.entry_node}
         q = deque([graph_spec.entry_node])
-        
         while q:
             u = q.popleft()
             for v in adj_list[u]:
@@ -83,42 +78,78 @@ class GraphValidator:
         return ValidationResult(True)
 
     def _contains_code_indicators(self, value: str) -> bool:
-        """Verifica padrões de código (Python, JS, SQL, HTML) para evitar injeção."""
-        code_indicators = [
-            "def ", "class ", "import ", "from ", "async def ", "await ",
-            "function ", "const ", "let ", "=> {", "SELECT ", "INSERT ", 
-            "DROP ", "<script", "<?php"
-        ]
-
+        """Detecta padrões de injeção de código para segurança."""
+        indicators = ["def ", "import ", "async def ", "await ", "SELECT ", "DROP ", "<script"]
+        val_lower = value.lower()
         if len(value) < 10000:
-            return any(ind in value for ind in code_indicators)
+            return any(ind.lower() in val_lower for ind in indicators)
         
-        # Amostragem estratégica para strings longas (Start, 25%, 50%, 75%, End)
-        sample_positions = [0, len(value)//4, len(value)//2, 3*len(value)//4, max(0, len(value)-2000)]
+        sample_positions = [0, len(value)//2, max(0, len(value)-2000)]
         for pos in sample_positions:
-            chunk = value[pos : pos + 2000]
-            if any(ind in chunk for ind in code_indicators):
+            if any(ind.lower() in val_lower[pos:pos+2000] for ind in indicators):
                 return True
         return False
 
     def validate_output_keys(
-        self, output: Dict[str, Any], expected_keys: List[str], max_length: int = 5000
+        self, 
+        output: Dict[str, Any], 
+        expected_keys: List[str], 
+        max_length: int = 5000,
+        allow_empty: bool = False
     ) -> ValidationResult:
-        """Valida presença, comprimento e segurança das chaves de saída."""
+        """Valida chaves obrigatórias, tamanho, conteúdo vazio e segurança."""
         if not isinstance(output, dict):
-            return ValidationResult(False, [f"Output is not a dict, got {type(output).__name__}"])
+            return ValidationResult(False, [f"Output must be dict, got {type(output).__name__}"])
 
         errors = []
         for key in expected_keys:
             if key not in output:
-                errors.append(f"Missing expected key: {key}")
+                errors.append(f"Missing required output key: '{key}'")
                 continue
             
-            val_str = str(output[key])
+            value = output[key]
+            val_str = str(value)
+
+            # Verificação de segurança (Sua feature)
             if self._contains_code_indicators(val_str):
                 logger.warning(f"Security Warning: Key '{key}' may contain code indicators.")
 
+            # Verificação de tamanho
             if len(val_str) > max_length:
                 errors.append(f"Key '{key}' exceeds max length ({len(val_str)} > {max_length})")
 
+            # Verificação de vazio (Padrão main)
+            if not allow_empty:
+                if value is None or (isinstance(value, str) and not value.strip()):
+                    errors.append(f"Output key '{key}' cannot be empty")
+
+        return ValidationResult(success=len(errors) == 0, errors=errors)
+
+    def validate_with_pydantic(
+        self, output: Dict[str, Any], model: type[BaseModel]
+    ) -> Tuple[ValidationResult, Optional[BaseModel]]:
+        """Validação Pydantic conforme a main."""
+        try:
+            validated = model.model_validate(output)
+            return ValidationResult(True), validated
+        except ValidationError as e:
+            errors = [f"{'.'.join(str(l) for l in err['loc'])}: {err['msg']}" for err in e.errors()]
+            return ValidationResult(False, errors), None
+
+    def validate_no_hallucination(
+        self, output: Dict[str, Any], max_length: int = 10000
+    ) -> ValidationResult:
+        """Verifica sinais de alucinação em valores de string."""
+        errors = []
+        for key, value in output.items():
+            if not isinstance(value, str):
+                continue
+            
+            if len(value) > max_length:
+                errors.append(f"Hallucination check: Key '{key}' value too long ({len(value)} chars)")
+            
+            if self._contains_code_indicators(value):
+                # No contexto de alucinação, código onde deveria ser texto é red flag
+                logger.debug(f"Possible hallucination in '{key}': code pattern detected.")
+        
         return ValidationResult(len(errors) == 0, errors)
