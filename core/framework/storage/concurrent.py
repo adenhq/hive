@@ -18,6 +18,7 @@ from typing import Any
 
 from framework.schemas.run import Run, RunSummary, RunStatus
 from framework.storage.backend import FileStorage
+from framework.storage.base import AsyncStorageBackend
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class CacheEntry:
         return time.time() - self.timestamp > ttl
 
 
-class ConcurrentStorage:
+class ConcurrentStorage(AsyncStorageBackend):
     """
     Thread-safe storage backend with file locking and batch writes.
 

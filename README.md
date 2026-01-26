@@ -144,7 +144,7 @@ flowchart LR
 
     subgraph INFRA["⚙️ INFRASTRUCTURE"]
         CTX["NodeContext<br/>memory • llm • tools"]
-        STORE[("FileStorage<br/>Runs & Decisions")]
+        STORE[("Storage Backend<br/>FileStorage or SQLStorage")]
     end
 
     APPROVE --> EXPORT
@@ -258,6 +258,21 @@ PYTHONPATH=core:exports python -m agent_name run --input '{...}'
 ```
 
 See [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) for complete setup instructions.
+
+### SQL Storage (Optional)
+
+For production deployments with PostgreSQL:
+
+```bash
+# Install SQL dependencies
+pip install -e "core[sql]"
+
+# Configure via environment variables
+export STORAGE_TYPE=sql
+export DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/hive
+```
+
+The framework will automatically use SQL storage when these environment variables are set, while defaulting to file-based storage for local development.
 
 ## Documentation
 

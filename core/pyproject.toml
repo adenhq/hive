@@ -21,6 +21,14 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0",
 ]
+sql = [
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg>=0.29.0",
+    "greenlet>=3.0.0",
+]
+test-sql = [
+    "aiosqlite>=0.19.0",
+]
 
 [build-system]
 requires = ["hatchling"]
