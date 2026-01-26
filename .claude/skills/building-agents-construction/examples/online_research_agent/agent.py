@@ -1,4 +1,6 @@
 """Agent graph construction for Online Research Agent."""
+from framework.llm.mock import MockLLMProvider  # 1- Add import mock.py
+
 from framework.graph import EdgeSpec, EdgeCondition, Goal, SuccessCriterion, Constraint
 from framework.graph.edge import GraphSpec
 from framework.graph.executor import ExecutionResult
@@ -231,14 +233,17 @@ class OnlineResearchAgent:
                 tool_registry.register_mcp_server(server_config)
 
         llm = None
-        if not mock_mode:
-            # LiteLLMProvider uses environment variables for API keys
-            llm = LiteLLMProvider(
-                model=self.config.model,
-                api_key=self.config.api_key,
-                api_base=self.config.api_base,
-            )
-
+        if mock_mode:
+            from framework.llm.mock import MockLLMProvider
+            # Use MockLLMProvider for testing instead of LiteLLMProvider
+            llm = MockLLMProvider(model=self.config.model)
+        else:
+          # LiteLLMProvider uses environment variables for API keys
+          llm = LiteLLMProvider(
+          model=self.config.model,
+          api_key=self.config.api_key,
+          api_base=self.config.api_base,
+          )
         self._graph = GraphSpec(
             id="online-research-agent-graph",
             goal_id=self.goal.id,
