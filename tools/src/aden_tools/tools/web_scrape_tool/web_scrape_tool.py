@@ -10,6 +10,8 @@ from __future__ import annotations
 from typing import Any, List
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
+import ipaddress
+import socket
 
 import httpx
 from bs4 import BeautifulSoup
@@ -89,6 +91,49 @@ def _is_allowed_by_robots(url: str) -> tuple[bool, str]:
         return False, f"Blocked by robots.txt for path: {path}"
 
 
+def _is_safe_url(url: str) -> tuple[bool, str]:
+    """
+    Check if URL is safe to scrape (prevents SSRF).
+    Blocks private IPs, loopback, and reserved ranges.
+    """
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return False, "Invalid URL: no hostname"
+
+        # Resolve hostname to IP
+        try:
+            addr_info = socket.getaddrinfo(hostname, None)
+            ips = {info[4][0] for info in addr_info}
+        except socket.gaierror:
+            return False, f"Could not resolve hostname: {hostname}"
+
+        for ip_str in ips:
+            try:
+                ip = ipaddress.ip_address(ip_str)
+                
+                if ip.is_private:
+                    return False, f"Blocked: Private IP address ({ip_str})"
+                if ip.is_loopback:
+                    return False, f"Blocked: Loopback address ({ip_str})"
+                if ip.is_reserved:
+                    return False, f"Blocked: Reserved address ({ip_str})"
+                if ip.is_multicast:
+                    return False, f"Blocked: Multicast address ({ip_str})"
+                
+                if ip_str == "0.0.0.0":
+                    return False, "Blocked: 0.0.0.0"
+
+            except ValueError:
+                continue
+
+        return True, "URL is safe"
+
+    except Exception as e:
+        return False, f"URL validation failed: {str(e)}"
+
+
 def register_tools(mcp: FastMCP) -> None:
     """Register web scrape tools with the MCP server."""
 
@@ -120,6 +165,15 @@ def register_tools(mcp: FastMCP) -> None:
             # Validate URL
             if not url.startswith(("http://", "https://")):
                 url = "https://" + url
+
+            # SSRF Check
+            is_safe, reason = _is_safe_url(url)
+            if not is_safe:
+                return {
+                    "error": f"Security violation: {reason}",
+                    "blocked_by_security": True,
+                    "url": url,
+                }
 
             # Check robots.txt if enabled
             if respect_robots_txt:

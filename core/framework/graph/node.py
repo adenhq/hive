@@ -679,6 +679,14 @@ class LLMNode(NodeProtocol):
         # Default output
         return {"result": content}
 
+    def _repair_json(self, json_str: str) -> str:
+        """Attempt to repair common JSON syntax errors."""
+        import re
+        json_str = re.sub(r'//.*', '', json_str)
+        json_str = re.sub(r'/\*.*?\*/', '', json_str, flags=re.DOTALL)
+        json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
+        return json_str
+
     def _extract_json(self, raw_response: str, output_keys: list[str]) -> dict[str, Any]:
         """Extract clean JSON from potentially verbose LLM response.
 
@@ -735,7 +743,14 @@ class LLMNode(NodeProtocol):
                 if isinstance(parsed, dict):
                     return parsed
             except json.JSONDecodeError:
-                pass
+                try:
+                    repaired = self._repair_json(json_str)
+                    parsed = json.loads(repaired)
+                    if isinstance(parsed, dict):
+                        logger.info("      ✓ Locally repaired JSON syntax")
+                        return parsed
+                except json.JSONDecodeError:
+                    pass
 
         # All local extraction methods failed - use LLM as last resort
         # Prefer Cerebras (faster/cheaper), fallback to Anthropic Haiku
