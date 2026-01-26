@@ -142,6 +142,13 @@ class ConcurrentStorage:
     async def _save_run_locked(self, run: Run) -> None:
         """Save a run with file locking."""
         lock_key = f"run:{run.id}"
+        
+        # Double-checked locking to prevent race conditions during lock creation
+        if lock_key not in self._file_locks:
+            async with self._global_lock:
+                if lock_key not in self._file_locks:
+                    self._file_locks[lock_key] = asyncio.Lock()
+
         async with self._file_locks[lock_key]:
             # Run in executor to avoid blocking event loop
             loop = asyncio.get_event_loop()
