@@ -51,6 +51,11 @@ def register_commands(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Show detailed execution logs (steps, LLM calls, etc.)",
     )
+    run_parser.add_argument(
+        "--heal",
+        action="store_true",
+        help="Enable self-healing mode (auto-fix code errors)",
+    )
     run_parser.set_defaults(func=cmd_run)
 
     # info command
@@ -198,11 +203,22 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     # Load and run agent
     try:
-        runner = AgentRunner.load(
+        if getattr(args, "heal", False):
+            from framework.runner.self_healing import SelfHealingRunner
+            runner_cls = SelfHealingRunner
+            print("🚑 Self-Healing Mode Enabled")
+        else:
+            runner_cls = AgentRunner
+
+        runner = runner_cls.load(
             args.agent_path,
             mock_mode=args.mock,
             model=getattr(args, "model", "claude-haiku-4-5-20251001"),
         )
+        
+        if getattr(args, "heal", False):
+            runner.evolve_on_failure = True
+            
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
