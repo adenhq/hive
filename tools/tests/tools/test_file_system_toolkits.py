@@ -562,8 +562,13 @@ class TestExecuteCommandTool:
         # Create a test file
         (tmp_path / "testfile.txt").write_text("content")
 
+        # Use platform-independent command (pure python)
+        # Note: Use forward slashes for path to avoid escaping issues in python -c string
+        path_str = str(tmp_path).replace("\\", "/")
+        cmd = f"python -c \"import os; print(os.listdir('{path_str}'))\""
+        
         result = execute_command_fn(
-            command=f"ls {tmp_path}",
+            command=f"{cmd}",
             **mock_workspace
         )
 
@@ -573,8 +578,11 @@ class TestExecuteCommandTool:
 
     def test_execute_command_with_pipe(self, execute_command_fn, mock_workspace, mock_secure_path):
         """Executing a command with pipe works correctly."""
+        # Use python for cross-platform pipe test
+        cmd = "python -c \"print('hello world')\" | python -c \"import sys; print(sys.stdin.read().upper().strip())\""
+        
         result = execute_command_fn(
-            command="echo 'hello world' | tr 'a-z' 'A-Z'",
+            command=cmd,
             **mock_workspace
         )
 

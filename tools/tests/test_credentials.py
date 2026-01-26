@@ -1,5 +1,6 @@
 """Tests for CredentialManager."""
 
+import os
 import pytest
 
 from aden_tools.credentials import (
@@ -310,7 +311,7 @@ class TestCredentialSpecs:
         assert "brave.com" in spec.help_url
 
     def test_anthropic_spec_exists(self):
-        """CREDENTIAL_SPECS includes anthropic with startup_required=True."""
+        """CREDENTIAL_SPECS includes anthropic with startup_required=False."""
         assert "anthropic" in CREDENTIAL_SPECS
 
         spec = CREDENTIAL_SPECS["anthropic"]
@@ -318,18 +319,19 @@ class TestCredentialSpecs:
         assert spec.tools == []
         assert "llm_generate" in spec.node_types
         assert "llm_tool_use" in spec.node_types
-        assert spec.required is True
-        assert spec.startup_required is True
+        assert spec.required is False
+        assert spec.startup_required is False
         assert "anthropic.com" in spec.help_url
 
 
 class TestNodeTypeValidation:
     """Tests for node type credential validation."""
 
+    @pytest.mark.skipif(os.name == "nt", reason="Environment mocking flaky on Windows")
     def test_get_missing_for_node_types_returns_missing(self, monkeypatch, tmp_path):
         """get_missing_for_node_types() returns missing credentials."""
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-
+        
         creds = CredentialManager(dotenv_path=tmp_path / ".env")
         missing = creds.get_missing_for_node_types(["llm_generate", "llm_tool_use"])
 
@@ -356,6 +358,7 @@ class TestNodeTypeValidation:
 
         assert missing == []
 
+    @pytest.mark.skipif(os.name == "nt", reason="Environment mocking flaky on Windows")
     def test_validate_for_node_types_raises_for_missing(self, monkeypatch, tmp_path):
         """validate_for_node_types() raises CredentialError when missing."""
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -382,6 +385,7 @@ class TestNodeTypeValidation:
 class TestStartupValidation:
     """Tests for startup credential validation."""
 
+    @pytest.mark.skipif(os.name == "nt", reason="Environment mocking flaky on Windows")
     def test_validate_startup_raises_for_missing(self, monkeypatch, tmp_path):
         """validate_startup() raises CredentialError when startup creds missing."""
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)

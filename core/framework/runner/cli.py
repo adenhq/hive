@@ -254,7 +254,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             status_str = "SUCCESS" if result.success else "FAILED"
             print(f"Status: {status_str}")
             print(f"Steps executed: {result.steps_executed}")
-            print(f"Path: {' → '.join(result.path)}")
+            print(f"Path: {' -> '.join(result.path)}")
             print("=" * 60)
 
             if result.success:
@@ -347,10 +347,10 @@ def cmd_info(args: argparse.Namespace) -> int:
         print()
         print(f"Required Tools ({len(info.required_tools)}):")
         for tool in info.required_tools:
-            status = "✓" if runner._tool_registry.has_tool(tool) else "✗"
+            status = "[OK]" if runner._tool_registry.has_tool(tool) else "[X]"
             print(f"  {status} {tool}")
         print()
-        print(f"Tools Module: {'✓ tools.py found' if info.has_tools_module else '✗ no tools.py'}")
+        print(f"Tools Module: {'[OK] tools.py found' if info.has_tools_module else '[X] no tools.py'}")
 
     runner.cleanup()
     return 0
@@ -369,9 +369,9 @@ def cmd_validate(args: argparse.Namespace) -> int:
     validation = runner.validate()
 
     if validation.valid:
-        print("✓ Agent is valid")
+        print("[OK] Agent is valid")
     else:
-        print("✗ Agent has errors:")
+        print("[X] Agent has errors:")
         for error in validation.errors:
             print(f"  ERROR: {error}")
 
@@ -588,14 +588,14 @@ def _interactive_approval(request):
             return ApprovalResult(decision=ApprovalDecision.ABORT, reason="User interrupted")
 
         if choice == "a":
-            print("✓ Approved")
+            print("[OK] Approved")
             return ApprovalResult(decision=ApprovalDecision.APPROVE)
         elif choice == "r":
             reason = input("Reason (optional): ").strip() or "Rejected by user"
-            print(f"✗ Rejected: {reason}")
+            print(f"[X] Rejected: {reason}")
             return ApprovalResult(decision=ApprovalDecision.REJECT, reason=reason)
         elif choice == "s":
-            print("✗ Rejected (skipping dependent steps)")
+            print("[X] Rejected (skipping dependent steps)")
             return ApprovalResult(decision=ApprovalDecision.REJECT, reason="User skipped")
         elif choice == "x":
             reason = input("Reason (optional): ").strip() or "Aborted by user"
@@ -759,14 +759,14 @@ def cmd_shell(args: argparse.Namespace) -> int:
             session_memory = {}
             conversation_history = []
             agent_session_state = None  # Clear agent's internal state too
-            print("✓ Conversation state and agent session cleared")
+            print("[OK] Conversation state and agent session cleared")
             print()
             continue
 
         # Try to parse as JSON first
         try:
             context = json.loads(user_input)
-            print("✓ Parsed as JSON")
+            print("[OK] Parsed as JSON")
         except json.JSONDecodeError:
             # Not JSON - check for key=value format
             if "=" in user_input and " " not in user_input.split("=")[0]:
@@ -775,7 +775,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
                     if "=" in part:
                         key, value = part.split("=", 1)
                         context[key] = value
-                print("✓ Parsed as key=value")
+                print("[OK] Parsed as key=value")
             else:
                 # Natural language - use Haiku to format
                 print("🤖 Formatting with Haiku...")
@@ -786,7 +786,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
                         info.description,
                         session_context=session_memory
                     )
-                    print(f"✓ Formatted to: {json.dumps(context)}")
+                    print(f"[OK] Formatted to: {json.dumps(context)}")
                 except Exception as e:
                     print(f"Error formatting input: {e}")
                     print("Please try JSON format: {...} or key=value format")

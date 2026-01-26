@@ -29,6 +29,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["framework"]
 
+[tool.pytest.ini_options]
+addopts = "--basetemp=./test_temp"
+testpaths = ["tests"]
+
 [tool.ruff]
 target-version = "py311"
 

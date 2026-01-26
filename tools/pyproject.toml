@@ -56,5 +56,6 @@ build-backend = "hatchling.build"
 packages = ["src/aden_tools"]
 
 [tool.pytest.ini_options]
+addopts = "--basetemp=./test_temp"
 testpaths = ["tests"]
 asyncio_mode = "auto"
