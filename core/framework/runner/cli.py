@@ -982,9 +982,59 @@ def cmd_trace_inspect(args: argparse.Namespace) -> int:
     
     # List available traces if requested
     if args.list:
+        # If agent_path not provided, try to find agents in default exports directory
         if not args.agent_path:
-            print("Error: --agent-path required when using --list", file=sys.stderr)
-            return 1
+            # Try default exports directory
+            default_exports = Path("exports")
+            if not default_exports.exists():
+                print("Error: --agent-path required when using --list", file=sys.stderr)
+                print("No default 'exports' directory found. Please specify --agent-path.", file=sys.stderr)
+                return 1
+            
+            # Find all agents with traces
+            agents_with_traces = []
+            for agent_dir in default_exports.iterdir():
+                if agent_dir.is_dir() and (agent_dir / "agent.json").exists():
+                    # Check if this agent has traces
+                    try:
+                        from framework.runner.runner import load_agent_export
+                        with open(agent_dir / "agent.json") as f:
+                            graph, _ = load_agent_export(f.read())
+                            agent_name = graph.id if graph and graph.id else agent_dir.name
+                    except Exception:
+                        agent_name = agent_dir.name
+                    
+                    # Check for traces (try both agent name and folder name)
+                    trace_storages = [
+                        Path.home() / ".hive" / "storage" / agent_name / "traces",
+                        Path.home() / ".hive" / "storage" / agent_dir.name / "traces",
+                    ]
+                    
+                    for trace_storage in trace_storages:
+                        if trace_storage.exists() and list(trace_storage.glob("*.json")):
+                            agents_with_traces.append((agent_dir, agent_name))
+                            break  # Found traces, no need to check other paths
+            
+            if not agents_with_traces:
+                print("No agents with traces found in 'exports' directory.", file=sys.stderr)
+                print("To list traces, either:", file=sys.stderr)
+                print("  1. Specify --agent-path <path>", file=sys.stderr)
+                print("  2. Run an agent first to generate traces", file=sys.stderr)
+                return 1
+            
+            # If only one agent with traces, use it automatically
+            if len(agents_with_traces) == 1:
+                agent_path, agent_name = agents_with_traces[0]
+                args.agent_path = str(agent_path)  # Set it so we can use it below
+                print(f"Found traces for agent: {agent_path.name}\n", file=sys.stderr)
+            else:
+                # Multiple agents with traces - show them and let user choose
+                print("Multiple agents with traces found:\n", file=sys.stderr)
+                for i, (agent_dir, _) in enumerate(agents_with_traces, 1):
+                    print(f"  {i}. {agent_dir.name}", file=sys.stderr)
+                print("\nPlease specify --agent-path to list traces for a specific agent.", file=sys.stderr)
+                print("Example: python3 -m framework trace-inspect --list --agent-path exports/test_agent", file=sys.stderr)
+                return 1
         
         agent_path = Path(args.agent_path)
         
