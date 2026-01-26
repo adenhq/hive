@@ -181,6 +181,176 @@ flowchart LR
 4. **Control Plane Monitors** → Real-time metrics, budget enforcement, policy management
 5. **Self-Improve** → On failure, the system evolves the graph and redeploys automatically
 
+### How Self-Evolution Works (Operational View)
+
+While Aden's self-evolving capabilities are conceptually powerful, here's how they work in practice:
+
+#### 1. Failure Detection and Recording
+
+**How failures are detected:**
+- **Runtime failures**: When a node execution fails, the `Decision` outcome captures the error
+- **Test failures**: When agent tests fail, the testing framework categorizes the failure type
+- **Validation failures**: When output doesn't match expected schema, validation errors are recorded
+
+**Where failure data is stored:**
+- **FileStorage backend**: Runs and decisions are stored as JSON files in `{storage_path}/runs/`
+- **Decision traces**: Each decision includes intent, options considered, reasoning, and outcome
+- **Test results**: Test failures are stored with error categorization (logic_error, implementation_error, edge_case)
+
+**Storage structure:**
+```
+{storage_path}/
+  runs/
+    {run_id}.json           # Full run data with all decisions
+  indexes/
+    by_goal/{goal_id}.json  # Run IDs for a specific goal
+    by_status/failed.json   # All failed run IDs
+  summaries/
+    {run_id}.json           # Quick access to run summaries
+```
+
+#### 2. Failure Analysis
+
+**How failures are analyzed:**
+- **BuilderQuery interface**: Provides methods to analyze failures (`analyze_failure()`, `get_recent_failures()`)
+- **Failure categorization**: Tests categorize failures as logic errors, implementation errors, or edge cases
+- **Pattern detection**: The system can identify recurring failure patterns across multiple runs
+
+**Example analysis flow:**
+```python
+from framework.builder.query import BuilderQuery
+
+builder = BuilderQuery(storage_path="./storage")
+failure = builder.analyze_failure(run_id="run-123")
+
+# Returns:
+# - failure_point: Where the failure occurred
+# - root_cause: The underlying error
+# - decision_chain: Sequence of decisions leading to failure
+# - suggestions: Recommended fixes
+```
+
+#### 3. Agent Evolution
+
+**How the coding agent is invoked:**
+- **MCP Tools**: The agent builder server provides MCP tools for evolving agents
+- **Manual invocation**: Currently, evolution is typically triggered manually using Claude Code skills
+- **Builder workflow**: Use `/building-agents` skill to update agent based on failure analysis
+
+**Evolution process:**
+1. Analyze failure data using `BuilderQuery`
+2. Use coding agent (via MCP tools or Claude Code) to generate improvements
+3. Update agent graph, nodes, or edges based on failure patterns
+4. Regenerate connection code if needed
+5. Update test cases to cover the failure scenario
+
+**Example evolution workflow:**
+```bash
+# 1. Analyze failures
+python -c "
+from framework.builder.query import BuilderQuery
+builder = BuilderQuery('./storage')
+failures = builder.get_recent_failures(goal_id='my_goal', limit=5)
+for f in failures:
+    print(f\"Run {f.run_id}: {f.summary}\")
+"
+
+# 2. Use coding agent to evolve
+claude> /building-agents
+# Update agent based on failure analysis
+# Add new nodes, fix edges, improve connection code
+
+# 3. Test the evolved agent
+claude> /testing-agent
+```
+
+#### 4. Redeployment
+
+**What "redeploy" means in practice:**
+
+- **Local development**: Update `agent.json` and re-run the agent
+  ```bash
+  PYTHONPATH=core:exports python -m agent_name run --input '{...}'
+  ```
+
+- **CI/CD integration**: Commit updated `agent.json` to trigger automated deployment
+  ```bash
+  git add exports/my_agent/agent.json
+  git commit -m "fix: improve agent based on failure analysis"
+  git push  # Triggers CI/CD pipeline
+  ```
+
+- **Runtime reload**: For long-running agents, reload the agent graph without restarting
+  ```python
+  runner = AgentRunner.from_file("exports/my_agent/agent.json")
+  # Agent graph is loaded fresh on each run
+  ```
+
+#### 5. Automatic vs Manual Steps
+
+**Currently automatic:**
+- ✅ Failure detection and recording during execution
+- ✅ Decision trace capture with full context
+- ✅ Test result storage and categorization
+- ✅ Storage of runs and decisions for analysis
+
+**Currently manual (with framework support):**
+- 🔧 Failure analysis (use `BuilderQuery` tools)
+- 🔧 Evolution trigger (use coding agent via MCP/Claude Code)
+- 🔧 Agent graph updates (use builder tools to modify nodes/edges)
+- 🔧 Redeployment (commit changes or re-run locally)
+
+**Future automation (see [ROADMAP.md](ROADMAP.md)):**
+- ⏳ Automatic failure recording mechanism
+- ⏳ SDK for defining failure conditions
+- ⏳ Automatic evolution triggers based on failure patterns
+- ⏳ Automated redeployment pipelines
+
+#### Lifecycle Diagram
+
+```
+┌─────────────────┐
+│  Agent Running  │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐      ┌──────────────────┐
+│ Failure Detected│ ────▶│  Store in        │
+│ (Decision/Test) │      │  FileStorage     │
+└─────────────────┘      └────────┬─────────┘
+                                  │
+                                  ▼
+                         ┌──────────────────┐
+                         │ Analyze Failure   │
+                         │ (BuilderQuery)    │
+                         └────────┬─────────┘
+                                  │
+                                  ▼
+                         ┌──────────────────┐
+                         │ Coding Agent      │
+                         │ Evolves Graph     │
+                         │ (MCP Tools)       │
+                         └────────┬─────────┘
+                                  │
+                                  ▼
+                         ┌──────────────────┐
+                         │ Update agent.json │
+                         │ & Test Cases      │
+                         └────────┬─────────┘
+                                  │
+                                  ▼
+                         ┌──────────────────┐
+                         │ Redeploy Agent    │
+                         │ (Local/CI/CD)     │
+                         └──────────────────┘
+```
+
+For deeper technical details, see:
+- **[Builder Query Interface](core/framework/builder/query.py)** - How to analyze failures
+- **[Storage Backend](core/framework/storage/backend.py)** - Where data is stored
+- **[MCP Builder Tools](core/MCP_BUILDER_TOOLS_GUIDE.md)** - How to evolve agents programmatically
+- **[Testing Framework](.claude/skills/testing-agent/SKILL.md)** - How test failures are categorized
+
 ## How Aden Compares
 
 Aden takes a fundamentally different approach to agent development. While most frameworks require you to hardcode workflows or manually define agent graphs, Aden uses a **coding agent to generate your entire agent system** from natural language goals. When agents fail, the framework doesn't just log errors—it **automatically evolves the agent graph** and redeploys.
