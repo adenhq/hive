@@ -13,9 +13,25 @@ Framework provides a runtime framework that captures **decisions**, not just act
 
 ## Installation
 
+**Recommended: With uv (Fast)**
+
 ```bash
+# From project root
+uv sync --all-packages
+
+# Or install just framework package
+cd core
+uv sync
+```
+
+**Alternative: With pip**
+
+```bash
+cd core
 pip install -e .
 ```
+
+> **Note:** The project uses a workspace configuration. Running `uv sync --all-packages` from the project root installs both the framework and tools packages.
 
 ## MCP Server Setup
 
@@ -43,6 +59,16 @@ The setup script will:
 
 If you prefer manual setup:
 
+**With uv (recommended):**
+```bash
+# From project root
+uv sync --frozen --all-packages
+
+# Test the server
+uv run python -m framework.mcp.agent_builder_server
+```
+
+**With pip:**
 ```bash
 # Install framework
 pip install -e .

@@ -43,8 +43,9 @@ Aden Agent Framework is a Python-based system for building goal-driven, self-imp
 
 Ensure you have installed:
 
-- **Python 3.11+** - [Download](https://www.python.org/downloads/) (3.12 or 3.13 recommended)
-- **pip** - Package installer for Python (comes with Python)
+- **Python 3.11+** - [Download](https://www.python.org/downloads/) (3.12 recommended)
+- **uv** - [Install](https://docs.astral.sh/uv/) (recommended) - Fast Python package manager
+  - Alternative: **pip** (comes with Python, but slower)
 - **git** - Version control
 - **Claude Code** - [Install](https://docs.anthropic.com/claude/docs/claude-code) (optional, for using building skills)
 
@@ -52,22 +53,50 @@ Verify installation:
 
 ```bash
 python --version    # Should be 3.11+
-pip --version       # Should be latest
+uv --version        # Recommended (if using uv)
+pip --version       # Alternative (if not using uv)
 git --version       # Any recent version
 ```
 
+**Why uv?** 10-100x faster than pip, reproducible builds with lock files, and automatic Python version management. See [UV Migration Guide](docs/UV_MIGRATION.md) for details.
+
 ### Step-by-Step Setup
+
+#### Recommended: With uv
+
+```bash
+# 1. Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2. Clone the repository
+git clone https://github.com/adenhq/hive.git
+cd hive
+
+# 3. Run automated Python setup (auto-detects uv)
+./scripts/setup-python.sh
+```
+
+The setup script with uv performs these actions:
+
+1. Installs Python 3.11 automatically
+2. Syncs all workspace packages (framework + aden_tools)
+3. Uses uv.lock for reproducible builds
+4. Verifies all installations
+
+**Result:** ~5-10x faster installation than pip!
+
+#### Alternative: With pip
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/adenhq/hive.git
 cd hive
 
-# 2. Run automated Python setup
+# 2. Run automated Python setup (falls back to pip)
 ./scripts/setup-python.sh
 ```
 
-The setup script performs these actions:
+The setup script with pip performs these actions:
 
 1. Checks Python version (3.11+)
 2. Installs `framework` package from `/core` (editable mode)
@@ -575,16 +604,37 @@ logger.debug("Processing request", {
 
 ### Adding Python Dependencies
 
+#### With uv (Recommended)
+
+```bash
+# Add to core framework
+cd core
+uv add <package>  # Automatically updates pyproject.toml and uv.lock
+
+# Add to tools package
+cd tools
+uv add <package>
+
+# Add a dev dependency
+uv add --dev <package>
+
+# Sync all packages after manual pyproject.toml edits
+cd ../  # Back to project root
+uv sync --all-packages
+```
+
+#### With pip (Legacy)
+
 ```bash
 # Add to core framework
 cd core
 pip install <package>
-# Then add to requirements.txt or pyproject.toml
+# Then manually add to pyproject.toml dependencies list
 
 # Add to tools package
 cd tools
 pip install <package>
-# Then add to requirements.txt or pyproject.toml
+# Then manually add to pyproject.toml dependencies list
 
 # Reinstall in editable mode
 pip install -e .

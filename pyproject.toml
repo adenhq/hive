@@ -1,0 +1,9 @@
+[tool.uv.workspace]
+members = ["core", "tools"]
+
+[tool.uv]
+dev-dependencies = [
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+    "pytest-timeout>=2.0.0",
+]

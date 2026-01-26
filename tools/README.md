@@ -4,15 +4,29 @@ Tool library for the Aden agent framework. Provides a collection of tools that A
 
 ## Installation
 
-```bash
-pip install -e tools
-```
-
-For development:
+**Recommended: With uv (Fast)**
 
 ```bash
-pip install -e "tools[dev]"
+# From project root
+uv sync --all-packages
+
+# Or install just tools package
+cd tools
+uv sync
 ```
+
+**Alternative: With pip**
+
+```bash
+# From project root
+cd tools
+pip install -e .
+
+# Or with dev dependencies
+pip install -e ".[dev]"
+```
+
+> **Note:** The project uses a workspace configuration. Running `uv sync --all-packages` from the project root installs both the framework and tools packages with locked dependencies for reproducibility.
 
 ## Environment Setup
 
@@ -52,6 +66,10 @@ mcp.run()
 Or run directly:
 
 ```bash
+# With uv (recommended)
+uv run python mcp_server.py
+
+# Or with pip
 python mcp_server.py
 ```
 

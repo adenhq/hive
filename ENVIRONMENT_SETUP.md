@@ -4,10 +4,37 @@ Complete setup guide for building and running goal-driven agents with the Aden A
 
 ## Quick Setup
 
+### Recommended: With uv (Fast & Reliable)
+
+```bash
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Run the automated setup script (auto-detects uv)
+./scripts/setup-python.sh
+```
+
+This will:
+
+- Install Python 3.11 automatically via uv
+- Sync all workspace packages (framework + aden_tools)
+- Use uv.lock for reproducible installations
+- Verify all packages import correctly
+
+**Benefits of uv:**
+- 10-100x faster than pip
+- Reproducible builds with lock file
+- Automatic Python version management
+- Better dependency resolution
+
+### Alternative: With pip (Legacy)
+
 ```bash
 # Run the automated setup script
 ./scripts/setup-python.sh
 ```
+
+The script automatically falls back to pip if uv is not installed.
 
 This will:
 
@@ -17,34 +44,48 @@ This will:
 - Fix package compatibility issues (openai + litellm)
 - Verify all installations
 
+> See [UV Migration Guide](docs/UV_MIGRATION.md) for detailed information about using uv.
+
 ## Manual Setup (Alternative)
 
 If you prefer to set up manually or the script fails:
 
-### 1. Install Core Framework
+### With uv (Recommended)
 
 ```bash
+# From project root
+uv sync --all-packages
+```
+
+That's it! This single command:
+- Installs Python 3.11 if needed
+- Syncs both framework and aden_tools packages
+- Uses the lock file for reproducible builds
+
+### With pip (Legacy)
+
+```bash
+# 1. Install Core Framework
 cd core
 pip install -e .
-```
 
-### 2. Install Tools Package
-
-```bash
-cd tools
+# 2. Install Tools Package
+cd ../tools
 pip install -e .
-```
 
-### 3. Upgrade OpenAI Package
-
-```bash
-# litellm requires openai >= 1.0.0
+# 3. Upgrade OpenAI Package (litellm compatibility)
 pip install --upgrade "openai>=1.0.0"
 ```
 
-### 4. Verify Installation
+### Verify Installation
 
 ```bash
+# With uv
+uv run python -c "import framework; print('✓ framework OK')"
+uv run python -c "import aden_tools; print('✓ aden_tools OK')"
+uv run python -c "import litellm; print('✓ litellm OK')"
+
+# With pip
 python -c "import framework; print('✓ framework OK')"
 python -c "import aden_tools; print('✓ aden_tools OK')"
 python -c "import litellm; print('✓ litellm OK')"
@@ -58,11 +99,21 @@ python -c "import litellm; print('✓ litellm OK')"
 - **Recommended:** Python 3.11 or 3.12
 - **Tested on:** Python 3.11, 3.12, 3.13
 
+### Package Manager
+
+**Recommended:**
+- [uv](https://docs.astral.sh/uv/) 0.5+ - Fast Python package manager
+  - Installs Python automatically
+  - 10-100x faster than pip
+  - Reproducible builds
+
+**Alternative:**
+- pip (latest version)
+
 ### System Requirements
 
-- pip (latest version)
 - 2GB+ RAM
-- Internet connection (for LLM API calls)
+- Internet connection (for LLM API calls and package downloads)
 
 ### API Keys (Optional)
 
@@ -76,6 +127,15 @@ export ANTHROPIC_API_KEY="your-key-here"
 
 All agent commands must be run from the project root with `PYTHONPATH` set:
 
+### With uv (Recommended)
+
+```bash
+# From /hive/ directory
+PYTHONPATH=core:exports uv run python -m agent_name COMMAND
+```
+
+### With pip (Legacy)
+
 ```bash
 # From /hive/ directory
 PYTHONPATH=core:exports python -m agent_name COMMAND
@@ -83,15 +143,17 @@ PYTHONPATH=core:exports python -m agent_name COMMAND
 
 ### Example: Support Ticket Agent
 
+#### With uv
+
 ```bash
 # Validate agent structure
-PYTHONPATH=core:exports python -m support_ticket_agent validate
+PYTHONPATH=core:exports uv run python -m support_ticket_agent validate
 
 # Show agent information
-PYTHONPATH=core:exports python -m support_ticket_agent info
+PYTHONPATH=core:exports uv run python -m support_ticket_agent info
 
 # Run agent with input
-PYTHONPATH=core:exports python -m support_ticket_agent run --input '{
+PYTHONPATH=core:exports uv run python -m support_ticket_agent run --input '{
   "ticket_content": "My login is broken. Error 401.",
   "customer_id": "CUST-123",
   "ticket_id": "TKT-456"
@@ -346,8 +408,99 @@ export ADEN_CREDENTIALS_PATH="/custom/path"
 export AGENT_STORAGE_PATH="/custom/storage"
 ```
 
+## UV Development Workflow
+
+If you're using uv (recommended), here are common commands for development:
+
+### Managing Dependencies
+
+```bash
+# Add a new dependency to core package
+cd core
+uv add <package-name>
+
+# Add a dev dependency
+uv add --dev <package-name>
+
+# Remove a dependency
+uv remove <package-name>
+
+# Update a specific package
+uv lock --upgrade-package <package-name>
+uv sync
+
+# Update all packages
+uv lock --upgrade
+uv sync
+```
+
+### Working with the Workspace
+
+```bash
+# Sync all workspace packages (from project root)
+uv sync --all-packages
+
+# Sync only production dependencies
+uv sync --no-dev
+
+# Sync with all optional dependencies
+uv sync --all-extras
+
+# View dependency tree
+uv tree
+
+# List installed packages
+uv pip list
+```
+
+### Python Version Management
+
+```bash
+# Install Python 3.11
+uv python install 3.11
+
+# Install Python 3.12
+uv python install 3.12
+
+# List available Python versions
+uv python list
+
+# Pin Python version (creates .python-version)
+echo "3.11" > .python-version
+```
+
+### Running Commands
+
+```bash
+# Run Python script
+uv run python script.py
+
+# Run tests
+uv run pytest tests/
+
+# Run with environment variables
+ANTHROPIC_API_KEY=... uv run python -m agent_name run
+```
+
+### Troubleshooting
+
+```bash
+# Clear cache and reinstall
+uv cache clean
+uv sync --refresh
+
+# Check lock file is up to date
+uv lock --check
+
+# Regenerate lock file
+uv lock
+```
+
+For detailed information, see the [UV Migration Guide](docs/UV_MIGRATION.md).
+
 ## Additional Resources
 
+- **UV Migration Guide:** [docs/UV_MIGRATION.md](docs/UV_MIGRATION.md)
 - **Framework Documentation:** [core/README.md](core/README.md)
 - **Tools Documentation:** [tools/README.md](tools/README.md)
 - **Example Agents:** [exports/](exports/)
