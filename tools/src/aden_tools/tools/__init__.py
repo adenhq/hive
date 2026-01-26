@@ -21,7 +21,6 @@ if TYPE_CHECKING:
 # Import register_tools from each tool module
 from .example_tool import register_tools as register_example
 from .web_search_tool import register_tools as register_web_search
-from .google_search_tool import register_tools as register_google_search
 from .web_scrape_tool import register_tools as register_web_scrape
 from .pdf_read_tool import register_tools as register_pdf_read
 
@@ -61,15 +60,8 @@ def register_all_tools(
     register_pdf_read(mcp)
 
     # Tools that need credentials (pass credentials if provided)
-    # web_search handles both credential sources internally:
-    # - If credentials provided: uses credentials.get("brave_search")
-    # - If credentials is None: falls back to os.getenv("BRAVE_SEARCH_API_KEY")
+    # web_search supports multiple providers (Google, Brave) with auto-detection
     register_web_search(mcp, credentials=credentials)
-
-    # google_search handles both credential sources internally:
-    # - If credentials provided: uses credentials.get("google_search") and credentials.get("google_cse")
-    # - If credentials is None: falls back to os.getenv("GOOGLE_API_KEY") and os.getenv("GOOGLE_CSE_ID")
-    register_google_search(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -84,7 +76,6 @@ def register_all_tools(
     return [
         "example_tool",
         "web_search",
-        "google_search",
         "web_scrape",
         "pdf_read",
         "view_file",
