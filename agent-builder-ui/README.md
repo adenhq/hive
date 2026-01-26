@@ -96,12 +96,77 @@ Both approaches produce the same output: **production-ready Python agents** that
 
 ## Quick Start
 
+### 1. Start the Backend Server
+
 ```bash
+cd agent-builder-ui
+
+# Activate the Hive virtual environment
+source ../.venv/bin/activate
+
+# Set your API key (choose one)
+export GEMINI_API_KEY="your-key"      # For Gemini (default)
+# export OPENAI_API_KEY="your-key"    # For GPT models
+# export ANTHROPIC_API_KEY="your-key" # For Claude models
+
+# Start the backend
+python server.py
+```
+
+You should see:
+```
+🚀 Starting Agent Builder Backend
+   API: http://localhost:8000
+   Docs: http://localhost:8000/docs
+```
+
+### 2. Start the Frontend
+
+```bash
+# In a new terminal
 cd agent-builder-ui
 npm install
 npm run dev
-# Open http://localhost:5173
 ```
+
+Open http://localhost:5173
+
+> **Note:** Both the backend (port 8000) and frontend (port 5173) must be running for the UI to work.
+
+---
+
+## Backend API
+
+The FastAPI backend (`server.py`) provides two endpoints:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/run` | POST | Execute a full agent with given config and input |
+| `/api/test-node` | POST | Test a single node in isolation |
+| `/api/health` | GET | Health check |
+
+### API Documentation
+
+Interactive API docs available at http://localhost:8000/docs when the server is running.
+
+### Supported Models
+
+The backend supports multiple LLM providers via LiteLLM:
+
+| Provider | Model Format | Environment Variable |
+|----------|--------------|---------------------|
+| Google Gemini | `gemini/gemini-2.0-flash` | `GEMINI_API_KEY` |
+| OpenAI | `gpt-4o`, `gpt-4o-mini` | `OPENAI_API_KEY` |
+| Anthropic | `claude-3-5-sonnet-20241022` | `ANTHROPIC_API_KEY` |
+
+### Backend Troubleshooting
+
+| Error | Solution |
+|-------|----------|
+| `ModuleNotFoundError: framework` | Make sure you activated the venv: `source ../.venv/bin/activate` |
+| `GEMINI_API_KEY not set` | Export your API key: `export GEMINI_API_KEY="your-key"` |
+| `Connection refused` on UI | Backend not running - start it with `python server.py` |
+| `CORS error` in browser | Backend only allows localhost:5173 - make sure frontend runs on that port |
 
 ---
 
@@ -385,11 +450,13 @@ Run multiple nodes simultaneously and merge results.
 
 ```
 agent-builder-ui/
+├── server.py            # FastAPI backend (run agents, test nodes)
 ├── src/
 │   ├── App.tsx          # Main application (nodes, edges, panels)
 │   ├── main.tsx         # Entry point
 │   └── index.css        # Global styles
 ├── public/
+│   └── hive-icon.svg    # Custom favicon
 ├── package.json
 └── vite.config.ts
 ```
