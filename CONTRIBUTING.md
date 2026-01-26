@@ -117,6 +117,26 @@ feat(component): add new feature description
 - Use meaningful variable and function names
 - Keep functions focused and small
 
+## Test Organization
+
+All tests should be placed in the `core/tests/` directory, mirroring the source code structure:
+```
+core/
+├── framework/
+│   └── runtime/
+│       └── agent_runtime.py
+└── tests/
+    └── runtime/
+        └── test_agent_runtime.py    # Mirrors framework/runtime/
+```
+
+**Convention:**
+- Place all tests in `core/tests/`
+- Mirror the source code directory structure
+- Name test files with `test_` prefix matching the module they test
+- Example: `framework/runtime/agent.py` → `tests/runtime/test_agent.py`
+
+
 ## Testing
 
 ```bash
@@ -125,6 +145,12 @@ cd core && python -m pytest
 
 # Run all tests for tools
 cd tools && python -m pytest
+
+# Run tests for a specific module
+cd core && python -m pytest tests/runtime/
+
+# Run a specific test file
+cd core && python -m pytest tests/runtime/test_agent_runtime.py
 
 # Run tests for a specific agent
 PYTHONPATH=core:exports python -m agent_name test
