@@ -445,15 +445,15 @@ class GraphExecutor:
             read_keys=node_spec.input_keys,
             write_keys=node_spec.output_keys,
         )
-        
+
         # Create tool access layer if tools are available
         tool_access_layer = None
         if self.tools and self.tool_executor:
             from framework.graph.tool_access_layer import ToolAccessLayer
-            
+
             # Convert list of tools to dict for ToolAccessLayer
             tools_dict = {t.name: t for t in self.tools}
-            
+
             tool_access_layer = ToolAccessLayer(
                 tools=tools_dict,
                 tool_executor=self.tool_executor,
