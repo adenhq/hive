@@ -43,6 +43,10 @@ A visual drag-and-drop interface for building AI agents without code. Design com
 ![LLM Settings](./docs/images/08-llm-settings.png)
 *Configure your preferred LLM provider (Gemini, OpenAI, Anthropic)*
 
+### Terminal Output
+![Terminal Output](./docs/images/09-terminal-output.png)
+*Run exported agents from terminal with JSON output*
+
 ---
 
 ## How This Fits Into Hive
@@ -243,6 +247,8 @@ The backend supports multiple LLM providers via LiteLLM:
 | **Tool Use** | Web scraping, file operations, API calls | Yes |
 | **Router** | Conditional branching (if/else logic) | No |
 | **Function** | Custom Python code execution | No |
+
+> **⚠️ Note:** Function node is experimental and may not work as expected. Use LLM Generate or Tool Use nodes for production workflows.
 
 ---
 
