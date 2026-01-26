@@ -78,66 +78,48 @@ All agent commands must be run from the project root with `PYTHONPATH` set:
 
 ```bash
 # From /hive/ directory
-
-# Linux/macOS:
 PYTHONPATH=core:exports python -m agent_name COMMAND
-
-# Windows (PowerShell):
-($env:PYTHONPATH='core;exports'; python -m agent_name COMMAND)
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m agent_name COMMAND)
 ```
 
 ### Example: Support Ticket Agent
 
 ```bash
 # 1. Validate agent structure
-# Linux/macOS:
 PYTHONPATH=core:exports python -m support_ticket_agent validate
-# Windows (PowerShell):
-($env:PYTHONPATH='core;exports'; python -m support_ticket_agent validate)
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m support_ticket_agent validate)
 
 # 2. Show agent information
-# Linux/macOS:
 PYTHONPATH=core:exports python -m support_ticket_agent info
-# Windows (PowerShell):
-($env:PYTHONPATH='core;exports'; python -m support_ticket_agent info)
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m support_ticket_agent info)
 
 # 3. Run agent with input
-# Linux/macOS:
 PYTHONPATH=core:exports python -m support_ticket_agent run --input '{
   "ticket_content": "My login is broken. Error 401.",
   "customer_id": "CUST-123",
   "ticket_id": "TKT-456"
 }'
-# Windows (PowerShell):
-($env:PYTHONPATH='core;exports'; python -m support_ticket_agent run --input '{"ticket_content": "My login is broken. Error 401.", "customer_id": "CUST-123", "ticket_id": "TKT-456"}')
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m support_ticket_agent run --input '{"ticket_content": "My login is broken. Error 401.", "customer_id": "CUST-123", "ticket_id": "TKT-456"}')
 
 # 4. Run in mock mode (no LLM calls)
-# Linux/macOS:
 PYTHONPATH=core:exports python -m support_ticket_agent run --mock --input '{...}'
-# Windows (PowerShell):
-($env:PYTHONPATH='core;exports'; python -m support_ticket_agent run --mock --input '{...}')
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m support_ticket_agent run --mock --input '{...}')
 ```
 
 ### Example: Other Agents
 
 ```bash
 # Market Research Agent
-# Linux/macOS:
 PYTHONPATH=core:exports python -m market_research_agent info
-# Windows (PowerShell):
-($env:PYTHONPATH='core;exports'; python -m market_research_agent info)
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m market_research_agent info)
 
 # Outbound Sales Agent
-# Linux/macOS:
 PYTHONPATH=core:exports python -m outbound_sales_agent validate
-# Windows (PowerShell):
-($env:PYTHONPATH='core;exports'; python -m outbound_sales_agent validate)
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m outbound_sales_agent validate)
 
 # Personal Assistant Agent
-# Linux/macOS:
 PYTHONPATH=core:exports python -m personal_assistant_agent run --input '{...}'
-# Windows (PowerShell):
-($env:PYTHONPATH='core;exports'; python -m personal_assistant_agent run --input '{...}')
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m personal_assistant_agent run --input '{...}')
 ```
 
 ## Building New Agents
@@ -186,21 +168,25 @@ Creates comprehensive test suites for your agent.
 
 ```bash
 # Create virtual environment
-python3 -m venv .venv
+python -m venv .venv
 
 # Activate it
-source .venv/bin/activate  # macOS/Linux
-# .venv\Scripts\activate   # Windows
+source .venv/bin/activate
+# Windows (PowerShell): .\.venv\Scripts\Activate.ps1
 
 # Then run setup
 ./scripts/setup-python.sh
+# Windows (PowerShell): powershell -ExecutionPolicy Bypass -File .\scripts\setup-python.ps1
 ```
 
 Always activate the venv before running agents:
 
 ```bash
 source .venv/bin/activate
+# Windows (PowerShell): .\.venv\Scripts\Activate.ps1
+
 PYTHONPATH=core:exports python -m your_agent_name demo
+# Windows (PowerShell): $env:PYTHONPATH="core;exports"; python -m your_agent_name demo
 ```
 
 ### "ModuleNotFoundError: No module named 'framework'"
@@ -242,11 +228,8 @@ pip install --upgrade "openai>=1.0.0"
 **Solution:** Ensure you're in the project root directory and use:
 
 ```bash
-# Linux/macOS:
 PYTHONPATH=core:exports python -m support_ticket_agent validate
-
-# Windows (PowerShell):
-($env:PYTHONPATH='core;exports'; python -m support_ticket_agent validate)
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m support_ticket_agent validate)
 ```
 
 ### Agent imports fail with "broken installation"
@@ -318,11 +301,8 @@ Enter goal: "Build an agent that processes customer support tickets"
 ### 3. Validate Agent
 
 ```bash
-# Linux/macOS:
 PYTHONPATH=core:exports python -m support_ticket_agent validate
-
-# Windows (PowerShell):
-($env:PYTHONPATH='core;exports'; python -m support_ticket_agent validate)
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m support_ticket_agent validate)
 ```
 
 ### 4. Test Agent
@@ -334,11 +314,8 @@ claude> /testing-agent
 ### 5. Run Agent
 
 ```bash
-# Linux/macOS:
 PYTHONPATH=core:exports python -m support_ticket_agent run --input '{...}'
-
-# Windows (PowerShell):
-($env:PYTHONPATH='core;exports'; python -m support_ticket_agent run --input '{...}')
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m support_ticket_agent run --input '{...}')
 ```
 
 ## IDE Setup
