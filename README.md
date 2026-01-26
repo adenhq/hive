@@ -69,6 +69,8 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 - [Docker](https://docs.docker.com/get-docker/) (v20.10+) - Optional, for containerized tools
 
 ### Installation
+ 
+For detailed, step-by-step local setup instructions (including Windows/Mac specifics), see **[Local Setup Guide](ENVIRONMENT_SETUP.md#local-setup-manual)**.
 
 ```bash
 # Clone the repository
