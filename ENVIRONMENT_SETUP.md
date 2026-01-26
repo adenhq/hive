@@ -74,11 +74,21 @@ export ANTHROPIC_API_KEY="your-key-here"
 
 ## Running Agents
 
-All agent commands must be run from the project root with `PYTHONPATH` set:
+> ⚠️ **Important**
+> A fresh clone of the repository does **not** include pre-built agents.
+> Agents must be generated using Claude Code or manually placed inside the `exports/` directory.
 
+All agent commands must be run from the project root with `PYTHONPATH` set.
+
+### macOS / Linux
 ```bash
-# From /hive/ directory
 PYTHONPATH=core:exports python -m agent_name COMMAND
+```
+
+### Windows (PowerShell)
+```powershell
+$env:PYTHONPATH="core;exports"
+python -m agent_name COMMAND
 ```
 
 ### Example: Support Ticket Agent
