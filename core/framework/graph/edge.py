@@ -23,14 +23,14 @@ given the current goal, context, and execution state.
 """
 
 from typing import Any
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 from framework.graph.safe_eval import safe_eval
 
 
-class EdgeCondition(str, Enum):
+class EdgeCondition(StrEnum):
     """When an edge should be traversed."""
     ALWAYS = "always"           # Always after source completes
     ON_SUCCESS = "on_success"   # Only if source succeeds
