@@ -1514,6 +1514,24 @@ def add_mcp_server(
     if errors:
         return json.dumps({"success": False, "errors": errors})
 
+    # Security validation for STDIO transport
+    if transport == "stdio":
+        from framework.mcp.security import validate_mcp_stdio_config
+        
+        is_valid, error_msg = validate_mcp_stdio_config(
+            command=command,
+            args=args_list,
+            cwd=cwd if cwd else None,
+            env=env_dict if env_dict else None,
+        )
+        
+        if not is_valid:
+            return json.dumps({
+                "success": False,
+                "error": f"Security validation failed: {error_msg}",
+                "hint": "For STDIO transport, set ADEN_ALLOW_UNSAFE_MCP_STDIO=true and ensure command is in whitelist"
+            })
+
     # Build server config
     server_config = {
         "name": name,

@@ -261,6 +261,28 @@ class ToolRegistry:
         """
         try:
             from framework.runner.mcp_client import MCPClient, MCPServerConfig
+            
+            # Security validation for STDIO transport
+            if server_config.get("transport") == "stdio":
+                from framework.mcp.security import validate_mcp_stdio_config
+                
+                command = server_config.get("command", "")
+                args = server_config.get("args", [])
+                cwd = server_config.get("cwd")
+                env = server_config.get("env", {})
+                
+                is_valid, error_msg = validate_mcp_stdio_config(
+                    command=command,
+                    args=args,
+                    cwd=cwd,
+                    env=env,
+                )
+                
+                if not is_valid:
+                    logger.error(
+                        f"MCP server '{server_config.get('name', 'unknown')}' failed security validation: {error_msg}"
+                    )
+                    raise ValueError(f"Security validation failed: {error_msg}")
 
             # Build config object
             config = MCPServerConfig(
