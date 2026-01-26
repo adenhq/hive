@@ -449,3 +449,9 @@ Windows notes (if needed):
     cmd.exe:
         .\.venv\Scripts\activate.bat
 
+
+Windows / cross-platform note:
+
+- `scripts/setup-python.sh` is a Bash script. On Windows, run it via WSL (recommended) to get the same behavior as Linux/macOS.
+- Native Windows venv layout uses `.venv\Scripts\python.exe` (not `.venv/bin/python`), so the script may need a small path-detection tweak for full native Windows support.
+
