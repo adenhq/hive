@@ -19,7 +19,6 @@ import multiprocessing
 import time
 import io
 import os
-import resource
 from typing import Any
 from dataclasses import dataclass, field
 from contextlib import contextmanager
@@ -228,6 +227,7 @@ class CodeSandbox:
     def _set_memory_limit(self):
         """Set memory limit for the current process (Unix only)."""
         try:
+            import resource
             # Convert MB to bytes
             limit = self.memory_limit_mb * 1024 * 1024
             resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
