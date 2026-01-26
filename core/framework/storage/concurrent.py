@@ -144,7 +144,7 @@ class ConcurrentStorage:
         lock_key = f"run:{run.id}"
         async with self._file_locks[lock_key]:
             # Run in executor to avoid blocking event loop
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._base_storage.save_run, run)
 
     async def load_run(self, run_id: str, use_cache: bool = True) -> Run | None:
@@ -169,7 +169,7 @@ class ConcurrentStorage:
         # Load from storage
         lock_key = f"run:{run_id}"
         async with self._file_locks[lock_key]:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             run = await loop.run_in_executor(
                 None, self._base_storage.load_run, run_id
             )
@@ -191,7 +191,7 @@ class ConcurrentStorage:
                 return entry.value
 
         # Load from storage
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         summary = await loop.run_in_executor(
             None, self._base_storage.load_summary, run_id
         )
@@ -206,7 +206,7 @@ class ConcurrentStorage:
         """Delete a run from storage."""
         lock_key = f"run:{run_id}"
         async with self._file_locks[lock_key]:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(
                 None, self._base_storage.delete_run, run_id
             )
@@ -222,7 +222,7 @@ class ConcurrentStorage:
     async def get_runs_by_goal(self, goal_id: str) -> list[str]:
         """Get all run IDs for a goal."""
         async with self._file_locks[f"index:by_goal:{goal_id}"]:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             return await loop.run_in_executor(
                 None, self._base_storage.get_runs_by_goal, goal_id
             )
@@ -232,7 +232,7 @@ class ConcurrentStorage:
         if isinstance(status, RunStatus):
             status = status.value
         async with self._file_locks[f"index:by_status:{status}"]:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             return await loop.run_in_executor(
                 None, self._base_storage.get_runs_by_status, status
             )
@@ -240,21 +240,21 @@ class ConcurrentStorage:
     async def get_runs_by_node(self, node_id: str) -> list[str]:
         """Get all run IDs that executed a node."""
         async with self._file_locks[f"index:by_node:{node_id}"]:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             return await loop.run_in_executor(
                 None, self._base_storage.get_runs_by_node, node_id
             )
 
     async def list_all_runs(self) -> list[str]:
         """List all run IDs."""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             None, self._base_storage.list_all_runs
         )
 
     async def list_all_goals(self) -> list[str]:
         """List all goal IDs that have runs."""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             None, self._base_storage.list_all_goals
         )
@@ -354,7 +354,7 @@ class ConcurrentStorage:
 
     async def get_stats(self) -> dict:
         """Get storage statistics."""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         base_stats = await loop.run_in_executor(
             None, self._base_storage.get_stats
         )
