@@ -5,14 +5,14 @@ These types are used for both interactive CLI approval and
 programmatic/MCP-based approval.
 """
 
-from enum import Enum
+from enum import StrEnum
 from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class ApprovalAction(str, Enum):
+class ApprovalAction(StrEnum):
     """Actions a user can take on a generated test."""
     APPROVE = "approve"   # Accept as-is
     MODIFY = "modify"     # Accept with modifications
