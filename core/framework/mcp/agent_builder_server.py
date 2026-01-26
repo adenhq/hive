@@ -11,6 +11,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+import sys
 from typing import Annotated
 
 from mcp.server import FastMCP
@@ -155,8 +156,9 @@ def _load_active_session() -> BuildSession | None:
 
         if session_id:
             return _load_session(session_id)
-    except Exception:
-        pass
+    except Exception as e:
+        # Log error to stderr instead of failing silently
+        print(f"Error loading active session: {e}", file=sys.stderr)
 
     return None
 
