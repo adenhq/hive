@@ -49,9 +49,8 @@ def register_all_tools(
     Returns:
         List of registered tool names
     """
-    # Tools that don't need credentials
+    # Tools that don't need external API credentials
     register_example(mcp)
-    register_web_search(mcp)
     register_web_scrape(mcp)
     register_pdf_read(mcp)
 
