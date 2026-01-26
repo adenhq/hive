@@ -17,6 +17,43 @@ This will:
 - Fix package compatibility issues (openai + litellm)
 - Verify all installations
 
+## Quick Setup (Windows – PowerShell)
+
+Windows users can use the native PowerShell setup script.
+
+Before running the script, allow script execution for the current session:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+Run setup from the project root:
+
+```powershell
+./scripts/setup-python.ps1
+```
+
+This will:
+
+- Check Python version (requires 3.11+)
+- Create a local `.venv` virtual environment
+- Install the core framework package (`framework`)
+- Install the tools package (`aden_tools`)
+- Fix package compatibility issues (openai + litellm)
+- Verify all installations
+
+After setup, activate the virtual environment:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Set `PYTHONPATH` (required in every new PowerShell session):
+
+```powershell
+$env:PYTHONPATH="core;exports"
+```
+
 ## Manual Setup (Alternative)
 
 If you prefer to set up manually or the script fails:
@@ -72,6 +109,12 @@ For running agents with real LLMs:
 export ANTHROPIC_API_KEY="your-key-here"
 ```
 
+Windows (PowerShell):
+
+```powershell
+$env:ANTHROPIC_API_KEY="your-key-here"
+```
+
 ## Running Agents
 
 All agent commands must be run from the project root with `PYTHONPATH` set:
@@ -79,6 +122,13 @@ All agent commands must be run from the project root with `PYTHONPATH` set:
 ```bash
 # From /hive/ directory
 PYTHONPATH=core:exports python -m agent_name COMMAND
+```
+
+Windows (PowerShell):
+
+```powershell
+$env:PYTHONPATH="core;exports"
+python -m agent_name COMMAND
 ```
 
 ### Example: Support Ticket Agent
@@ -152,6 +202,14 @@ Creates comprehensive test suites for your agent.
 
 ## Troubleshooting
 
+### PowerShell: “running scripts is disabled on this system”
+
+Run once per session:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
 ### "ModuleNotFoundError: No module named 'framework'"
 
 **Solution:** Install the core package:
@@ -174,6 +232,12 @@ Or run the setup script:
 ./scripts/setup-python.sh
 ```
 
+Windows:
+
+```powershell
+./scripts/setup-python.ps1
+```
+
 ### "ModuleNotFoundError: No module named 'openai.\_models'"
 
 **Cause:** Outdated `openai` package (0.27.x) incompatible with `litellm`
@@ -188,10 +252,19 @@ pip install --upgrade "openai>=1.0.0"
 
 **Cause:** Not running from project root or missing PYTHONPATH
 
-**Solution:** Ensure you're in `/home/timothy/oss/hive/` and use:
+**Solution:** Ensure you're in `/hive/` and use:
+
+Linux/macOS:
 
 ```bash
 PYTHONPATH=core:exports python -m support_ticket_agent validate
+```
+
+Windows:
+
+```powershell
+$env:PYTHONPATH="core;exports"
+python -m support_ticket_agent validate
 ```
 
 ### Agent imports fail with "broken installation"
@@ -206,6 +279,12 @@ pip uninstall -y framework tools
 
 # Reinstall correctly
 ./scripts/setup-python.sh
+```
+
+Windows:
+
+```powershell
+./scripts/setup-python.ps1
 ```
 
 ## Package Structure
@@ -251,6 +330,12 @@ This design allows agents in `exports/` to be:
 
 ```bash
 ./scripts/setup-python.sh
+```
+
+Windows:
+
+```powershell
+./scripts/setup-python.ps1
 ```
 
 ### 2. Build Agent (Claude Code)
