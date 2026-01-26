@@ -2,7 +2,7 @@ import os
 import subprocess
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
-from ..security import get_secure_path, WORKSPACES_DIR
+from ..security import get_secure_path, validate_command, WORKSPACES_DIR
 
 def register_tools(mcp: FastMCP) -> None:
     """Register command execution tools with the MCP server."""
@@ -11,20 +11,30 @@ def register_tools(mcp: FastMCP) -> None:
     def execute_command_tool(command: str, workspace_id: str, agent_id: str, session_id: str, cwd: Optional[str] = None) -> dict:
         """
         Purpose
-            Execute a shell command within the session sandbox.
+            Execute a validated shell command within the session sandbox.
 
         When to use
-            Run validators or linters
+            Run validators or linters (ruff, mypy, eslint, pytest)
             Generate derived artifacts (indexes, summaries)
             Perform controlled maintenance tasks
+            File inspection and text processing
 
-        Rules & Constraints
-            No network access unless explicitly allowed
-            No destructive commands (rm -rf, system modification)
-            Output must be treated as data, not truth
+        Allowed Commands
+            File inspection: ls, cat, head, tail, find, tree, stat
+            Text processing: grep, awk, sed, sort, uniq, cut, diff
+            Development: python, node, npm, pip, ruff, pytest, eslint
+            Build tools: make, cargo, go
+            Utilities: echo, pwd, date, mkdir, touch, cp, mv
+
+        Blocked Operations
+            Network access: curl, wget, nc, ssh, ftp
+            Destructive: rm -rf, rm -f, chmod, chown
+            Shell injection: $(), ``, eval, exec, bash -c
+            Sensitive paths: /etc/passwd, ~/.ssh, ~/.aws
+            Command chaining: ;, |, &&, ||
 
         Args:
-            command: The shell command to execute
+            command: The shell command to execute (must be in allowed list)
             workspace_id: The ID of the workspace
             agent_id: The ID of the agent
             session_id: The ID of the current session
@@ -34,6 +44,15 @@ def register_tools(mcp: FastMCP) -> None:
             Dict with command output and execution details, or error dict
         """
         try:
+            # Validate command BEFORE execution (defense in depth)
+            validation = validate_command(command)
+            if not validation.is_valid:
+                return {
+                    "error": f"Command validation failed: {validation.error}",
+                    "command": command,
+                    "blocked": True,
+                }
+
             # Default cwd is the session root
             session_root = os.path.join(WORKSPACES_DIR, workspace_id, agent_id, session_id)
             os.makedirs(session_root, exist_ok=True)

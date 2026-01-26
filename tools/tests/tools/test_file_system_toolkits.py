@@ -538,14 +538,14 @@ class TestExecuteCommandTool:
         assert "Hello World" in result["stdout"]
 
     def test_execute_failing_command(self, execute_command_fn, mock_workspace, mock_secure_path):
-        """Executing a failing command returns non-zero exit code."""
+        """Executing a command on non-existent file returns non-zero exit code."""
         result = execute_command_fn(
-            command="exit 1",
+            command="ls /nonexistent_directory_12345",
             **mock_workspace
         )
 
         assert result["success"] is True
-        assert result["return_code"] == 1
+        assert result["return_code"] != 0
 
     def test_execute_command_with_stderr(self, execute_command_fn, mock_workspace, mock_secure_path):
         """Executing a command that writes to stderr captures it."""
@@ -572,15 +572,15 @@ class TestExecuteCommandTool:
         assert "testfile.txt" in result["stdout"]
 
     def test_execute_command_with_pipe(self, execute_command_fn, mock_workspace, mock_secure_path):
-        """Executing a command with pipe works correctly."""
+        """Executing a command with pipe is blocked for security."""
         result = execute_command_fn(
             command="echo 'hello world' | tr 'a-z' 'A-Z'",
             **mock_workspace
         )
 
-        assert result["success"] is True
-        assert result["return_code"] == 0
-        assert "HELLO WORLD" in result["stdout"]
+        # Pipes are blocked by security validation
+        assert "error" in result
+        assert result["blocked"] is True
 
 
 class TestApplyDiffTool:
