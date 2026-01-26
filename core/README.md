@@ -63,7 +63,7 @@ To use the agent builder with Claude Desktop or other MCP clients, add this to y
   "mcpServers": {
     "agent-builder": {
       "command": "python",
-      "args": ["-m", "framework.mcp.agent_builder_server"],
+      "args": ["-m", "framework.mcp.agent_builder_server", "--stdio"],
       "cwd": "/path/to/goal-agent"
     }
   }

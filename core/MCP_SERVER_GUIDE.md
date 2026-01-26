@@ -23,7 +23,7 @@ Add to your MCP client configuration (e.g., Claude Desktop):
   "mcpServers": {
     "agent-builder": {
       "command": "python",
-      "args": ["-m", "framework.mcp.agent_builder_server"],
+      "args": ["-m", "framework.mcp.agent_builder_server", "--stdio"],
       "cwd": "/path/to/goal-agent"
     }
   }
