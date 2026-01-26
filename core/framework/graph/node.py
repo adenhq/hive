@@ -23,7 +23,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from framework.llm.provider import LLMProvider, Tool
+from framework.llm.provider import LLMProvider, Tool, ToolResult, ToolUse
 from framework.runtime.core import Runtime
 
 logger = logging.getLogger(__name__)
@@ -377,12 +377,13 @@ class NodeResult:
                 node_context = f"\nNode: {node_spec.name}\nPurpose: {node_spec.description}"
 
             output_preview = json.dumps(self.output, indent=2, default=str)[:2000]
-            prompt = f"""Generate a 1-2 sentence human-readable summary of what this node produced.{node_context}
-
-Node output:
-{output_preview}
-
-Provide a concise, clear summary that a human can quickly understand. Focus on the key information produced."""
+            prompt = (
+                f"Generate a 1-2 sentence human-readable summary of "
+                f"what this node produced.{node_context}\n\n"
+                f"Node output:\n{output_preview}\n\n"
+                "Provide a concise, clear summary that a human can quickly understand. "
+                "Focus on the key information produced."
+            )
 
             client = anthropic.Anthropic(api_key=api_key)
             message = client.messages.create(
@@ -491,7 +492,7 @@ class LLMNode(NodeProtocol):
         import re
         content = content.strip()
         # Match ```json or ``` at start and ``` at end (greedy to handle nested)
-        match = re.match(r'^```(?:json|JSON)?\s*\n?(.*)\n?```\s*$', content, re.DOTALL)
+        match = re.match(r"^```(?:json|JSON)?\s*\n?(.*)\n?```\s*$", content, re.DOTALL)
         if match:
             return match.group(1).strip()
         return content
@@ -540,17 +541,26 @@ class LLMNode(NodeProtocol):
 
             # Log the LLM call details
             logger.info("      🤖 LLM Call:")
-            logger.info(f"         System: {system[:150]}..." if len(system) > 150 else f"         System: {system}")
-            logger.info(f"         User message: {messages[-1]['content'][:150]}..." if len(messages[-1]['content']) > 150 else f"         User message: {messages[-1]['content']}")
+            system_preview = (
+                f"{system[:150]}..." if len(system) > 150 else system
+            )
+            logger.info(f"         System: {system_preview}")
+            last_msg = messages[-1]["content"]
+            msg_preview = (
+                f"{last_msg[:150]}..." if len(last_msg) > 150 else last_msg
+            )
+            logger.info(f"         User message: {msg_preview}")
             if ctx.available_tools:
                 logger.info(f"         Tools available: {[t.name for t in ctx.available_tools]}")
 
             # Call LLM
             if ctx.available_tools and self.tool_executor:
-                from framework.llm.provider import ToolUse, ToolResult
 
                 def executor(tool_use: ToolUse) -> ToolResult:
-                    logger.info(f"         🔧 Tool call: {tool_use.name}({', '.join(f'{k}={v}' for k, v in tool_use.input.items())})")
+                    tool_inputs = ", ".join(
+                        f"{k}={v}" for k, v in tool_use.input.items()
+                    )
+                    logger.info(f"         🔧 Tool call: {tool_use.name}({tool_inputs})")
                     result = self.tool_executor(tool_use)
                     # Truncate long results
                     result_str = str(result.content)[:150]
@@ -574,7 +584,8 @@ class LLMNode(NodeProtocol):
                     and len(ctx.node_spec.output_keys) >= 1
                 )
                 if use_json_mode:
-                    logger.info(f"         📋 Expecting JSON output with keys: {ctx.node_spec.output_keys}")
+                    output_keys = ctx.node_spec.output_keys
+                    logger.info(f"         📋 Expecting JSON output with keys: {output_keys}")
 
                 response = ctx.llm.complete(
                     messages=messages,
