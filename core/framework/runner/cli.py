@@ -166,6 +166,30 @@ def register_commands(subparsers: argparse._SubParsersAction) -> None:
     )
     shell_parser.set_defaults(func=cmd_shell)
 
+    # health command
+    health_parser = subparsers.add_parser(
+        "health",
+        help="Check agent health and performance",
+        description="Analyze agent execution history and provide health insights.",
+    )
+    health_parser.add_argument(
+        "agent_path",
+        type=str,
+        help="Path to agent folder (containing agent.json)",
+    )
+    health_parser.add_argument(
+        "--days",
+        type=int,
+        default=7,
+        help="Number of days to analyze (default: 7)",
+    )
+    health_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output as JSON",
+    )
+    health_parser.set_defaults(func=cmd_health)
+
 
 def cmd_run(args: argparse.Namespace) -> int:
     """Run an exported agent."""
@@ -927,6 +951,121 @@ def cmd_shell(args: argparse.Namespace) -> int:
         print()
 
     runner.cleanup()
+    return 0
+
+
+def cmd_health(args: argparse.Namespace) -> int:
+    """Check agent health and performance."""
+    from framework.runner.agent_health import AgentHealth
+    from framework.runner.runner import AgentRunner
+    
+    agent_path = Path(args.agent_path)
+    
+    # Check if agent exists
+    if not (agent_path / "agent.json").exists():
+        print(f"Error: agent.json not found in {agent_path}", file=sys.stderr)
+        return 1
+    
+    # Determine storage path
+    try:
+        runner = AgentRunner.load(agent_path)
+        storage_path = runner._storage_path
+        runner.cleanup()
+    except Exception as e:
+        print(f"Error loading agent: {e}", file=sys.stderr)
+        return 1
+    
+    # Analyze health
+    health = AgentHealth(storage_path)
+    report = health.analyze(days=args.days)
+    
+    # Output report
+    if args.json:
+        output = {
+            "agent_name": report.agent_name,
+            "health_status": report.health_status,
+            "metrics": {
+                "total_runs": report.metrics.total_runs,
+                "successful_runs": report.metrics.successful_runs,
+                "failed_runs": report.metrics.failed_runs,
+                "success_rate": report.metrics.success_rate,
+                "avg_duration_ms": report.metrics.avg_duration_ms,
+                "avg_decisions": report.metrics.avg_decisions,
+                "total_cost_usd": report.metrics.total_cost_usd,
+                "recent_runs": report.metrics.recent_runs,
+                "recent_success_rate": report.metrics.recent_success_rate,
+            },
+            "issues": report.issues,
+            "recommendations": report.recommendations,
+            "last_run": report.last_run.isoformat() if report.last_run else None,
+            "analyzed_at": report.analyzed_at.isoformat(),
+        }
+        print(json.dumps(output, indent=2, default=str))
+    else:
+        # Human-readable output
+        status_icon = {
+            "healthy": "✓",
+            "degraded": "⚠️",
+            "unhealthy": "✗",
+            "unknown": "?",
+        }.get(report.health_status, "?")
+        
+        print("=" * 60)
+        print(f"Agent Health Report: {report.agent_name}")
+        print("=" * 60)
+        print()
+        
+        print(f"Status: {status_icon} {report.health_status.upper()}")
+        if report.last_run:
+            print(f"Last Run: {report.last_run.strftime('%Y-%m-%d %H:%M:%S')}")
+        print()
+        
+        print("Metrics:")
+        print(f"  Total Runs: {report.metrics.total_runs}")
+        print(f"  Successful: {report.metrics.successful_runs}")
+        print(f"  Failed: {report.metrics.failed_runs}")
+        print(f"  Success Rate: {report.metrics.success_rate:.1%}")
+        
+        if report.metrics.recent_runs > 0:
+            print(f"  Recent Runs (24h): {report.metrics.recent_runs}")
+            print(f"  Recent Success Rate: {report.metrics.recent_success_rate:.1%}")
+        
+        if report.metrics.avg_duration_ms > 0:
+            duration_sec = report.metrics.avg_duration_ms / 1000
+            print(f"  Avg Duration: {duration_sec:.1f}s")
+        
+        if report.metrics.avg_decisions > 0:
+            print(f"  Avg Decisions: {report.metrics.avg_decisions:.1f}")
+        
+        if report.metrics.total_cost_usd > 0:
+            print(f"  Total Cost: ${report.metrics.total_cost_usd:.2f}")
+        
+        print()
+        
+        if report.issues:
+            print("Issues:")
+            for issue in report.issues:
+                print(f"  ⚠️  {issue}")
+            print()
+        
+        if report.recommendations:
+            print("Recommendations:")
+            for rec in report.recommendations:
+                print(f"  • {rec}")
+            print()
+        
+        # Show top errors if any
+        if report.metrics.common_errors:
+            print("Common Errors:")
+            sorted_errors = sorted(
+                report.metrics.common_errors.items(),
+                key=lambda x: x[1],
+                reverse=True
+            )[:5]
+            for error, count in sorted_errors:
+                print(f"  - {error[:80]}... ({count}x)")
+            print()
+    
     return 0
 
 
