@@ -60,6 +60,22 @@ fi
 echo -e "${GREEN}✓${NC} Python version check passed"
 echo ""
 
+# Python 3.12+ requires a virtual environment (PEP 668)
+if [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -ge 12 ]; then
+    if [ -z "$VIRTUAL_ENV" ]; then
+        echo -e "${RED}Error: Python 3.12+ detected without an active virtual environment.${NC}"
+        echo ""
+        echo "Python 3.12 enforces system-managed packages (PEP 668)."
+        echo "Please create and activate a virtual environment before running this script:"
+        echo ""
+        echo "  python3 -m venv .venv"
+        echo "  source .venv/bin/activate"
+        echo ""
+        exit 1
+    fi
+fi
+
+
 # Check for pip
 if ! $PYTHON_CMD -m pip --version &> /dev/null; then
     echo -e "${RED}Error: pip is not installed${NC}"
