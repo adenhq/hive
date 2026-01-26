@@ -84,6 +84,23 @@ This installs:
 - **aden_tools** - 19 MCP tools for agent capabilities
 - All required dependencies
 
+
+### Windows Users
+
+The setup scripts (`.sh`) are Bash scripts and **cannot be run from Command Prompt (CMD)**.
+
+On Windows, please use one of the following:
+- **Git Bash** (recommended)
+- **WSL (Windows Subsystem for Linux)**
+
+Example (Git Bash / WSL):
+
+```bash
+git clone https://github.com/adenhq/hive.git
+cd hive
+./scripts/setup-python.sh
+```
+
 ### Build Your First Agent
 
 ```bash

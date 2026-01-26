@@ -2,6 +2,16 @@
 
 Complete setup guide for building and running goal-driven agents with the Aden Agent Framework.
 
+## Windows Setup Notes
+
+The Python setup scripts are written in Bash and are **not compatible with Windows Command Prompt (CMD)**.
+
+Windows users must run setup using one of the following:
+- **Git Bash**
+- **WSL (Windows Subsystem for Linux)**
+
+Running `scripts\setup-python.sh` from CMD will open the file instead of executing it.
+
 ## Quick Setup
 
 ```bash
