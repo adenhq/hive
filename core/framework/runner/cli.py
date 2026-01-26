@@ -958,14 +958,14 @@ def cmd_health(args: argparse.Namespace) -> int:
     """Check agent health and performance."""
     from framework.runner.agent_health import AgentHealth
     from framework.runner.runner import AgentRunner
-    
+
     agent_path = Path(args.agent_path)
-    
+
     # Check if agent exists
     if not (agent_path / "agent.json").exists():
         print(f"Error: agent.json not found in {agent_path}", file=sys.stderr)
         return 1
-    
+
     # Determine storage path
     try:
         runner = AgentRunner.load(agent_path)
@@ -974,11 +974,11 @@ def cmd_health(args: argparse.Namespace) -> int:
     except Exception as e:
         print(f"Error loading agent: {e}", file=sys.stderr)
         return 1
-    
+
     # Analyze health
     health = AgentHealth(storage_path)
     report = health.analyze(days=args.days)
-    
+
     # Output report
     if args.json:
         output = {
@@ -1009,51 +1009,51 @@ def cmd_health(args: argparse.Namespace) -> int:
             "unhealthy": "✗",
             "unknown": "?",
         }.get(report.health_status, "?")
-        
+
         print("=" * 60)
         print(f"Agent Health Report: {report.agent_name}")
         print("=" * 60)
         print()
-        
+
         print(f"Status: {status_icon} {report.health_status.upper()}")
         if report.last_run:
             print(f"Last Run: {report.last_run.strftime('%Y-%m-%d %H:%M:%S')}")
         print()
-        
+
         print("Metrics:")
         print(f"  Total Runs: {report.metrics.total_runs}")
         print(f"  Successful: {report.metrics.successful_runs}")
         print(f"  Failed: {report.metrics.failed_runs}")
         print(f"  Success Rate: {report.metrics.success_rate:.1%}")
-        
+
         if report.metrics.recent_runs > 0:
             print(f"  Recent Runs (24h): {report.metrics.recent_runs}")
             print(f"  Recent Success Rate: {report.metrics.recent_success_rate:.1%}")
-        
+
         if report.metrics.avg_duration_ms > 0:
             duration_sec = report.metrics.avg_duration_ms / 1000
             print(f"  Avg Duration: {duration_sec:.1f}s")
-        
+
         if report.metrics.avg_decisions > 0:
             print(f"  Avg Decisions: {report.metrics.avg_decisions:.1f}")
-        
+
         if report.metrics.total_cost_usd > 0:
             print(f"  Total Cost: ${report.metrics.total_cost_usd:.2f}")
-        
+
         print()
-        
+
         if report.issues:
             print("Issues:")
             for issue in report.issues:
                 print(f"  ⚠️  {issue}")
             print()
-        
+
         if report.recommendations:
             print("Recommendations:")
             for rec in report.recommendations:
                 print(f"  • {rec}")
             print()
-        
+
         # Show top errors if any
         if report.metrics.common_errors:
             print("Common Errors:")
@@ -1065,7 +1065,7 @@ def cmd_health(args: argparse.Namespace) -> int:
             for error, count in sorted_errors:
                 print(f"  - {error[:80]}... ({count}x)")
             print()
-    
+
     return 0
 
 
