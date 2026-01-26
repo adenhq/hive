@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from framework.llm.provider import LLMProvider
 from framework.runner.protocol import (
@@ -476,8 +479,8 @@ Respond with JSON only:
                         confidence=0.8,
                         should_parallelize=data.get("parallel", False),
                     )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("LLM routing decision failed, using highest confidence fallback: %s", e)
 
         # Fallback: use highest confidence
         return RoutingDecision(

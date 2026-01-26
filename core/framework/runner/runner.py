@@ -1,10 +1,13 @@
 """Agent Runner - loads and runs exported agents."""
 
 import json
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Any
+
+logger = logging.getLogger(__name__)
 
 from framework.graph import Goal
 from framework.graph.edge import GraphSpec, EdgeSpec, EdgeCondition, AsyncEntryPointSpec
@@ -940,9 +943,9 @@ Respond with JSON only:
                     reasoning=data.get("reasoning", ""),
                     estimated_steps=data.get("estimated_steps"),
                 )
-        except Exception:
+        except Exception as e:
             # Fall back to keyword matching on error
-            pass
+            logger.warning("LLM capability check failed, falling back to keyword matching: %s", e)
 
         return self._keyword_capability_check(request)
 

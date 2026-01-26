@@ -5,9 +5,12 @@ This module defines the formal structure for pause/resume interactions
 where agents need to gather input from humans.
 """
 
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class HITLInputType(str, Enum):
@@ -207,8 +210,9 @@ Example format:
                 parsed = json.loads(json_match.group())
                 response.answers = parsed
 
-        except Exception:
+        except Exception as e:
             # Fallback: use raw input for first question
+            logger.debug("Failed to extract HITL answers, using raw input: %s", e)
             if request.questions:
                 response.answers[request.questions[0].id] = raw_input
 

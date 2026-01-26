@@ -385,8 +385,9 @@ Provide a concise, clear summary that a human can quickly understand. Focus on t
             summary = message.content[0].text.strip()
             return f"✓ {summary}"
 
-        except Exception:
+        except Exception as e:
             # Fallback on error
+            logger.debug("Failed to generate LLM summary, using fallback: %s", e)
             parts = [f"✓ Completed with {len(self.output)} outputs:"]
             for key, value in list(self.output.items())[:3]:
                 value_str = str(value)[:80]

@@ -3,8 +3,11 @@
 import argparse
 import asyncio
 import json
+import logging
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def register_commands(subparsers: argparse._SubParsersAction) -> None:
@@ -649,8 +652,9 @@ Output ONLY valid JSON, no explanation:"""
         json_str = json_str.strip()
 
         return json.loads(json_str)
-    except Exception:
+    except Exception as e:
         # Fallback: try to infer the main field
+        logger.debug("Failed to parse structured input, using fallback: %s", e)
         if len(input_keys) == 1:
             return {input_keys[0]: user_input}
         else:
