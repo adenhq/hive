@@ -17,22 +17,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          version: "0.5.11"
+
+      - name: Set up Python
+        run: uv python install 3.11
 
       - name: Install dependencies
-        run: |
-          cd core
-          pip install -e .
-          pip install -r requirements-dev.txt
+        run: uv sync --frozen --all-packages
 
       - name: Run tests
         run: |
           cd core
-          pytest tests/ -v
+          uv run pytest tests/ -v
 
       - name: Generate changelog
         id: changelog

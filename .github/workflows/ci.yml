@@ -17,22 +17,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          version: "0.5.11"
+
+      - name: Set up Python
+        run: uv python install 3.11
 
       - name: Install dependencies
-        run: |
-          cd core
-          pip install -e .
-          pip install -r requirements-dev.txt
+        run: uv sync --frozen --all-packages
 
       - name: Run ruff
         run: |
           cd core
-          ruff check .
+          uv run ruff check .
 
   test:
     name: Test Python Framework
@@ -40,22 +41,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          version: "0.5.11"
+
+      - name: Set up Python
+        run: uv python install 3.11
 
       - name: Install dependencies
-        run: |
-          cd core
-          pip install -e .
-          pip install -r requirements-dev.txt
+        run: uv sync --frozen --all-packages
 
       - name: Run tests
         run: |
           cd core
-          pytest tests/ -v
+          uv run pytest tests/ -v
 
   validate:
     name: Validate Agent Exports
@@ -64,17 +66,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          version: "0.5.11"
+
+      - name: Set up Python
+        run: uv python install 3.11
 
       - name: Install dependencies
-        run: |
-          cd core
-          pip install -e .
-          pip install -r requirements-dev.txt
+        run: uv sync --frozen --all-packages
 
       - name: Validate exported agents
         run: |
@@ -82,6 +85,6 @@ jobs:
           for agent_dir in exports/*/; do
             if [ -f "$agent_dir/agent.json" ]; then
               echo "Validating $agent_dir"
-              python -c "import json; json.load(open('$agent_dir/agent.json'))"
+              uv run python -c "import json; json.load(open('$agent_dir/agent.json'))"
             fi
           done

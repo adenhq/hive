@@ -65,23 +65,42 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 ### Prerequisites
 
 - [Python 3.11+](https://www.python.org/downloads/) for agent development
+- [uv](https://docs.astral.sh/uv/) - Fast Python package manager (recommended)
 - [Docker](https://docs.docker.com/get-docker/) (v20.10+) - Optional, for containerized tools
 
 ### Installation
+
+**Option 1: With uv (Recommended - 10-100x faster)**
+
+```bash
+# Install uv if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Clone the repository
+git clone https://github.com/adenhq/hive.git
+cd hive
+
+# Run Python environment setup (auto-detects uv)
+./scripts/setup-python.sh
+```
+
+**Option 2: With pip (Legacy)**
 
 ```bash
 # Clone the repository
 git clone https://github.com/adenhq/hive.git
 cd hive
 
-# Run Python environment setup
+# Run Python environment setup (falls back to pip)
 ./scripts/setup-python.sh
 ```
 
 This installs:
 - **framework** - Core agent runtime and graph executor
 - **aden_tools** - 19 MCP tools for agent capabilities
-- All required dependencies
+- All required dependencies managed by uv.lock for reproducibility
+
+> **Note:** The setup script automatically detects and uses uv if available, otherwise falls back to pip. We strongly recommend using uv for faster, more reliable dependency management. See [UV Migration Guide](docs/UV_MIGRATION.md) for details.
 
 ### Build Your First Agent
 
@@ -95,7 +114,10 @@ claude> /building-agents
 # Test your agent
 claude> /testing-agent
 
-# Run your agent
+# Run your agent (with uv)
+PYTHONPATH=core:exports uv run python -m your_agent_name run --input '{...}'
+
+# Or with pip
 PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'
 ```
 

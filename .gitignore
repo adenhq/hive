@@ -54,7 +54,9 @@ __pycache__/
 *.egg-info/
 .eggs/
 *.egg
-uv.lock
+
+# Python version backups
+.python-version.bak
 
 # Generated runtime data
 core/data/

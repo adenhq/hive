@@ -25,6 +25,96 @@ echo "  Aden Agent Framework - Python Setup"
 echo "=================================================="
 echo ""
 
+# Check for uv package manager
+if command -v uv &> /dev/null; then
+    echo -e "${BLUE}uv package manager detected!${NC}"
+    echo "Using uv for fast, reliable dependency management..."
+    echo ""
+
+    # Use uv for installation
+    cd "$PROJECT_ROOT"
+
+    echo "Installing Python 3.11 if needed..."
+    uv python install 3.11
+    echo -e "${GREEN}✓${NC} Python 3.11 ready"
+    echo ""
+
+    echo "Installing workspace packages (framework + aden_tools)..."
+    if uv sync --all-packages; then
+        echo -e "${GREEN}✓${NC} All packages installed via uv"
+    else
+        echo -e "${RED}✗${NC} uv sync failed"
+        exit 1
+    fi
+    echo ""
+
+    # Verify installations
+    echo "=================================================="
+    echo "Verifying Installation"
+    echo "=================================================="
+    echo ""
+
+    if uv run python -c "import framework" > /dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC} framework package imports successfully"
+    else
+        echo -e "${RED}✗${NC} framework package import failed"
+        echo -e "${YELLOW}  Note: This may be OK if you don't need the framework${NC}"
+    fi
+
+    if uv run python -c "import aden_tools" > /dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC} aden_tools package imports successfully"
+    else
+        echo -e "${RED}✗${NC} aden_tools package import failed"
+        exit 1
+    fi
+
+    if uv run python -c "import litellm" > /dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC} litellm package imports successfully"
+    else
+        echo -e "${YELLOW}⚠${NC} litellm import had issues (may be OK if not using LLM features)"
+    fi
+
+    echo ""
+    echo "=================================================="
+    echo "  Setup Complete! (via uv)"
+    echo "=================================================="
+    echo ""
+    echo "Python packages installed:"
+    echo "  • framework (core agent runtime)"
+    echo "  • aden_tools (tools and MCP servers)"
+    echo "  • All dependencies managed by uv.lock"
+    echo ""
+    echo "To run agents, use:"
+    echo ""
+    echo "  ${BLUE}# From project root:${NC}"
+    echo "  PYTHONPATH=core:exports uv run python -m agent_name validate"
+    echo "  PYTHONPATH=core:exports uv run python -m agent_name info"
+    echo "  PYTHONPATH=core:exports uv run python -m agent_name run --input '{...}'"
+    echo ""
+    echo "Available commands for your new agent:"
+    echo "  PYTHONPATH=core:exports uv run python -m support_ticket_agent validate"
+    echo "  PYTHONPATH=core:exports uv run python -m support_ticket_agent info"
+    echo "  PYTHONPATH=core:exports uv run python -m support_ticket_agent run --input '{\"ticket_content\":\"...\",\"customer_id\":\"...\",\"ticket_id\":\"...\"}'"
+    echo ""
+    echo "To build new agents, use Claude Code skills:"
+    echo "  • /building-agents - Build a new agent"
+    echo "  • /testing-agent   - Test an existing agent"
+    echo ""
+    echo "Documentation: ${PROJECT_ROOT}/README.md"
+    echo "Agent Examples: ${PROJECT_ROOT}/exports/"
+    echo ""
+
+    exit 0
+fi
+
+# If uv is not installed, provide information and fall back to pip
+echo -e "${YELLOW}uv not found.${NC} For faster, more reliable package management:"
+echo -e "  ${BLUE}Install uv:${NC} curl -LsSf https://astral.sh/uv/install.sh | sh"
+echo -e "  ${BLUE}Or visit:${NC} https://docs.astral.sh/uv/"
+echo ""
+echo "Falling back to pip installation..."
+echo ""
+
 # Check for Python
 if ! command -v python &> /dev/null && ! command -v python3 &> /dev/null; then
     echo -e "${RED}Error: Python is not installed.${NC}"
