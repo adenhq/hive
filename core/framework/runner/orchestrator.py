@@ -71,8 +71,8 @@ class AgentOrchestrator:
 
         # Auto-create LLM - LiteLLM auto-detects provider and API key from model name
         if self._llm is None:
-            from framework.llm.litellm import LiteLLMProvider
-            self._llm = LiteLLMProvider(model=self._model)
+            from framework.llm.litellm import get_provider
+            self._llm = get_provider(model=self._model)
 
     def register(
         self,

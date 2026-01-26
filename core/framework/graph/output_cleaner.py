@@ -88,12 +88,12 @@ class OutputCleaner:
         elif config.enabled:
             # Create dedicated fast LLM provider for cleaning
             try:
-                from framework.llm.litellm import LiteLLMProvider
+                from framework.llm.litellm import get_provider
                 import os
 
                 api_key = os.environ.get("CEREBRAS_API_KEY")
                 if api_key:
-                    self.llm = LiteLLMProvider(
+                    self.llm = get_provider(
                         api_key=api_key,
                         model=config.fast_model,
                         temperature=0.0,  # Deterministic cleaning

@@ -18,6 +18,43 @@ except ImportError:
 from framework.llm.provider import LLMProvider, LLMResponse, Tool, ToolUse
 
 
+# Module-level cache for provider instances
+# Key: (model, api_key, api_base, frozenset(extra_kwargs))
+_provider_cache: dict[tuple, "LiteLLMProvider"] = {}
+
+
+def get_provider(
+    model: str = "gpt-4o-mini",
+    api_key: str | None = None,
+    api_base: str | None = None,
+    **kwargs,
+) -> "LiteLLMProvider":
+    """
+    Get a cached LiteLLMProvider instance for the given configuration.
+
+    This avoids repeatedly creating new provider instances when the same
+    configuration is used, improving performance in production workloads.
+
+    Args:
+        model: Model identifier (e.g., "gpt-4o-mini", "claude-3-haiku-20240307")
+        api_key: API key for the provider
+        api_base: Custom API base URL
+        **kwargs: Additional arguments passed to LiteLLMProvider
+
+    Returns:
+        Cached or newly created LiteLLMProvider instance
+    """
+    # Create a hashable cache key from the configuration
+    cache_key = (model, api_key, api_base, tuple(sorted(kwargs.items())))
+
+    if cache_key not in _provider_cache:
+        _provider_cache[cache_key] = LiteLLMProvider(
+            model=model, api_key=api_key, api_base=api_base, **kwargs
+        )
+
+    return _provider_cache[cache_key]
+
+
 class LiteLLMProvider(LLMProvider):
     """
     LiteLLM-based LLM provider for multi-provider support.

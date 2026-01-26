@@ -415,8 +415,8 @@ class AgentRunner:
             # Detect required API key from model name
             api_key_env = self._get_api_key_env_var(self.model)
             if api_key_env and os.environ.get(api_key_env):
-                from framework.llm.litellm import LiteLLMProvider
-                self._llm = LiteLLMProvider(model=self.model)
+                from framework.llm.litellm import get_provider
+                self._llm = get_provider(model=self.model)
             elif api_key_env:
                 print(f"Warning: {api_key_env} not set. LLM calls will fail.")
                 print(f"Set it with: export {api_key_env}=your-api-key")

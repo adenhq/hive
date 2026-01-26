@@ -745,16 +745,16 @@ class LLMNode(NodeProtocol):
             raise ValueError("Cannot parse JSON and no API key for LLM cleanup (set CEREBRAS_API_KEY or ANTHROPIC_API_KEY)")
 
         # Use fast LLM to clean the response (Cerebras llama-3.3-70b preferred)
-        from framework.llm.litellm import LiteLLMProvider
+        from framework.llm.litellm import get_provider
         if os.environ.get("CEREBRAS_API_KEY"):
-            cleaner_llm = LiteLLMProvider(
+            cleaner_llm = get_provider(
                 api_key=os.environ.get("CEREBRAS_API_KEY"),
                 model="cerebras/llama-3.3-70b",
                 temperature=0.0
             )
         else:
             # Fallback to Anthropic Haiku via LiteLLM for consistency
-            cleaner_llm = LiteLLMProvider(
+            cleaner_llm = get_provider(
                 api_key=api_key,
                 model="claude-3-5-haiku-20241022",
                 temperature=0.0
