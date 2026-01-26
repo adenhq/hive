@@ -28,7 +28,9 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from framework.graph.safe_eval import safe_eval
+import logging
 
+logger = logging.getLogger(__name__)
 
 class EdgeCondition(str, Enum):
     """When an edge should be traversed."""
@@ -193,6 +195,10 @@ class EdgeSpec(BaseModel):
         memory: dict[str, Any],
         source_node_name: str | None,
         target_node_name: str | None,
+        messages: list[dict[str, Any]],
+        system_prompt: str = "You are a routing agent. Respond with JSON only.",
+        tools: list[Any] | None = None,
+        tool_executor: callable | None = None,
     ) -> bool:
         """
         Use LLM to decide if this edge should be traversed.
@@ -229,38 +235,45 @@ Consider:
 Respond with ONLY a JSON object:
 {{"proceed": true/false, "reasoning": "brief explanation"}}"""
 
-        try:
-            response = llm.complete(
-                messages=[{"role": "user", "content": prompt}],
-                system="You are a routing agent. Respond with JSON only.",
-                max_tokens=150,
-            )
+        if hasattr(llm, "complete_with_tools"):
+            try:
+                response = llm.complete_with_tools(
+                    messages=messages,
+                    system=system_prompt,
+                    tools=tools,
+                    tool_executor=tool_executor,
+                    max_iterations=10
+                )
+            except NotImplementedError as e:
+                logger.warning(f"Tool execution not supported: {e}")
+                # fallback to regular completion
+                response = llm.complete(messages, system=system_prompt)
+        else:
+            try:
+                response = llm.complete(
+                    messages=[{"role": "user", "content": prompt}],
+                    system="You are a routing agent. Respond with JSON only.",
+                    max_tokens=150,
+                )
 
-            # Parse response
-            import re
-
-            json_match = re.search(r"\{[^{}]*\}", response.content, re.DOTALL)
-            if json_match:
-                data = json.loads(json_match.group())
-                proceed = data.get("proceed", False)
-                reasoning = data.get("reasoning", "")
+                # Parse response
+                import re
+                json_match = re.search(r'\{[^{}]*\}', response.content, re.DOTALL)
+                if json_match:
+                    data = json.loads(json_match.group())
+                    proceed = data.get("proceed", False)
+                    reasoning = data.get("reasoning", "")
 
                 # Log the decision (using basic print for now)
-                import logging
-
-                logger = logging.getLogger(__name__)
                 logger.info(f"      🤔 LLM routing decision: {'PROCEED' if proceed else 'SKIP'}")
                 logger.info(f"         Reason: {reasoning}")
 
                 return proceed
 
-        except Exception as e:
-            # Fallback: proceed on success
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.warning(f"      ⚠ LLM routing failed, defaulting to on_success: {e}")
-            return source_success
+            except Exception as e:
+                # Fallback: proceed on success
+                logger.warning(f"      ⚠ LLM routing failed, defaulting to on_success: {e}")
+                return source_success
 
         return source_success
 
