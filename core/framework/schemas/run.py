@@ -7,14 +7,14 @@ summaries and metrics that Builder needs to understand what happened.
 
 from datetime import datetime
 from typing import Any
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field, computed_field
 
 from framework.schemas.decision import Decision, Outcome
 
 
-class RunStatus(str, Enum):
+class RunStatus(StrEnum):
     """Status of a run."""
     RUNNING = "running"
     COMPLETED = "completed"
