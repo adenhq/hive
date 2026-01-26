@@ -52,6 +52,7 @@ SAFE_FUNCTIONS = {
     "any": any,
 }
 
+
 class SafeEvalVisitor(ast.NodeVisitor):
     def __init__(self, context: dict[str, Any]):
         self.context = context
@@ -120,7 +121,7 @@ class SafeEvalVisitor(ast.NodeVisitor):
             right = self.visit(comparator)
             if not op_func(left, right):
                 return False
-            left = right # Chain comparisons
+            left = right  # Chain comparisons
         return True
 
     def visit_BoolOp(self, node: ast.BoolOp) -> Any:
@@ -170,12 +171,12 @@ class SafeEvalVisitor(ast.NodeVisitor):
         # The check starts_with("_") covers __class__, __init__, etc.
 
         try:
-             return getattr(val, node.attr)
+            return getattr(val, node.attr)
         except AttributeError:
-             # Fallback: maybe it's a dict and they want dot access?
-             # (Only if we want to support that sugar, usually not standard python)
-             # Let's stick to standard python behavior + strict private check.
-             pass
+            # Fallback: maybe it's a dict and they want dot access?
+            # (Only if we want to support that sugar, usually not standard python)
+            # Let's stick to standard python behavior + strict private check.
+            pass
 
         raise AttributeError(f"Object has no attribute '{node.attr}'")
 
@@ -190,8 +191,8 @@ class SafeEvalVisitor(ast.NodeVisitor):
 
         is_safe = False
         if isinstance(node.func, ast.Name):
-             if node.func.id in SAFE_FUNCTIONS:
-                 is_safe = True
+            if node.func.id in SAFE_FUNCTIONS:
+                is_safe = True
 
         # Also allow methods on objects if they are safe?
         # E.g. "somestring".lower() or list.append() (if we allowed mutation, but we don't for now)
@@ -200,17 +201,17 @@ class SafeEvalVisitor(ast.NodeVisitor):
         # Allowing method calls on strings/lists (split, join, get) is commonly needed.
 
         if isinstance(node.func, ast.Attribute):
-             # Method call.
-             # Allow basic safe methods?
-             # For security, start strict. Only helper functions.
-             # Re-visiting: User might want 'output.get("key")'.
-             method_name = node.func.attr
-             safe_methods = ["get", "keys", "values", "items", "lower", "upper", "strip", "split"]
-             if method_name in safe_methods:
-                 is_safe = True
+            # Method call.
+            # Allow basic safe methods?
+            # For security, start strict. Only helper functions.
+            # Re-visiting: User might want 'output.get("key")'.
+            method_name = node.func.attr
+            safe_methods = ["get", "keys", "values", "items", "lower", "upper", "strip", "split"]
+            if method_name in safe_methods:
+                is_safe = True
 
         if not is_safe and func not in SAFE_FUNCTIONS.values():
-             raise ValueError("Call to function/method is not allowed")
+            raise ValueError("Call to function/method is not allowed")
 
         args = [self.visit(arg) for arg in node.args]
         keywords = {kw.arg: self.visit(kw.value) for kw in node.keywords}
