@@ -10,13 +10,18 @@ import subprocess
 import sys
 from pathlib import Path
 
+def supports_color() -> bool:
+    """Return True if the current stdount supposrts ANSI colors."""
+    return sys.stdout.isatty()
 
 class Colors:
-    GREEN = '\033[0;32m'
-    YELLOW = '\033[1;33m'
-    RED = '\033[0;31m'
-    BLUE = '\033[0;34m'
-    NC = '\033[0m'
+    enable_colors = supports_color()
+    
+    GREEN = '\033[0;32m' if enable_colors else ''
+    YELLOW = '\033[1;33m' if enable_colors else ''
+    RED = '\033[0;31m' if enable_colors else ''
+    BLUE = '\033[0;34m' if enable_colors else ''
+    NC = '\033[0m' if enable_colors else ''
 
 
 def check(description: str) -> bool:
