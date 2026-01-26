@@ -550,6 +550,11 @@ class LLMNode(NodeProtocol):
                     latency_ms=latency_ms,
                 )
 
+                # Track metrics
+                ctx.runtime.increment_metric("total_tokens", response.input_tokens + response.output_tokens)
+                ctx.runtime.increment_metric("total_latency_ms", latency_ms)
+                ctx.runtime.increment_metric("llm_calls")
+
                 # Write to output keys
                 output = self._parse_output(response.content, ctx.node_spec)
 

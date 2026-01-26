@@ -571,3 +571,40 @@ class GraphSpec(BaseModel):
                 errors.append(f"Node '{node.id}' is unreachable from entry")
 
         return errors
+
+    def to_mermaid(self) -> str:
+        """Export graph as Mermaid diagram."""
+        lines = ["graph TD"]
+        
+        # Add nodes
+        for node in self.nodes:
+            # Use node name if available, otherwise ID
+            label = node.name if hasattr(node, "name") else node.id
+            lines.append(f"    {node.id}[\"{label}\"]")
+            
+        # Add edges
+        for edge in self.edges:
+            label = edge.condition.value if edge.condition else ""
+            if label:
+                lines.append(f"    {edge.source} -- \"{label}\" --> {edge.target}")
+            else:
+                lines.append(f"    {edge.source} --> {edge.target}")
+                
+        return "\n".join(lines)
+
+    def to_dot(self) -> str:
+        """Export graph as DOT (Graphviz) format."""
+        lines = ["digraph G {", "    rankdir=LR;", "    node [shape=box, style=rounded];"]
+        
+        # Add nodes
+        for node in self.nodes:
+            label = node.name if hasattr(node, "name") else node.id
+            lines.append(f"    \"{node.id}\" [label=\"{label}\"];")
+            
+        # Add edges
+        for edge in self.edges:
+            label = edge.condition.value if edge.condition else ""
+            lines.append(f"    \"{edge.source}\" -> \"{edge.target}\" [label=\"{label}\"];")
+            
+        lines.append("}")
+        return "\n".join(lines)

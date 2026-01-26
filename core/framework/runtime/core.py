@@ -57,6 +57,7 @@ class Runtime:
         self.storage = FileStorage(storage_path)
         self._current_run: Run | None = None
         self._current_node: str = "unknown"
+        self._metrics: dict[str, Any] = {}
 
     # === RUN LIFECYCLE ===
 
@@ -110,6 +111,13 @@ class Runtime:
 
         status = RunStatus.COMPLETED if success else RunStatus.FAILED
         self._current_run.output_data = output_data or {}
+        
+        # Include custom metrics in output
+        if self._metrics:
+            if "metrics" not in self._current_run.output_data:
+                self._current_run.output_data["metrics"] = {}
+            self._current_run.output_data["metrics"].update(self._metrics)
+            
         self._current_run.complete(status, narrative)
 
         # Save to storage
@@ -284,6 +292,32 @@ class Runtime:
             root_cause=root_cause,
             suggested_fix=suggested_fix,
         )
+
+    # === METRICS ===
+
+    def track_metric(self, name: str, value: Any) -> None:
+        """
+        Track a custom metric for the run.
+        
+        Args:
+            name: Metric name (e.g., "pages_scraped", "api_calls")
+            value: Metric value (number, string, or dict)
+        """
+        self._metrics[name] = value
+        
+    def increment_metric(self, name: str, amount: int = 1) -> None:
+        """
+        Increment a numeric metric.
+        
+        Args:
+            name: Metric name
+            amount: Amount to increment by
+        """
+        if name not in self._metrics:
+            self._metrics[name] = 0
+        
+        if isinstance(self._metrics[name], (int, float)):
+            self._metrics[name] += amount
 
     # === CONVENIENCE METHODS ===
 

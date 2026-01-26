@@ -1,0 +1,4 @@
+origin	https://github.com/ashutoshjoshi23/hive.git (fetch)
+origin	https://github.com/ashutoshjoshi23/hive.git (push)
+upstream	https://github.com/adenhq/hive.git (fetch)
+upstream	https://github.com/adenhq/hive.git (push)

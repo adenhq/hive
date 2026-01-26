@@ -191,6 +191,31 @@ def register_commands(subparsers: argparse._SubParsersAction) -> None:
     )
     shell_parser.set_defaults(func=cmd_shell)
 
+    # viz command
+    viz_parser = subparsers.add_parser(
+        "viz",
+        help="Visualize agent graph",
+        description="Generate Mermaid or DOT visualization of the agent graph.",
+    )
+    viz_parser.add_argument(
+        "agent_path",
+        type=str,
+        help="Path to agent folder",
+    )
+    viz_parser.add_argument(
+        "--format", "-f",
+        choices=["mermaid", "dot"],
+        default="mermaid",
+        help="Output format (default: mermaid)",
+    )
+    viz_parser.add_argument(
+        "--output", "-o",
+        type=str,
+        help="Write to file instead of stdout",
+    )
+    viz_parser.set_defaults(func=cmd_viz)
+
+
 
 def cmd_run(args: argparse.Namespace) -> int:
     """Run an exported agent."""
@@ -466,6 +491,32 @@ def cmd_list(args: argparse.Namespace) -> int:
             print(f"    Steps: {agent['steps']}, Tools: {agent['tools']}")
             print()
 
+    return 0
+
+
+def cmd_viz(args: argparse.Namespace) -> int:
+    """Visualize agent graph."""
+    from framework.runner import AgentRunner
+
+    try:
+        runner = AgentRunner.load(args.agent_path)
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    if args.format == "mermaid":
+        output = runner.graph.to_mermaid()
+    else:
+        output = runner.graph.to_dot()
+
+    if args.output:
+        with open(args.output, "w") as f:
+            f.write(output)
+        print(f"Visualization written to {args.output}")
+    else:
+        print(output)
+
+    runner.cleanup()
     return 0
 
 

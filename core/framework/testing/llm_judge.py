@@ -22,6 +22,9 @@ import json
 from typing import Any
 
 
+from framework.llm.provider import LLMProvider
+
+
 class LLMJudge:
     """
     LLM-based judge for semantic evaluation of test results.
@@ -30,20 +33,25 @@ class LLMJudge:
     that can't be verified with simple assertions.
     """
 
-    def __init__(self):
+    def __init__(self, provider: LLMProvider | None = None):
         """Initialize the LLM judge."""
-        self._client = None
+        self.provider = provider
+        self._client = None  # Legacy support
 
-    def _get_client(self):
-        """Lazy-load the Anthropic client."""
-        if self._client is None:
+    def _ensure_provider(self):
+        """Ensure we have a provider, defaulting to Anthropic if none provided."""
+        if self.provider is not None:
+            return
+
+        try:
+            from framework.llm.anthropic import AnthropicProvider
+            self.provider = AnthropicProvider(model="claude-3-5-haiku-20241022")
+        except ImportError:
             try:
-                import anthropic
-
-                self._client = anthropic.Anthropic()
+                from framework.llm.litellm import LiteLLMProvider
+                self.provider = LiteLLMProvider(model="claude-3-5-haiku-20241022")
             except ImportError:
-                raise RuntimeError("anthropic package required for LLM judge")
-        return self._client
+                raise RuntimeError("No LLM provider available for LLM judge. Install anthropic or litellm.")
 
     def evaluate(
         self,
@@ -64,7 +72,7 @@ class LLMJudge:
         Returns:
             Dict with 'passes' (bool) and 'explanation' (str)
         """
-        client = self._get_client()
+        self._ensure_provider()
 
         prompt = f"""You are evaluating whether a summary meets a specific constraint.
 
@@ -85,15 +93,15 @@ Respond with JSON in this exact format:
 Only output the JSON, nothing else."""
 
         try:
-            response = client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=500,
+            response = self.provider.complete(
                 messages=[{"role": "user", "content": prompt}],
+                system="You are a semantic evaluation judge. Output only valid JSON.",
+                json_mode=True,
             )
 
             # Parse the response
-            text = response.content[0].text.strip()
-            # Handle potential markdown code blocks
+            text = response.content.strip()
+            # Handle potential markdown code blocks (though json_mode should prevent this)
             if text.startswith("```"):
                 text = text.split("```")[1]
                 if text.startswith("json"):

@@ -24,6 +24,8 @@ from .web_scrape_tool import register_tools as register_web_scrape
 from .pdf_read_tool import register_tools as register_pdf_read
 from .csv_tool import register_tools as register_csv
 from .system_tool import register_tools as register_system
+from .observability_tool import register_tools as register_observability
+from .python_tool import register_tools as register_python
 
 # Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
@@ -58,6 +60,8 @@ def register_all_tools(
     register_pdf_read(mcp)
     register_csv(mcp)
     register_system(mcp)
+    register_observability(mcp)
+    register_python(mcp)
 
     # Tools that need credentials (pass credentials if provided)
     register_web_search(mcp, credentials=credentials)
@@ -87,6 +91,8 @@ def register_all_tools(
         "execute_command_tool",
         "csv_tool",
         "system_tool",
+        "observability_tool",
+        "python_tool",
     ]
 
 
