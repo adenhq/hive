@@ -1,7 +1,10 @@
 import os
 
-# Use user home directory for workspaces
-WORKSPACES_DIR = os.path.expanduser("~/.hive/workdir/workspaces")
+# Use environment variable if set, otherwise default to ~/.hive
+WORKSPACES_DIR = os.getenv(
+    "HIVE_WORKSPACES_DIR", 
+    os.path.expanduser("~/.hive/workdir/workspaces")
+)
 
 def get_secure_path(path: str, workspace_id: str, agent_id: str, session_id: str) -> str:
     """Resolve and verify a path within a 3-layer sandbox (workspace/agent/session)."""
