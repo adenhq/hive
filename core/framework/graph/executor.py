@@ -11,6 +11,7 @@ The executor:
 
 import logging
 import time
+import collections
 from typing import Any, Callable
 from dataclasses import dataclass, field
 
@@ -44,6 +45,24 @@ class ExecutionResult:
     path: list[str] = field(default_factory=list)  # Node IDs traversed
     paused_at: str | None = None  # Node ID where execution paused for HITL
     session_state: dict[str, Any] = field(default_factory=dict)  # State to resume from
+
+
+@dataclass
+class LoopDetector:
+    """Detects if the agent is stuck in a semantic loop."""
+    max_history: int = 5
+    _history: collections.deque = field(default_factory=lambda: collections.deque(maxlen=5))
+
+    def check(self, node_id: str, memory_snapshot: str) -> bool:
+        """
+        Check if the current state has been seen recently.
+        Returns True if a loop is detected.
+        """
+        state = (node_id, memory_snapshot)
+        if state in self._history:
+            return True
+        self._history.append(state)
+        return False
 
 
 class GraphExecutor:
@@ -209,12 +228,19 @@ class GraphExecutor:
         states_dir.mkdir(parents=True, exist_ok=True)
 
         start_time = time.time()
+        loop_detector = LoopDetector(max_history=5)
 
         try:
             while steps < graph.max_steps:
                 # Check global timeout
                 if timeout_seconds and (time.time() - start_time > timeout_seconds):
                     raise TimeoutError(f"Graph execution timed out after {timeout_seconds} seconds")
+
+                # Semantic Loop Detection
+                memory_snapshot = str(memory.read_all())
+                if loop_detector.check(current_node_id, memory_snapshot):
+                    self.logger.error(f"   ⚠ Loop Detected: Agent is repeating state at node '{current_node_id}'")
+                    raise RuntimeError(f"Semantic loop detected at node '{current_node_id}'. Agent is repeating thoughts/actions.")
 
                 steps += 1
 

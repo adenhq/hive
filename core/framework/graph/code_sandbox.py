@@ -16,6 +16,10 @@ import ast
 import sys
 import signal
 import multiprocessing
+import time
+import io
+import os
+import resource
 from typing import Any
 from dataclasses import dataclass, field
 from contextlib import contextmanager
@@ -224,14 +228,13 @@ class CodeSandbox:
     def _set_memory_limit(self):
         """Set memory limit for the current process (Unix only)."""
         try:
-            import resource
             # Convert MB to bytes
             limit = self.memory_limit_mb * 1024 * 1024
             resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
-        except ImportError:
-            # Not available on Windows
+        except (ImportError, AttributeError):
+            # Not available on Windows or restricted environment
             pass
-        except Exception as e:
+        except Exception:
             # Log but don't fail if we can't set limits
             pass
 
@@ -367,7 +370,6 @@ class CodeSandbox:
         extract_vars: list[str],
     ) -> SandboxResult:
         """Execute code on Windows using multiprocessing for timeout."""
-        import time
         
         # We need a queue to get results back
         queue = multiprocessing.Queue()
@@ -376,7 +378,6 @@ class CodeSandbox:
         def target(q, c, i, e_vars):
             try:
                 # Redirect stdout inside process
-                import io
                 sys.stdout = captured = io.StringIO()
                 
                 # Create namespace and execute

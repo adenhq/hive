@@ -16,6 +16,11 @@ Protocol:
 """
 
 import logging
+import time
+import json
+import re
+import os
+import asyncio
 from abc import ABC, abstractmethod
 from typing import Any, Callable
 from dataclasses import dataclass, field
@@ -23,7 +28,7 @@ from dataclasses import dataclass, field
 from pydantic import BaseModel, Field
 
 from framework.runtime.core import Runtime
-from framework.llm.provider import LLMProvider, Tool
+from framework.llm.provider import LLMProvider, Tool, ToolUse, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +158,13 @@ class NodeSpec(BaseModel):
         default=1.5,
         description="Exponential backoff factor for retries"
     )
+
+    # Self-healing / Reflection
+    enable_reflection: bool = Field(
+        default=True,
+        description="Whether to automatically ask LLM to fix its own errors"
+    )
+    max_reflection_steps: int = Field(default=2)
 
     model_config = {"extra": "allow"}
 
@@ -449,7 +461,6 @@ class LLMNode(NodeProtocol):
 
     async def execute(self, ctx: NodeContext) -> NodeResult:
         """Execute the LLM node."""
-        import time
 
         if ctx.llm is None:
             return NodeResult(success=False, error="LLM not available")
@@ -499,7 +510,6 @@ class LLMNode(NodeProtocol):
 
                 # Call LLM
                 if ctx.available_tools and self.tool_executor:
-                    from framework.llm.provider import ToolUse, ToolResult
 
                     def executor(tool_use: ToolUse) -> ToolResult:
                         logger.info(f"         🔧 Tool call: {tool_use.name}({', '.join(f'{k}={v}' for k, v in tool_use.input.items())})")
@@ -560,51 +570,68 @@ class LLMNode(NodeProtocol):
 
                 # For llm_generate and llm_tool_use nodes, try to parse JSON and extract fields
                 if ctx.node_spec.node_type in ("llm_generate", "llm_tool_use") and len(ctx.node_spec.output_keys) >= 1:
-                    try:
-                        import json
+                    reflection_steps = 0
+                    last_error = None
+                    current_content = response.content
 
-                        # Try to extract JSON from response
-                        parsed = self._extract_json(response.content, ctx.node_spec.output_keys)
+                    while reflection_steps <= ctx.node_spec.max_reflection_steps:
+                        try:
+                            # Try to extract JSON from response
+                            parsed = self._extract_json(current_content, ctx.node_spec.output_keys)
 
-                        # If parsed successfully, write each field to its corresponding output key
-                        if isinstance(parsed, dict):
-                            for key in ctx.node_spec.output_keys:
-                                if key in parsed:
-                                    value = parsed[key]
-                                    # Strip code block wrappers from string values
-                                    if isinstance(value, str):
-                                        value = self._strip_code_blocks(value)
-                                    ctx.memory.write(key, value)
-                                    output[key] = value
-                                elif key in ctx.input_data:
-                                    # Key not in parsed JSON but exists in input - pass through input value
-                                    ctx.memory.write(key, ctx.input_data[key])
-                                    output[key] = ctx.input_data[key]
-                                else:
-                                    # Key not in parsed JSON or input, write the whole response (stripped)
-                                    stripped_content = self._strip_code_blocks(response.content)
-                                    ctx.memory.write(key, stripped_content)
-                                    output[key] = stripped_content
-                        else:
-                            # Not a dict, fall back to writing entire response to all keys (stripped)
-                            stripped_content = self._strip_code_blocks(response.content)
-                            for key in ctx.node_spec.output_keys:
-                                ctx.memory.write(key, stripped_content)
-                                output[key] = stripped_content
+                            # If parsed successfully, write each field to its corresponding output key
+                            if isinstance(parsed, dict):
+                                for key in ctx.node_spec.output_keys:
+                                    if key in parsed:
+                                        value = parsed[key]
+                                        # Strip code block wrappers from string values
+                                        if isinstance(value, str):
+                                            value = self._strip_code_blocks(value)
+                                        ctx.memory.write(key, value)
+                                        output[key] = value
+                                    elif key in ctx.input_data:
+                                        # Key not in parsed JSON but exists in input - pass through input value
+                                        ctx.memory.write(key, ctx.input_data[key])
+                                        output[key] = ctx.input_data[key]
+                                    else:
+                                        # Key not in parsed JSON or input, write the whole response (stripped)
+                                        stripped_content = self._strip_code_blocks(current_content)
+                                        ctx.memory.write(key, stripped_content)
+                                        output[key] = stripped_content
+                                break # Success!
+                            else:
+                                raise ValueError("LLM did not return a dictionary object")
 
-                    except (json.JSONDecodeError, Exception) as e:
-                        # JSON extraction failed - fail explicitly instead of polluting memory
-                        logger.error(f"      ✗ Failed to extract structured output: {e}")
-                        logger.error(f"      Raw response (first 500 chars): {response.content[:500]}...")
-
-                        # Return failure instead of writing garbage to all keys
-                        return NodeResult(
-                            success=False,
-                            error=f"Output extraction failed: {e}. LLM returned non-JSON response. Expected keys: {ctx.node_spec.output_keys}",
-                            output={},
-                            tokens_used=response.input_tokens + response.output_tokens,
-                            latency_ms=latency_ms,
-                        )
+                        except Exception as e:
+                            last_error = str(e)
+                            if not ctx.node_spec.enable_reflection or reflection_steps >= ctx.node_spec.max_reflection_steps:
+                                logger.error(f"      ✗ Failed to extract structured output: {e}")
+                                return NodeResult(
+                                    success=False,
+                                    error=f"Output extraction failed: {e}. Expected keys: {ctx.node_spec.output_keys}",
+                                    output={},
+                                    tokens_used=response.input_tokens + response.output_tokens,
+                                    latency_ms=latency_ms,
+                                )
+                            
+                            reflection_steps += 1
+                            logger.warning(f"      ⚠ Reflection {reflection_steps}/{ctx.node_spec.max_reflection_steps}: LLM made an error: {e}. Asking to fix...")
+                            
+                            # Build reflection prompt
+                            reflection_messages = messages + [
+                                {"role": "assistant", "content": current_content},
+                                {"role": "user", "content": f"Your previous response had an error: {e}. Please provide the output again, ensuring it is valid JSON with these keys: {ctx.node_spec.output_keys}. Output ONLY the JSON."}
+                            ]
+                            
+                            reflection_response = ctx.llm.complete(
+                                messages=reflection_messages,
+                                system=system,
+                                json_mode=True
+                            )
+                            current_content = reflection_response.content
+                            # Update metrics for reflection call
+                            ctx.runtime.increment_metric("total_tokens", reflection_response.input_tokens + reflection_response.output_tokens)
+                            ctx.runtime.increment_metric("llm_calls")
                 else:
                     # For non-llm_generate or single output nodes, write entire response (stripped)
                     stripped_content = self._strip_code_blocks(response.content)
@@ -624,7 +651,6 @@ class LLMNode(NodeProtocol):
                 if attempt < ctx.node_spec.max_retries:
                     wait_time = ctx.node_spec.backoff_factor ** (attempt - 1)
                     logger.warning(f"      ⚠ Attempt {attempt}/{ctx.node_spec.max_retries} failed: {e}. Retrying in {wait_time:.1f}s...")
-                    import asyncio
                     await asyncio.sleep(wait_time)
                     continue
 
@@ -657,9 +683,6 @@ class LLMNode(NodeProtocol):
         3. Balanced brace matching
         4. Haiku LLM fallback (last resort)
         """
-        import json
-        import re
-
         content = raw_response.strip()
 
         # Try direct JSON parse first (fast path)
@@ -696,19 +719,8 @@ class LLMNode(NodeProtocol):
             except json.JSONDecodeError:
                 pass
 
-        # Try to find JSON object by matching balanced braces (use module-level helper)
-        json_str = find_json_object(content)
-        if json_str:
-            try:
-                parsed = json.loads(json_str)
-                if isinstance(parsed, dict):
-                    return parsed
-            except json.JSONDecodeError:
-                pass
-
         # All local extraction methods failed - use LLM as last resort
         # Prefer Cerebras (faster/cheaper), fallback to Anthropic Haiku
-        import os
         api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("Cannot parse JSON and no API key for LLM cleanup (set CEREBRAS_API_KEY or ANTHROPIC_API_KEY)")
@@ -789,7 +801,6 @@ Output ONLY the JSON object, nothing else."""
             return "\n".join(parts) if parts else str(ctx.input_data)
 
         # Use Haiku to intelligently extract relevant data
-        import os
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             # Fallback to simple formatting if no API key
