@@ -462,5 +462,8 @@ class ExecutionStream:
             "completed_executions": len(self._execution_results),
             "status_counts": statuses,
             "max_concurrent": self.entry_spec.max_concurrent,
-            "available_slots": self._semaphore._value,
+            "available_slots": max(
+                0,
+                self.entry_spec.max_concurrent - statuses.get("running", 0),
+            ),
         }
