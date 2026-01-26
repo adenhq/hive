@@ -241,6 +241,39 @@ class GraphExecutor:
                                 value_str = value_str[:200] + "..."
                             self.logger.info(f"      {key}: {value_str}")
 
+                # Check for breakpoints (pause BEFORE execution)
+                should_break = self.runtime.should_break(current_node_id)
+                if should_break and session_state and session_state.get("paused_at") == current_node_id:
+                     # Only skip if this is the immediate resumption step (step 1)
+                     if steps == 1:
+                         should_break = False
+
+                if should_break:
+                    self.logger.info(f"🛑 BREAKPOINT hit at: {node_spec.name}")
+                    saved_memory = memory.read_all()
+                    session_state_out = {
+                        "paused_at": current_node_id,
+                        "resume_from": current_node_id, # Resume at this node
+                        "memory": saved_memory,
+                    }
+                    
+                    self.runtime.end_run(
+                        success=True,
+                        output_data=saved_memory,
+                        narrative=f"Paused at breakpoint (node {current_node_id})",
+                    )
+
+                    return ExecutionResult(
+                        success=True,
+                        output=saved_memory,
+                        steps_executed=steps,
+                        total_tokens=total_tokens,
+                        total_latency_ms=total_latency,
+                        path=path,
+                        paused_at=current_node_id,
+                        session_state=session_state_out,
+                    )
+
                 # Get or create node implementation
                 node_impl = self._get_node_implementation(node_spec)
 

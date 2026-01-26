@@ -96,6 +96,9 @@ class StreamRuntime:
         # Track current node per execution (for decision context)
         self._current_nodes: dict[str, str] = {}
 
+        # Breakpoints
+        self._breakpoints: set[str] = set()
+
     # === RUN LIFECYCLE ===
 
     def start_run(
@@ -393,13 +396,31 @@ class StreamRuntime:
         """Get list of active execution IDs."""
         return list(self._runs.keys())
 
-    def get_stats(self) -> dict:
-        """Get runtime statistics."""
         return {
             "stream_id": self.stream_id,
             "active_executions": len(self._runs),
             "execution_ids": list(self._runs.keys()),
         }
+
+    # === DEBUGGING ===
+
+    def set_breakpoints(self, breakpoints: set[str]) -> None:
+        """Set all breakpoints."""
+        self._breakpoints = set(breakpoints)
+
+    def add_breakpoint(self, node_id: str) -> None:
+        """Add a breakpoint at a specific node."""
+        self._breakpoints.add(node_id)
+        logger.info(f"Breakpoint added at {node_id} in stream {self.stream_id}")
+
+    def remove_breakpoint(self, node_id: str) -> None:
+        """Remove a breakpoint."""
+        self._breakpoints.discard(node_id)
+        logger.info(f"Breakpoint removed from {node_id} in stream {self.stream_id}")
+
+    def should_break(self, node_id: str) -> bool:
+        """Check if execution should pause at this node."""
+        return node_id in self._breakpoints
 
 
 class StreamRuntimeAdapter:
@@ -538,3 +559,7 @@ class StreamRuntimeAdapter:
             reasoning=reasoning,
             node_id=node_id or self._current_node,
         )
+
+    def should_break(self, node_id: str) -> bool:
+        """Check if execution should pause at this node."""
+        return self._runtime.should_break(node_id)

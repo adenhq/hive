@@ -556,3 +556,17 @@ class ExecutionStream:
             "max_concurrent": self.entry_spec.max_concurrent,
             "available_slots": self._semaphore._value,
         }
+
+    # === DEBUGGING ===
+
+    def set_breakpoints(self, breakpoints: set[str]) -> None:
+        """Set all breakpoints for this stream."""
+        self._runtime.set_breakpoints(breakpoints)
+
+    def add_breakpoint(self, node_id: str) -> None:
+        """Add a breakpoint at a specific node."""
+        self._runtime.add_breakpoint(node_id)
+
+    def remove_breakpoint(self, node_id: str) -> None:
+        """Remove a breakpoint."""
+        self._runtime.remove_breakpoint(node_id)

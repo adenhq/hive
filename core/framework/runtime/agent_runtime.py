@@ -137,6 +137,9 @@ class AgentRuntime:
         # State
         self._running = False
         self._lock = asyncio.Lock()
+        
+        # Debugging
+        self._breakpoints: set[str] = set()
 
     def register_entry_point(self, spec: EntryPointSpec) -> None:
         """
@@ -207,6 +210,7 @@ class AgentRuntime:
                     tools=self._tools,
                     tool_executor=self._tool_executor,
                 )
+                stream.set_breakpoints(self._breakpoints)
                 await stream.start()
                 self._streams[ep_id] = stream
 
@@ -427,6 +431,33 @@ class AgentRuntime:
             "event_bus": self._event_bus.get_stats(),
             "state_manager": self._state_manager.get_stats(),
         }
+
+    # === DEBUGGING ===
+
+    def set_breakpoint(self, node_id: str) -> None:
+        """
+        Add a global breakpoint at a specific node.
+        
+        The execution will pause BEFORE executing this node.
+        """
+        self._breakpoints.add(node_id)
+        for stream in self._streams.values():
+            stream.add_breakpoint(node_id)
+        logger.info(f"Global breakpoint added: {node_id}")
+
+    def remove_breakpoint(self, node_id: str) -> None:
+        """Remove a global breakpoint."""
+        self._breakpoints.discard(node_id)
+        for stream in self._streams.values():
+            stream.remove_breakpoint(node_id)
+        logger.info(f"Global breakpoint removed: {node_id}")
+
+    def clear_breakpoints(self) -> None:
+        """Remove all breakpoints."""
+        self._breakpoints.clear()
+        for stream in self._streams.values():
+            stream.set_breakpoints(set())
+        logger.info("All breakpoints cleared")
 
     # === PROPERTIES ===
 
