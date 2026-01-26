@@ -24,47 +24,13 @@ from pydantic import BaseModel, Field
 
 from framework.runtime.core import Runtime
 from framework.llm.provider import LLMProvider, Tool
+from framework.utils import find_json_object
+from framework.config import DEFAULT_ROUTING_MODEL
 
 logger = logging.getLogger(__name__)
 
 
-def find_json_object(text: str) -> str | None:
-    """Find the first valid JSON object in text using balanced brace matching.
 
-    This handles nested objects correctly, unlike simple regex like r'\\{[^{}]*\\}'.
-    """
-    start = text.find('{')
-    if start == -1:
-        return None
-
-    depth = 0
-    in_string = False
-    escape_next = False
-
-    for i, char in enumerate(text[start:], start):
-        if escape_next:
-            escape_next = False
-            continue
-
-        if char == '\\' and in_string:
-            escape_next = True
-            continue
-
-        if char == '"' and not escape_next:
-            in_string = not in_string
-            continue
-
-        if in_string:
-            continue
-
-        if char == '{':
-            depth += 1
-        elif char == '}':
-            depth -= 1
-            if depth == 0:
-                return text[start:i + 1]
-
-    return None
 
 
 class NodeSpec(BaseModel):
@@ -377,7 +343,7 @@ Provide a concise, clear summary that a human can quickly understand. Focus on t
 
             client = anthropic.Anthropic(api_key=api_key)
             message = client.messages.create(
-                model="claude-3-5-haiku-20241022",
+                model=DEFAULT_ROUTING_MODEL,
                 max_tokens=200,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -756,7 +722,7 @@ class LLMNode(NodeProtocol):
             # Fallback to Anthropic Haiku via LiteLLM for consistency
             cleaner_llm = LiteLLMProvider(
                 api_key=api_key,
-                model="claude-3-5-haiku-20241022",
+                model=DEFAULT_ROUTING_MODEL,
                 temperature=0.0
             )
 

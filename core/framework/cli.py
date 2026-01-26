@@ -21,6 +21,16 @@ import sys
 
 
 def main():
+    # Fix for Windows Unicode console output (Issue #531)
+    if sys.platform == "win32":
+        try:
+            # Reconfigure stdout/stderr to use utf-8 to support emojis/unicode
+            sys.stdout.reconfigure(encoding='utf-8')
+            sys.stderr.reconfigure(encoding='utf-8')
+        except AttributeError:
+            # Older python versions or weird envs might not support reconfigure
+            pass
+
     parser = argparse.ArgumentParser(
         description="Goal Agent - Build and run goal-driven agents"
     )
