@@ -193,12 +193,10 @@ class SharedMemory:
             raise PermissionError(f"Node not allowed to write key: {key}")
 
         if validate and isinstance(value, str):
-            # Check for obviously hallucinated content
             if len(value) > 5000:
-                # Long strings that look like code are suspicious
-                if self._contains_code_indicators(value):
+                if self._looks_like_hallucinated_code(value):
                     logger.warning(
-                        f"⚠ Suspicious write to key '{key}': appears to be code "
+                        f"⚠ Suspicious write to key '{key}': appears to be hallucinated code "
                         f"({len(value)} chars). Consider using validate=False if intended."
                     )
                     raise MemoryWriteError(
@@ -208,6 +206,51 @@ class SharedMemory:
                     )
 
         self._data[key] = value
+
+    def _looks_like_hallucinated_code(self, value: str) -> bool:
+        """
+        Distinguish hallucinated code from legitimate tool/execution output.
+        
+        Legitimate output has contextual markers (error messages, execution logs, etc.)
+        Hallucinated code is raw code without context.
+        
+        Returns True if likely hallucinated, False if legitimate.
+        """
+        code_indicators = [
+            "def ", "class ", "import ", "async def ", "from ",
+            "function ", "const ", "let ", "require(", "export ",
+            "SELECT ", "INSERT ", "UPDATE ", "DELETE ", "DROP ",
+            "<script", "<?php", "<%",
+        ]
+        
+        legitimate_markers = [
+            "error:", "warning:", "suggestion:", "analyzing", "found",
+            "issue:", "problem:", "hint:", "note:",
+            "result:", "output:", "stdout:", "stderr:", "executing", 
+            "running", "completed", "finished",
+            "test", "failed", "passed", "success", "assert",
+            "fix:", "before:", "after:", "change:", "modified:",
+        ]
+        
+        value_lower = value.lower()
+        indicator_count = sum(1 for indicator in code_indicators if indicator in value)
+        
+        if indicator_count == 0:
+            return False
+        
+        context_markers = [m for m in legitimate_markers if m in value_lower]
+        has_strong_context = len(context_markers) >= 2
+        
+        if has_strong_context:
+            return False
+        
+        has_markdown_blocks = value.count("```") >= 2
+        has_weak_context = len(context_markers) == 1
+        
+        if has_markdown_blocks and has_weak_context:
+            return False
+        
+        return True
 
     def _contains_code_indicators(self, value: str) -> bool:
         """
