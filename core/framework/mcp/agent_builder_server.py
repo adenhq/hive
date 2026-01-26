@@ -1378,8 +1378,8 @@ def export_graph() -> str:
     agent_json_path = exports_dir / "agent.json"
 
     atomic_write_text(
-    agent_json_path,
-    lambda f: json.dump(export_data, f, indent=2, default=str)
+        agent_json_path,
+        lambda f: json.dump(export_data, f, indent=2, default=str)
 )
 
     # Generate README.md
@@ -1387,8 +1387,8 @@ def export_graph() -> str:
     readme_path = exports_dir / "README.md"
 
     atomic_write_text(
-    readme_path,
-    lambda f: f.write(readme_content),
+        readme_path,
+        lambda f: f.write(readme_content),
 )
   
 
@@ -1399,16 +1399,15 @@ def export_graph() -> str:
     if session.mcp_servers:
        mcp_config = {
         "servers": session.mcp_servers
-    }
-    mcp_servers_path = exports_dir / "mcp_servers.json"
+       }
+       mcp_servers_path = exports_dir / "mcp_servers.json"
 
-    atomic_write_text(
-        mcp_servers_path,
-        lambda f: json.dump(mcp_config, f, indent=2),
-    )
+       atomic_write_text(
+           mcp_servers_path,
+           lambda f: json.dump(mcp_config, f, indent=2),
+       )
 
-    mcp_servers_size = mcp_servers_path.stat().st_size
-
+       mcp_servers_size = mcp_servers_path.stat().st_size
 
     # Get file sizes
     agent_json_size = agent_json_path.stat().st_size
