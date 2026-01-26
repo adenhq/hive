@@ -2,6 +2,47 @@
 
 Complete setup guide for building and running goal-driven agents with the Aden Agent Framework.
 
+## Platform-Specific Notes
+
+### Windows Users
+
+The setup scripts are bash-based and require **WSL (Windows Subsystem for Linux)**.
+
+1. **Install WSL** (if not already installed):
+   ```powershell
+   wsl --install
+   ```
+
+2. **Clone to a native Linux path** (important!):
+   ```bash
+   # Correct - clone inside WSL's native filesystem
+   cd ~
+   git clone https://github.com/adenhq/hive.git
+   cd hive
+   
+   # Avoid - do NOT clone to /mnt/c/ (Windows mount)
+   # This causes permission and script execution issues
+   ```
+
+3. Continue with the Quick Setup below.
+
+### Python 3.12+ on Ubuntu/Debian (PEP 668)
+
+Python 3.12+ on Ubuntu/Debian uses "externally managed" environments (PEP 668), which blocks global pip installs. **You must use a virtual environment**:
+
+```bash
+# Create a virtual environment
+python3 -m venv .venv
+
+# Activate it (required before running setup)
+source .venv/bin/activate
+
+# Now run the setup script
+./scripts/setup-python.sh
+```
+
+> **Note:** Always activate the virtual environment (`source .venv/bin/activate`) before working with the project.
+
 ## Quick Setup
 
 ```bash
@@ -20,6 +61,14 @@ This will:
 ## Manual Setup (Alternative)
 
 If you prefer to set up manually or the script fails:
+
+### 0. Create Virtual Environment (Python 3.12+ / Ubuntu)
+
+```bash
+# Required for Python 3.12+ on Ubuntu/Debian
+python3 -m venv .venv
+source .venv/bin/activate
+```
 
 ### 1. Install Core Framework
 

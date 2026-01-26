@@ -67,6 +67,7 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 
 - [Python 3.11+](https://www.python.org/downloads/) for agent development
 - [Docker](https://docs.docker.com/get-docker/) (v20.10+) - Optional, for containerized tools
+- **Windows users:** [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) is required (setup scripts are bash-based)
 
 ### Installation
 
@@ -75,9 +76,14 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 git clone https://github.com/adenhq/hive.git
 cd hive
 
+# Python 3.12+ on Ubuntu/Debian: create a virtual environment first
+python3 -m venv .venv && source .venv/bin/activate
+
 # Run Python environment setup
 ./scripts/setup-python.sh
 ```
+
+> **Windows/WSL users:** Clone to a native Linux path (e.g., `~/hive`), not `/mnt/c/...`. See [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) for details.
 
 This installs:
 - **framework** - Core agent runtime and graph executor

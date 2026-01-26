@@ -70,6 +70,33 @@ fi
 echo -e "${GREEN}✓${NC} pip detected"
 echo ""
 
+# Check if running in a virtual environment (required for Python 3.12+ on Ubuntu/Debian)
+IN_VENV=$($PYTHON_CMD -c 'import sys; print(1 if (hasattr(sys, "real_prefix") or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix)) else 0)')
+
+if [ "$IN_VENV" = "0" ]; then
+    # Check if we're on a system with externally managed Python (PEP 668)
+    if [ -f "/usr/lib/python${PYTHON_VERSION}/EXTERNALLY-MANAGED" ] || [ -f "/usr/lib/python3/EXTERNALLY-MANAGED" ]; then
+        echo -e "${RED}Error: Python is externally managed (PEP 668) and no virtual environment is active.${NC}"
+        echo ""
+        echo "On Python 3.12+ with Ubuntu/Debian, you must use a virtual environment."
+        echo ""
+        echo "To fix this, run:"
+        echo -e "  ${BLUE}python3 -m venv .venv${NC}"
+        echo -e "  ${BLUE}source .venv/bin/activate${NC}"
+        echo -e "  ${BLUE}./scripts/setup-python.sh${NC}"
+        echo ""
+        exit 1
+    else
+        echo -e "${YELLOW}Warning: Not running in a virtual environment.${NC}"
+        echo -e "${YELLOW}Consider using a virtual environment for isolation:${NC}"
+        echo -e "${YELLOW}  python3 -m venv .venv && source .venv/bin/activate${NC}"
+        echo ""
+    fi
+else
+    echo -e "${GREEN}✓${NC} Virtual environment detected"
+    echo ""
+fi
+
 # Upgrade pip, setuptools, and wheel
 echo "Upgrading pip, setuptools, and wheel..."
 if ! $PYTHON_CMD -m pip install --upgrade pip setuptools wheel; then
