@@ -47,6 +47,9 @@ Ensure you have installed:
 - **pip** - Package installer for Python (comes with Python)
 - **git** - Version control
 - **Claude Code** - [Install](https://docs.anthropic.com/claude/docs/claude-code) (optional, for using building skills)
+- **Docker** - [Install](https://docs.docker.com/get-docker/) (v20.10+) - **Optional**
+  - **Not needed** for basic agent development, testing, or running examples
+  - **Only required** for containerized deployments (see [tools/Dockerfile](../tools/Dockerfile))
 
 Verify installation:
 

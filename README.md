@@ -66,7 +66,9 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 ### Prerequisites
 
 - [Python 3.11+](https://www.python.org/downloads/) for agent development
-- [Docker](https://docs.docker.com/get-docker/) (v20.10+) - Optional, for containerized tools
+- [Docker](https://docs.docker.com/get-docker/) (v20.10+) - **Optional**
+  - **Not required** for initial setup, running examples, or building basic agents
+  - **Required only** if you want to run agents in containerized environments or use the tools package Dockerfile
 
 ### Installation
 
@@ -80,6 +82,7 @@ cd hive
 ```
 
 This installs:
+
 - **framework** - Core agent runtime and graph executor
 - **aden_tools** - 19 MCP tools for agent capabilities
 - All required dependencies
