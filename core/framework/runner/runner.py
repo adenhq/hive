@@ -4,7 +4,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Any
+from typing import Any, Callable, TYPE_CHECKING
 
 from framework.graph import Goal
 from framework.graph.edge import GraphSpec, EdgeSpec, EdgeCondition, AsyncEntryPointSpec
@@ -32,16 +32,16 @@ class AgentInfo:
     goal_description: str
     node_count: int
     edge_count: int
-    nodes: list[dict]
-    edges: list[dict]
+    nodes: list[dict[str, Any]]
+    edges: list[dict[str, Any]]
     entry_node: str
     terminal_nodes: list[str]
-    success_criteria: list[dict]
-    constraints: list[dict]
+    success_criteria: list[dict[str, Any]]
+    constraints: list[dict[str, Any]]
     required_tools: list[str]
     has_tools_module: bool
     # Multi-entry-point support
-    async_entry_points: list[dict] = field(default_factory=list)
+    async_entry_points: list[dict[str, Any]] = field(default_factory=list[Any])
     is_multi_entry_point: bool = False
 
 
@@ -50,13 +50,13 @@ class ValidationResult:
     """Result of agent validation."""
 
     valid: bool
-    errors: list[str] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
-    missing_tools: list[str] = field(default_factory=list)
-    missing_credentials: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list[Any])
+    warnings: list[str] = field(default_factory=list[Any])
+    missing_tools: list[str] = field(default_factory=list[Any])
+    missing_credentials: list[str] = field(default_factory=list[Any])
 
 
-def load_agent_export(data: str | dict) -> tuple[GraphSpec, Goal]:
+def load_agent_export(data: str | dict[str, Any]) -> tuple[GraphSpec, Goal]:
     """
     Load GraphSpec and Goal from export_graph() output.
 
@@ -291,7 +291,7 @@ class AgentRunner:
     def register_tool(
         self,
         name: str,
-        tool_or_func: Tool | Callable,
+        tool_or_func: Tool | Callable[..., Any],
         executor: Callable | None = None,
     ) -> None:
         """
@@ -383,7 +383,7 @@ class AgentRunner:
         except Exception as e:
             print(f"Warning: Failed to load MCP servers config from {config_path}: {e}")
 
-    def set_approval_callback(self, callback: Callable) -> None:
+    def set_approval_callback(self, callback: Callable[..., Any]) -> None:
         """
         Set a callback for human-in-the-loop approval during execution.
 
@@ -464,7 +464,7 @@ class AgentRunner:
             # Default: assume OpenAI-compatible
             return "OPENAI_API_KEY"
 
-    def _setup_legacy_executor(self, tools: list, tool_executor: Callable | None) -> None:
+    def _setup_legacy_executor(self, tools: list[Any], tool_executor: Callable | None) -> None:
         """Set up legacy single-entry-point execution using GraphExecutor."""
         # Create runtime
         self._runtime = Runtime(storage_path=self._storage_path)
@@ -478,7 +478,7 @@ class AgentRunner:
             approval_callback=self._approval_callback,
         )
 
-    def _setup_agent_runtime(self, tools: list, tool_executor: Callable | None) -> None:
+    def _setup_agent_runtime(self, tools: list[Any], tool_executor: Callable | None) -> None:
         """Set up multi-entry-point execution using AgentRuntime."""
         # Convert AsyncEntryPointSpec to EntryPointSpec for AgentRuntime
         entry_points = []
@@ -542,7 +542,7 @@ class AgentRunner:
 
     async def _run_with_executor(
         self,
-        input_data: dict,
+        input_data: dict[str, Any],
         session_state: dict | None = None,
     ) -> ExecutionResult:
         """Run using legacy GraphExecutor (single entry point)."""
@@ -558,7 +558,7 @@ class AgentRunner:
 
     async def _run_with_agent_runtime(
         self,
-        input_data: dict,
+        input_data: dict[str, Any],
         entry_point_id: str | None = None,
     ) -> ExecutionResult:
         """Run using AgentRuntime (multi-entry-point)."""
@@ -785,7 +785,7 @@ class AgentRunner:
         missing_tools = []
 
         # Validate graph structure
-        graph_errors = self.graph.validate()
+        graph_errors = self.graph.validate_graph()
         errors.extend(graph_errors)
 
         # Check goal has success criteria
@@ -848,7 +848,7 @@ class AgentRunner:
             missing_credentials=missing_credentials,
         )
 
-    async def can_handle(self, request: dict, llm: LLMProvider | None = None) -> "CapabilityResponse":
+    async def can_handle(self, request: dict[str, Any], llm: LLMProvider | None = None) -> "CapabilityResponse":
         """
         Ask the agent if it can handle this request.
 
@@ -940,7 +940,7 @@ Respond with JSON only:
 
         return self._keyword_capability_check(request)
 
-    def _keyword_capability_check(self, request: dict) -> "CapabilityResponse":
+    def _keyword_capability_check(self, request: dict[str, Any]) -> "CapabilityResponse":
         """Simple keyword-based capability check (fallback when no LLM)."""
         from framework.runner.protocol import CapabilityResponse, CapabilityLevel
 

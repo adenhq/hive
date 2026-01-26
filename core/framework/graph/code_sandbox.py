@@ -18,6 +18,7 @@ import signal
 from typing import Any
 from dataclasses import dataclass, field
 from contextlib import contextmanager
+import platform
 
 # Safe builtins whitelist
 SAFE_BUILTINS = {
@@ -31,9 +32,9 @@ SAFE_BUILTINS = {
     "int": int,
     "float": float,
     "str": str,
-    "list": list,
-    "dict": dict,
-    "set": set,
+    "list": list[Any],
+    "dict": dict[str, Any],
+    "set": set[Any],
     "tuple": tuple,
     "frozenset": frozenset,
 
@@ -114,17 +115,17 @@ class SecurityError(CodeSandboxError):
 class SandboxResult:
     """Result of sandboxed code execution."""
     success: bool
-    result: Any = None
+    result: Any | None = None
     error: str | None = None
     stdout: str = ""
-    variables: dict[str, Any] = field(default_factory=dict)
+    variables: dict[str, Any] = field(default_factory=dict[str, Any])
     execution_time_ms: int = 0
 
 
 class RestrictedImporter:
     """Custom importer that only allows whitelisted modules."""
 
-    def __init__(self, allowed_modules: set[str]):
+    def __init__(self, allowed_modules: set[str]) -> None:
         self.allowed_modules = allowed_modules
         self._cache: dict[str, Any] = {}
 
@@ -142,7 +143,7 @@ class RestrictedImporter:
 class CodeValidator:
     """Validates code for safety before execution."""
 
-    def __init__(self, blocked_nodes: set[type] | None = None):
+    def __init__(self, blocked_nodes: set[type] | None = None) -> None:
         self.blocked_nodes = blocked_nodes or BLOCKED_AST_NODES
 
     def validate(self, code: str) -> list[str]:
@@ -210,15 +211,17 @@ class CodeSandbox:
         self.importer = RestrictedImporter(self.allowed_modules)
 
     @contextmanager
-    def _timeout_context(self, seconds: int):
+    def _timeout_context(self, seconds: int) -> None:
         """Context manager for timeout enforcement."""
-        def handler(signum, frame):
+        def handler(signum, frame) -> None:
             raise TimeoutError(f"Code execution timed out after {seconds} seconds")
 
         # Only works on Unix-like systems
         if hasattr(signal, 'SIGALRM'):
             old_handler = signal.signal(signal.SIGALRM, handler)
-            signal.alarm(seconds)
+            if platform.system() != "Windows":
+                old_handler = signal.signal(signal.SIGALRM, handler)
+                signal.alarm(seconds)
             try:
                 yield
             finally:

@@ -45,8 +45,8 @@ class TestResult(BaseModel):
     )
 
     # Output comparison
-    actual_output: Any = None
-    expected_output: Any = None
+    actual_output: Any | None = None
+    expected_output: Any | None = None
 
     # Error details (populated on failure)
     error_message: str | None = None
@@ -55,15 +55,15 @@ class TestResult(BaseModel):
 
     # Runtime data for debugging
     runtime_logs: list[dict[str, Any]] = Field(
-        default_factory=list,
+        default_factory=list[Any],
         description="Log entries from test execution"
     )
     node_outputs: dict[str, Any] = Field(
-        default_factory=dict,
+        default_factory=dict[str, Any],
         description="Output from each node executed during test"
     )
     execution_path: list[str] = Field(
-        default_factory=list,
+        default_factory=list[Any],
         description="Sequence of nodes executed"
     )
 
@@ -102,7 +102,7 @@ class TestSuiteResult(BaseModel):
     errors: int = 0  # Tests that couldn't run (e.g., exceptions in setup)
     skipped: int = 0
 
-    results: list[TestResult] = Field(default_factory=list)
+    results: list[TestResult] = Field(default_factory=list[Any])
 
     duration_ms: int = Field(
         default=0,

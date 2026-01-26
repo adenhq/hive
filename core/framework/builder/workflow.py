@@ -40,9 +40,9 @@ class BuildPhase(str, Enum):
 class ValidationResult(BaseModel):
     """Result of a validation check."""
     valid: bool
-    errors: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
-    suggestions: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list[Any])
+    warnings: list[str] = Field(default_factory=list[Any])
+    suggestions: list[str] = Field(default_factory=list[Any])
 
 
 class TestCase(BaseModel):
@@ -50,7 +50,7 @@ class TestCase(BaseModel):
     id: str
     description: str
     input: dict[str, Any]
-    expected_output: Any = None  # None means just check it doesn't error
+    expected_output: Any | None = None  # None means just check it doesn't error
     expected_contains: str | None = None
 
 
@@ -58,9 +58,9 @@ class TestResult(BaseModel):
     """Result of running a test case."""
     test_id: str
     passed: bool
-    actual_output: Any = None
+    actual_output: Any | None = None
     error: str | None = None
-    execution_path: list[str] = Field(default_factory=list)
+    execution_path: list[str] = Field(default_factory=list[Any])
 
 
 class BuildSession(BaseModel):
@@ -77,18 +77,18 @@ class BuildSession(BaseModel):
 
     # The artifacts being built
     goal: Goal | None = None
-    nodes: list[NodeSpec] = Field(default_factory=list)
-    edges: list[EdgeSpec] = Field(default_factory=list)
+    nodes: list[NodeSpec] = Field(default_factory=list[Any])
+    edges: list[EdgeSpec] = Field(default_factory=list[Any])
 
     # Test cases
-    test_cases: list[TestCase] = Field(default_factory=list)
-    test_results: list[TestResult] = Field(default_factory=list)
+    test_cases: list[TestCase] = Field(default_factory=list[Any])
+    test_results: list[TestResult] = Field(default_factory=list[Any])
 
     # Approval history
-    approvals: list[dict[str, Any]] = Field(default_factory=list)
+    approvals: list[dict[str, Any]] = Field(default_factory=list[Any])
 
     # Tools (stored as dicts for serialization)
-    tools: list[dict[str, Any]] = Field(default_factory=list)
+    tools: list[dict[str, Any]] = Field(default_factory=list[Any])
 
     model_config = {"extra": "allow"}
 
@@ -102,18 +102,18 @@ class GraphBuilder:
 
         # Step 1: Define and approve goal
         builder.set_goal(goal)
-        builder.validate()  # Must pass
+        builder.validate_graph()  # Must pass
         builder.approve("Goal looks good")  # Human approval required
 
         # Step 2: Add nodes one by one
         builder.add_node(node_spec)
-        builder.validate()  # Must pass
+        builder.validate_graph()  # Must pass
         builder.test(test_case)  # Must pass
         builder.approve("Node works")
 
         # Step 3: Add edges
         builder.add_edge(edge_spec)
-        builder.validate()
+        builder.validate_graph()
         builder.approve("Edge correct")
 
         # Step 4: Final approval
@@ -440,7 +440,7 @@ class GraphBuilder:
     def run_test(
         self,
         test: TestCase,
-        executor_factory: Callable,
+        executor_factory: Callable[..., Any],
     ) -> TestResult:
         """
         Run a single test case.
@@ -490,7 +490,7 @@ class GraphBuilder:
 
         return test_result
 
-    def run_all_tests(self, executor_factory: Callable) -> list[TestResult]:
+    def run_all_tests(self, executor_factory: Callable[..., Any]) -> list[TestResult]:
         """Run all test cases."""
         results = []
         for test in self.session.test_cases:
@@ -538,7 +538,7 @@ class GraphBuilder:
         Requires all tests to pass.
         """
         # Run final validation
-        validation = self.validate()
+        validation = self.validate_graph()
         if not validation.valid:
             self._pending_validation = validation
             return False

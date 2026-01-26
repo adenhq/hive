@@ -51,7 +51,7 @@ class AgentEvent:
     type: EventType
     stream_id: str
     execution_id: str | None = None
-    data: dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict[str, Any])
     timestamp: datetime = field(default_factory=datetime.now)
     correlation_id: str | None = None  # For tracking related events
 

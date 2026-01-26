@@ -11,7 +11,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 from mcp.server import FastMCP
 
@@ -37,13 +37,13 @@ ACTIVE_SESSION_FILE = SESSIONS_DIR / ".active"
 class BuildSession:
     """Build session with persistence support."""
 
-    def __init__(self, name: str, session_id: str | None = None):
+    def __init__(self, name: str, session_id: str | None = None) -> None:
         self.id = session_id or f"build_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.name = name
         self.goal: Goal | None = None
         self.nodes: list[NodeSpec] = []
         self.edges: list[EdgeSpec] = []
-        self.mcp_servers: list[dict] = []  # MCP server configurations
+        self.mcp_servers: list[dict[str, Any]] = []  # MCP server configurations
         self.created_at = datetime.now().isoformat()
         self.last_modified = datetime.now().isoformat()
 
@@ -61,7 +61,7 @@ class BuildSession:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "BuildSession":
+    def from_dict(cls, data: dict[str, Any]) -> "BuildSession":
         """Deserialize session from dictionary."""
         session = cls(name=data["name"], session_id=data["session_id"])
         session.created_at = data.get("created_at", session.created_at)
@@ -110,12 +110,12 @@ class BuildSession:
 _session: BuildSession | None = None
 
 
-def _ensure_sessions_dir():
+def _ensure_sessions_dir() -> None:
     """Ensure sessions directory exists."""
     SESSIONS_DIR.mkdir(exist_ok=True)
 
 
-def _save_session(session: BuildSession):
+def _save_session(session: BuildSession) -> None:
     """Save session to disk."""
     _ensure_sessions_dir()
 
@@ -346,7 +346,7 @@ def set_goal(
 
     # Validate required fields in criteria and constraints
     for i, sc in enumerate(criteria_list):
-        if not isinstance(sc, dict):
+        if not isinstance(sc, dict[str, Any]):
             errors.append(f"success_criteria[{i}] must be an object")
         else:
             if "id" not in sc:
@@ -355,7 +355,7 @@ def set_goal(
                 errors.append(f"success_criteria[{i}] missing required field 'description'")
 
     for i, c in enumerate(constraint_list):
-        if not isinstance(c, dict):
+        if not isinstance(c, dict[str, Any]):
             errors.append(f"constraints[{i}] must be an object")
         else:
             if "id" not in c:
@@ -1042,7 +1042,7 @@ def validate_graph() -> str:
     })
 
 
-def _generate_readme(session: BuildSession, export_data: dict, all_tools: set) -> str:
+def _generate_readme(session: BuildSession, export_data: dict[str, Any], all_tools: set[Any]) -> str:
     """Generate README.md content for the exported agent."""
     goal = session.goal
     nodes = session.nodes
@@ -1655,7 +1655,7 @@ def list_mcp_tools(
                 "error": f"Failed to connect: {str(e)}"
             }
 
-    total_tools = sum(len(tools) if isinstance(tools, list) else 0 for tools in all_tools.values())
+    total_tools = sum(len(tools) if isinstance(tools, list[Any]) else 0 for tools in all_tools.values())
 
     return json.dumps({
         "success": True,
@@ -1877,7 +1877,7 @@ def test_graph(
 # =============================================================================
 
 # Storage for evaluation rules
-_evaluation_rules: list[dict] = []
+_evaluation_rules: list[dict[str, Any]] = []
 
 
 @mcp.tool()
@@ -2108,7 +2108,7 @@ def validate_plan(
             errors.append(f"Step '{step_id}': code_execution requires code")
 
     # Check for circular dependencies
-    def has_cycle(step_id: str, visited: set, path: set) -> bool:
+    def has_cycle(step_id: str, visited: set[Any], path: set[Any]) -> bool:
         if step_id in path:
             return True
         if step_id in visited:
@@ -2447,7 +2447,7 @@ def generate_constraint_tests(
             "required_decorator": "@pytest.mark.asyncio",
             "required_fixture": "mock_mode",
             "agent_call_pattern": "result = await default_agent.run(input_dict, mock_mode=mock_mode)",
-            "result_type": "ExecutionResult with .success (bool), .output (dict), .error (str|None)",
+            "result_type": "ExecutionResult with .success (bool), .output (dict[str, Any]), .error (str|None)",
             "critical_rules": [
                 "Every test function MUST be async with @pytest.mark.asyncio decorator",
                 "Every test MUST accept mock_mode as a parameter",
@@ -2531,7 +2531,7 @@ def generate_success_tests(
             "required_decorator": "@pytest.mark.asyncio",
             "required_fixture": "mock_mode",
             "agent_call_pattern": "result = await default_agent.run(input_dict, mock_mode=mock_mode)",
-            "result_type": "ExecutionResult with .success (bool), .output (dict), .error (str|None)",
+            "result_type": "ExecutionResult with .success (bool), .output (dict[str, Any]), .error (str|None)",
             "critical_rules": [
                 "Every test function MUST be async with @pytest.mark.asyncio decorator",
                 "Every test MUST accept mock_mode as a parameter",
@@ -2953,7 +2953,7 @@ def list_tests(
 # PLAN LOADING AND EXECUTION
 # =============================================================================
 
-def load_plan_from_json(plan_json: str | dict) -> Plan:
+def load_plan_from_json(plan_json: str | dict[str, Any]) -> Plan:
     """
     Load a Plan object from exported JSON.
 

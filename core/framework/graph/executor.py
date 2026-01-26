@@ -35,14 +35,14 @@ from framework.llm.provider import LLMProvider, Tool
 class ExecutionResult:
     """Result of executing a graph."""
     success: bool
-    output: dict[str, Any] = field(default_factory=dict)
+    output: dict[str, Any] = field(default_factory=dict[str, Any])
     error: str | None = None
     steps_executed: int = 0
     total_tokens: int = 0
     total_latency_ms: int = 0
-    path: list[str] = field(default_factory=list)  # Node IDs traversed
+    path: list[str] = field(default_factory=list[Any])  # Node IDs traversed
     paused_at: str | None = None  # Node ID where execution paused for HITL
-    session_state: dict[str, Any] = field(default_factory=dict)  # State to resume from
+    session_state: dict[str, Any] = field(default_factory=dict[str, Any])  # State to resume from
 
 
 class GraphExecutor:
@@ -144,7 +144,7 @@ class GraphExecutor:
             ExecutionResult with output and metrics
         """
         # Validate graph
-        errors = graph.validate()
+        errors = graph.validate_graph()
         if errors:
             return ExecutionResult(
                 success=False,
@@ -587,6 +587,6 @@ class GraphExecutor:
         """Register a custom node implementation."""
         self.node_registry[node_id] = implementation
 
-    def register_function(self, node_id: str, func: Callable) -> None:
+    def register_function(self, node_id: str, func: Callable[..., Any]) -> None:
         """Register a function as a node."""
         self.node_registry[node_id] = FunctionNode(func)

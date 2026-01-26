@@ -11,7 +11,9 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, get_origin
+
+from framework.llm.provider import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +35,8 @@ class ValidationResult:
     """Result of output validation."""
 
     valid: bool
-    errors: list[str] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list[Any])
+    warnings: list[str] = field(default_factory=list[Any])
     cleaned_output: dict[str, Any] | None = None
 
 
@@ -68,7 +70,7 @@ class OutputCleaner:
             )
     """
 
-    def __init__(self, config: CleansingConfig, llm_provider=None):
+    def __init__(self, config: CleansingConfig, llm_provider: LLMProvider | None = None):
         """
         Initialize the output cleaner.
 
@@ -239,7 +241,7 @@ RAW OUTPUT from node '{source_node_id}':
 INSTRUCTIONS:
 1. Extract values that match the expected schema keys
 2. If a value is a JSON string, parse it and extract the correct field
-3. Convert types to match the schema (string, dict, list, number, boolean)
+3. Convert types to match the schema (string, dict[str, Any], list[Any], number, boolean)
 4. Remove extra fields not in the expected schema
 5. Ensure all required keys are present
 
@@ -340,10 +342,10 @@ Return ONLY valid JSON matching the expected schema. No explanations, no markdow
             "number": (int, float),
             "bool": bool,
             "boolean": bool,
-            "dict": dict,
-            "object": dict,
-            "list": list,
-            "array": list,
+            "dict": dict[str, Any],
+            "object": dict[str, Any],
+            "list": list[Any],
+            "array": list[Any],
             "any": object,  # Matches everything
         }
 

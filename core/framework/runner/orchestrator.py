@@ -28,7 +28,7 @@ class RoutingDecision:
     reasoning: str
     confidence: float
     should_parallelize: bool = False
-    fallback_agents: list[str] = field(default_factory=list)
+    fallback_agents: list[str] = field(default_factory=list[Any])
 
 
 class AgentOrchestrator:
@@ -127,7 +127,7 @@ class AgentOrchestrator:
             priority=priority,
         )
 
-    def list_agents(self) -> list[dict]:
+    def list_agents(self) -> list[dict[str, Any]]:
         """List all registered agents."""
         return [
             {
@@ -144,7 +144,7 @@ class AgentOrchestrator:
 
     async def dispatch(
         self,
-        request: dict,
+        request: dict[str, Any],
         intent: str | None = None,
     ) -> OrchestratorResult:
         """
@@ -257,7 +257,7 @@ class AgentOrchestrator:
         self,
         from_agent: str,
         to_agent: str,
-        content: dict,
+        content: dict[str, Any],
         intent: str = "",
     ) -> AgentMessage:
         """
@@ -291,7 +291,7 @@ class AgentOrchestrator:
 
     async def broadcast(
         self,
-        content: dict,
+        content: dict[str, Any],
         intent: str = "",
         exclude: list[str] | None = None,
     ) -> dict[str, AgentMessage]:
@@ -342,7 +342,7 @@ class AgentOrchestrator:
 
     async def _check_all_capabilities(
         self,
-        request: dict,
+        request: dict[str, Any],
     ) -> dict[str, CapabilityResponse]:
         """Check all agents' capabilities in parallel."""
         tasks = []
@@ -370,7 +370,7 @@ class AgentOrchestrator:
 
     async def _route_request(
         self,
-        request: dict,
+        request: dict[str, Any],
         intent: str | None,
         capabilities: dict[str, CapabilityResponse],
     ) -> RoutingDecision:
@@ -422,7 +422,7 @@ class AgentOrchestrator:
 
     async def _llm_route(
         self,
-        request: dict,
+        request: dict[str, Any],
         intent: str | None,
         capable: list[tuple[str, CapabilityResponse]],
     ) -> RoutingDecision:

@@ -10,7 +10,7 @@ appropriate executor based on action type:
 - Code execution (sandboxed)
 """
 
-from typing import Any, Callable
+from typing import Any, Callable, get_origin
 from dataclasses import dataclass, field
 import time
 import json
@@ -88,7 +88,7 @@ def parse_llm_json_response(text: str) -> tuple[Any | None, str]:
 class StepExecutionResult:
     """Result of executing a plan step."""
     success: bool
-    outputs: dict[str, Any] = field(default_factory=dict)
+    outputs: dict[str, Any] = field(default_factory=dict[str, Any])
     error: str | None = None
     error_type: str | None = None  # For judge rules: timeout, rate_limit, etc.
 
@@ -118,7 +118,7 @@ class WorkerNode:
         llm: LLMProvider | None = None,
         tools: dict[str, Tool] | None = None,
         tool_executor: Callable | None = None,
-        functions: dict[str, Callable] | None = None,
+        functions: dict[str, Callable[..., Any]] | None = None,
         sub_graph_executor: Callable | None = None,
         sandbox: CodeSandbox | None = None,
     ):
@@ -288,7 +288,7 @@ class WorkerNode:
             if inputs:
                 context_section = "\n\n--- Context Data ---\n"
                 for key, value in inputs.items():
-                    if isinstance(value, (dict, list)):
+                    if isinstance(value, (dict[str, Any], list[Any])):
                         context_section += f"{key}: {json.dumps(value, indent=2)}\n"
                     else:
                         context_section += f"{key}: {value}\n"
@@ -592,7 +592,7 @@ class WorkerNode:
                 latency_ms=sandbox_result.execution_time_ms,
             )
 
-    def register_function(self, name: str, func: Callable) -> None:
+    def register_function(self, name: str, func: Callable[..., Any]) -> None:
         """Register a function for FUNCTION actions."""
         self.functions[name] = func
 

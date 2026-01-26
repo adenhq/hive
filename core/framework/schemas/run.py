@@ -49,11 +49,11 @@ class RunMetrics(BaseModel):
     total_tokens: int = 0
     total_latency_ms: int = 0
 
-    nodes_executed: list[str] = Field(default_factory=list)
-    edges_traversed: list[str] = Field(default_factory=list)
+    nodes_executed: list[str] = Field(default_factory=list[Any])
+    edges_traversed: list[str] = Field(default_factory=list[Any])
 
-    @computed_field
     @property
+    @computed_field
     def success_rate(self) -> float:
         if self.total_decisions == 0:
             return 0.0
@@ -77,10 +77,10 @@ class Run(BaseModel):
     completed_at: datetime | None = None
 
     # All decisions made during this run
-    decisions: list[Decision] = Field(default_factory=list)
+    decisions: list[Decision] = Field(default_factory=list[Any])
 
     # Problems that occurred
-    problems: list[Problem] = Field(default_factory=list)
+    problems: list[Problem] = Field(default_factory=list[Any])
 
     # Metrics
     metrics: RunMetrics = Field(default_factory=RunMetrics)
@@ -90,13 +90,13 @@ class Run(BaseModel):
 
     # Goal context
     goal_description: str = ""
-    input_data: dict[str, Any] = Field(default_factory=dict)
-    output_data: dict[str, Any] = Field(default_factory=dict)
+    input_data: dict[str, Any] = Field(default_factory=dict[str, Any])
+    output_data: dict[str, Any] = Field(default_factory=dict[str, Any])
 
     model_config = {"extra": "allow"}
 
-    @computed_field
     @property
+    @computed_field
     def duration_ms(self) -> int:
         """Duration of the run in milliseconds."""
         if self.completed_at is None:
@@ -205,14 +205,14 @@ class RunSummary(BaseModel):
     narrative: str
 
     # Key decisions (the most important 3-5)
-    key_decisions: list[str] = Field(default_factory=list)
+    key_decisions: list[str] = Field(default_factory=list[Any])
 
     # Problems
-    critical_problems: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
+    critical_problems: list[str] = Field(default_factory=list[Any])
+    warnings: list[str] = Field(default_factory=list[Any])
 
     # What worked
-    successes: list[str] = Field(default_factory=list)
+    successes: list[str] = Field(default_factory=list[Any])
 
     model_config = {"extra": "allow"}
 

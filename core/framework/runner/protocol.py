@@ -41,16 +41,16 @@ class AgentMessage:
     from_agent: str | None = None  # None if from user/orchestrator
     to_agent: str | None = None  # None if broadcast or routing
     intent: str = ""  # Human-readable description of what's being asked
-    content: dict = field(default_factory=dict)  # The actual payload
+    content: dict[str, Any] = field(default_factory=dict[str, Any])  # The actual payload
     requires_response: bool = True
     parent_id: str | None = None  # For threading conversations
     timestamp: datetime = field(default_factory=datetime.now)
-    metadata: dict = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict[str, Any])
 
     def reply(
         self,
         from_agent: str,
-        content: dict,
+        content: dict[str, Any],
         type: MessageType = MessageType.RESPONSE,
     ) -> "AgentMessage":
         """Create a reply to this message."""
@@ -74,7 +74,7 @@ class CapabilityResponse:
     confidence: float  # 0.0 to 1.0
     reasoning: str  # Why the agent thinks it can/cannot handle
     estimated_steps: int | None = None  # How many steps it would take
-    dependencies: list[str] = field(default_factory=list)  # Other agents needed
+    dependencies: list[str] = field(default_factory=list[Any])  # Other agents needed
 
 
 @dataclass

@@ -9,7 +9,7 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, TYPE_CHECKING
+from typing import Any, Any, Callable, Callable, TYPE_CHECKING
 
 from framework.graph.executor import ExecutionResult
 from framework.runtime.shared_state import SharedStateManager
@@ -343,8 +343,8 @@ class AgentRuntime:
 
     def subscribe_to_events(
         self,
-        event_types: list,
-        handler: Callable,
+        event_types: list[Any],
+        handler: Callable[..., Any],
         filter_stream: str | None = None,
     ) -> str:
         """

@@ -72,7 +72,7 @@ class SharedStateManager:
         value = await memory.read("customer_id")
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # State storage at each level
         self._global_state: dict[str, Any] = {}
         self._stream_state: dict[str, dict[str, Any]] = {}  # stream_id -> {key: value}

@@ -24,13 +24,13 @@ class MCPServerConfig:
 
     # For STDIO transport
     command: str | None = None
-    args: list[str] = field(default_factory=list)
-    env: dict[str, str] = field(default_factory=dict)
+    args: list[str] = field(default_factory=list[Any])
+    env: dict[str, str] = field(default_factory=dict[str, Any])
     cwd: str | None = None
 
     # For HTTP transport
     url: str | None = None
-    headers: dict[str, str] = field(default_factory=dict)
+    headers: dict[str, str] = field(default_factory=dict[str, Any])
 
     # Optional metadata
     description: str = ""
@@ -54,7 +54,7 @@ class MCPClient:
     Manages the connection lifecycle and provides methods to list and invoke tools.
     """
 
-    def __init__(self, config: MCPServerConfig):
+    def __init__(self, config: MCPServerConfig) -> None:
         """
         Initialize the MCP client.
 
@@ -166,7 +166,7 @@ class MCPClient:
             connection_ready = threading.Event()
             connection_error = []
 
-            def run_event_loop():
+            def run_event_loop() -> None:
                 """Run event loop in background thread."""
                 self._loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self._loop)
@@ -260,7 +260,7 @@ class MCPClient:
             logger.error(f"Failed to discover tools from '{self.config.name}': {e}")
             raise
 
-    async def _list_tools_stdio_async(self) -> list[dict]:
+    async def _list_tools_stdio_async(self) -> list[dict[str, Any]]:
         """List tools via STDIO protocol using persistent session."""
         if not self._session:
             raise RuntimeError("STDIO session not initialized")
@@ -279,7 +279,7 @@ class MCPClient:
 
         return tools_list
 
-    def _list_tools_http(self) -> list[dict]:
+    def _list_tools_http(self) -> list[dict[str, Any]]:
         """List tools via HTTP protocol."""
         if not self._http_client:
             raise RuntimeError("HTTP client not initialized")
@@ -422,6 +422,6 @@ class MCPClient:
         self.connect()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """Context manager exit."""
         self.disconnect()

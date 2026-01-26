@@ -1,3 +1,4 @@
+from typing import Any
 """
 Test OutputCleaner with real Cerebras LLM.
 
@@ -11,7 +12,7 @@ from framework.graph.node import NodeSpec
 from framework.llm.litellm import LiteLLMProvider
 
 
-def test_cleaning_with_cerebras():
+def test_cleaning_with_cerebras() -> None:
     """Test that cleaning fixes malformed output using Cerebras llama-3.3-70b."""
     print("\n" + "=" * 80)
     print("LIVE TEST: Cleaning with Cerebras llama-3.3-70b")
@@ -83,10 +84,9 @@ def test_cleaning_with_cerebras():
     print("\n✓ Cleaned output:")
     print(json.dumps(cleaned, indent=2))
 
-    assert isinstance(cleaned, dict), "Should return dict"
+    assert isinstance(cleaned, dict[str, Any]), "Should return dict"
     assert "approval_decision" in str(cleaned) or isinstance(
-        cleaned.get("recommendation"), dict
-    ), "Should have recommendation structure"
+        cleaned.get("recommendation"), dict[str, Any]), "Should have recommendation structure"
 
     # Scenario 2: Multiple keys with JSON string
     print("\n\n--- Scenario 2: Multiple Keys, JSON String ---")
@@ -129,8 +129,8 @@ def test_cleaning_with_cerebras():
         print("\n✓ Cleaned output:")
         print(json.dumps(cleaned2, indent=2))
 
-        assert isinstance(cleaned2, dict), "Should return dict"
-        assert isinstance(cleaned2.get("analysis"), dict), "analysis should be dict"
+        assert isinstance(cleaned2, dict[str, Any]), "Should return dict"
+        assert isinstance(cleaned2.get("analysis"), dict[str, Any]), "analysis should be dict"
         assert isinstance(
             cleaned2.get("risk_score"), (int, float)
         ), "risk_score should be number"
@@ -146,7 +146,7 @@ def test_cleaning_with_cerebras():
     print("=" * 80)
 
 
-def test_validation_only():
+def test_validation_only() -> None:
     """Test validation without LLM (no cleaning)."""
     print("\n" + "=" * 80)
     print("TEST: Validation Only (No LLM)")

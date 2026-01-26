@@ -50,8 +50,8 @@ class ApprovalRequest(BaseModel):
     step_id: str
     step_description: str
     action_type: str
-    action_details: dict[str, Any] = Field(default_factory=dict)
-    context: dict[str, Any] = Field(default_factory=dict)
+    action_details: dict[str, Any] = Field(default_factory=dict[str, Any])
+    context: dict[str, Any] = Field(default_factory=dict[str, Any])
     approval_message: str | None = None
 
     # Preview of what will happen
@@ -64,7 +64,7 @@ class ApprovalResult(BaseModel):
     """Result of human approval decision."""
     decision: ApprovalDecision
     reason: str | None = None
-    modifications: dict[str, Any] = Field(default_factory=dict)
+    modifications: dict[str, Any] = Field(default_factory=dict[str, Any])
 
     model_config = {"extra": "allow"}
 
@@ -92,14 +92,14 @@ class ActionSpec(BaseModel):
 
     # For TOOL_USE
     tool_name: str | None = None
-    tool_args: dict[str, Any] = Field(default_factory=dict)
+    tool_args: dict[str, Any] = Field(default_factory=dict[str, Any])
 
     # For SUB_GRAPH
     graph_id: str | None = None
 
     # For FUNCTION
     function_name: str | None = None
-    function_args: dict[str, Any] = Field(default_factory=dict)
+    function_args: dict[str, Any] = Field(default_factory=dict[str, Any])
 
     # For CODE_EXECUTION
     code: str | None = None
@@ -120,17 +120,17 @@ class PlanStep(BaseModel):
 
     # Data flow
     inputs: dict[str, Any] = Field(
-        default_factory=dict,
+        default_factory=dict[str, Any],
         description="Input data for this step (can reference previous step outputs)"
     )
     expected_outputs: list[str] = Field(
-        default_factory=list,
+        default_factory=list[Any],
         description="Keys this step should produce"
     )
 
     # Dependencies
     dependencies: list[str] = Field(
-        default_factory=list,
+        default_factory=list[Any],
         description="IDs of steps that must complete before this one"
     )
 
@@ -182,7 +182,7 @@ class Judgment(BaseModel):
     llm_used: bool = False
 
     # Context for replanning
-    context: dict[str, Any] = Field(default_factory=dict)
+    context: dict[str, Any] = Field(default_factory=dict[str, Any])
 
     model_config = {"extra": "allow"}
 
@@ -221,14 +221,14 @@ class Plan(BaseModel):
     description: str
 
     # Steps to execute
-    steps: list[PlanStep] = Field(default_factory=list)
+    steps: list[PlanStep] = Field(default_factory=list[Any])
 
     # Execution state
     revision: int = 1  # Incremented on replan
     current_step_idx: int = 0
 
     # Accumulated context from execution
-    context: dict[str, Any] = Field(default_factory=dict)
+    context: dict[str, Any] = Field(default_factory=dict[str, Any])
 
     # Metadata
     created_at: datetime = Field(default_factory=datetime.now)
@@ -240,7 +240,7 @@ class Plan(BaseModel):
     model_config = {"extra": "allow"}
 
     @classmethod
-    def from_json(cls, data: str | dict) -> "Plan":
+    def from_json(cls, data: str | dict[str, Any]) -> "Plan":
         """
         Load a Plan from exported JSON.
 
@@ -379,14 +379,14 @@ class PlanExecutionResult(BaseModel):
     status: ExecutionStatus
 
     # Results from completed steps
-    results: dict[str, Any] = Field(default_factory=dict)
+    results: dict[str, Any] = Field(default_factory=dict[str, Any])
 
     # For needs_replan - what to tell the planner
     feedback: str | None = None
-    feedback_context: dict[str, Any] = Field(default_factory=dict)
+    feedback_context: dict[str, Any] = Field(default_factory=dict[str, Any])
 
     # Steps that completed before stopping
-    completed_steps: list[str] = Field(default_factory=list)
+    completed_steps: list[str] = Field(default_factory=list[Any])
 
     # Metrics
     steps_executed: int = 0
@@ -399,7 +399,7 @@ class PlanExecutionResult(BaseModel):
     model_config = {"extra": "allow"}
 
 
-def load_export(data: str | dict) -> tuple["Plan", Any]:
+def load_export(data: str | dict[str, Any]) -> tuple["Plan", Any]:
     """
     Load both Plan and Goal from export_graph() output.
 

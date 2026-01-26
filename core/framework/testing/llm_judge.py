@@ -30,7 +30,7 @@ class LLMJudge:
     that can't be verified with simple assertions.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the LLM judge."""
         self._client = None
 

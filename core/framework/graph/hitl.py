@@ -27,10 +27,10 @@ class HITLQuestion:
     input_type: HITLInputType = HITLInputType.FREE_TEXT
 
     # For SELECTION type
-    options: list[str] = field(default_factory=list)
+    options: list[str] = field(default_factory=list[Any])
 
     # For STRUCTURED type
-    fields: dict[str, str] = field(default_factory=dict)  # {field_name: description}
+    fields: dict[str, str] = field(default_factory=dict[str, Any])  # {field_name: description}
 
     # Metadata
     required: bool = True
@@ -49,12 +49,12 @@ class HITLRequest:
     current_state: str  # Where we are in the process
 
     # What we need
-    questions: list[HITLQuestion] = field(default_factory=list)
-    missing_info: list[str] = field(default_factory=list)
+    questions: list[HITLQuestion] = field(default_factory=list[Any])
+    missing_info: list[str] = field(default_factory=list[Any])
 
     # Guidance
     instructions: str = ""
-    examples: list[str] = field(default_factory=list)
+    examples: list[str] = field(default_factory=list[Any])
 
     # Metadata
     request_id: str = ""
@@ -96,7 +96,7 @@ class HITLResponse:
     request_id: str
 
     # Human's answers
-    answers: dict[str, Any] = field(default_factory=dict)  # {question_id: answer}
+    answers: dict[str, Any] = field(default_factory=dict[str, Any])  # {question_id: answer}
     raw_input: str = ""  # Raw text if provided
 
     # Metadata

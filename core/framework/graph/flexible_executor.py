@@ -79,7 +79,7 @@ class FlexibleGraphExecutor:
         llm: LLMProvider | None = None,
         tools: dict[str, Tool] | None = None,
         tool_executor: Callable | None = None,
-        functions: dict[str, Callable] | None = None,
+        functions: dict[str, Callable[..., Any]] | None = None,
         judge: HybridJudge | None = None,
         config: ExecutorConfig | None = None,
         approval_callback: ApprovalCallback | None = None,
@@ -417,7 +417,7 @@ class FlexibleGraphExecutor:
             total_latency_ms=total_latency,
         )
 
-    def register_function(self, name: str, func: Callable) -> None:
+    def register_function(self, name: str, func: Callable[..., Any]) -> None:
         """Register a function for FUNCTION actions."""
         self.functions[name] = func
         self.worker.register_function(name, func)

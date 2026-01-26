@@ -6,7 +6,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, get_origin
 
 from framework.llm.provider import Tool, ToolUse, ToolResult
 
@@ -18,7 +18,7 @@ class RegisteredTool:
     """A tool with its executor function."""
 
     tool: Tool
-    executor: Callable[[dict], Any]
+    executor: Callable[[dict[str, Any]], Any]
 
 
 class ToolRegistry:
@@ -32,7 +32,7 @@ class ToolRegistry:
     4. Manually registered tools
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._tools: dict[str, RegisteredTool] = {}
         self._mcp_clients: list[Any] = []  # List of MCPClient instances
         self._session_context: dict[str, Any] = {}  # Auto-injected context for tools
@@ -41,7 +41,7 @@ class ToolRegistry:
         self,
         name: str,
         tool: Tool,
-        executor: Callable[[dict], Any],
+        executor: Callable[[dict[str, Any]], Any],
     ) -> None:
         """
         Register a single tool with its executor.
@@ -55,7 +55,7 @@ class ToolRegistry:
 
     def register_function(
         self,
-        func: Callable,
+        func: Callable[..., Any],
         name: str | None = None,
         description: str | None = None,
     ) -> None:
@@ -107,7 +107,7 @@ class ToolRegistry:
             },
         )
 
-        def executor(inputs: dict) -> Any:
+        def executor(inputs: dict[str, Any]) -> Any:
             return func(**inputs)
 
         self.register(tool_name, tool, executor)
@@ -149,7 +149,7 @@ class ToolRegistry:
                 if executor_func:
                     # Use unified executor
                     def make_executor(tool_name: str):
-                        def executor(inputs: dict) -> Any:
+                        def executor(inputs: dict[str, Any]) -> Any:
                             tool_use = ToolUse(
                                 id=f"call_{tool_name}",
                                 name=tool_name,
@@ -290,7 +290,7 @@ class ToolRegistry:
 
                 # Create executor that calls the MCP server
                 def make_mcp_executor(client_ref: MCPClient, tool_name: str, registry_ref):
-                    def executor(inputs: dict) -> Any:
+                    def executor(inputs: dict[str, Any]) -> Any:
                         try:
                             # Inject session context for tools that need it
                             merged_inputs = {**registry_ref._session_context, **inputs}
@@ -358,7 +358,7 @@ class ToolRegistry:
                 logger.warning(f"Error disconnecting MCP client: {e}")
         self._mcp_clients.clear()
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Destructor to ensure cleanup."""
         self.cleanup()
 
@@ -376,7 +376,7 @@ def tool(
             return {"lead_data": {...}}
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable:
         func._tool_metadata = {
             "name": name or func.__name__,
             "description": description or func.__doc__,

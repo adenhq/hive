@@ -8,7 +8,7 @@ The HybridJudge evaluates step execution results using:
 Escalation path: rules → LLM → human
 """
 
-from typing import Any
+from typing import Any, get_origin
 from dataclasses import dataclass, field
 
 from framework.graph.plan import (
@@ -27,7 +27,7 @@ class RuleEvaluationResult:
     """Result of rule-based evaluation."""
     is_definitive: bool  # True if a rule matched definitively
     judgment: Judgment | None = None
-    context: dict[str, Any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict[str, Any])
     rules_checked: int = 0
     rule_matched: str | None = None
 

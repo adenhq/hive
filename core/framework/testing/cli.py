@@ -1,3 +1,4 @@
+from typing import Any
 """
 CLI commands for goal-based testing.
 
@@ -229,7 +230,7 @@ def cmd_test_debug(args: argparse.Namespace) -> int:
     return result.returncode
 
 
-def _scan_test_files(tests_dir: Path) -> list[dict]:
+def _scan_test_files(tests_dir: Path) -> list[dict[str, Any]]:
     """Scan test files and extract test functions using AST parsing."""
     tests = []
 
@@ -292,7 +293,7 @@ def cmd_test_list(args: argparse.Namespace) -> int:
     print(f"Tests in {tests_dir}:\n")
 
     # Group by type
-    by_type: dict[str, list] = {}
+    by_type: dict[str, list[Any]] = {}
     for t in tests:
         ttype = t["test_type"]
         if ttype not in by_type:

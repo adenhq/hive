@@ -26,7 +26,7 @@ class CriterionStatus:
     criterion_id: str
     description: str
     met: bool
-    evidence: list[str] = field(default_factory=list)
+    evidence: list[str] = field(default_factory=list[Any])
     progress: float = 0.0  # 0.0 to 1.0
     last_updated: datetime = field(default_factory=datetime.now)
 
@@ -367,7 +367,7 @@ class OutcomeAggregator:
         matches = sum(1 for kw in criterion_keywords if kw in decision_text)
         return matches >= 2  # At least 2 keyword matches
 
-    def _get_recommendation(self, result: dict) -> str:
+    def _get_recommendation(self, result: dict[str, Any]) -> str:
         """Get recommendation based on current progress."""
         progress = result["overall_progress"]
         violations = result["constraint_violations"]

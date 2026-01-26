@@ -144,7 +144,7 @@ def temp_storage():
 class TestSharedStateManager:
     """Tests for SharedStateManager."""
 
-    def test_create_memory(self):
+    def test_create_memory(self) -> None:
         """Test creating execution-scoped memory."""
         manager = SharedStateManager()
         memory = manager.create_memory(
@@ -195,7 +195,7 @@ class TestSharedStateManager:
         assert value1 == "global_value"
         assert value2 == "global_value"
 
-    def test_cleanup_execution(self):
+    def test_cleanup_execution(self) -> None:
         """Test execution cleanup removes state."""
         manager = SharedStateManager()
         manager.create_memory("exec-1", "stream-1", IsolationLevel.ISOLATED)
@@ -272,7 +272,7 @@ class TestEventBus:
         assert len(received_events) == 1
         assert received_events[0].stream_id == "webhook"
 
-    def test_unsubscribe(self):
+    def test_unsubscribe(self) -> None:
         """Test unsubscribing from events."""
         bus = EventBus()
 
@@ -325,7 +325,7 @@ class TestEventBus:
 class TestOutcomeAggregator:
     """Tests for OutcomeAggregator."""
 
-    def test_record_decision(self, sample_goal):
+    def test_record_decision(self, sample_goal) -> None:
         """Test recording decisions."""
         aggregator = OutcomeAggregator(sample_goal)
 
@@ -358,7 +358,7 @@ class TestOutcomeAggregator:
         assert "constraint_violations" in progress
         assert "recommendation" in progress
 
-    def test_record_constraint_violation(self, sample_goal):
+    def test_record_constraint_violation(self, sample_goal) -> None:
         """Test recording constraint violations."""
         aggregator = OutcomeAggregator(sample_goal)
 
@@ -379,7 +379,7 @@ class TestOutcomeAggregator:
 class TestAgentRuntime:
     """Tests for AgentRuntime orchestration."""
 
-    def test_register_entry_point(self, sample_graph, sample_goal, temp_storage):
+    def test_register_entry_point(self, sample_graph, sample_goal, temp_storage) -> None:
         """Test registering entry points."""
         runtime = AgentRuntime(
             graph=sample_graph,
@@ -399,7 +399,7 @@ class TestAgentRuntime:
         assert "manual" in runtime._entry_points
         assert len(runtime.get_entry_points()) == 1
 
-    def test_register_duplicate_entry_point_fails(self, sample_graph, sample_goal, temp_storage):
+    def test_register_duplicate_entry_point_fails(self, sample_graph, sample_goal, temp_storage) -> None:
         """Test that duplicate entry point IDs fail."""
         runtime = AgentRuntime(
             graph=sample_graph,
@@ -419,7 +419,7 @@ class TestAgentRuntime:
         with pytest.raises(ValueError, match="already registered"):
             runtime.register_entry_point(entry_spec)
 
-    def test_register_invalid_entry_node_fails(self, sample_graph, sample_goal, temp_storage):
+    def test_register_invalid_entry_node_fails(self, sample_graph, sample_goal, temp_storage) -> None:
         """Test that invalid entry nodes fail."""
         runtime = AgentRuntime(
             graph=sample_graph,
@@ -494,7 +494,7 @@ class TestAgentRuntime:
 class TestGraphSpecValidation:
     """Tests for GraphSpec with async_entry_points."""
 
-    def test_has_async_entry_points(self, sample_graph):
+    def test_has_async_entry_points(self, sample_graph) -> None:
         """Test checking for async entry points."""
         assert sample_graph.has_async_entry_points() is True
 
@@ -508,7 +508,7 @@ class TestGraphSpecValidation:
         )
         assert simple_graph.has_async_entry_points() is False
 
-    def test_get_async_entry_point(self, sample_graph):
+    def test_get_async_entry_point(self, sample_graph) -> None:
         """Test getting async entry point by ID."""
         ep = sample_graph.get_async_entry_point("webhook")
         assert ep is not None
@@ -518,7 +518,7 @@ class TestGraphSpecValidation:
         ep_not_found = sample_graph.get_async_entry_point("nonexistent")
         assert ep_not_found is None
 
-    def test_validate_async_entry_points(self):
+    def test_validate_async_entry_points(self) -> None:
         """Test validation catches async entry point errors."""
         nodes = [
             NodeSpec(
@@ -548,7 +548,7 @@ class TestGraphSpecValidation:
             edges=[],
         )
 
-        errors = graph.validate()
+        errors = graph.validate_graph()
         assert any("nonexistent-node" in e for e in errors)
 
         # Invalid isolation level
@@ -598,7 +598,7 @@ class TestGraphSpecValidation:
 class TestCreateAgentRuntime:
     """Tests for the create_agent_runtime factory."""
 
-    def test_create_with_entry_points(self, sample_graph, sample_goal, temp_storage):
+    def test_create_with_entry_points(self, sample_graph, sample_goal, temp_storage) -> None:
         """Test factory creates runtime with entry points."""
         entry_points = [
             EntryPointSpec(

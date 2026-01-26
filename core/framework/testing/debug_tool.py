@@ -27,11 +27,11 @@ class DebugInfo(BaseModel):
     test_name: str
 
     # Test definition
-    input: dict[str, Any] = Field(default_factory=dict)
-    expected: dict[str, Any] = Field(default_factory=dict)
+    input: dict[str, Any] = Field(default_factory=dict[str, Any])
+    expected: dict[str, Any] = Field(default_factory=dict[str, Any])
 
     # Actual result
-    actual: Any = None
+    actual: Any | None = None
     passed: bool = False
 
     # Error details
@@ -40,12 +40,12 @@ class DebugInfo(BaseModel):
     stack_trace: str | None = None
 
     # Runtime data
-    logs: list[dict[str, Any]] = Field(default_factory=list)
-    runtime_data: dict[str, Any] = Field(default_factory=dict)
+    logs: list[dict[str, Any]] = Field(default_factory=list[Any])
+    runtime_data: dict[str, Any] = Field(default_factory=dict[str, Any])
 
     # Fix guidance
     suggested_fix: str | None = None
-    iteration_guidance: dict[str, Any] = Field(default_factory=dict)
+    iteration_guidance: dict[str, Any] = Field(default_factory=dict[str, Any])
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dict for JSON serialization."""

@@ -81,7 +81,7 @@ class EdgeSpec(BaseModel):
 
     # Data flow
     input_mapping: dict[str, str] = Field(
-        default_factory=dict,
+        default_factory=dict[str, Any],
         description="Map source outputs to target inputs: {target_key: source_key}"
     )
 
@@ -312,7 +312,7 @@ class AsyncEntryPointSpec(BaseModel):
         description="How this entry point is triggered: webhook, api, timer, event, manual"
     )
     trigger_config: dict[str, Any] = Field(
-        default_factory=dict,
+        default_factory=dict[str, Any],
         description="Trigger-specific configuration (e.g., webhook URL, timer interval)"
     )
     isolation_level: str = Field(
@@ -377,35 +377,35 @@ class GraphSpec(BaseModel):
     # Graph structure
     entry_node: str = Field(description="ID of the first node to execute")
     entry_points: dict[str, str] = Field(
-        default_factory=dict,
+        default_factory=dict[str, Any],
         description="Named entry points for resuming execution. Format: {name: node_id}"
     )
     async_entry_points: list[AsyncEntryPointSpec] = Field(
-        default_factory=list,
+        default_factory=list[Any],
         description="Asynchronous entry points for concurrent execution streams (used with AgentRuntime)"
     )
     terminal_nodes: list[str] = Field(
-        default_factory=list,
+        default_factory=list[Any],
         description="IDs of nodes that end execution"
     )
     pause_nodes: list[str] = Field(
-        default_factory=list,
+        default_factory=list[Any],
         description="IDs of nodes that pause execution for HITL input"
     )
 
     # Components
     nodes: list[Any] = Field(  # NodeSpec, but avoiding circular import
-        default_factory=list,
+        default_factory=list[Any],
         description="All node specifications"
     )
     edges: list[EdgeSpec] = Field(
-        default_factory=list,
+        default_factory=list[Any],
         description="All edge specifications"
     )
 
     # Shared memory keys
     memory_keys: list[str] = Field(
-        default_factory=list,
+        default_factory=list[Any],
         description="Keys available in shared memory"
     )
 
@@ -485,7 +485,7 @@ class GraphSpec(BaseModel):
         # Default to main entry
         return self.entry_node
 
-    def validate(self) -> list[str]:
+    def validate_graph(self) -> list[str]:
         """Validate the graph structure."""
         errors = []
 

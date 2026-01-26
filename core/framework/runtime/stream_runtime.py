@@ -267,7 +267,7 @@ class StreamRuntime:
         execution_id: str,
         decision_id: str,
         success: bool,
-        result: Any = None,
+        result: Any | None = None,
         error: str | None = None,
         summary: str = "",
         state_changes: dict[str, Any] | None = None,
@@ -410,7 +410,7 @@ class StreamRuntimeAdapter:
     by providing the same API as Runtime but routing to a specific execution.
     """
 
-    def __init__(self, stream_runtime: StreamRuntime, execution_id: str):
+    def __init__(self, stream_runtime: StreamRuntime, execution_id: str) -> None:
         """
         Create adapter for a specific execution.
 
@@ -488,7 +488,7 @@ class StreamRuntimeAdapter:
         self,
         decision_id: str,
         success: bool,
-        result: Any = None,
+        result: Any | None = None,
         error: str | None = None,
         summary: str = "",
         state_changes: dict[str, Any] | None = None,

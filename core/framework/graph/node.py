@@ -17,7 +17,7 @@ Protocol:
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Callable
+from typing import Any, Callable, get_origin
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
@@ -99,21 +99,21 @@ class NodeSpec(BaseModel):
 
     # Data flow
     input_keys: list[str] = Field(
-        default_factory=list,
+        default_factory=list[Any],
         description="Keys this node reads from shared memory or input"
     )
     output_keys: list[str] = Field(
-        default_factory=list,
+        default_factory=list[Any],
         description="Keys this node writes to shared memory or output"
     )
 
     # Optional schemas for validation and cleansing
-    input_schema: dict[str, dict] = Field(
-        default_factory=dict,
+    input_schema: dict[str, dict[str, Any]] = Field(
+        default_factory=dict[str, Any],
         description="Optional schema for input validation. Format: {key: {type: 'string', required: True, description: '...'}}"
     )
-    output_schema: dict[str, dict] = Field(
-        default_factory=dict,
+    output_schema: dict[str, dict[str, Any]] = Field(
+        default_factory=dict[str, Any],
         description="Optional schema for output validation. Format: {key: {type: 'dict', required: True, description: '...'}}"
     )
 
@@ -123,7 +123,7 @@ class NodeSpec(BaseModel):
         description="System prompt for LLM nodes"
     )
     tools: list[str] = Field(
-        default_factory=list,
+        default_factory=list[Any],
         description="Tool names this node can use"
     )
     model: str | None = Field(
@@ -139,14 +139,14 @@ class NodeSpec(BaseModel):
 
     # For router nodes
     routes: dict[str, str] = Field(
-        default_factory=dict,
+        default_factory=dict[str, Any],
         description="Condition -> target_node_id mapping for routers"
     )
 
     # Retry behavior
     max_retries: int = Field(default=3)
     retry_on: list[str] = Field(
-        default_factory=list,
+        default_factory=list[Any],
         description="Error types to retry on"
     )
 
@@ -166,9 +166,9 @@ class SharedMemory:
     Nodes read and write to shared memory using typed keys.
     The memory is scoped to a single run.
     """
-    _data: dict[str, Any] = field(default_factory=dict)
-    _allowed_read: set[str] = field(default_factory=set)
-    _allowed_write: set[str] = field(default_factory=set)
+    _data: dict[str, Any] = field(default_factory=dict[str, Any])
+    _allowed_read: set[str] = field(default_factory=set[Any])
+    _allowed_write: set[str] = field(default_factory=set[Any])
 
     def read(self, key: str) -> Any:
         """Read a value from shared memory."""
@@ -250,15 +250,15 @@ class NodeContext:
 
     # State
     memory: SharedMemory
-    input_data: dict[str, Any] = field(default_factory=dict)
+    input_data: dict[str, Any] = field(default_factory=dict[str, Any])
 
     # LLM access (if applicable)
     llm: LLMProvider | None = None
-    available_tools: list[Tool] = field(default_factory=list)
+    available_tools: list[Tool] = field(default_factory=list[Any])
 
     # Goal context
     goal_context: str = ""
-    goal: Any = None  # Goal object for LLM-powered routers
+    goal: Any | None = None  # Goal object for LLM-powered routers
 
     # Execution metadata
     attempt: int = 1
@@ -277,7 +277,7 @@ class NodeResult:
     - Route decision (for routers)
     """
     success: bool
-    output: dict[str, Any] = field(default_factory=dict)
+    output: dict[str, Any] = field(default_factory=dict[str, Any])
     error: str | None = None
 
     # For routing decisions
@@ -288,7 +288,7 @@ class NodeResult:
     tokens_used: int = 0
     latency_ms: int = 0
 
-    def to_summary(self, node_spec: Any = None) -> str:
+    def to_summary(self, node_spec: Any | None = None) -> str:
         """
         Generate a human-readable summary of this node's execution and output.
 
@@ -576,7 +576,7 @@ class LLMNode(NodeProtocol):
                                 ctx.memory.write(key, stripped_content)
                                 output[key] = stripped_content
                     else:
-                        # Not a dict, fall back to writing entire response to all keys (stripped)
+                        # Not a dict[str, Any], fall back to writing entire response to all keys (stripped)
                         stripped_content = self._strip_code_blocks(response.content)
                         for key in ctx.node_spec.output_keys:
                             ctx.memory.write(key, stripped_content)
@@ -751,7 +751,7 @@ Output ONLY the JSON object, nothing else."""
             logger.warning(f"      ⚠ LLM JSON extraction failed: {e}")
             raise
 
-    def _build_messages(self, ctx: NodeContext) -> list[dict]:
+    def _build_messages(self, ctx: NodeContext) -> list[dict[str, Any]]:
         """Build the message list for the LLM."""
         # Use Haiku to intelligently format inputs from memory
         user_content = self._format_inputs_with_haiku(ctx)
@@ -1041,7 +1041,7 @@ class FunctionNode(NodeProtocol):
     For deterministic operations that don't need LLM reasoning.
     """
 
-    def __init__(self, func: Callable):
+    def __init__(self, func: Callable[..., Any]):
         self.func = func
 
     async def execute(self, ctx: NodeContext) -> NodeResult:

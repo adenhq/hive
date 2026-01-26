@@ -7,7 +7,7 @@ handles all the structured logging.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Callable
 from pathlib import Path
 import logging
 import uuid
@@ -158,7 +158,7 @@ class Runtime:
                 - confidence: How confident (0-1, optional)
             chosen: ID of the chosen option
             reasoning: Why the agent chose this option
-            node_id: Which node made this decision (uses current if not set)
+            node_id: Which node made this decision (uses current if not set[Any])
             decision_type: Type of decision
             constraints: Active constraints that influenced the decision
             context: Additional context available when deciding
@@ -205,7 +205,7 @@ class Runtime:
         self,
         decision_id: str,
         success: bool,
-        result: Any = None,
+        result: Any | None = None,
         error: str | None = None,
         summary: str = "",
         state_changes: dict[str, Any] | None = None,
@@ -293,7 +293,7 @@ class Runtime:
         options: list[dict[str, Any]],
         chosen: str,
         reasoning: str,
-        executor: callable,
+        executor: Callable[..., Any],
         **kwargs,
     ) -> tuple[str, Any]:
         """

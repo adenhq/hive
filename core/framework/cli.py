@@ -1,3 +1,4 @@
+from typing import Any
 """
 Command-line interface for Goal Agent.
 
@@ -32,11 +33,11 @@ def main():
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # Register runner commands (run, info, validate, list, dispatch, shell)
+    # Register runner commands (run, info, validate, list[Any], dispatch, shell)
     from framework.runner.cli import register_commands
     register_commands(subparsers)
 
-    # Register testing commands (test-run, test-debug, test-list, test-stats)
+    # Register testing commands (test-run, test-debug, test-list[Any], test-stats)
     from framework.testing.cli import register_testing_commands
     register_testing_commands(subparsers)
 

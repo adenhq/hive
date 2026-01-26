@@ -1,3 +1,4 @@
+from typing import Any
 """CLI commands for agent runner."""
 
 import argparse
@@ -271,7 +272,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                             print(value)
                             shown = True
                             break
-                        elif isinstance(value, (dict, list)):
+                        elif isinstance(value, (dict[str, Any], list[Any])):
                             print(json.dumps(value, indent=2, default=str))
                             shown = True
                             break
@@ -280,7 +281,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 if not shown:
                     for key, value in result.output.items():
                         if not key.startswith("_") and key not in ["user_id", "request", "memory_loaded", "user_profile", "recent_context"]:
-                            if isinstance(value, (dict, list)):
+                            if isinstance(value, (dict[str, Any], list[Any])):
                                 print(f"\n{key}:")
                                 value_str = json.dumps(value, indent=2, default=str)
                                 if len(value_str) > 300:
@@ -559,7 +560,7 @@ def _interactive_approval(request):
         print("\n--- Content to be sent ---")
         for key, value in request.context.items():
             print(f"\n[{key}]:")
-            if isinstance(value, (dict, list)):
+            if isinstance(value, (dict[str, Any], list[Any])):
                 import json
                 value_str = json.dumps(value, indent=2, default=str)
                 # Show more content for approval - up to 2000 chars
@@ -605,7 +606,7 @@ def _interactive_approval(request):
             print("Invalid choice. Please enter a, r, s, or x.")
 
 
-def _format_natural_language_to_json(user_input: str, input_keys: list[str], agent_description: str, session_context: dict = None) -> dict:
+def _format_natural_language_to_json(user_input: str, input_keys: list[str], agent_description: str, session_context: dict[str, Any] | None = None) -> dict:
     """Use Haiku to convert natural language input to JSON based on agent's input schema."""
     import anthropic
     import os
@@ -689,7 +690,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
-    # Set up approval callback by default (unless --no-approve is set)
+    # Set up approval callback by default (unless --no-approve is set[Any])
     if not getattr(args, 'no_approve', False):
         runner.set_approval_callback(_interactive_approval)
         print("\n🔔 Human-in-the-loop mode enabled")

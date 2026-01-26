@@ -38,11 +38,11 @@ class Option(BaseModel):
     id: str
     description: str                    # Human-readable: "Call search API"
     action_type: str                    # "tool_call", "generate", "delegate"
-    action_params: dict[str, Any] = Field(default_factory=dict)
+    action_params: dict[str, Any] = Field(default_factory=dict[str, Any])
 
     # Why might this be good or bad?
-    pros: list[str] = Field(default_factory=list)
-    cons: list[str] = Field(default_factory=list)
+    pros: list[str] = Field(default_factory=list[Any])
+    cons: list[str] = Field(default_factory=list[Any])
 
     # Agent's confidence in this option (0-1)
     confidence: float = 0.5
@@ -58,11 +58,11 @@ class Outcome(BaseModel):
     correlate decisions with their results.
     """
     success: bool
-    result: Any = None                  # The actual output
+    result: Any | None = None                  # The actual output
     error: str | None = None            # Error message if failed
 
     # Side effects
-    state_changes: dict[str, Any] = Field(default_factory=dict)
+    state_changes: dict[str, Any] = Field(default_factory=dict[str, Any])
     tokens_used: int = 0
     latency_ms: int = 0
 
@@ -120,7 +120,7 @@ class Decision(BaseModel):
     decision_type: DecisionType = DecisionType.CUSTOM
 
     # WHAT options did it consider?
-    options: list[Option] = Field(default_factory=list)
+    options: list[Option] = Field(default_factory=list[Any])
 
     # WHAT did it choose?
     chosen_option_id: str = ""
@@ -129,10 +129,10 @@ class Decision(BaseModel):
     reasoning: str = ""
 
     # WHAT constraints were active?
-    active_constraints: list[str] = Field(default_factory=list)
+    active_constraints: list[str] = Field(default_factory=list[Any])
 
     # WHAT input context was available?
-    input_context: dict[str, Any] = Field(default_factory=dict)
+    input_context: dict[str, Any] = Field(default_factory=dict[str, Any])
 
     # WHAT happened? (Filled in after execution)
     outcome: Outcome | None = None
@@ -142,8 +142,8 @@ class Decision(BaseModel):
 
     model_config = {"extra": "allow"}
 
-    @computed_field
     @property
+    @computed_field
     def chosen_option(self) -> Option | None:
         """Get the option that was chosen."""
         for opt in self.options:
@@ -151,14 +151,14 @@ class Decision(BaseModel):
                 return opt
         return None
 
-    @computed_field
     @property
+    @computed_field
     def was_successful(self) -> bool:
         """Did this decision's execution succeed?"""
         return self.outcome is not None and self.outcome.success
 
-    @computed_field
     @property
+    @computed_field
     def was_good_decision(self) -> bool:
         """Was this evaluated as a good decision?"""
         if self.evaluation is None:

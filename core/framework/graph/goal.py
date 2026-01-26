@@ -125,30 +125,30 @@ class Goal(BaseModel):
     status: GoalStatus = GoalStatus.DRAFT
 
     # What defines success
-    success_criteria: list[SuccessCriterion] = Field(default_factory=list)
+    success_criteria: list[SuccessCriterion] = Field(default_factory=list[Any])
 
     # What the agent must respect
-    constraints: list[Constraint] = Field(default_factory=list)
+    constraints: list[Constraint] = Field(default_factory=list[Any])
 
     # Context for the agent
     context: dict[str, Any] = Field(
-        default_factory=dict,
+        default_factory=dict[str, Any],
         description="Additional context: domain knowledge, user preferences, etc."
     )
 
     # Capabilities required
     required_capabilities: list[str] = Field(
-        default_factory=list,
+        default_factory=list[Any],
         description="What the agent needs: 'llm', 'web_search', 'code_execution', etc."
     )
 
     # Input/output schema
     input_schema: dict[str, Any] = Field(
-        default_factory=dict,
+        default_factory=dict[str, Any],
         description="Expected input format"
     )
     output_schema: dict[str, Any] = Field(
-        default_factory=dict,
+        default_factory=dict[str, Any],
         description="Expected output format"
     )
 

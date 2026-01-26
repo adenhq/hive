@@ -57,11 +57,11 @@ class Test(BaseModel):
         description="Human-readable description of what the test validates"
     )
     input: dict[str, Any] = Field(
-        default_factory=dict,
+        default_factory=dict[str, Any],
         description="Test input data"
     )
     expected_output: dict[str, Any] = Field(
-        default_factory=dict,
+        default_factory=dict[str, Any],
         description="Expected output or assertions"
     )
 

@@ -6,7 +6,7 @@ garbage from propagating through the graph.
 
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, get_origin
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class OutputValidator:
         if not isinstance(output, dict):
             return ValidationResult(
                 success=False,
-                errors=[f"Output is not a dict, got {type(output).__name__}"]
+                errors=[f"Output is not a dict[str, Any], got {type(output).__name__}"]
             )
 
         for key in expected_keys:

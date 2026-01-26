@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 
 @dataclass
@@ -13,7 +13,7 @@ class LLMResponse:
     input_tokens: int = 0
     output_tokens: int = 0
     stop_reason: str = ""
-    raw_response: Any = None
+    raw_response: Any | None = None
 
 
 @dataclass
@@ -21,7 +21,7 @@ class Tool:
     """A tool the LLM can use."""
     name: str
     description: str
-    parameters: dict[str, Any] = field(default_factory=dict)
+    parameters: dict[str, Any] = field(default_factory=dict[str, Any])
 
 
 @dataclass
@@ -86,7 +86,7 @@ class LLMProvider(ABC):
         messages: list[dict[str, Any]],
         system: str,
         tools: list[Tool],
-        tool_executor: callable,
+        tool_executor: Callable[..., Any],
         max_iterations: int = 10,
     ) -> LLMResponse:
         """
