@@ -305,7 +305,6 @@ class AgentHealth:
             recommendations.append("Address recurring errors to improve reliability")
 
         # Node usage recommendations
-        unused_nodes = []
         if len(metrics.node_usage) < 5:  # Assuming agent has more nodes
             recommendations.append("Some nodes may be underutilized - review workflow")
 
