@@ -571,3 +571,121 @@ class GraphSpec(BaseModel):
                 errors.append(f"Node '{node.id}' is unreachable from entry")
 
         return errors
+
+    def to_mermaid(self) -> str:
+        """
+        Export graph as Mermaid flowchart syntax for visualization.
+        
+        Returns Mermaid markdown that can be rendered by GitHub, documentation sites,
+        or Mermaid Live Editor (https://mermaid.live).
+        
+        Returns:
+            Mermaid flowchart syntax as string
+            
+        Example:
+            >>> graph_spec.to_mermaid()
+            '''
+            graph TD
+                start[Start Node]
+                process[Process Data]
+                end[End Node]
+                start -->|on_success| process
+                process -->|always| end
+            '''
+        """
+        lines = ["graph TD"]
+        
+        # Add nodes with styling based on type
+        for node in self.nodes:
+            node_id = node.id.replace("-", "_")
+            node_label = node.name or node.id
+            
+            # Style based on node type
+            if node.id == self.entry_node:
+                lines.append(f"    {node_id}([{node_label}])")  # Stadium shape for entry
+            elif node.id in self.terminal_nodes:
+                lines.append(f"    {node_id}[/{node_label}/]")  # Trapezoid for terminal
+            elif node.id in self.pause_nodes:
+                lines.append(f"    {node_id}{{{{{node_label}}}}}")  # Hexagon for HITL pause
+            elif hasattr(node, 'node_type') and node.node_type == "router":
+                lines.append(f"    {node_id}{{{node_label}}}")  # Diamond for routers
+            else:
+                lines.append(f"    {node_id}[{node_label}]")  # Rectangle for regular nodes
+        
+        # Add edges with condition labels
+        for edge in self.edges:
+            source_id = edge.source.replace("-", "_")
+            target_id = edge.target.replace("-", "_")
+            
+            # Create label from condition
+            label = edge.condition.value
+            if edge.condition_expr:
+                label = f"{label}: {edge.condition_expr[:30]}"
+            elif edge.description:
+                label = edge.description[:40]
+            
+            lines.append(f"    {source_id} -->|{label}| {target_id}")
+        
+        return "\n".join(lines)
+    
+    def to_dot(self) -> str:
+        """
+        Export graph as Graphviz DOT format for advanced visualization.
+        
+        DOT format can be rendered with Graphviz tools to generate publication-quality
+        diagrams with custom layouts (dot, neato, circo, etc.).
+        
+        Returns:
+            DOT format syntax as string
+            
+        Example:
+            >>> dot = graph_spec.to_dot()
+            >>> # Save to file and render with: dot -Tpng graph.dot -o graph.png
+        """
+        lines = [
+            "digraph AgentGraph {",
+            "    // Graph settings",
+            "    rankdir=TB;",
+            "    node [shape=box, style=rounded, fontname=Arial];",
+            "    edge [fontname=Arial, fontsize=10];",
+            "",
+        ]
+        
+        # Add nodes with styling
+        for node in self.nodes:
+            node_id = node.id.replace("-", "_")
+            node_label = node.name or node.id
+            node_type = getattr(node, 'node_type', 'unknown')
+            
+            # Styling based on type
+            if node.id == self.entry_node:
+                style = 'shape=oval, style="filled,bold", fillcolor=lightgreen'
+            elif node.id in self.terminal_nodes:
+                style = 'shape=oval, style="filled,bold", fillcolor=lightcoral'
+            elif node.id in self.pause_nodes:
+                style = 'shape=hexagon, style="filled", fillcolor=lightyellow'
+            elif node_type == "router":
+                style = 'shape=diamond, style="filled", fillcolor=lightblue'
+            else:
+                style = 'shape=box, style="rounded,filled", fillcolor=white'
+            
+            lines.append(f'    {node_id} [label="{node_label}\\n({node_type})", {style}];')
+        
+        lines.append("")
+        
+        # Add edges
+        for edge in self.edges:
+            source_id = edge.source.replace("-", "_")
+            target_id = edge.target.replace("-", "_")
+            
+            # Create label
+            label = edge.condition.value
+            if edge.condition_expr:
+                label = f"{label}:\\n{edge.condition_expr}"
+            elif edge.description:
+                label = edge.description
+            
+            lines.append(f'    {source_id} -> {target_id} [label="{label}"];')
+        
+        lines.append("}")
+        return "\n".join(lines)

@@ -26,16 +26,22 @@ class LLMJudge:
     """
     LLM-based judge for semantic evaluation of test results.
 
-    Uses Claude to evaluate whether outputs meet semantic constraints
+    Uses an LLM to evaluate whether outputs meet semantic constraints
     that can't be verified with simple assertions.
     """
 
-    def __init__(self):
-        """Initialize the LLM judge."""
-        self._client = None
+    def __init__(self, llm_provider=None):
+        """Initialize the LLM judge.
+        
+        Args:
+            llm_provider: Optional LLMProvider instance. If None, uses Anthropic Claude (default).
+                         Accepts any framework.llm.provider.LLMProvider implementation.
+        """
+        self._llm_provider = llm_provider
+        self._client = None  # For backward compatibility with Anthropic
 
     def _get_client(self):
-        """Lazy-load the Anthropic client."""
+        """Lazy-load the Anthropic client (fallback for backward compatibility)."""
         if self._client is None:
             try:
                 import anthropic
@@ -64,8 +70,6 @@ class LLMJudge:
         Returns:
             Dict with 'passes' (bool) and 'explanation' (str)
         """
-        client = self._get_client()
-
         prompt = f"""You are evaluating whether a summary meets a specific constraint.
 
 CONSTRAINT: {constraint}
@@ -85,14 +89,24 @@ Respond with JSON in this exact format:
 Only output the JSON, nothing else."""
 
         try:
-            response = client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=500,
-                messages=[{"role": "user", "content": prompt}],
-            )
+            # Use configured LLM provider if available (fixes #477)
+            if self._llm_provider:
+                response = self._llm_provider.complete(
+                    messages=[{"role": "user", "content": prompt}],
+                    system="You are an evaluator. Respond only with JSON.",
+                    json_mode=True,
+                )
+                text = response.content.strip()
+            else:
+                # Fallback to Anthropic client for backward compatibility
+                client = self._get_client()
+                response = client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=500,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                text = response.content[0].text.strip()
 
-            # Parse the response
-            text = response.content[0].text.strip()
             # Handle potential markdown code blocks
             if text.startswith("```"):
                 text = text.split("```")[1]

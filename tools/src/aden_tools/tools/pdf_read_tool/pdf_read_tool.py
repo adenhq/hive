@@ -154,4 +154,13 @@ def register_tools(mcp: FastMCP) -> None:
         except PermissionError:
             return {"error": f"Permission denied: {file_path}"}
         except Exception as e:
-            return {"error": f"Failed to read PDF: {str(e)}"}
+            # Specific error handling for PDF issues (fixes #269)
+            error_msg = str(e).lower()
+            if "pdf" in error_msg and ("corrupt" in error_msg or "invalid" in error_msg or "damaged" in error_msg):
+                return {"error": f"Corrupted or malformed PDF file: {file_path}. The file may be damaged or not a valid PDF."}
+            elif "empty" in error_msg or "no pages" in error_msg:
+                return {"error": f"Empty PDF file or no readable pages: {file_path}"}
+            elif "password" in error_msg or "encrypted" in error_msg:
+                return {"error": f"Encrypted PDF file requires password: {file_path}"}
+            else:
+                return {"error": f"Failed to read PDF: {str(e)}"}

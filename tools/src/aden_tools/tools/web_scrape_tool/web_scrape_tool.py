@@ -99,6 +99,7 @@ def register_tools(mcp: FastMCP) -> None:
         include_links: bool = False,
         max_length: int = 50000,
         respect_robots_txt: bool = True,
+        timeout: float = 30.0,
     ) -> dict:
         """
         Scrape and extract text content from a webpage.
@@ -112,6 +113,7 @@ def register_tools(mcp: FastMCP) -> None:
             include_links: Include extracted links in the response
             max_length: Maximum length of extracted text (1000-500000)
             respect_robots_txt: Whether to respect robots.txt rules (default: True)
+            timeout: Request timeout in seconds (5-300, default: 30)
 
         Returns:
             Dict with scraped content (url, title, description, content, length) or error dict
@@ -137,6 +139,12 @@ def register_tools(mcp: FastMCP) -> None:
             elif max_length > 500000:
                 max_length = 500000
 
+            # Validate timeout (fixes #268)
+            if timeout < 5.0:
+                timeout = 5.0
+            elif timeout > 300.0:
+                timeout = 300.0
+
             # Make request
             response = httpx.get(
                 url,
@@ -146,7 +154,7 @@ def register_tools(mcp: FastMCP) -> None:
                     "Accept-Language": "en-US,en;q=0.5",
                 },
                 follow_redirects=True,
-                timeout=30.0,
+                timeout=timeout,
             )
 
             if response.status_code != 200:
