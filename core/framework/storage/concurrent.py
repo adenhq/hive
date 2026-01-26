@@ -163,8 +163,12 @@ class ConcurrentStorage:
         # Check cache
         if use_cache and cache_key in self._cache:
             entry = self._cache[cache_key]
-            if not entry.is_expired(self._cache_ttl):
+            if isinstance(entry, CacheEntry) and not entry.is_expired(self._cache_ttl):
                 return entry.value
+            elif not isinstance(entry, CacheEntry):
+                # Invalid cache entry, remove it
+                del self._cache[cache_key]
+                logger.warning(f"Invalid cache entry type for key {cache_key}: {type(entry).__name__}")
 
         # Load from storage
         lock_key = f"run:{run_id}"
@@ -187,8 +191,12 @@ class ConcurrentStorage:
         # Check cache
         if use_cache and cache_key in self._cache:
             entry = self._cache[cache_key]
-            if not entry.is_expired(self._cache_ttl):
+            if isinstance(entry, CacheEntry) and not entry.is_expired(self._cache_ttl):
                 return entry.value
+            elif not isinstance(entry, CacheEntry):
+                # Invalid cache entry, remove it
+                del self._cache[cache_key]
+                logger.warning(f"Invalid cache entry type for key {cache_key}: {type(entry).__name__}")
 
         # Load from storage
         loop = asyncio.get_event_loop()
@@ -339,15 +347,19 @@ class ConcurrentStorage:
 
     def get_cache_stats(self) -> dict:
         """Get cache statistics."""
-        now = time.time()
         expired = sum(
             1 for entry in self._cache.values()
-            if entry.is_expired(self._cache_ttl)
+            if isinstance(entry, CacheEntry) and entry.is_expired(self._cache_ttl)
+        )
+        invalid = sum(
+            1 for entry in self._cache.values()
+            if not isinstance(entry, CacheEntry)
         )
         return {
             "total_entries": len(self._cache),
             "expired_entries": expired,
-            "valid_entries": len(self._cache) - expired,
+            "invalid_entries": invalid,
+            "valid_entries": len(self._cache) - expired - invalid,
         }
 
     # === UTILITY ===
