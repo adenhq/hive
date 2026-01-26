@@ -9,6 +9,14 @@ A visual drag-and-drop interface for building AI agents without code. Design com
 
 ---
 
+## Demo
+
+https://github.com/user-attachments/assets/demo-video
+
+> **Note:** If the video doesn't play above, [download it here](./docs/demo.mp4)
+
+---
+
 ## Screenshots
 
 ### Visual Node Editor with Data Flow
