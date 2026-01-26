@@ -16,7 +16,7 @@ import {
   getSmoothStepPath,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Brain, Wrench, GitBranch, Code, Download, Trash2, X, Copy, Check, Play, Plus, Loader2, Search, MessageSquare, FileText, ArrowRight, Database, HelpCircle, Info, ChevronRight, ChevronDown, Layers, BookOpen, Zap, FileCode, Edit3, Flag, CircleDot, Eye, EyeOff, Key, Cpu, AlertTriangle } from 'lucide-react';
+import { Brain, Wrench, GitBranch, Code, Download, Trash2, X, Copy, Check, Play, Plus, Loader2, Search, MessageSquare, ArrowRight, HelpCircle, Info, ChevronRight, ChevronDown, Layers, BookOpen, Zap, FileCode, Edit3, Flag, CircleDot, Eye, EyeOff, Key, Cpu, AlertTriangle } from 'lucide-react';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-python';
 import 'prismjs/themes/prism-tomorrow.css';
@@ -300,38 +300,6 @@ const TEMPLATES = {
       { id: 'respond', position: { x: 300, y: 100 }, data: { label: 'Generate Response', nodeType: 'llm_generate' as NodeType, description: 'Draft response', inputKeys: ['category', 'urgency', 'ticket'], outputKeys: ['response'], systemPrompt: 'Generate helpful response.\n\nReturn JSON: {"response": "..."}', tools: [], isEntry: false, isTerminal: true } },
     ],
     edges: [{ id: 'e1', source: 'parse', target: 'respond' }],
-  },
-  document: {
-    name: 'Document Processor',
-    desc: 'Reads PDFs or documents, extracts key information, and generates structured reports.',
-    icon: FileText,
-    color: '#ea580c',
-    bgColor: '#fff7ed',
-    category: 'Documents',
-    popular: false,
-    steps: ['Extract', 'Analyze', 'Report'],
-    nodes: [
-      { id: 'extract', position: { x: 50, y: 100 }, data: { label: 'Extract Content', nodeType: 'llm_tool_use' as NodeType, description: 'Extract document content', inputKeys: ['document_url'], outputKeys: ['content', 'metadata'], systemPrompt: 'Use pdf_read to extract document content.\n\nReturn JSON: {"content": "...", "metadata": {...}}', tools: ['pdf_read'], isEntry: true, isTerminal: false } },
-      { id: 'analyze', position: { x: 300, y: 100 }, data: { label: 'Analyze', nodeType: 'llm_generate' as NodeType, description: 'Analyze content', inputKeys: ['content', 'metadata'], outputKeys: ['analysis', 'key_points'], systemPrompt: 'Analyze the document content.\n\nReturn JSON: {"analysis": "...", "key_points": [...]}', tools: [], isEntry: false, isTerminal: false } },
-      { id: 'report', position: { x: 550, y: 100 }, data: { label: 'Generate Report', nodeType: 'llm_generate' as NodeType, description: 'Create summary report', inputKeys: ['analysis', 'key_points'], outputKeys: ['report'], systemPrompt: 'Generate a structured report.\n\nReturn JSON: {"report": "..."}', tools: [], isEntry: false, isTerminal: true } },
-    ],
-    edges: [{ id: 'e1', source: 'extract', target: 'analyze' }, { id: 'e2', source: 'analyze', target: 'report' }],
-  },
-  dataEnrichment: {
-    name: 'Data Enrichment',
-    desc: 'Validates input data, enriches it with external sources, and formats the output.',
-    icon: Database,
-    color: '#16a34a',
-    bgColor: '#f0fdf4',
-    category: 'Data Ops',
-    popular: false,
-    steps: ['Validate', 'Enrich', 'Format'],
-    nodes: [
-      { id: 'validate', position: { x: 50, y: 100 }, data: { label: 'Validate Input', nodeType: 'llm_generate' as NodeType, description: 'Validate and parse input', inputKeys: ['raw_data'], outputKeys: ['validated_data', 'errors'], systemPrompt: 'Validate the input data.\n\nReturn JSON: {"validated_data": {...}, "errors": [...]}', tools: [], isEntry: true, isTerminal: false } },
-      { id: 'enrich', position: { x: 300, y: 100 }, data: { label: 'Enrich Data', nodeType: 'llm_tool_use' as NodeType, description: 'Enrich with external data', inputKeys: ['validated_data'], outputKeys: ['enriched_data'], systemPrompt: 'Use web_search to find additional information.\n\nReturn JSON: {"enriched_data": {...}}', tools: ['web_search'], isEntry: false, isTerminal: false } },
-      { id: 'format', position: { x: 550, y: 100 }, data: { label: 'Format Output', nodeType: 'llm_generate' as NodeType, description: 'Format final output', inputKeys: ['enriched_data'], outputKeys: ['formatted_output'], systemPrompt: 'Format the enriched data.\n\nReturn JSON: {"formatted_output": {...}}', tools: [], isEntry: false, isTerminal: true } },
-    ],
-    edges: [{ id: 'e1', source: 'validate', target: 'enrich' }, { id: 'e2', source: 'enrich', target: 'format' }],
   },
   profileScraper: {
     name: 'Profile Scraper',
@@ -2214,7 +2182,7 @@ export default function App() {
                           <textarea
                             value={runInput[key] || ''}
                             onChange={e => setRunInput(prev => ({ ...prev, [key]: e.target.value }))}
-                            placeholder={`Enter ${key}...`}
+                            placeholder={key === 'url' ? 'https://www.koushith.in' : `Enter ${key}...`}
                             rows={key.includes('content') || key.includes('text') || key.includes('ticket') ? 4 : 2}
                             style={{
                               width: '100%',

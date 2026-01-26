@@ -259,8 +259,6 @@ The backend supports multiple LLM providers via LiteLLM:
 | **Research Agent** | Analyzes query → Scrapes web → Summarizes findings | 3 |
 | **Support Agent** | Classifies ticket → Generates response | 2 |
 | **Profile Scraper** | Scrapes profile → Extracts blog links | 2 |
-| **Document Processor** | Extracts content → Analyzes → Reports | 3 |
-| **Data Enrichment** | Validates → Enriches → Formats | 3 |
 
 ---
 
