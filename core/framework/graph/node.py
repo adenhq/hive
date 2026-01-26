@@ -308,7 +308,7 @@ class NodeResult:
 
         # Use Haiku to generate intelligent summary
         import os
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        #api_key = os.environ.get("ANTHROPIC_API_KEY")
 
         if not api_key:
             # Fallback: simple key-value listing
@@ -321,40 +321,44 @@ class NodeResult:
             return "\n".join(parts)
 
         # Use Haiku to generate intelligent summary
-        try:
-            import anthropic
-            import json
+        from framework.llm.litellm import LiteLLMProvider
+import json
 
-            node_context = ""
-            if node_spec:
-                node_context = f"\nNode: {node_spec.name}\nPurpose: {node_spec.description}"
+node_context = ""
+if node_spec:
+    node_context = f"\nNode: {node_spec.name}\nPurpose: {node_spec.description}"
 
-            prompt = f"""Generate a 1-2 sentence human-readable summary of what this node produced.{node_context}
+prompt = f"""Generate a 1-2 sentence human-readable summary of what this node produced.{node_context}
 
 Node output:
 {json.dumps(self.output, indent=2, default=str)[:2000]}
 
 Provide a concise, clear summary that a human can quickly understand. Focus on the key information produced."""
 
-            client = anthropic.Anthropic(api_key=api_key)
-            message = client.messages.create(
-                model="claude-3-5-haiku-20241022",
-                max_tokens=200,
-                messages=[{"role": "user", "content": prompt}]
-            )
+message = None
 
-            summary = message.content[0].text.strip()
-            return f"✓ {summary}"
+def format_output(self, prompt):
+    message = None
 
-        except Exception:
-            # Fallback on error
-            parts = [f"✓ Completed with {len(self.output)} outputs:"]
-            for key, value in list(self.output.items())[:3]:
-                value_str = str(value)[:80]
-                if len(str(value)) > 80:
-                    value_str += "..."
-                parts.append(f"  • {key}: {value_str}")
-            return "\n".join(parts)
+    try:
+        llm = LiteLLMProvider(model="gpt-4o-mini")
+        message = llm.chat(prompt)
+    except Exception as e:
+        print("LLM error:", e)
+
+    try:
+        summary = message.content[0].text.strip()
+        return f"✓ {summary}"
+    except Exception:
+        parts = [f"✓ Completed with {len(self.output)} outputs:"]
+        for key, value in list(self.output.items())[:3]:
+            value_str = str(value)[:80]
+            if len(str(value)) > 80:
+                value_str += "..."
+            parts.append(f"  • {key}: {value_str}")
+        return "\n".join(parts)
+
+
 
 
 class NodeProtocol(ABC):
@@ -701,7 +705,7 @@ class LLMNode(NodeProtocol):
         # All local extraction methods failed - use LLM as last resort
         # Prefer Cerebras (faster/cheaper), fallback to Anthropic Haiku
         import os
-        api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+        #api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("Cannot parse JSON and no API key for LLM cleanup (set CEREBRAS_API_KEY or ANTHROPIC_API_KEY)")
 
@@ -715,8 +719,9 @@ class LLMNode(NodeProtocol):
             )
         else:
             # Fallback to Anthropic Haiku
-            from framework.llm.anthropic import AnthropicProvider
-            cleaner_llm = AnthropicProvider(model="claude-3-5-haiku-20241022")
+            from framework.llm.litellm import LiteLLMProvider
+            cleaner_llm = LiteLLMProvider(model="gpt-4o-mini")
+
 
         prompt = f"""Extract the JSON object from this LLM response.
 
@@ -781,16 +786,21 @@ Output ONLY the JSON object, nothing else."""
             return "\n".join(parts) if parts else str(ctx.input_data)
 
         # Use Haiku to intelligently extract relevant data
-        import os
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            # Fallback to simple formatting if no API key
-            parts = []
-            for key in ctx.node_spec.input_keys:
-                value = ctx.memory.read(key)
-                if value is not None:
-                    parts.append(f"{key}: {value}")
-            return "\n".join(parts)
+        
+
+        try:
+            llm = LiteLLMProvider(model="gpt-4o-mini")
+            message = llm.chat(prompt)
+            response_text = message.content[0].text.strip()
+            json_str = find_json_object(response_text)
+            if json_str:
+                extracted = json.loads(json_str)
+                parts = [f"{k}: {v}" for k, v in extracted.items() if k in ctx.node_spec.input_keys]
+                if parts:
+                    return "\n".join(parts)
+
+        except Exception as e:
+            logger.warning(f"Haiku formatting failed: {e}")
 
         # Build prompt for Haiku to extract clean values
         import json
