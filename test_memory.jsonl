@@ -1,0 +1,2 @@
+{"id": "gen_id", "vector": [1.0, 0.0, 0.37], "metadata": {"type": "chat"}, "content": "Hello world, this is a normal memory."}
+{"id": "gen_id", "vector": [0.0, 1.0, 0.49], "metadata": {"type": "secret"}, "content": "My secret api_key is ********, don't tell anyone!"}
