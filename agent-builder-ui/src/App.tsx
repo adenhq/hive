@@ -631,6 +631,15 @@ export default function App() {
     setModal(null);
   };
 
+  const startFromScratch = () => {
+    setName('My Agent');
+    setDesc('');
+    setNodes([]);
+    setEdges([]);
+    setSelectedNode(null);
+    setModal(null);
+  };
+
   const onNodesChange = useCallback((c: any) => setNodes(n => applyNodeChanges(c, n)), []);
   const onEdgesChange = useCallback((c: any) => setEdges(e => applyEdgeChanges(c, e)), []);
   const onConnect = useCallback((c: any) => {
@@ -2033,7 +2042,7 @@ export default function App() {
               {/* Bottom Actions */}
               <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
                 <button
-                  onClick={() => setModal(null)}
+                  onClick={startFromScratch}
                   style={{
                     flex: 1,
                     padding: 14,
