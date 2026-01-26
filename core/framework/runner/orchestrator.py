@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,12 @@ class RoutingDecision:
     fallback_agents: list[str] = field(default_factory=list)
 
 
+
+# Default model for routing decisions - using a stable model alias
+# Can be overridden via environment variable
+DEFAULT_ROUTING_MODEL = os.getenv("HIVE_ROUTING_MODEL", "claude-3-haiku-20240307")
+
+
 class AgentOrchestrator:
     """
     Manages multiple agents and routes communications between them.
@@ -55,7 +62,7 @@ class AgentOrchestrator:
     def __init__(
         self,
         llm: LLMProvider | None = None,
-        model: str = "claude-haiku-4-5-20251001",
+        model: str = DEFAULT_ROUTING_MODEL,
     ):
         """
         Initialize the orchestrator.
