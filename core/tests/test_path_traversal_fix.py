@@ -54,7 +54,9 @@ class TestPathTraversalProtection:
         with pytest.raises(ValueError, match="path traversal detected"):
             storage._validate_key(".env")
 
-        # This also has path separator which is caught first
+        # This has both a leading dot and a path separator; the test only
+        # asserts that validation fails, without depending on which check
+        # (leading dot vs path separator) triggers first or what message is used.
         with pytest.raises(ValueError):
             storage._validate_key(".ssh/id_rsa")
 
