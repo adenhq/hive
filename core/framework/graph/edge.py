@@ -532,9 +532,11 @@ class GraphSpec(BaseModel):
                 )
 
         # Check terminal nodes exist
-        for term in self.terminal_nodes:
-            if not self.get_node(term):
-                errors.append(f"Terminal node '{term}' not found")
+        errors.extend(
+            f"Terminal node '{term}' not found"
+            for term in self.terminal_nodes
+            if not self.get_node(term)
+        )
 
         # Check edge references
         for edge in self.edges:
@@ -553,8 +555,9 @@ class GraphSpec(BaseModel):
             to_visit.append(entry_point_node)
 
         # Add all async entry points as valid starting points
-        for async_entry in self.async_entry_points:
-            to_visit.append(async_entry.entry_node)
+        to_visit.extend(
+            async_entry.entry_node for async_entry in self.async_entry_points
+        )
 
         # Traverse from all entry points
         while to_visit:
