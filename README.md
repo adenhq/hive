@@ -61,6 +61,19 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 <!-- - **[Roadmap](https://adenhq.com/roadmap)** - Upcoming features and plans -->
 - **[Report Issues](https://github.com/adenhq/hive/issues)** - Bug reports and feature requests
 
+> ⚠️ **Windows Users**
+>
+> This project assumes a Unix-like shell and a working `python` executable on PATH.
+>
+> On Windows:
+> - Use **Git Bash** or **WSL** (not Command Prompt or PowerShell).
+> - Install **Python 3.11+** from https://www.python.org/downloads/
+> - During install, check **“Add Python to PATH”**.
+> - Disable the Microsoft Store Python alias:
+>   Settings → Apps → Advanced app settings → App execution aliases → turn off `python.exe`.
+>
+> The setup and quickstart scripts will fail in CMD/PowerShell.
+
 ## Quick Start
 
 ### Prerequisites
@@ -69,6 +82,8 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 - [Docker](https://docs.docker.com/get-docker/) (v20.10+) - Optional, for containerized tools
 
 ### Installation
+
+> ⚠️ Requires a Unix-like shell (macOS, Linux, Git Bash, or WSL)
 
 ```bash
 # Clone the repository
@@ -84,19 +99,35 @@ This installs:
 - **aden_tools** - 19 MCP tools for agent capabilities
 - All required dependencies
 
+### Claude Code Requirement
+
+Hive depends on **Claude Code** for building and testing agents.
+
+Before running any `claude>` commands or `./quickstart.sh`:
+
+1. Install Claude Code from the official docs:  
+   https://docs.anthropic.com/claude/docs/claude-code-overview
+
+2. Verify installation:
+```bash
+claude
+```
+You should see a usage menu printed.  
+If `claude` is not found, agent building commands will not work.
+
 ### Build Your First Agent
 
 ```bash
-# Install Claude Code skills (one-time)
+Install Claude Code skills (one-time)
 ./quickstart.sh
 
-# Build an agent using Claude Code
+Build an agent using Claude Code
 claude> /building-agents
 
-# Test your agent
+Test your agent
 claude> /testing-agent
 
-# Run your agent
+Run your agent
 PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'
 ```
 
