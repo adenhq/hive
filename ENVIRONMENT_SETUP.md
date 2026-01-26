@@ -2,6 +2,29 @@
 
 Complete setup guide for building and running goal-driven agents with the Aden Agent Framework.
 
+## Prerequisites
+
+Before you start, make sure you have:
+
+| Requirement | Version | Check Command |
+|-------------|---------|---------------|
+| Python | 3.11+ (3.12 recommended) | `python --version` |
+| pip | Latest | `pip --version` |
+| git | Any recent version | `git --version` |
+
+### Operating System Support
+
+| OS | Status | Notes |
+|----|--------|-------|
+| **macOS** | Fully supported | Works out of the box |
+| **Linux** | Fully supported | Ubuntu, Debian, Fedora tested |
+| **Windows** | Supported | Use PowerShell or WSL; see [Windows notes](#windows-setup-notes) below |
+
+### Optional Tools
+
+- **Claude Code CLI** - Only needed if you want to use the `/building-agents` and `/testing-agent` skills. You can build agents manually without it.
+- **Docker** - Only needed for containerized deployment, not required for local development.
+
 ## Quick Setup
 
 ```bash
@@ -16,6 +39,25 @@ This will:
 - Install the tools package (`aden_tools`)
 - Fix package compatibility issues (openai + litellm)
 - Verify all installations
+
+## Using a Virtual Environment (Recommended)
+
+We recommend using a virtual environment to avoid conflicts with system packages:
+
+```bash
+# Create virtual environment
+python -m venv .venv
+
+# Activate it
+source .venv/bin/activate        # macOS/Linux
+# OR
+.venv\Scripts\activate           # Windows PowerShell
+
+# Then run setup
+./scripts/setup-python.sh
+```
+
+> **Note:** On some Linux systems (Ubuntu 24.04+), installing packages system-wide is blocked. A virtual environment is required.
 
 ## Manual Setup (Alternative)
 
@@ -49,6 +91,24 @@ python -c "import framework; print('✓ framework OK')"
 python -c "import aden_tools; print('✓ aden_tools OK')"
 python -c "import litellm; print('✓ litellm OK')"
 ```
+
+## Important: PYTHONPATH for Running Agents
+
+When running agents, you need to set `PYTHONPATH` so Python can find both the framework and your agent packages:
+
+```bash
+# Always run from the project root (hive/) directory
+PYTHONPATH=core:exports python -m agent_name COMMAND
+```
+
+**Why?** The `exports/` directory contains agent packages that aren't installed via pip. Setting PYTHONPATH tells Python where to find them.
+
+**Quick test after setup:**
+```bash
+PYTHONPATH=core:exports python -m support_ticket_agent validate
+```
+
+If this works, you're all set!
 
 ## Requirements
 
@@ -116,39 +176,70 @@ PYTHONPATH=core:exports python -m personal_assistant_agent run --input '{...}'
 
 ## Building New Agents
 
-Use Claude Code CLI with the agent building skills:
+You have two options for building agents:
 
-### 1. Install Skills (One-time)
+### Option A: Using Claude Code Skills (Recommended)
+
+If you have [Claude Code CLI](https://docs.anthropic.com/claude/docs/claude-code) installed:
 
 ```bash
+# Install the skills (one-time)
 ./quickstart.sh
 ```
 
-This installs:
-
-- `/building-agents` - Build new agents
-- `/testing-agent` - Test agents
-
-### 2. Build an Agent
-
+Then use the skills:
 ```
-claude> /building-agents
+claude> /building-agents   # Guided agent creation
+claude> /testing-agent     # Generate test suites
 ```
 
-Follow the prompts to:
+### Option B: Manual Agent Creation
 
-1. Define your agent's goal
-2. Design the workflow nodes
-3. Connect edges
-4. Generate the agent package
+You can also create agents manually without Claude Code:
 
-### 3. Test Your Agent
+1. Copy an existing agent as a template:
+   ```bash
+   cp -r exports/support_ticket_agent exports/my_agent
+   ```
 
+2. Edit `agent.json` to define your nodes and edges
+3. Add custom tools in `tools.py` if needed
+4. Update `README.md` with your agent's documentation
+
+See [exports/support_ticket_agent/](exports/support_ticket_agent/) for a complete example.
+
+## Windows Setup Notes
+
+### Running the Setup Script
+
+On Windows, use Git Bash or WSL to run the setup script:
+
+```bash
+# Git Bash
+./scripts/setup-python.sh
+
+# Or use WSL
+wsl ./scripts/setup-python.sh
 ```
-claude> /testing-agent
+
+### Setting PYTHONPATH on Windows
+
+```powershell
+# PowerShell (temporary, current session only)
+$env:PYTHONPATH = "core;exports"
+python -m support_ticket_agent validate
+
+# Or use the SET command in CMD
+set PYTHONPATH=core;exports
+python -m support_ticket_agent validate
 ```
 
-Creates comprehensive test suites for your agent.
+> **Note:** Windows uses `;` as the path separator, not `:` like macOS/Linux.
+
+### Common Windows Issues
+
+- **"execution of scripts is disabled"** - Run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser` in PowerShell as admin
+- **Unicode errors** - Set `$env:PYTHONIOENCODING = "utf-8"` before running agents
 
 ## Troubleshooting
 
@@ -213,9 +304,13 @@ pip install --upgrade "openai>=1.0.0"
 
 **Cause:** Not running from project root or missing PYTHONPATH
 
-**Solution:** Ensure you're in the project root directory and use:
+**Solution:** Make sure you're in the `hive/` project root directory and use:
 
 ```bash
+# Check you're in the right directory
+ls core/  # Should show framework/, pyproject.toml, etc.
+
+# Run with PYTHONPATH
 PYTHONPATH=core:exports python -m support_ticket_agent validate
 ```
 
