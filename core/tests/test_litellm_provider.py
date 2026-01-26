@@ -10,11 +10,11 @@ For live tests (requires API keys):
 """
 
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from framework.llm.litellm import LiteLLMProvider
 from framework.llm.anthropic import AnthropicProvider
-from framework.llm.provider import LLMProvider, Tool, ToolUse, ToolResult
+from framework.llm.litellm import LiteLLMProvider
+from framework.llm.provider import LLMProvider, Tool, ToolResult, ToolUse
 
 
 class TestLiteLLMProviderInit:
@@ -163,7 +163,9 @@ class TestLiteLLMProviderToolUse:
         tool_call_response.choices[0].message.tool_calls = [MagicMock()]
         tool_call_response.choices[0].message.tool_calls[0].id = "call_123"
         tool_call_response.choices[0].message.tool_calls[0].function.name = "get_weather"
-        tool_call_response.choices[0].message.tool_calls[0].function.arguments = '{"location": "London"}'
+        tool_call_response.choices[0].message.tool_calls[0].function.arguments = (
+            '{"location": "London"}'
+        )
         tool_call_response.choices[0].finish_reason = "tool_calls"
         tool_call_response.model = "gpt-4o-mini"
         tool_call_response.usage.prompt_tokens = 20
@@ -187,7 +189,10 @@ class TestLiteLLMProviderToolUse:
             Tool(
                 name="get_weather",
                 description="Get the weather",
-                parameters={"properties": {"location": {"type": "string"}}, "required": ["location"]}
+                parameters={
+                    "properties": {"location": {"type": "string"}},
+                    "required": ["location"],
+                }
             )
         ]
 

@@ -10,27 +10,24 @@ Tests cover:
 """
 
 import asyncio
+
 import pytest
 
+from framework.graph.code_sandbox import CodeSandbox, safe_eval, safe_exec
+from framework.graph.goal import Goal, SuccessCriterion
+from framework.graph.judge import HybridJudge, create_default_judge
 from framework.graph.plan import (
-    Plan,
-    PlanStep,
     ActionSpec,
     ActionType,
-    StepStatus,
+    EvaluationRule,
+    ExecutionStatus,
     Judgment,
     JudgmentAction,
-    EvaluationRule,
+    Plan,
     PlanExecutionResult,
-    ExecutionStatus,
+    PlanStep,
+    StepStatus,
 )
-from framework.graph.code_sandbox import (
-    CodeSandbox,
-    safe_exec,
-    safe_eval,
-)
-from framework.graph.judge import HybridJudge, create_default_judge
-from framework.graph.goal import Goal, SuccessCriterion
 
 
 class TestPlanDataStructures:
@@ -233,7 +230,12 @@ class TestHybridJudge:
             name="Test Goal",
             description="A test goal",
             success_criteria=[
-                SuccessCriterion(id="sc1", description="Complete task", metric="completion", target="100%"),
+                SuccessCriterion(
+                    id="sc1",
+                    description="Complete task",
+                    metric="completion",
+                    target="100%",
+                ),
             ],
         )
 
@@ -266,7 +268,12 @@ class TestHybridJudge:
             name="Test Goal",
             description="A test goal",
             success_criteria=[
-                SuccessCriterion(id="sc1", description="Complete task", metric="completion", target="100%"),
+                SuccessCriterion(
+                    id="sc1",
+                    description="Complete task",
+                    metric="completion",
+                    target="100%",
+                ),
             ],
         )
 
@@ -308,7 +315,12 @@ class TestHybridJudge:
             name="Test Goal",
             description="A test goal",
             success_criteria=[
-                SuccessCriterion(id="sc1", description="Complete task", metric="completion", target="100%"),
+                SuccessCriterion(
+                    id="sc1",
+                    description="Complete task",
+                    metric="completion",
+                    target="100%",
+                ),
             ],
         )
 
@@ -397,8 +409,8 @@ class TestFlexibleExecutorIntegration:
 
     def test_executor_creation(self, tmp_path):
         """Test creating a FlexibleGraphExecutor."""
-        from framework.runtime.core import Runtime
         from framework.graph.flexible_executor import FlexibleGraphExecutor
+        from framework.runtime.core import Runtime
 
         runtime = Runtime(storage_path=tmp_path / "runtime")
         executor = FlexibleGraphExecutor(runtime=runtime)
