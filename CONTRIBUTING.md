@@ -46,12 +46,8 @@ If a high-quality PR is submitted for a "stale" assigned issue (no activity for 
 
 ```bash
 # Install Python packages
-
-# On Linux/macOS:
 ./scripts/setup-python.sh
-
-# On Windows:
-powershell -ExecutionPolicy Bypass -File .\scripts\setup-python.ps1
+# Windows(Powershell): powershell -ExecutionPolicy Bypass -File .\scripts\setup-python.ps1
 
 # Verify installation
 python -c "import framework; import aden_tools; print('`n✓ Setup complete')"
@@ -132,11 +128,8 @@ cd core && python -m pytest
 cd tools && python -m pytest
 
 # 3. Run tests for a specific agent
-# Linux/macOS:
 PYTHONPATH=core:exports python -m agent_name test
-
-# Windows (PowerShell):
-($env:PYTHONPATH='core;exports'; python -m agent_name test)
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m agent_name test)
 ```
 
 ## Questions?
