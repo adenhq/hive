@@ -69,6 +69,7 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 - [Docker](https://docs.docker.com/get-docker/) (v20.10+) - Optional, for containerized tools
 
 ### Installation
+The following steps will help you set up Hive locally for the first time.
 
 ```bash
 # Clone the repository
