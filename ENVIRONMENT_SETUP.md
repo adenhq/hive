@@ -439,3 +439,13 @@ You don’t need to activate the venv to use it — you can run the venv interpr
 
     ./.venv/bin/python -m pip install -U pip
 
+
+Windows notes (if needed):
+
+- `setup-python.sh` is a Bash script. On Windows, run it via WSL or Git Bash.
+- Activate the venv (Windows):
+    PowerShell:
+        .\.venv\Scripts\Activate.ps1
+    cmd.exe:
+        .\.venv\Scripts\activate.bat
+
