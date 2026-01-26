@@ -764,7 +764,23 @@ npm run test -w honeycomb -- src/components/Button.test.tsx
 # Clear test cache
 npm run test -w honeycomb -- --clearCache
 ```
+### Windows Setup Notes
 
+On Windows, multiple Python installations (e.g. MSYS2, Git Bash, Windows Store Python)
+can cause virtual environments to be created incorrectly.
+
+**Symptoms:**
+- `.venv/bin` exists instead of `.venv/Scripts`
+- Native dependency build failures (e.g. Rust, jiter, anthropic)
+- `pip` missing inside the virtual environment
+
+**Recommendation:**
+- Use the official Python from python.org (Python 3.11+)
+- Explicitly create the virtual environment using that Python:
+
+```powershell
+& "C:\Users\<user>\AppData\Local\Programs\Python\Python311\python.exe" -m venv .venv
+.\.venv\Scripts\Activate.ps1
 ---
 
 ## Getting Help
