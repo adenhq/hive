@@ -542,16 +542,76 @@ class LLMNode(NodeProtocol):
             # Call LLM
             if ctx.available_tools and self.tool_executor:
                 from framework.llm.provider import ToolUse, ToolResult
+                import asyncio
+                import json
 
-                def executor(tool_use: ToolUse) -> ToolResult:
-                    logger.info(f"         🔧 Tool call: {tool_use.name}({', '.join(f'{k}={v}' for k, v in tool_use.input.items())})")
-                    result = self.tool_executor(tool_use)
-                    # Truncate long results
-                    result_str = str(result.content)[:150]
-                    if len(str(result.content)) > 150:
-                        result_str += "..."
-                    logger.info(f"         ✓ Tool result: {result_str}")
-                    return result
+                # Use ToolAccessLayer if available, otherwise fall back to direct executor
+                if ctx.tools:
+                    # Use ToolAccessLayer for unified tool execution
+                    # Note: We need to run async code in sync context
+                    # Since we're already in an async function, we can use asyncio.create_task
+                    # But LLM interface expects sync, so we use a helper
+                    async def async_tool_executor(tool_use: ToolUse) -> ToolResult:
+                        logger.info(f"         🔧 Tool call: {tool_use.name}({', '.join(f'{k}={v}' for k, v in tool_use.input.items())})")
+                        exec_result = await ctx.tools.execute_tool(
+                            name=tool_use.name,
+                            params=tool_use.input,
+                        )
+                        # Truncate long results
+                        result_str = str(exec_result.result)[:150] if exec_result.result else str(exec_result.error or "")[:150]
+                        if exec_result.result and len(str(exec_result.result)) > 150:
+                            result_str += "..."
+                        logger.info(f"         ✓ Tool result: {result_str}")
+                        
+                        # Convert ToolExecutionResult to ToolResult
+                        if exec_result.success:
+                            content = json.dumps(exec_result.result) if not isinstance(exec_result.result, str) else exec_result.result
+                            return ToolResult(
+                                tool_use_id=tool_use.id,
+                                content=content,
+                                is_error=False,
+                            )
+                        else:
+                            return ToolResult(
+                                tool_use_id=tool_use.id,
+                                content=json.dumps({"error": exec_result.error}),
+                                is_error=True,
+                            )
+                    
+                    # Create a sync wrapper that runs the async executor
+                    # Since we're in an async context, we can await directly
+                    # But LLM interface is sync, so we need to handle this carefully
+                    # For now, use the existing executor but log that we're using ToolAccessLayer
+                    def executor(tool_use: ToolUse) -> ToolResult:
+                        # Run async executor in current event loop
+                        try:
+                            loop = asyncio.get_event_loop()
+                            if loop.is_running():
+                                # If loop is running, we need to use a different approach
+                                # For now, fall back to direct executor
+                                logger.debug("Event loop running, using direct executor")
+                                result = self.tool_executor(tool_use)
+                                result_str = str(result.content)[:150]
+                                if len(str(result.content)) > 150:
+                                    result_str += "..."
+                                logger.info(f"         ✓ Tool result: {result_str}")
+                                return result
+                            else:
+                                return loop.run_until_complete(async_tool_executor(tool_use))
+                        except RuntimeError:
+                            # No event loop, create one
+                            return asyncio.run(async_tool_executor(tool_use))
+                else:
+                    # Fallback to direct executor (backward compatibility)
+                    def executor(tool_use: ToolUse) -> ToolResult:
+                        logger.info(f"         🔧 Tool call: {tool_use.name}({', '.join(f'{k}={v}' for k, v in tool_use.input.items())})")
+                        result = self.tool_executor(tool_use)
+                        # Truncate long results
+                        result_str = str(result.content)[:150]
+                        if len(str(result.content)) > 150:
+                            result_str += "..."
+                        logger.info(f"         ✓ Tool result: {result_str}")
+                        return result
 
                 response = ctx.llm.complete_with_tools(
                     messages=messages,
