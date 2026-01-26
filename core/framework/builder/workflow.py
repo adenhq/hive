@@ -13,7 +13,7 @@ Each step requires validation and human approval before proceeding.
 You cannot skip steps or bypass validation.
 """
 
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from datetime import datetime
 from typing import Any, Callable
@@ -25,7 +25,7 @@ from framework.graph.node import NodeSpec
 from framework.graph.edge import EdgeSpec, EdgeCondition, GraphSpec
 
 
-class BuildPhase(str, Enum):
+class BuildPhase(StrEnum):
     """Current phase of the build process."""
     INIT = "init"                    # Just started
     GOAL_DRAFT = "goal_draft"        # Drafting goal
