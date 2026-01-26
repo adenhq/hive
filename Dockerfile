@@ -12,11 +12,16 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
-COPY . .
+
+COPY requirements/docker-build.txt /tmp/docker-build.txt
 
 RUN python3 -m pip install --upgrade pip setuptools wheel
-RUN python3 -m pip install -e core
-RUN python3 -m pip install -e tools
+RUN python3 -m pip install -r /tmp/docker-build.txt
+
+COPY . .
+
+RUN python3 -m pip install -e core --no-deps
+RUN python3 -m pip install -e tools --no-deps
 
 ENV PYTHONPATH=/workspace/core:/workspace/exports
 
