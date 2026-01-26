@@ -349,12 +349,18 @@ class ExecutionStream:
                     )
 
             finally:
-                # Clean up state
-                self._state_manager.cleanup_execution(execution_id)
-
-                # Signal completion
-                if execution_id in self._completion_events:
-                    self._completion_events[execution_id].set()
+                # Always signal completion first to unblock waiters
+                try:
+                    if execution_id in self._completion_events:
+                        self._completion_events[execution_id].set()
+                except Exception as e:
+                    logger.error(f"Failed to set completion event for {execution_id}: {e}")
+                
+                # Clean up state (even if event setting fails)
+                try:
+                    self._state_manager.cleanup_execution(execution_id)
+                except Exception as e:
+                    logger.error(f"Failed to cleanup execution {execution_id}: {e}")
 
     def _create_modified_graph(self) -> "GraphSpec":
         """Create a graph with the entry point overridden."""
@@ -383,14 +389,15 @@ class ExecutionStream:
     async def wait_for_completion(
         self,
         execution_id: str,
-        timeout: float | None = None,
+        timeout: float | None = 3600.0,
     ) -> ExecutionResult | None:
         """
         Wait for an execution to complete.
 
         Args:
             execution_id: Execution to wait for
-            timeout: Maximum time to wait (seconds)
+            timeout: Maximum time to wait in seconds (default: 3600 = 1 hour).
+                    Pass float('inf') for infinite wait (not recommended).
 
         Returns:
             ExecutionResult or None if timeout
@@ -401,14 +408,18 @@ class ExecutionStream:
             return self._execution_results.get(execution_id)
 
         try:
-            if timeout:
-                await asyncio.wait_for(event.wait(), timeout=timeout)
-            else:
-                await event.wait()
-
+            # Use timeout even if None passed (convert to default)
+            effective_timeout = timeout if timeout is not None else 3600.0
+            
+            # Warn if execution takes longer than expected
+            if effective_timeout > 300:  # 5 minutes
+                logger.debug(f"Waiting up to {effective_timeout}s for execution {execution_id}")
+            
+            await asyncio.wait_for(event.wait(), timeout=effective_timeout)
             return self._execution_results.get(execution_id)
 
         except asyncio.TimeoutError:
+            logger.warning(f"Execution {execution_id} timed out after {effective_timeout}s")
             return None
 
     def get_result(self, execution_id: str) -> ExecutionResult | None:
