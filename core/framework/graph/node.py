@@ -288,12 +288,14 @@ class NodeResult:
     tokens_used: int = 0
     latency_ms: int = 0
 
-    def to_summary(self, node_spec: Any = None) -> str:
+    async def to_summary(self, node_spec: Any = None) -> str:
         """
         Generate a human-readable summary of this node's execution and output.
 
-        This is like toString() - it describes what the node produced in its current state.
-        Uses Haiku to intelligently summarize complex outputs.
+        This is like toString() - it describes what the node produced in its
+        current state. Uses Haiku to intelligently summarize complex outputs.
+
+        Async method to prevent blocking the event loop during API calls.
         """
         if not self.success:
             return f"❌ Failed: {self.error}"
@@ -315,34 +317,40 @@ class NodeResult:
                 parts.append(f"  • {key}: {value_str}")
             return "\n".join(parts)
 
-        # Use Haiku to generate intelligent summary
+        # Use Haiku to generate intelligent summary (async with timeout)
         try:
             import anthropic
+            import asyncio
             import json
 
             node_context = ""
             if node_spec:
                 node_context = f"\nNode: {node_spec.name}\nPurpose: {node_spec.description}"
 
-            prompt = f"""Generate a 1-2 sentence human-readable summary of what this node produced.{node_context}
+            prompt = (
+                "Generate a 1-2 sentence human-readable summary of what this "
+                "node produced." + node_context + "\n\n"
+                "Node output:\n"
+                f"{json.dumps(self.output, indent=2, default=str)[:2000]}\n\n"
+                "Provide a concise, clear summary that a human can quickly "
+                "understand. Focus on the key information produced."
+            )
 
-Node output:
-{json.dumps(self.output, indent=2, default=str)[:2000]}
-
-Provide a concise, clear summary that a human can quickly understand. Focus on the key information produced."""
-
-            client = anthropic.Anthropic(api_key=api_key)
-            message = client.messages.create(
-                model="claude-3-5-haiku-20241022",
-                max_tokens=200,
-                messages=[{"role": "user", "content": prompt}]
+            client = anthropic.AsyncAnthropic(api_key=api_key)
+            message = await asyncio.wait_for(
+                client.messages.create(
+                    model="claude-3-5-haiku-20241022",
+                    max_tokens=200,
+                    messages=[{"role": "user", "content": prompt}]
+                ),
+                timeout=10.0  # 10 second timeout
             )
 
             summary = message.content[0].text.strip()
             return f"✓ {summary}"
 
         except Exception:
-            # Fallback on error
+            # Fallback on error (including timeout)
             parts = [f"✓ Completed with {len(self.output)} outputs:"]
             for key, value in list(self.output.items())[:3]:
                 value_str = str(value)[:80]
