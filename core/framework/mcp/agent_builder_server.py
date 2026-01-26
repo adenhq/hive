@@ -24,8 +24,6 @@ from framework.graph import (
     SuccessCriterion,
 )
 from framework.graph.plan import Plan
-
-# Testing framework imports
 from framework.testing.prompts import PYTEST_TEST_FILE_HEADER
 
 
@@ -224,7 +222,7 @@ def list_sessions() -> str:
     active_id = None
     if ACTIVE_SESSION_FILE.exists():
         try:
-            with open(ACTIVE_SESSION_FILE, "r") as f:
+            with open(ACTIVE_SESSION_FILE) as f:
                 active_id = f.read().strip()
         except Exception:
             pass
@@ -1242,7 +1240,11 @@ def _generate_readme(session: BuildSession, export_data: dict, all_tools: set) -
     if session.mcp_servers
     else ""}
 
-{"Tools from these MCP servers are automatically loaded when the agent runs." if session.mcp_servers else ""}
+{(
+    "Tools from these MCP servers are automatically loaded when the agent runs."
+    if session.mcp_servers
+    else ""
+)}
 
 ## Usage
 
