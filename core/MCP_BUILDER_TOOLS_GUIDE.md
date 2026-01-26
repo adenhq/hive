@@ -38,7 +38,7 @@ Register an MCP server as a tool source for your agent.
     "name": "tools",
     "transport": "stdio",
     "command": "python",
-    "args": "[\"mcp_server.py\", \"--stdio\"]",
+    "args": "[\"-m\", \"mcp_server\", \"--stdio\"]",
     "cwd": "../tools",
     "description": "Aden tools for web search and file operations"
   }
@@ -68,7 +68,7 @@ Register an MCP server as a tool source for your agent.
     "name": "tools",
     "transport": "stdio",
     "command": "python",
-    "args": ["mcp_server.py", "--stdio"],
+    "args": ["-m", "mcp_server", "--stdio"],
     "cwd": "../tools",
     "description": "Aden tools..."
   },
@@ -101,7 +101,7 @@ List all registered MCP servers.
       "name": "tools",
       "transport": "stdio",
       "command": "python",
-      "args": ["mcp_server.py", "--stdio"],
+      "args": ["-m", "mcp_server", "--stdio"],
       "cwd": "../tools",
       "description": "Aden tools..."
     }
@@ -206,7 +206,7 @@ Here's a complete workflow for building an agent with MCP tools:
     "name": "tools",
     "transport": "stdio",
     "command": "python",
-    "args": "[\"mcp_server.py\", \"--stdio\"]",
+    "args": "[\"-m\", \"mcp_server\", \"--stdio\"]",
     "cwd": "../tools"
   }
 }
@@ -283,7 +283,7 @@ When you export an agent with registered MCP servers, an `mcp_servers.json` file
       "name": "tools",
       "transport": "stdio",
       "command": "python",
-      "args": ["mcp_server.py", "--stdio"],
+      "args": ["-m", "mcp_server", "--stdio"],
       "cwd": "../tools",
       "description": "Aden tools for web search and file operations"
     }

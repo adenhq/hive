@@ -94,7 +94,7 @@ def main():
             "mcpServers": {
                 "agent-builder": {
                     "command": "python",
-                    "args": ["-m", "framework.mcp.agent_builder_server"],
+                    "args": ["-m", "framework.mcp.agent_builder_server", "--stdio"],
                     "cwd": str(script_dir)
                 }
             }
@@ -142,7 +142,7 @@ def main():
         "mcpServers": {
             "agent-builder": {
                 "command": "python",
-                "args": ["-m", "framework.mcp.agent_builder_server"],
+                "args": ["-m", "framework.mcp.agent_builder_server", "--stdio"],
                 "cwd": str(script_dir)
             }
         }

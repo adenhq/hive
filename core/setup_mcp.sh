@@ -48,7 +48,7 @@ else
   "mcpServers": {
     "agent-builder": {
       "command": "python",
-      "args": ["-m", "framework.mcp.agent_builder_server"],
+      "args": ["-m", "framework.mcp.agent_builder_server", "--stdio"],
       "cwd": "$SCRIPT_DIR"
     }
   }
@@ -83,7 +83,7 @@ echo "{
   \"mcpServers\": {
     \"agent-builder\": {
       \"command\": \"python\",
-      \"args\": [\"-m\", \"framework.mcp.agent_builder_server\"],
+      \"args\": [\"-m\", \"framework.mcp.agent_builder_server\", \"--stdio\"],
       \"cwd\": \"$SCRIPT_DIR\"
     }
   }

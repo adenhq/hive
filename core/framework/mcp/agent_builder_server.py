@@ -1466,7 +1466,7 @@ def add_mcp_server(
             name="tools",
             transport="stdio",
             command="python",
-            args='["mcp_server.py", "--stdio"]',
+            args='["-m", "mcp_server", "--stdio"]',
             cwd="../tools"
         )
 
