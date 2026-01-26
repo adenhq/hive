@@ -51,7 +51,7 @@ def _load_run_from_storage(storage_path: Path, run_id: str) -> dict | None:
     run_path = storage_path / "runs" / f"{run_id}.json"
     if not run_path.exists():
         return None
-    with open(run_path) as f:
+    with open(run_path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -68,7 +68,7 @@ def _get_run_ids_by_goal(storage_path: Path, goal_id: str) -> list[str]:
     index_path = storage_path / "indexes" / "by_goal" / f"{goal_id}.json"
     if not index_path.exists():
         return []
-    with open(index_path) as f:
+    with open(index_path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -211,7 +211,10 @@ def _format_as_text(timeline: AuditTimeline) -> str:
         lines.append(f"    Intent: {entry.intent}")
         lines.append(f"    Choice: {entry.chosen_option}")
         if entry.reasoning:
-            lines.append(f"    Reasoning: {entry.reasoning[:100]}...")
+            if len(entry.reasoning) > 100:
+                lines.append(f"    Reasoning: {entry.reasoning[:100]}...")
+            else:
+                lines.append(f"    Reasoning: {entry.reasoning}")
         if entry.outcome_summary:
             lines.append(f"    Outcome: {entry.outcome_summary}")
         if entry.tokens_used or entry.latency_ms:
@@ -247,14 +250,17 @@ def register_tools(mcp: FastMCP) -> None:
         Use this tool to create audit trails for compliance, debugging,
         or analyzing agent decision patterns.
         
+        Note: For large storage directories with many runs, consider using
+        run_id or goal_id filters to limit memory usage.
+        
         Args:
             storage_path: Path to the storage directory containing runs
             run_id: Filter to specific run (optional)
             goal_id: Filter to runs for a specific goal (optional)
             node_id: Filter to decisions from a specific node (optional)
             decision_type: Filter by decision type (optional)
-            start_date: Filter decisions after this ISO date (optional)
-            end_date: Filter decisions before this ISO date (optional)
+            start_date: Filter decisions on or after this ISO date (optional)
+            end_date: Filter decisions on or before this ISO date (optional)
             success_only: Only include successful decisions
             failure_only: Only include failed decisions
             export_format: Output format - "json", "csv", or "text" (default: json)
@@ -421,9 +427,10 @@ def register_tools(mcp: FastMCP) -> None:
                         # Count outcomes
                         outcome = decision.get("outcome")
                         if outcome:
-                            if outcome.get("success"):
+                            success = outcome.get("success")
+                            if success is True:
                                 successful_decisions += 1
-                            else:
+                            elif success is False:
                                 failed_decisions += 1
             
             summary = {
