@@ -63,8 +63,8 @@ class FileStorage:
         if "/" in key or "\\" in key:
             raise ValueError(f"Invalid key format: path separators not allowed in '{key}'")
 
-        # Block parent directory references
-        if ".." in key or key.startswith("."):
+        # Block parent directory references and dot-prefixed names
+        if key.startswith("."):
             raise ValueError(f"Invalid key format: path traversal detected in '{key}'")
 
         # Block absolute paths
