@@ -346,17 +346,17 @@ def set_goal(
 
     # Validate required fields in criteria and constraints
     # Validate required fields using Pydantic models
-        try:
-            if criteria_list:
-                [SuccessCriterion.model_validate(sc) for sc in criteria_list]
-            
-            if constraint_list:
-                [Constraint.model_validate(c) for c in constraint_list]
-
-        except ValidationError as e:
-            errors.append(str(e))
-        except TypeError as e:
-            errors.append(f"Invalid data type: {str(e)}")
+    try:
+        if criteria_list:
+            [SuccessCriterion.model_validate(sc) for sc in criteria_list]
+        
+        if constraint_list:
+            [Constraint.model_validate(c) for c in constraint_list]
+    
+    except ValidationError as e:
+        errors.append(str(e))
+    except TypeError as e:
+        errors.append(f"Invalid data type: {str(e)}")
 
     # Return early if validation failed
     if errors:
