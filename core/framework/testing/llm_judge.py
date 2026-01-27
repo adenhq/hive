@@ -5,11 +5,19 @@ Used by tests that need to evaluate semantic properties like
 "no hallucination" or "preserves meaning" that can't be checked
 with simple assertions.
 
+Provider-agnostic: Uses LiteLLM to support any LLM provider (OpenAI, Anthropic, 
+Google, local models, etc.)
+
 Usage in tests:
     from framework.testing.llm_judge import LLMJudge
 
-    # Default: uses Anthropic (requires ANTHROPIC_API_KEY)
+    # Default: uses gpt-4o-mini for cost efficiency
     judge = LLMJudge()
+    
+    # Or specify a model:
+    judge = LLMJudge(model="claude-haiku-4-5-20251001")
+    judge = LLMJudge(model="gemini/gemini-1.5-flash")
+    
     result = judge.evaluate(
         constraint="no-hallucination",
         source_document="The original text...",
@@ -17,53 +25,43 @@ Usage in tests:
         criteria="Summary must only contain facts from the source"
     )
     assert result["passes"], result["explanation"]
-
-    # With custom LLM provider:
-    from framework.llm.litellm import LiteLLMProvider
-    judge = LLMJudge(llm_provider=LiteLLMProvider(model="gpt-4o-mini"))
 """
 
-from __future__ import annotations
-
 import json
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from framework.llm.provider import LLMProvider
+from framework.llm.litellm import LiteLLMProvider
 
 
 class LLMJudge:
     """
     LLM-based judge for semantic evaluation of test results.
 
-    Uses an LLM to evaluate whether outputs meet semantic constraints
-    that can't be verified with simple assertions.
-
-    Supports any LLMProvider (Anthropic, OpenAI, LiteLLM, etc.) or falls
-    back to Anthropic for backward compatibility.
+    Provider-agnostic implementation using LiteLLM to support any LLM provider.
+    Evaluates whether outputs meet semantic constraints that can't be verified 
+    with simple assertions.
     """
 
-    def __init__(self, llm_provider: LLMProvider | None = None):
+    # Default model - cost-effective for evaluation tasks
+    DEFAULT_MODEL = "gpt-4o-mini"
+
+    def __init__(self, model: str | None = None):
         """
         Initialize the LLM judge.
-
+        
         Args:
-            llm_provider: Optional LLM provider instance. If not provided,
-                          falls back to Anthropic client (requires ANTHROPIC_API_KEY).
+            model: LLM model to use for evaluation. Supports any model that LiteLLM
+                   supports (OpenAI, Anthropic, Google, local, etc.). 
+                   Defaults to gpt-4o-mini for cost efficiency.
         """
-        self._provider = llm_provider
-        self._client = None  # Fallback Anthropic client (lazy-loaded)
+        self._model = model or self.DEFAULT_MODEL
+        self._provider: LiteLLMProvider | None = None
 
-    def _get_client(self):
-        """Lazy-load the Anthropic client."""
-        if self._client is None:
-            try:
-                import anthropic
-
-                self._client = anthropic.Anthropic()
-            except ImportError as err:
-                raise RuntimeError("anthropic package required for LLM judge") from err
-        return self._client
+    def _get_provider(self) -> LiteLLMProvider:
+        """Lazy-load the LLM provider."""
+        if self._provider is None:
+            self._provider = LiteLLMProvider(model=self._model)
+        return self._provider
 
     def evaluate(
         self,
@@ -84,6 +82,8 @@ class LLMJudge:
         Returns:
             Dict with 'passes' (bool) and 'explanation' (str)
         """
+        provider = self._get_provider()
+
         prompt = f"""You are evaluating whether a summary meets a specific constraint.
 
 CONSTRAINT: {constraint}
@@ -103,25 +103,14 @@ Respond with JSON in this exact format:
 Only output the JSON, nothing else."""
 
         try:
-            # Use injected provider if available
-            if self._provider is not None:
-                response = self._provider.complete(
-                    messages=[{"role": "user", "content": prompt}],
-                    system="",
-                    max_tokens=500,
-                    json_mode=True,
-                )
-                text = response.content.strip()
-            else:
-                # Fallback to Anthropic (backward compatible)
-                client = self._get_client()
-                response = client.messages.create(
-                    model="claude-haiku-4-5-20251001",
-                    max_tokens=500,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                text = response.content[0].text.strip()
+            response = provider.complete(
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=500,
+                json_mode=True,
+            )
 
+            # Parse the response
+            text = response.content.strip()
             # Handle potential markdown code blocks
             if text.startswith("```"):
                 text = text.split("```")[1]
