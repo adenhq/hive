@@ -25,17 +25,32 @@ echo "  Aden Agent Framework - Python Setup"
 echo "=================================================="
 echo ""
 
-# Check for Python
-if ! command -v python &> /dev/null && ! command -v python3 &> /dev/null; then
-    echo -e "${RED}Error: Python is not installed.${NC}"
-    echo "Please install Python 3.11+ from https://python.org"
-    exit 1
+# Resolve Python interpreter (prefer active virtualenv/conda)
+PYTHON_CMD=""
+if [ -n "$VIRTUAL_ENV" ]; then
+    if [ -x "$VIRTUAL_ENV/Scripts/python.exe" ]; then
+        PYTHON_CMD="$VIRTUAL_ENV/Scripts/python.exe"
+    elif [ -x "$VIRTUAL_ENV/bin/python" ]; then
+        PYTHON_CMD="$VIRTUAL_ENV/bin/python"
+    fi
+elif [ -n "$CONDA_PREFIX" ]; then
+    if [ -x "$CONDA_PREFIX/Scripts/python.exe" ]; then
+        PYTHON_CMD="$CONDA_PREFIX/Scripts/python.exe"
+    elif [ -x "$CONDA_PREFIX/bin/python" ]; then
+        PYTHON_CMD="$CONDA_PREFIX/bin/python"
+    fi
 fi
 
-# Use python3 if available, otherwise python
-PYTHON_CMD="python3"
-if ! command -v python3 &> /dev/null; then
-    PYTHON_CMD="python"
+if [ -z "$PYTHON_CMD" ]; then
+    if command -v python3 &> /dev/null; then
+        PYTHON_CMD="python3"
+    elif command -v python &> /dev/null; then
+        PYTHON_CMD="python"
+    else
+        echo -e "${RED}Error: Python is not installed.${NC}"
+        echo "Please install Python 3.11+ from https://python.org"
+        exit 1
+    fi
 fi
 
 # Check Python version
