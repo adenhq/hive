@@ -37,6 +37,21 @@
 
 Build reliable, self-improving AI agents without hardcoding workflows. Define your goal through conversation with a coding agent, and the framework generates a node graph with dynamically created connection code. When things break, the framework captures failure data, evolves the agent through the coding agent, and redeploys. Built-in human-in-the-loop nodes, credential management, and real-time monitoring give you control without sacrificing adaptability.
 
+## Simple Explanation (For Beginners)
+
+Aden (Hive) is an open-source framework that helps developers build AI agents that can run tasks automatically and improve themselves over time.
+
+Instead of manually writing complex workflows, you describe **what you want to achieve** in plain English. Aden then:
+- Creates the required AI agents
+- Connects them together automatically
+- Monitors their execution
+- Learns from failures and improves future runs
+
+This framework is useful for developers who want to build reliable AI-driven automation without managing low-level agent orchestration logic.
+
+If you are new to AI agents or this project, start with the **Quick Start** section and the **ENVIRONMENT_SETUP.md** guide before exploring advanced features.
+
+
 Visit [adenhq.com](https://adenhq.com) for complete documentation, examples, and guides.
 
 ## What is Aden
