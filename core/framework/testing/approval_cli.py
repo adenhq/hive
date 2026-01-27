@@ -273,7 +273,7 @@ def _edit_test_code(code: str) -> str:
         subprocess.run([editor, temp_path], check=True)
 
         # Read edited code
-        with open(temp_path) as f:
+        with open(temp_path, encoding="utf-8") as f:
             return f.read()
     except subprocess.CalledProcessError:
         print("Editor failed, keeping original code")

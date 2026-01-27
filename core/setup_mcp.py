@@ -100,7 +100,7 @@ def main():
             }
         }
 
-        with open(mcp_config_path, 'w') as f:
+        with open(mcp_config_path, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=2)
 
         print_success("Created .mcp.json")
