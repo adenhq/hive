@@ -85,7 +85,6 @@ class LLMProvider(ABC):
         """
         pass
 
-    @abstractmethod
     def complete_with_tools(
         self,
         messages: list[dict[str, Any]],

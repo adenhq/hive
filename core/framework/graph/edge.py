@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 
 from framework.graph.safe_eval import safe_eval
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -235,47 +236,55 @@ Consider:
 Respond with ONLY a JSON object:
 {{"proceed": true/false, "reasoning": "brief explanation"}}"""
 
-        if hasattr(llm, "complete_with_tools"):
-            try:
-                response = llm.complete_with_tools(
-                    messages=messages,
-                    system=system_prompt,
-                    tools=tools,
-                    tool_executor=tool_executor,
-                    max_iterations=10
-                )
-            except NotImplementedError as e:
-                logger.warning(f"Tool execution not supported: {e}")
-                # fallback to regular completion
-                response = llm.complete(messages, system=system_prompt)
-        else:
-            try:
+        try:
+            if tools and tool_executor:
+                try:
+                    response = llm.complete_with_tools(
+                        messages=messages,
+                        system=system_prompt,
+                        tools=tools,
+                        tool_executor=tool_executor,
+                        max_iterations=10,
+                    )
+                except NotImplementedError:
+                    logger.debug(
+                        f"{llm.__class__.__name__} does not support tools; "
+                        "falling back to regular completion."
+                    )
+                    response = llm.complete(
+                        messages=messages,
+                        system=system_prompt,
+                        max_tokens=150,
+                    )
+            else:
                 response = llm.complete(
                     messages=[{"role": "user", "content": prompt}],
-                    system="You are a routing agent. Respond with JSON only.",
+                    system=system_prompt,
                     max_tokens=150,
                 )
 
-                # Parse response
-                import re
-                json_match = re.search(r'\{[^{}]*\}', response.content, re.DOTALL)
-                if json_match:
+            # Parse response
+            proceed, reasoning = False, ""
+            json_match = re.search(r'\{[^{}]*\}', response.content, re.DOTALL)
+            if json_match:
+                try:
                     data = json.loads(json_match.group())
-                    proceed = data.get("proceed", False)
+                    proceed = bool(data.get("proceed", False))
                     reasoning = data.get("reasoning", "")
+                except json.JSONDecodeError:
+                    logger.warning("Failed to decode JSON from LLM response")
 
-                # Log the decision (using basic print for now)
-                logger.info(f"      🤔 LLM routing decision: {'PROCEED' if proceed else 'SKIP'}")
-                logger.info(f"         Reason: {reasoning}")
+            # Log the decision
+            logger.info(f"      🤔 LLM routing decision: {'PROCEED' if proceed else 'SKIP'}")
+            logger.info(f"         Reason: {reasoning}")
 
-                return proceed
+            return proceed
 
-            except Exception as e:
-                # Fallback: proceed on success
-                logger.warning(f"      ⚠ LLM routing failed, defaulting to on_success: {e}")
-                return source_success
+        except Exception as e:
+            # Fallback: proceed on success
+            logger.warning(f"      ⚠ LLM routing failed, defaulting to on_success: {e}")
+            return source_success
 
-        return source_success
 
     def map_inputs(
         self,
