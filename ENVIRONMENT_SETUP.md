@@ -80,6 +80,43 @@ For running agents with real LLMs:
 export ANTHROPIC_API_KEY="your-key-here"
 ```
 
+## Windows User Guide
+
+Specific instructions for Windows users on PowerShell or CMD.
+
+### Virtual Environment Activation
+
+- **PowerShell:** `.venv\Scripts\Activate.ps1`
+- **CMD:** `.venv\Scripts\activate.bat`
+
+### Environment Variables
+
+Unix-style `export` commands will not work. Use the following syntax:
+
+**PowerShell:**
+```powershell
+$env:VAR_NAME="value"
+```
+
+**CMD:**
+```cmd
+set VAR_NAME=value
+```
+
+### Running Agents (PYTHONPATH)
+
+**CRITICAL:** Windows uses a semi-colon (`;`) for path separation, whereas Unix uses a colon (`:`).
+
+**PowerShell:**
+```powershell
+$env:PYTHONPATH="core;exports"; python -m agent_name COMMAND
+```
+
+**CMD:**
+```cmd
+set PYTHONPATH=core;exports && python -m agent_name COMMAND
+```
+
 ## Running Agents
 
 All agent commands must be run from the project root with `PYTHONPATH` set:
