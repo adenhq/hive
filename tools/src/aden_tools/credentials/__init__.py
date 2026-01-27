@@ -24,6 +24,7 @@ Usage:
 Credential categories:
 - llm.py: LLM provider credentials (anthropic, openai, etc.)
 - search.py: Search tool credentials (brave_search, google_search, etc.)
+- email.py: Email service credentials (resend, etc.)
 
 To add a new credential:
 1. Find the appropriate category file (or create a new one)
@@ -33,11 +34,13 @@ To add a new credential:
 from .base import CredentialError, CredentialManager, CredentialSpec
 from .llm import LLM_CREDENTIALS
 from .search import SEARCH_CREDENTIALS
+from .email import EMAIL_CREDENTIALS
 
 # Merged registry of all credentials
 CREDENTIAL_SPECS = {
     **LLM_CREDENTIALS,
     **SEARCH_CREDENTIALS,
+    **EMAIL_CREDENTIALS,
 }
 
 __all__ = [

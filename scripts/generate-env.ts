@@ -56,6 +56,11 @@ interface Config {
   cors: {
     origin: string;
   };
+  email?: {
+    enabled: boolean;
+    from: string;
+    api_key: string;
+  };
   features: {
     registration: boolean;
     rate_limiting: boolean;
@@ -147,6 +152,11 @@ REDIS_URL=${config.redis.url}
 # Authentication
 JWT_SECRET=${config.auth.jwt_secret}
 PASSPHRASE=${config.auth.passphrase}
+
+# Email Service (Resend)
+EMAIL_ENABLED=${config.email?.enabled || 'false'}
+EMAIL_RESEND_API_KEY=${config.email?.api_key || ''}
+EMAIL_FROM=${config.email?.from || 'alerts@example.com'}
 
 # Features
 FEATURE_MCP_SERVER=${config.features.mcp_server}

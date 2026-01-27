@@ -23,6 +23,7 @@ from .example_tool import register_tools as register_example
 from .web_search_tool import register_tools as register_web_search
 from .web_scrape_tool import register_tools as register_web_scrape
 from .pdf_read_tool import register_tools as register_pdf_read
+from .email_tool import register_tools as register_email
 
 # Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
@@ -63,6 +64,7 @@ def register_all_tools(
     # Tools that need credentials (pass credentials if provided)
     # web_search supports multiple providers (Google, Brave) with auto-detection
     register_web_search(mcp, credentials=credentials)
+    register_email(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -80,6 +82,8 @@ def register_all_tools(
         "web_search",
         "web_scrape",
         "pdf_read",
+        "send_email",
+        "send_templated_email",
         "view_file",
         "write_to_file",
         "list_dir",

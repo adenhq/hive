@@ -1,0 +1,83 @@
+# Aden Framework Configuration
+# Copy this file to config.yaml and update values for your environment
+
+app:
+  # Application name - displayed in UI and logs
+  name: Aden
+
+  # Environment: development, production, or test
+  environment: development
+
+  # Log level: debug, info, warn, error
+  log_level: info
+
+server:
+  frontend:
+    # Port for the React frontend
+    port: 3000
+
+  backend:
+    # Port for the Node.js API
+    port: 4000
+    # Host to bind (0.0.0.0 = all interfaces)
+    host: 0.0.0.0
+
+# TimescaleDB (PostgreSQL) Configuration
+timescaledb:
+  url: postgresql://user:password@localhost
+  port: 5432
+
+# MongoDB Configuration
+mongodb:
+  url: mongodb://localhost
+  database: aden
+  erp_database: aden_erp
+  port: 27017
+
+# Redis Configuration
+redis:
+  url: redis://localhost
+  port: 6379
+
+# Authentication Configuration
+auth:
+  jwt_secret: your-secret-key-change-in-production
+  jwt_expires_in: 7d
+  passphrase: your-passphrase-change-in-production
+
+# NPM Token (for private packages in Docker builds)
+npm:
+  token: ""
+
+# CORS Configuration
+cors:
+  origin: "http://localhost:3000"
+
+# Email Service Configuration
+# Sends budget alerts and notifications via email
+email:
+  # Enable email notifications
+  enabled: false
+
+  # Email address that notifications are sent from
+  # Must be a verified sender in your Resend account
+  from: "alerts@yourdomain.com"
+
+  # Resend API Key
+  # Get this from https://resend.com/api-keys
+  # Leave empty to disable email notifications
+  api_key: ""
+
+# Feature Flags
+features:
+  # Allow user registration
+  registration: true
+
+  # Enable rate limiting
+  rate_limiting: true
+
+  # Enable request logging
+  request_logging: true
+
+  # Enable MCP server
+  mcp_server: true

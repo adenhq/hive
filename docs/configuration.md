@@ -99,6 +99,30 @@ cors:
   origin: http://localhost:3000
 ```
 
+### Email Service Configuration
+
+Enable email notifications for budget alerts and other notifications:
+
+```yaml
+email:
+  # Enable/disable email service
+  enabled: true
+
+  # Sender email address
+  # Must be verified in your email provider account
+  from: "alerts@yourdomain.com"
+
+  # Resend API Key
+  # Get from https://resend.com/api-keys
+  api_key: "re_your_api_key_here"
+```
+
+**Setup Guide:** See [Email Service Integration Guide](./email-service-guide.md) for complete setup instructions.
+
+**Supported Email Providers:**
+- **Resend** (recommended) - Excellent TypeScript support, generous free tier
+- **SendGrid** - Enterprise features, more complex setup
+- Custom SMTP - Coming soon
 ### Feature Flags
 
 ```yaml
