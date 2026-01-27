@@ -78,3 +78,29 @@ class TestPdfReadTool:
 
         result = pdf_read_fn(file_path=str(pdf_file), include_metadata=True)
         assert isinstance(result, dict)
+
+    def test_read_empty_pdf(self, pdf_read_fn, tmp_path: Path):
+        """Reading an empty PDF file returns specific error."""
+        empty_pdf = tmp_path / "empty.pdf"
+        empty_pdf.touch()
+
+        result = pdf_read_fn(file_path=str(empty_pdf))
+
+        assert "error" in result
+        assert "PDF file is empty" in result["error"]
+
+    def test_read_malformed_pdf(self, pdf_read_fn, tmp_path: Path):
+        """Reading a malformed PDF file returns specific error."""
+        bad_pdf = tmp_path / "bad.pdf"
+        bad_pdf.write_bytes(b"Not a PDF content")
+
+        result = pdf_read_fn(file_path=str(bad_pdf))
+
+        assert "error" in result
+        # Check for any of the pypdf error messages we implemented
+        assert any(msg in result["error"] for msg in [
+            "Corrupted or malformed PDF",
+            "Failed to parse PDF",
+            "PDF stream error"
+        ])
+
