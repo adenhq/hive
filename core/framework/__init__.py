@@ -27,6 +27,12 @@ from framework.schemas.run import Run, RunSummary, Problem
 from framework.runtime.core import Runtime
 from framework.builder.query import BuilderQuery
 from framework.llm import LLMProvider, AnthropicProvider
+from framework.logging_config import (
+    setup_logging,
+    get_logger,
+    set_framework_log_level,
+    disable_framework_logging,
+)
 from framework.runner import AgentRunner, AgentOrchestrator
 
 # Testing framework
@@ -56,6 +62,11 @@ __all__ = [
     # LLM
     "LLMProvider",
     "AnthropicProvider",
+    # Logging
+    "setup_logging",
+    "get_logger",
+    "set_framework_log_level",
+    "disable_framework_logging",
     # Runner
     "AgentRunner",
     "AgentOrchestrator",
