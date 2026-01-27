@@ -15,6 +15,7 @@ Protocol:
     The framework provides NodeContext with everything the node needs.
 """
 
+import copy
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -88,6 +89,7 @@ class NodeSpec(BaseModel):
             system_prompt="You are a calculator..."
         )
     """
+
     id: str
     name: str
     description: str
@@ -95,60 +97,63 @@ class NodeSpec(BaseModel):
     # Node behavior type
     node_type: str = Field(
         default="llm_tool_use",
-        description="Type: 'llm_tool_use', 'llm_generate', 'function', 'router', 'human_input'"
+        description=(
+            "Type: 'llm_tool_use', 'llm_generate', 'function', 'router', 'human_input'"
+        ),
     )
 
     # Data flow
     input_keys: list[str] = Field(
         default_factory=list,
-        description="Keys this node reads from shared memory or input"
+        description="Keys this node reads from shared memory or input",
     )
     output_keys: list[str] = Field(
         default_factory=list,
-        description="Keys this node writes to shared memory or output"
+        description="Keys this node writes to shared memory or output",
     )
 
     # Optional schemas for validation and cleansing
     input_schema: dict[str, dict] = Field(
         default_factory=dict,
-        description="Optional schema for input validation. Format: {key: {type: 'string', required: True, description: '...'}}"
+        description=(
+            "Optional schema for input validation. "
+            "Format: {key: {type: 'string', required: True, description: '...'}}"
+        ),
     )
     output_schema: dict[str, dict] = Field(
         default_factory=dict,
-        description="Optional schema for output validation. Format: {key: {type: 'dict', required: True, description: '...'}}"
+        description=(
+            "Optional schema for output validation. "
+            "Format: {key: {type: 'dict', required: True, description: '...'}}"
+        ),
     )
 
     # For LLM nodes
     system_prompt: str | None = Field(
-        default=None,
-        description="System prompt for LLM nodes"
+        default=None, description="System prompt for LLM nodes"
     )
     tools: list[str] = Field(
-        default_factory=list,
-        description="Tool names this node can use"
+        default_factory=list, description="Tool names this node can use"
     )
     model: str | None = Field(
-        default=None,
-        description="Specific model to use (defaults to graph default)"
+        default=None, description="Specific model to use (defaults to graph default)"
     )
 
     # For function nodes
     function: str | None = Field(
-        default=None,
-        description="Function name or path for function nodes"
+        default=None, description="Function name or path for function nodes"
     )
 
     # For router nodes
     routes: dict[str, str] = Field(
         default_factory=dict,
-        description="Condition -> target_node_id mapping for routers"
+        description="Condition -> target_node_id mapping for routers",
     )
 
     # Retry behavior
     max_retries: int = Field(default=3)
     retry_on: list[str] = Field(
-        default_factory=list,
-        description="Error types to retry on"
+        default_factory=list, description="Error types to retry on"
     )
 
     model_config = {"extra": "allow"}
@@ -156,6 +161,7 @@ class NodeSpec(BaseModel):
 
 class MemoryWriteError(Exception):
     """Raised when an invalid value is written to memory."""
+
     pass
 
 
@@ -167,6 +173,7 @@ class SharedMemory:
     Nodes read and write to shared memory using typed keys.
     The memory is scoped to a single run.
     """
+
     _data: dict[str, Any] = field(default_factory=dict)
     _allowed_read: set[str] = field(default_factory=set)
     _allowed_write: set[str] = field(default_factory=set)
@@ -197,7 +204,13 @@ class SharedMemory:
             # Check for obviously hallucinated content
             if len(value) > 5000:
                 # Long strings that look like code are suspicious
-                code_indicators = ["```python", "def ", "class ", "import ", "async def "]
+                code_indicators = [
+                    "```python",
+                    "def ",
+                    "class ",
+                    "import ",
+                    "async def ",
+                ]
                 if any(indicator in value[:500] for indicator in code_indicators):
                     logger.warning(
                         f"⚠ Suspicious write to key '{key}': appears to be code "
@@ -210,6 +223,19 @@ class SharedMemory:
                     )
 
         self._data[key] = value
+
+    def snapshot(self) -> dict[str, Any]:
+        """
+        Create a deep copy of the current memory state.
+        Essential for Time-Travel debugging and state forking.
+        """
+        try:
+            return copy.deepcopy(self._data)
+        except Exception as e:
+            logger.warning(
+                f"Failed to deepcopy memory, falling back to shallow copy: {e}"
+            )
+            return self._data.copy()
 
     def read_all(self) -> dict[str, Any]:
         """Read all accessible data."""
@@ -242,6 +268,7 @@ class NodeContext:
     - Access to tools (for actions)
     - The goal context (for guidance)
     """
+
     # Core runtime
     runtime: Runtime
 
@@ -277,6 +304,7 @@ class NodeResult:
     - State changes made
     - Route decision (for routers)
     """
+
     success: bool
     output: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
@@ -304,6 +332,7 @@ class NodeResult:
 
         # Use Haiku to generate intelligent summary
         import os
+
         api_key = os.environ.get("ANTHROPIC_API_KEY")
 
         if not api_key:
@@ -324,20 +353,23 @@ class NodeResult:
 
             node_context = ""
             if node_spec:
-                node_context = f"\nNode: {node_spec.name}\nPurpose: {node_spec.description}"
+                node_context = (
+                    f"\nNode: {node_spec.name}\nPurpose: {node_spec.description}"
+                )
 
-            prompt = f"""Generate a 1-2 sentence human-readable summary of what this node produced.{node_context}
-
-Node output:
-{json.dumps(self.output, indent=2, default=str)[:2000]}
-
-Provide a concise, clear summary that a human can quickly understand. Focus on the key information produced."""
+            prompt = (
+                f"Generate a 1-2 sentence human-readable summary of what this node produced."
+                f"{node_context}\n\nNode output:\n"
+                f"{json.dumps(self.output, indent=2, default=str)[:2000]}\n\n"
+                "Provide a concise, clear summary that a human can quickly understand. "
+                "Focus on the key information produced."
+            )
 
             client = anthropic.Anthropic(api_key=api_key)
             message = client.messages.create(
                 model="claude-3-5-haiku-20241022",
                 max_tokens=200,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
             )
 
             summary = message.content[0].text.strip()
@@ -427,7 +459,9 @@ class LLMNode(NodeProtocol):
     The LLM decides how to achieve the goal within constraints.
     """
 
-    def __init__(self, tool_executor: Callable | None = None, require_tools: bool = False):
+    def __init__(
+        self, tool_executor: Callable | None = None, require_tools: bool = False
+    ):
         self.tool_executor = tool_executor
         self.require_tools = require_tools
 
@@ -438,9 +472,12 @@ class LLMNode(NodeProtocol):
         This method removes those wrappers to get clean content.
         """
         import re
+
         content = content.strip()
         # Match ```json or ``` at start and ``` at end (greedy to handle nested)
-        match = re.match(r"^```(?:json|JSON)?\s*\n?(.*)\n?```\s*$", content, re.DOTALL)
+        match = re.match(
+            r"^```(?:json|JSON)?\s*\n?(.*)\n?```\s*$", content, re.DOTALL
+        )
         if match:
             return match.group(1).strip()
         return content
@@ -456,9 +493,11 @@ class LLMNode(NodeProtocol):
         if self.require_tools and not ctx.available_tools:
             return NodeResult(
                 success=False,
-                error=f"Node '{ctx.node_spec.name}' requires tools but none are available. "
-                      f"Declared tools: {ctx.node_spec.tools}. "
-                      "Register tools via ToolRegistry before running the agent."
+                error=(
+                    f"Node '{ctx.node_spec.name}' requires tools but none are available. "
+                    f"Declared tools: {ctx.node_spec.tools}. "
+                    "Register tools via ToolRegistry before running the agent."
+                ),
             )
 
         ctx.runtime.set_node(ctx.node_id)
@@ -489,17 +528,30 @@ class LLMNode(NodeProtocol):
 
             # Log the LLM call details
             logger.info("      🤖 LLM Call:")
-            logger.info(f"         System: {system[:150]}..." if len(system) > 150 else f"         System: {system}")
-            logger.info(f"         User message: {messages[-1]['content'][:150]}..." if len(messages[-1]["content"]) > 150 else f"         User message: {messages[-1]['content']}")
+            logger.info(
+                f"         System: {system[:150]}..."
+                if len(system) > 150
+                else f"         System: {system}"
+            )
+            logger.info(
+                f"         User message: {messages[-1]['content'][:150]}..."
+                if len(messages[-1]["content"]) > 150
+                else f"         User message: {messages[-1]['content']}"
+            )
             if ctx.available_tools:
-                logger.info(f"         Tools available: {[t.name for t in ctx.available_tools]}")
+                logger.info(
+                    f"         Tools available: {[t.name for t in ctx.available_tools]}"
+                )
 
             # Call LLM
             if ctx.available_tools and self.tool_executor:
                 from framework.llm.provider import ToolResult, ToolUse
 
                 def executor(tool_use: ToolUse) -> ToolResult:
-                    logger.info(f"         🔧 Tool call: {tool_use.name}({', '.join(f'{k}={v}' for k, v in tool_use.input.items())})")
+                    logger.info(
+                        f"         🔧 Tool call: {tool_use.name}"
+                        f"({', '.join(f'{k}={v}' for k, v in tool_use.input.items())})"
+                    )
                     result = self.tool_executor(tool_use)
                     # Truncate long results
                     result_str = str(result.content)[:150]
@@ -523,7 +575,9 @@ class LLMNode(NodeProtocol):
                     and len(ctx.node_spec.output_keys) >= 1
                 )
                 if use_json_mode:
-                    logger.info(f"         📋 Expecting JSON output with keys: {ctx.node_spec.output_keys}")
+                    logger.info(
+                        f"         📋 Expecting JSON output with keys: {ctx.node_spec.output_keys}"
+                    )
 
                 response = ctx.llm.complete(
                     messages=messages,
@@ -532,7 +586,11 @@ class LLMNode(NodeProtocol):
                 )
 
             # Log the response
-            response_preview = response.content[:200] if len(response.content) > 200 else response.content
+            response_preview = (
+                response.content[:200]
+                if len(response.content) > 200
+                else response.content
+            )
             if len(response.content) > 200:
                 response_preview += "..."
             logger.info(f"      ← Response: {response_preview}")
@@ -551,12 +609,17 @@ class LLMNode(NodeProtocol):
             output = self._parse_output(response.content, ctx.node_spec)
 
             # For llm_generate and llm_tool_use nodes, try to parse JSON and extract fields
-            if ctx.node_spec.node_type in ("llm_generate", "llm_tool_use") and len(ctx.node_spec.output_keys) >= 1:
+            if (
+                ctx.node_spec.node_type in ("llm_generate", "llm_tool_use")
+                and len(ctx.node_spec.output_keys) >= 1
+            ):
                 try:
                     import json
 
                     # Try to extract JSON from response
-                    parsed = self._extract_json(response.content, ctx.node_spec.output_keys)
+                    parsed = self._extract_json(
+                        response.content, ctx.node_spec.output_keys
+                    )
 
                     # If parsed successfully, write each field to its corresponding output key
                     if isinstance(parsed, dict):
@@ -569,12 +632,16 @@ class LLMNode(NodeProtocol):
                                 ctx.memory.write(key, value)
                                 output[key] = value
                             elif key in ctx.input_data:
-                                # Key not in parsed JSON but exists in input - pass through input value
+                                # Key not in parsed JSON but exists in input
+                                # pass through input value
                                 ctx.memory.write(key, ctx.input_data[key])
                                 output[key] = ctx.input_data[key]
                             else:
-                                # Key not in parsed JSON or input, write the whole response (stripped)
-                                stripped_content = self._strip_code_blocks(response.content)
+                                # Key not in parsed JSON or input
+                                # write the whole response (stripped)
+                                stripped_content = self._strip_code_blocks(
+                                    response.content
+                                )
                                 ctx.memory.write(key, stripped_content)
                                 output[key] = stripped_content
                     else:
@@ -587,22 +654,21 @@ class LLMNode(NodeProtocol):
                 except (json.JSONDecodeError, Exception) as e:
                     # JSON extraction failed - fail explicitly instead of polluting memory
                     logger.error(f"      ✗ Failed to extract structured output: {e}")
-                    logger.error(f"      Raw response (first 500 chars): {response.content[:500]}...")
+                    logger.error(
+                        f"      Raw response (first 500 chars): {response.content[:500]}..."
+                    )
 
                     # Return failure instead of writing garbage to all keys
                     return NodeResult(
                         success=False,
-                        error=f"Output extraction failed: {e}. LLM returned non-JSON response. Expected keys: {ctx.node_spec.output_keys}",
+                        error=(
+                            f"Output extraction failed: {e}. LLM returned non-JSON response. "
+                            f"Expected keys: {ctx.node_spec.output_keys}"
+                        ),
                         output={},
                         tokens_used=response.input_tokens + response.output_tokens,
                         latency_ms=latency_ms,
                     )
-                    # JSON extraction failed completely - still strip code blocks
-                    # logger.warning(f"      ⚠ Failed to extract JSON output: {e}")
-                    # stripped_content = self._strip_code_blocks(response.content)
-                    # for key in ctx.node_spec.output_keys:
-                    #     ctx.memory.write(key, stripped_content)
-                    #     output[key] = stripped_content
             else:
                 # For non-llm_generate or single output nodes, write entire response (stripped)
                 stripped_content = self._strip_code_blocks(response.content)
@@ -637,7 +703,9 @@ class LLMNode(NodeProtocol):
         # Default output
         return {"result": content}
 
-    def _extract_json(self, raw_response: str, output_keys: list[str]) -> dict[str, Any]:
+    def _extract_json(
+        self, raw_response: str, output_keys: list[str]
+    ) -> dict[str, Any]:
         """Extract clean JSON from potentially verbose LLM response.
 
         Tries multiple extraction strategies in order:
@@ -676,7 +744,9 @@ class LLMNode(NodeProtocol):
 
         # Try to extract JSON from markdown code blocks (greedy match to handle nested blocks)
         # Use anchored match to capture from first ``` to last ```
-        code_block_match = re.match(r"^```(?:json|JSON)?\s*\n?(.*)\n?```\s*$", content, re.DOTALL)
+        code_block_match = re.match(
+            r"^```(?:json|JSON)?\s*\n?(.*)\n?```\s*$", content, re.DOTALL
+        )
         if code_block_match:
             try:
                 parsed = json.loads(code_block_match.group(1).strip())
@@ -698,21 +768,29 @@ class LLMNode(NodeProtocol):
         # All local extraction methods failed - use LLM as last resort
         # Prefer Cerebras (faster/cheaper), fallback to Anthropic Haiku
         import os
-        api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+
+        api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get(
+            "ANTHROPIC_API_KEY"
+        )
         if not api_key:
-            raise ValueError("Cannot parse JSON and no API key for LLM cleanup (set CEREBRAS_API_KEY or ANTHROPIC_API_KEY)")
+            raise ValueError(
+                "Cannot parse JSON and no API key for LLM cleanup "
+                "(set CEREBRAS_API_KEY or ANTHROPIC_API_KEY)"
+            )
 
         # Use fast LLM to clean the response (Cerebras llama-3.3-70b preferred)
         from framework.llm.litellm import LiteLLMProvider
+
         if os.environ.get("CEREBRAS_API_KEY"):
             cleaner_llm = LiteLLMProvider(
                 api_key=os.environ.get("CEREBRAS_API_KEY"),
                 model="cerebras/llama-3.3-70b",
-                temperature=0.0
+                temperature=0.0,
             )
         else:
             # Fallback to Anthropic Haiku
             from framework.llm.anthropic import AnthropicProvider
+
             cleaner_llm = AnthropicProvider(model="claude-3-5-haiku-20241022")
 
         prompt = f"""Extract the JSON object from this LLM response.
@@ -779,6 +857,7 @@ Output ONLY the JSON object, nothing else."""
 
         # Use Haiku to intelligently extract relevant data
         import os
+
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             # Fallback to simple formatting if no API key
@@ -797,9 +876,7 @@ Output ONLY the JSON object, nothing else."""
             s = str(v)
             return s[:max_len] + "..." if len(s) > max_len else v
 
-        truncated_data = {
-            k: truncate_value(v) for k, v in memory_data.items()
-        }
+        truncated_data = {k: truncate_value(v) for k, v in memory_data.items()}
         memory_json = json.dumps(truncated_data, indent=2, default=str)
 
         prompt = f"""Extract the following information from the memory context:
@@ -809,17 +886,20 @@ Required fields: {', '.join(ctx.node_spec.input_keys)}
 Memory context (may contain nested data, JSON strings, or extra information):
 {memory_json}
 
-Extract ONLY the clean values for the required fields. Ignore nested structures, JSON wrappers, and irrelevant data.
+Extract ONLY the clean values for the required fields.
+ Ignore nested structures, JSON wrappers,
+ and irrelevant data.
 
 Output as JSON with the exact field names requested."""
 
         try:
             import anthropic
+
             client = anthropic.Anthropic(api_key=api_key)
             message = client.messages.create(
                 model="claude-3-5-haiku-20241022",
                 max_tokens=1000,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
             )
 
             # Parse Haiku's response
@@ -830,13 +910,19 @@ Output as JSON with the exact field names requested."""
             if json_str:
                 extracted = json.loads(json_str)
                 # Format as key: value pairs
-                parts = [f"{k}: {v}" for k, v in extracted.items() if k in ctx.node_spec.input_keys]
+                parts = [
+                    f"{k}: {v}"
+                    for k, v in extracted.items()
+                    if k in ctx.node_spec.input_keys
+                ]
                 if parts:
                     return "\n".join(parts)
 
         except Exception as e:
             # Fallback to simple formatting on error
-            logger.warning(f"Haiku formatting failed: {e}, falling back to simple format")
+            logger.warning(
+                f"Haiku formatting failed: {e}, falling back to simple format"
+            )
 
         # Fallback: simple key-value formatting
         parts = []
@@ -899,11 +985,13 @@ class RouterNode(NodeProtocol):
         # Build options from routes
         options = []
         for condition, target in ctx.node_spec.routes.items():
-            options.append({
-                "id": condition,
-                "description": f"Route to {target} when condition '{condition}' is met",
-                "target": target,
-            })
+            options.append(
+                {
+                    "id": condition,
+                    "description": f"Route to {target} when condition '{condition}' is met",
+                    "target": target,
+                }
+            )
 
         # Check if we should use LLM-based routing
         if ctx.node_spec.system_prompt and ctx.llm:
@@ -920,7 +1008,10 @@ class RouterNode(NodeProtocol):
 
             if chosen_route is None:
                 # Default route
-                chosen_route = ("default", ctx.node_spec.routes.get("default", "end"))
+                chosen_route = (
+                    "default",
+                    ctx.node_spec.routes.get("default", "end"),
+                )
 
         decision_id = ctx.runtime.decide(
             intent="Determine next node in graph",
@@ -956,10 +1047,12 @@ class RouterNode(NodeProtocol):
         import json
 
         # Build routing options description
-        options_desc = "\n".join([
-            f"- {opt['id']}: {opt['description']} → goes to '{opt['target']}'"
-            for opt in options
-        ])
+        options_desc = "\n".join(
+            [
+                f"- {opt['id']}: {opt['description']} → goes to '{opt['target']}'"
+                for opt in options
+            ]
+        )
 
         # Build context
         context_data = {
@@ -988,7 +1081,8 @@ Respond with ONLY a JSON object:
         try:
             response = ctx.llm.complete(
                 messages=[{"role": "user", "content": prompt}],
-                system=ctx.node_spec.system_prompt or "You are a routing agent. Respond with JSON only.",
+                system=ctx.node_spec.system_prompt
+                or "You are a routing agent. Respond with JSON only.",
                 max_tokens=150,
             )
 
@@ -1003,7 +1097,9 @@ Respond with ONLY a JSON object:
                 logger.info(f"         Reason: {reasoning}")
 
                 # Find the target for this choice
-                target = ctx.node_spec.routes.get(chosen, ctx.node_spec.routes.get("default", "end"))
+                target = ctx.node_spec.routes.get(
+                    chosen, ctx.node_spec.routes.get("default", "end")
+                )
                 return (chosen, target)
 
         except Exception as e:
@@ -1054,10 +1150,12 @@ class FunctionNode(NodeProtocol):
 
         decision_id = ctx.runtime.decide(
             intent=f"Execute function {ctx.node_spec.function or 'unknown'}",
-            options=[{
-                "id": "execute",
-                "description": f"Run function with inputs: {list(ctx.input_data.keys())}",
-            }],
+            options=[
+                {
+                    "id": "execute",
+                    "description": f"Run function with inputs: {list(ctx.input_data.keys())}",
+                }
+            ],
             chosen="execute",
             reasoning="Deterministic function execution",
         )

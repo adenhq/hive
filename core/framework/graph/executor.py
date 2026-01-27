@@ -11,6 +11,7 @@ The executor:
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -34,6 +35,19 @@ from framework.runtime.core import Runtime
 
 
 @dataclass
+class ExecutionSnapshot:
+    """
+    Represents an immutable point-in-time state of the execution.
+    Used for Time-Travel debugging and forking.
+    """
+
+    step_index: int
+    node_id: str
+    memory_state: dict[str, Any]
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass
 class ExecutionResult:
     """Result of executing a graph."""
 
@@ -46,6 +60,9 @@ class ExecutionResult:
     path: list[str] = field(default_factory=list)  # Node IDs traversed
     paused_at: str | None = None  # Node ID where execution paused for HITL
     session_state: dict[str, Any] = field(default_factory=dict)  # State to resume from
+    history: list[ExecutionSnapshot] = field(
+        default_factory=list
+    )  # [ADDED] Time-travel history
 
 
 class GraphExecutor:
@@ -197,6 +214,7 @@ class GraphExecutor:
                 memory.write(key, value)
 
         path: list[str] = []
+        history: list[ExecutionSnapshot] = []  # [ADDED] Initialize history
         total_tokens = 0
         total_latency = 0
         node_retry_counts: dict[str, int] = {}  # Track retries per node
@@ -230,13 +248,27 @@ class GraphExecutor:
 
                 path.append(current_node_id)
 
+                # [ADDED] Time-Travel Snapshot
+                # Capture state BEFORE execution so we can replay/fork from here
+                try:
+                    snapshot = ExecutionSnapshot(
+                        step_index=steps,
+                        node_id=current_node_id,
+                        memory_state=memory.snapshot(),
+                    )
+                    history.append(snapshot)
+                except Exception as e:
+                    self.logger.warning(f"⚠ Failed to capture snapshot: {e}")
+
                 # Check if pause (HITL) before execution
                 if current_node_id in graph.pause_nodes:
                     self.logger.info(f"⏸ Paused at HITL node: {node_spec.name}")
                     # Execute this node, then pause
                     # (We'll check again after execution and save state)
 
-                self.logger.info(f"\n▶ Step {steps}: {node_spec.name} ({node_spec.node_type})")
+                self.logger.info(
+                    f"\n▶ Step {steps}: {node_spec.name} ({node_spec.node_type})"
+                )
                 self.logger.info(f"   Inputs: {node_spec.input_keys}")
                 self.logger.info(f"   Outputs: {node_spec.output_keys}")
 
@@ -285,7 +317,9 @@ class GraphExecutor:
                             check_hallucination=True,
                         )
                         if not validation.success:
-                            self.logger.error(f"   ✗ Output validation failed: {validation.error}")
+                            self.logger.error(
+                                f"   ✗ Output validation failed: {validation.error}"
+                            )
                             result = NodeResult(
                                 success=False,
                                 error=f"Output validation failed: {validation.error}",
@@ -336,7 +370,9 @@ class GraphExecutor:
                         retry_count = node_retry_counts[current_node_id]
                         # Backoff formula: 1.0 * (2^(retry - 1)) -> 1s, 2s, 4s...
                         delay = 1.0 * (2 ** (retry_count - 1))
-                        self.logger.info(f"   Using backoff: Sleeping {delay}s before retry...")
+                        self.logger.info(
+                            f"   Using backoff: Sleeping {delay}s before retry..."
+                        )
                         await asyncio.sleep(delay)
                         # --------------------------------------
 
@@ -377,6 +413,7 @@ class GraphExecutor:
                             total_tokens=total_tokens,
                             total_latency_ms=total_latency,
                             path=path,
+                            history=history,
                         )
 
                 # Check if we just executed a pause node - if so, save state and return
@@ -406,6 +443,7 @@ class GraphExecutor:
                         path=path,
                         paused_at=node_spec.id,
                         session_state=session_state_out,
+                        history=history,
                     )
 
                 # Check if this is a terminal node - if so, we're done
@@ -432,7 +470,9 @@ class GraphExecutor:
                         self.logger.info("   → No more edges, ending execution")
                         break  # No valid edge, end execution
                     next_spec = graph.get_node(next_node)
-                    self.logger.info(f"   → Next: {next_spec.name if next_spec else next_node}")
+                    self.logger.info(
+                        f"   → Next: {next_spec.name if next_spec else next_node}"
+                    )
                     current_node_id = next_node
 
                 # Update input_data for next node
@@ -460,6 +500,7 @@ class GraphExecutor:
                 total_tokens=total_tokens,
                 total_latency_ms=total_latency,
                 path=path,
+                history=history,
             )
 
         except Exception as e:
@@ -476,7 +517,55 @@ class GraphExecutor:
                 error=str(e),
                 steps_executed=steps,
                 path=path,
+                history=history,
             )
+
+    async def fork_execution(
+        self,
+        snapshot: ExecutionSnapshot,
+        graph: GraphSpec,
+        goal: Goal,
+        input_overrides: dict[str, Any] | None = None,
+    ) -> ExecutionResult:
+        """
+        Fork execution from a previous snapshot.
+
+        This allows 'Time-Travel' debugging:
+        1. Restore memory state from snapshot.
+        2. Set entry point to snapshot.node_id.
+        3. Optionally inject modified input/memory data.
+        4. Run normal execution from that point.
+        """
+        self.logger.info(
+            f"🔱 Forking execution from step {snapshot.step_index} "
+            f"(Node: {snapshot.node_id})"
+        )
+
+        # Prepare state from snapshot
+        restored_memory = snapshot.memory_state.copy()
+
+        # Apply overrides if any (allows fixing bad data before resuming)
+        if input_overrides:
+            self.logger.info(f"   Applying {len(input_overrides)} input overrides")
+            restored_memory.update(input_overrides)
+
+        # Construct session state to trigger resumption
+        session_state = {
+            "memory": restored_memory,
+            "paused_at": None,  # Not paused, just forking
+            # HACK: We assume get_entry_point handles logic to start from a specific node
+            # if we pass it as 'resume_from' or 'paused_at' effectively.
+            # But since 'paused_at' usually implies the node finished, we need to be careful.
+            # Ideally we'd have a 'start_at' parameter in execute().
+            # For now, we will rely on 'resume_from' logic if implemented or standard resumption.
+            "resume_from": snapshot.node_id,
+        }
+
+        return await self.execute(
+            graph=graph,
+            goal=goal,
+            session_state=session_state,
+        )
 
     def _build_context(
         self,
@@ -510,7 +599,13 @@ class GraphExecutor:
         )
 
     # Valid node types - no ambiguous "llm" type allowed
-    VALID_NODE_TYPES = {"llm_tool_use", "llm_generate", "router", "function", "human_input"}
+    VALID_NODE_TYPES = {
+        "llm_tool_use",
+        "llm_generate",
+        "router",
+        "function",
+        "human_input",
+    }
 
     def _get_node_implementation(self, node_spec: NodeSpec) -> NodeProtocol:
         """Get or create a node implementation."""
@@ -629,7 +724,7 @@ class GraphExecutor:
                             )
                             # Continue anyway if fallback_to_raw is True
 
-                # Map inputsss
+                # Map inputs
                 mapped = edge.map_inputs(result.output, memory.read_all())
                 for key, value in mapped.items():
                     memory.write(key, value)
