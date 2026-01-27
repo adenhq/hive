@@ -63,6 +63,26 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 
 ## Quick Start
 
+### Windows Quick Start
+
+> ⚠️ **Important for Windows users**
+>
+> The setup scripts (`.sh`) are **Bash scripts** and **cannot be run from Command Prompt (CMD)** or PowerShell directly.
+
+#### Option 1: Use Git Bash (Recommended)
+
+1. Install **Git for Windows** (includes Git Bash):  
+   https://git-scm.com/download/win
+
+2. Open **Git Bash**
+
+3. Run:
+   ```bash
+   git clone https://github.com/adenhq/hive.git
+   cd hive
+   ./scripts/setup-python.sh
+
+
 ### Prerequisites
 
 - [Python 3.11+](https://www.python.org/downloads/) for agent development
