@@ -204,7 +204,7 @@ class SharedMemory:
             # Indicators of potential hallucination (code blocks, SQL, HTML)
             # We scan a window of the string to avoid performance issues on massive data
             scan_window = value[:5000]
-            
+
             code_indicators = [
                 "```python",
                 "def ",
