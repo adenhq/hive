@@ -476,3 +476,92 @@ class TestJsonMode:
         messages = call_kwargs["messages"]
         assert messages[0]["role"] == "system"
         assert "Please respond with a valid JSON object" in messages[0]["content"]
+
+
+class TestLiteLLMProviderErrorHandling:
+    """Test error handling in LiteLLMProvider."""
+
+    @patch("litellm.completion")
+    def test_complete_authentication_error(self, mock_completion):
+        """Test handling of AuthenticationError."""
+        # Setup mock to raise AuthenticationError
+        import litellm.exceptions
+        mock_completion.side_effect = litellm.exceptions.AuthenticationError(
+            "Incorrect API key provided",
+            model="gpt-4o-mini",
+            llm_provider="openai"
+        )
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="invalid-key")
+        result = provider.complete(messages=[{"role": "user", "content": "Hello"}])
+
+        assert result.stop_reason == "error"
+        assert "Authentication Error" in result.content
+        assert "Incorrect API key" in result.content
+        # Tokens should be 0 on error
+        assert result.input_tokens == 0
+        assert result.output_tokens == 0
+
+    @patch("litellm.completion")
+    def test_complete_rate_limit_error(self, mock_completion):
+        """Test handling of RateLimitError."""
+        import litellm.exceptions
+        mock_completion.side_effect = litellm.exceptions.RateLimitError(
+            "Rate limit reached",
+            model="gpt-4o-mini",
+            llm_provider="openai"
+        )
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        result = provider.complete(messages=[{"role": "user", "content": "Hello"}])
+
+        assert result.stop_reason == "error"
+        assert "Rate Limit Error" in result.content
+
+    @patch("litellm.completion")
+    def test_complete_api_connection_error(self, mock_completion):
+        """Test handling of APIConnectionError."""
+        import litellm.exceptions
+        mock_completion.side_effect = litellm.exceptions.APIConnectionError(
+            "Connection failed",
+            model="gpt-4o-mini",
+            llm_provider="openai"
+        )
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        result = provider.complete(messages=[{"role": "user", "content": "Hello"}])
+
+        assert result.stop_reason == "error"
+        assert "Connection Error" in result.content
+
+    @patch("litellm.completion")
+    def test_complete_unexpected_error(self, mock_completion):
+        """Test handling of generic Exception."""
+        mock_completion.side_effect = Exception("Something went wrong")
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        result = provider.complete(messages=[{"role": "user", "content": "Hello"}])
+
+        assert result.stop_reason == "error"
+        assert "Error: Something went wrong" in result.content
+
+    @patch("litellm.completion")
+    def test_complete_with_tools_error(self, mock_completion):
+        """Test error handling in complete_with_tools."""
+        mock_completion.side_effect = Exception("Tool loop failure")
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        
+        # Dummy tool executor
+        def tool_executor(tool_use):
+            return ToolResult(tool_use.id, "result")
+
+        result = provider.complete_with_tools(
+            messages=[{"role": "user", "content": "Run tool"}],
+            system="",
+            tools=[],
+            tool_executor=tool_executor
+        )
+
+        assert result.stop_reason == "error"
+        assert "Error: Tool loop failure" in result.content
