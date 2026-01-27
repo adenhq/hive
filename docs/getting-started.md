@@ -8,6 +8,35 @@ This guide will help you set up the Aden Agent Framework and build your first ag
 - **pip** - Package installer for Python (comes with Python)
 - **git** - Version control
 - **Claude Code** ([Install](https://docs.anthropic.com/claude/docs/claude-code)) - Optional, for using building skills
+  
+## Windows Setup Notes
+If you are setting up Hive on **Windows**, please review the following notes to avoid common setup issues.
+
+### Recommended Python Version
+Use **Python 3.11 or 3.12** on Windows.
+
+Avoid installing Python via the **Microsoft Store**, as it can cause PATH resolution issues and setup scripts to fail silently.
+
+### Disable Microsoft Store App Execution Aliases
+If Python was installed via the Microsoft Store:
+
+1. Open **Settings → Apps → App execution aliases**
+2. Disable:
+   - `python.exe`
+   - `python3.exe`
+
+### Use Git Bash (Required)
+The `setup-python.sh` script must be run using **Git Bash**, not PowerShell.
+
+Running it from PowerShell may result in WSL-related or PATH errors.
+
+### Verify Python Resolution
+Before running setup scripts, confirm Python is resolved correctly:
+
+```bash
+which python
+python --version
+
 
 ## Quick Start
 
