@@ -26,7 +26,7 @@ REQUIRED_PYTHON_VERSION="3.11"
 IFS='.' read -r PYTHON_MAJOR_VERSION PYTHON_MINOR_VERSION <<< "$REQUIRED_PYTHON_VERSION"
 
 # Available python interpreter (follows sequence)
-POSSIBLE_PYTHONS=("python3" "python" "py -3")
+POSSIBLE_PYTHONS=("python3" "python" "py")
 
 # Default python interpreter (initialized)
 PYTHON_CMD=""
@@ -41,12 +41,19 @@ echo ""
 # Available Python interpreter
 for cmd in "${POSSIBLE_PYTHONS[@]}"; do
     # Check for python interpreter
-    if command -v ${cmd} >/dev/null 2>&1; then
+    if command -v "$cmd" >/dev/null 2>&1; then
+
+        # Specific check for Windows 'py' launcher
+        CURRENT_CMD="$cmd"
+        if [ "$cmd" = "py" ]; then
+            CURRENT_CMD="py -3"
+        fi
+
         # Check Python version
-        if $cmd -c "import sys; sys.exit(0 if sys.version_info >= ($PYTHON_MAJOR_VERSION, $PYTHON_MINOR_VERSION) else 1)" >/dev/null 2>&1; then
+        if $CURRENT_CMD -c "import sys; sys.exit(0 if sys.version_info >= ($PYTHON_MAJOR_VERSION, $PYTHON_MINOR_VERSION) else 1)" >/dev/null 2>&1; then
             # Check for pip
-            if eval $cmd -m pip --version &> /dev/null 2>&1; then
-                PYTHON_CMD="$cmd"
+            if $CURRENT_CMD -m pip --version &> /dev/null 2>&1; then
+                PYTHON_CMD="$CURRENT_CMD"
                 break
             fi
         fi
@@ -68,7 +75,7 @@ echo -e "${GREEN}✓${NC} Python version check passed"
 echo ""
 
 # Check for pip (Exit if not found)
-if ! eval $PYTHON_CMD -m pip --version &> /dev/null; then
+if ! $PYTHON_CMD -m pip --version &> /dev/null; then
     echo -e "${RED}Error: pip is not installed${NC}"
     echo "Please install pip for Python $PYTHON_VERSION"
     exit 1
