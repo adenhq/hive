@@ -213,3 +213,22 @@ class TestGetSecurePath:
         # However, realpath reveals the escape - callers should check this
         real_path = os.path.realpath(result)
         assert os.path.commonpath([real_path, str(session_dir)]) != str(session_dir)
+
+    def test_custom_env_var_workspace(self, ids, monkeypatch, tmp_path):
+        """Test that HIVE_WORKSPACES_DIR env var is respected."""
+        from aden_tools.tools.file_system_toolkits import security
+        import importlib
+        
+        # 1. Set the environment variable to a temp path
+        custom_dir = tmp_path / "custom_hive"
+        monkeypatch.setenv("HIVE_WORKSPACES_DIR", str(custom_dir))
+        
+        # 2. Reload the module so it picks up the new env var
+        importlib.reload(security)
+        
+        # 3. Run get_secure_path
+        result = security.get_secure_path("file.txt", **ids)
+        
+        # 4. Verify it used the custom directory
+        expected = custom_dir / "test-workspace" / "test-agent" / "test-session" / "file.txt"
+        assert result == str(expected)
