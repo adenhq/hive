@@ -2,6 +2,21 @@
 
 Complete setup guide for building and running goal-driven agents with the Aden Agent Framework.
 
+> ⚠️ **Important: Virtual Environment Required on Modern Systems**
+>
+> On modern systems (macOS with Homebrew Python, Ubuntu 22.04+, WSL),
+> Python may be marked as an **externally managed environment** (PEP 668).
+> In these environments, running the setup script without an active
+> virtual environment can fail.
+>
+> It is strongly recommended to create and activate a project-local
+> virtual environment **before** running the setup script:
+>
+> ```bash
+> python3 -m venv .venv
+> source .venv/bin/activate
+> ```
+
 ## Quick Setup
 
 ```bash
