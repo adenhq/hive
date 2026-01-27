@@ -4,6 +4,7 @@
 #
 # This script sets up the Python environment with all required packages
 # for building and running goal-driven agents.
+# AUTOMATICALLY HANDLES VIRTUAL ENVIRONMENTS (Fixes PEP 668 issues)
 #
 
 set -e
@@ -38,6 +39,27 @@ if ! command -v python3 &> /dev/null; then
     PYTHON_CMD="python"
 fi
 
+# --- VIRTUAL ENVIRONMENT CHECK (ADDED TO FIX PEP 668) ---
+if [ -z "$VIRTUAL_ENV" ]; then
+    echo -e "${BLUE}Checking for virtual environment...${NC}"
+    VENV_DIR="$PROJECT_ROOT/.venv"
+    
+    if [ ! -d "$VENV_DIR" ]; then
+        echo -e "${YELLOW}No virtual environment found. Creating one at $VENV_DIR...${NC}"
+        $PYTHON_CMD -m venv "$VENV_DIR"
+        echo -e "${GREEN}✓${NC} Virtual environment created."
+    fi
+
+    echo "Activating virtual environment..."
+    source "$VENV_DIR/bin/activate"
+    
+    # Update PYTHON_CMD to point to the venv python
+    PYTHON_CMD="$VENV_DIR/bin/python"
+else
+    echo -e "${GREEN}✓${NC} Already running inside a virtual environment ($VIRTUAL_ENV)"
+fi
+# --------------------------------------------------------
+
 # Check Python version
 PYTHON_VERSION=$($PYTHON_CMD -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
 PYTHON_MAJOR=$($PYTHON_CMD -c 'import sys; print(sys.version_info.major)')
@@ -51,19 +73,12 @@ if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" 
     exit 1
 fi
 
-if [ "$PYTHON_MINOR" -lt 11 ]; then
-    echo -e "${YELLOW}Warning: Python 3.11+ is recommended for best compatibility${NC}"
-    echo -e "${YELLOW}You have Python $PYTHON_VERSION which may work but is not officially supported${NC}"
-    echo ""
-fi
-
 echo -e "${GREEN}✓${NC} Python version check passed"
 echo ""
 
 # Check for pip
 if ! $PYTHON_CMD -m pip --version &> /dev/null; then
-    echo -e "${RED}Error: pip is not installed${NC}"
-    echo "Please install pip for Python $PYTHON_VERSION"
+    echo -e "${RED}Error: pip is not installed in the virtual environment.${NC}"
     exit 1
 fi
 
@@ -88,11 +103,11 @@ cd "$PROJECT_ROOT/core"
 
 if [ -f "pyproject.toml" ]; then
     echo "Installing framework from core/ (editable mode)..."
-    $PYTHON_CMD -m pip install -e . > /dev/null 2>&1
+    $PYTHON_CMD -m pip install -e . 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✓${NC} Framework package installed"
     else
-        echo -e "${YELLOW}⚠${NC} Framework installation encountered issues (may be OK if already installed)"
+        echo -e "${YELLOW}⚠${NC} Framework installation encountered issues"
     fi
 else
     echo -e "${YELLOW}⚠${NC} No pyproject.toml found in core/, skipping framework installation"
@@ -108,7 +123,7 @@ cd "$PROJECT_ROOT/tools"
 
 if [ -f "pyproject.toml" ]; then
     echo "Installing aden_tools from tools/ (editable mode)..."
-    $PYTHON_CMD -m pip install -e . > /dev/null 2>&1
+    $PYTHON_CMD -m pip install -e .
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✓${NC} Tools package installed"
     else
@@ -121,7 +136,7 @@ else
 fi
 echo ""
 
-# Fix openai version compatibility with litellm
+# Fix openai version compatibility
 echo "=================================================="
 echo "Fixing Package Compatibility"
 echo "=================================================="
@@ -169,41 +184,11 @@ else
     exit 1
 fi
 
-# Test litellm + openai compatibility
-if $PYTHON_CMD -c "import litellm; print('litellm OK')" > /dev/null 2>&1; then
-    echo -e "${GREEN}✓${NC} litellm package imports successfully"
-else
-    echo -e "${YELLOW}⚠${NC} litellm import had issues (may be OK if not using LLM features)"
-fi
-
 echo ""
-
-# Print agent commands
 echo "=================================================="
 echo "  Setup Complete!"
 echo "=================================================="
 echo ""
-echo "Python packages installed:"
-echo "  • framework (core agent runtime)"
-echo "  • aden_tools (tools and MCP servers)"
-echo "  • All dependencies and compatibility fixes applied"
-echo ""
-echo "To run agents, use:"
-echo ""
-echo "  ${BLUE}# From project root:${NC}"
-echo "  PYTHONPATH=core:exports python -m agent_name validate"
-echo "  PYTHONPATH=core:exports python -m agent_name info"
-echo "  PYTHONPATH=core:exports python -m agent_name run --input '{...}'"
-echo ""
-echo "Available commands for your new agent:"
-echo "  PYTHONPATH=core:exports python -m support_ticket_agent validate"
-echo "  PYTHONPATH=core:exports python -m support_ticket_agent info"
-echo "  PYTHONPATH=core:exports python -m support_ticket_agent run --input '{\"ticket_content\":\"...\",\"customer_id\":\"...\",\"ticket_id\":\"...\"}'"
-echo ""
-echo "To build new agents, use Claude Code skills:"
-echo "  • /building-agents - Build a new agent"
-echo "  • /testing-agent   - Test an existing agent"
-echo ""
-echo "Documentation: ${PROJECT_ROOT}/README.md"
-echo "Agent Examples: ${PROJECT_ROOT}/exports/"
+echo -e "${YELLOW}IMPORTANT: To activate the environment in your current shell, run:${NC}"
+echo -e "${BLUE}source .venv/bin/activate${NC}"
 echo ""
