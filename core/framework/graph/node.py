@@ -704,7 +704,7 @@ class LLMNode(NodeProtocol):
         try:
             content = raw_response.strip()
 
-            # Remove markdown code blocks if present - more robust extraction
+            # Remove markdown code blocks if present - more robust handling
             if content.startswith("```"):
                 match = re.search(r"^```(?:json)?\s*\n([\s\S]*?)\n```\s*$", content)
                 if match:
