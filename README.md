@@ -84,6 +84,22 @@ This installs:
 - **aden_tools** - 19 MCP tools for agent capabilities
 - All required dependencies
 
+> **Note for macOS users / Homebrew users**
+>
+> If you're on macOS or your Python installation is managed by Homebrew (or another package manager that follows PEP 668), you may see an `externally-managed-environment` error when you're running the setup script.
+>
+> In newer versions of this repo, the setup script will automatically create and use a local virtual environment.  
+> If you are running an older version, you can fix this manually:
+>
+> ```bash
+> python3 -m venv .venv
+> source .venv/bin/activate
+> ./scripts/setup-python.sh
+> ```
+>
+> Refer to [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) for more details.
+
+
 ### Build Your First Agent
 
 ```bash
