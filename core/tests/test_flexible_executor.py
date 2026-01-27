@@ -427,5 +427,220 @@ class TestFlexibleExecutorIntegration:
         assert executor.judge.rules[0].id == "custom_rule"
 
 
+class TestOutputValidation:
+    """Tests for strict output validation in FlexibleExecutor."""
+
+    @pytest.mark.asyncio
+    async def test_safe_single_output_mapping(self, tmp_path):
+        """Test that single expected output can safely map from generic 'result'."""
+        from framework.runtime.core import Runtime
+        from framework.graph.flexible_executor import FlexibleGraphExecutor
+        from framework.graph.worker_node import StepExecutionResult
+
+        runtime = Runtime(storage_path=tmp_path / "runtime")
+        executor = FlexibleGraphExecutor(runtime=runtime)
+
+        # Create step expecting single output
+        step = PlanStep(
+            id="extract_step",
+            description="Extract data",
+            action=ActionSpec(action_type=ActionType.FUNCTION),
+            expected_outputs=["extracted_data"],
+        )
+
+        # Worker returns generic "result"
+        work_result = StepExecutionResult(
+            outputs={"result": "extracted value"},
+            success=True,
+            tokens_used=10,
+            latency_ms=100,
+        )
+
+        # Create minimal judgment
+        judgment = Judgment(
+            action=JudgmentAction.ACCEPT,
+            reasoning="Success",
+            confidence=1.0,
+        )
+
+        goal = Goal(
+            id="test_goal",
+            name="Test",
+            description="Test goal",
+            success_criteria=[
+                SuccessCriterion(id="sc1", description="Complete", metric="done", target="100%"),
+            ],
+        )
+
+        plan = Plan(
+            id="test_plan",
+            goal_id="test_goal",
+            description="Test",
+            steps=[step],
+        )
+
+        context = {}
+
+        # Should succeed and map result -> extracted_data
+        result = await executor._handle_judgment(
+            step=step,
+            work_result=work_result,
+            judgment=judgment,
+            plan=plan,
+            goal=goal,
+            context=context,
+            steps_executed=1,
+            total_tokens=10,
+            total_latency=100,
+        )
+
+        # Should return None (continue execution)
+        assert result is None
+        # Should have mapped output
+        assert context.get("extracted_data") == "extracted value"
+        # Should NOT have generic "result" key
+        assert "result" not in context
+
+    @pytest.mark.asyncio
+    async def test_multiple_outputs_prevents_corruption(self, tmp_path):
+        """Test that multiple expected outputs fail instead of silent corruption."""
+        from framework.runtime.core import Runtime
+        from framework.graph.flexible_executor import FlexibleGraphExecutor
+        from framework.graph.worker_node import StepExecutionResult
+
+        runtime = Runtime(storage_path=tmp_path / "runtime")
+        executor = FlexibleGraphExecutor(runtime=runtime)
+
+        # Create step expecting MULTIPLE outputs
+        step = PlanStep(
+            id="extract_step",
+            description="Extract data",
+            action=ActionSpec(action_type=ActionType.FUNCTION),
+            expected_outputs=["extracted_data", "confidence_score"],
+        )
+
+        # Worker returns only generic "result" (ambiguous!)
+        work_result = StepExecutionResult(
+            outputs={"result": "some text"},
+            success=True,
+            tokens_used=10,
+            latency_ms=100,
+        )
+
+        judgment = Judgment(
+            action=JudgmentAction.ACCEPT,
+            reasoning="Success",
+            confidence=1.0,
+        )
+
+        goal = Goal(
+            id="test_goal",
+            name="Test",
+            description="Test goal",
+            success_criteria=[
+                SuccessCriterion(id="sc1", description="Complete", metric="done", target="100%"),
+            ],
+        )
+
+        plan = Plan(
+            id="test_plan",
+            goal_id="test_goal",
+            description="Test",
+            steps=[step],
+        )
+
+        context = {}
+
+        # Should fail with clear feedback instead of corrupting data
+        result = await executor._handle_judgment(
+            step=step,
+            work_result=work_result,
+            judgment=judgment,
+            plan=plan,
+            goal=goal,
+            context=context,
+            steps_executed=1,
+            total_tokens=10,
+            total_latency=100,
+        )
+
+        # Should return NEEDS_REPLAN (not None)
+        assert result is not None
+        assert result.status == ExecutionStatus.NEEDS_REPLAN
+        assert "output validation failed" in result.feedback.lower()
+        # Context should NOT be corrupted with duplicate values
+        assert "extracted_data" not in context
+        assert "confidence_score" not in context
+
+    @pytest.mark.asyncio
+    async def test_exact_output_match_succeeds(self, tmp_path):
+        """Test that exact output matches work correctly."""
+        from framework.runtime.core import Runtime
+        from framework.graph.flexible_executor import FlexibleGraphExecutor
+        from framework.graph.worker_node import StepExecutionResult
+
+        runtime = Runtime(storage_path=tmp_path / "runtime")
+        executor = FlexibleGraphExecutor(runtime=runtime)
+
+        step = PlanStep(
+            id="extract_step",
+            description="Extract data",
+            action=ActionSpec(action_type=ActionType.FUNCTION),
+            expected_outputs=["extracted_data", "confidence_score"],
+        )
+
+        # Worker returns EXACT expected outputs
+        work_result = StepExecutionResult(
+            outputs={
+                "extracted_data": "some text",
+                "confidence_score": 0.95,
+            },
+            success=True,
+            tokens_used=10,
+            latency_ms=100,
+        )
+
+        judgment = Judgment(
+            action=JudgmentAction.ACCEPT,
+            reasoning="Success",
+            confidence=1.0,
+        )
+
+        goal = Goal(
+            id="test_goal",
+            name="Test",
+            description="Test goal",
+            success_criteria=[
+                SuccessCriterion(id="sc1", description="Complete", metric="done", target="100%"),
+            ],
+        )
+
+        plan = Plan(
+            id="test_plan",
+            goal_id="test_goal",
+            description="Test",
+            steps=[step],
+        )
+
+        context = {}
+
+        # Should succeed
+        result = await executor._handle_judgment(
+            step=step,
+            work_result=work_result,
+            judgment=judgment,
+            plan=plan,
+            goal=goal,
+            context=context,
+            steps_executed=1,
+            total_tokens=10,
+            total_latency=100,
+        )
+
+        assert result is None  # Continue execution
+        assert context["extracted_data"] == "some text"
+        assert context["confidence_score"] == 0.95
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

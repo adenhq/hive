@@ -317,17 +317,50 @@ class FlexibleGraphExecutor:
             step.completed_at = datetime.now()
             step.result = work_result.outputs
 
-            # Map outputs to expected output keys
-            # If output has generic "result" key but step expects specific keys, map it
+            # Validate outputs match expected outputs
             outputs_to_store = work_result.outputs.copy()
-            if step.expected_outputs and "result" in outputs_to_store:
-                result_value = outputs_to_store["result"]
-                # For each expected output key that's not in outputs, map from "result"
-                for expected_key in step.expected_outputs:
-                    if expected_key not in outputs_to_store:
-                        outputs_to_store[expected_key] = result_value
+            if step.expected_outputs:
+                missing_keys = set(step.expected_outputs) - set(outputs_to_store.keys())
+                
+                if missing_keys:
+                    # Check if generic "result" exists and only ONE output expected
+                    if "result" in outputs_to_store and len(step.expected_outputs) == 1:
+                        # Safe: single expected output, map from "result"
+                        expected_key = step.expected_outputs[0]
+                        outputs_to_store[expected_key] = outputs_to_store["result"]
+                        # Remove generic "result" to avoid duplication
+                        if expected_key != "result":
+                            outputs_to_store.pop("result", None)
+                    else:
+                        # Unsafe: multiple expected outputs or ambiguous mapping
+                        # Fail with clear error instead of silent corruption
+                        error_msg = (
+                            f"Output mismatch for step '{step.id}': "
+                            f"Expected outputs {step.expected_outputs}, "
+                            f"but worker only returned {list(outputs_to_store.keys())}. "
+                            f"Missing keys: {list(missing_keys)}"
+                        )
+                        
+                        # Mark step as failed to trigger retry/replan
+                        step.status = StepStatus.FAILED
+                        step.error = error_msg
+                        
+                        # Return replan result with clear feedback
+                        return self._create_result(
+                            status=ExecutionStatus.NEEDS_REPLAN,
+                            plan=plan,
+                            context=context,
+                            feedback=(
+                                f"Step '{step.id}' output validation failed: "
+                                f"Worker must return all expected outputs {step.expected_outputs}. "
+                                f"Currently returned: {list(work_result.outputs.keys())}"
+                            ),
+                            steps_executed=steps_executed,
+                            total_tokens=total_tokens,
+                            total_latency=total_latency,
+                        )
 
-            # Update context with mapped outputs
+            # Update context with validated outputs
             context.update(outputs_to_store)
 
             # Store in plan context for replanning feedback
