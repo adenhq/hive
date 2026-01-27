@@ -4,18 +4,33 @@ Runtime Core - The interface agents use to record their behavior.
 This is designed to make it EASY for agents to record decisions in a way
 that Builder can analyze. The agent calls simple methods, and the runtime
 handles all the structured logging.
+
+Guardrails Integration:
+    The runtime can optionally be configured with guardrails that validate
+    decisions before and after execution. See GuardrailEngine for details.
 """
+
+from __future__ import annotations
 
 import logging
 import uuid
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from framework.schemas.decision import Decision, DecisionType, Option, Outcome
+from framework.schemas.guardrails import (
+    DecisionPlan,
+    GuardrailConfig,
+    GuardrailResult,
+    RunContext,
+)
 from framework.schemas.run import Run, RunStatus
 from framework.storage.backend import FileStorage
+
+if TYPE_CHECKING:
+    from framework.runtime.guardrail_engine import GuardrailEngine
 
 logger = logging.getLogger(__name__)
 
@@ -52,12 +67,38 @@ class Runtime:
 
         # End the run
         runtime.end_run(success=True, narrative="Qualified 10 leads successfully")
+
+    With Guardrails:
+        from framework.runtime.guardrail_engine import GuardrailEngine, create_strict_guardrails
+
+        config = create_strict_guardrails(max_tokens_per_run=50000)
+        runtime = Runtime("/path/to/storage", guardrail_config=config)
+
+        # Guardrails automatically check decisions and record violations
     """
 
-    def __init__(self, storage_path: str | Path):
+    def __init__(
+        self,
+        storage_path: str | Path,
+        guardrail_config: GuardrailConfig | None = None,
+    ):
         self.storage = FileStorage(storage_path)
         self._current_run: Run | None = None
         self._current_node: str = "unknown"
+
+        # Guardrails support
+        self._guardrail_config = guardrail_config
+        self._guardrail_engine: GuardrailEngine | None = None
+        self._run_context: RunContext | None = None
+
+        if guardrail_config:
+            from framework.runtime.guardrail_engine import GuardrailEngine
+            self._guardrail_engine = GuardrailEngine(guardrail_config)
+
+    @property
+    def guardrails_enabled(self) -> bool:
+        """Check if guardrails are enabled for this runtime."""
+        return self._guardrail_engine is not None and self._guardrail_config is not None
 
     # === RUN LIFECYCLE ===
 
@@ -86,6 +127,13 @@ class Runtime:
             goal_description=goal_description,
             input_data=input_data or {},
         )
+
+        # Initialize guardrail context for this run
+        if self.guardrails_enabled:
+            self._run_context = RunContext(
+                run_id=run_id,
+                goal_id=goal_id,
+            )
 
         return run_id
 
@@ -117,6 +165,9 @@ class Runtime:
         self.storage.save_run(self._current_run)
         self._current_run = None
 
+        # Clear guardrail context
+        self._run_context = None
+
     def set_node(self, node_id: str) -> None:
         """Set the current node context for subsequent decisions."""
         self._current_node = node_id
@@ -125,6 +176,97 @@ class Runtime:
     def current_run(self) -> Run | None:
         """Get the current run (for inspection)."""
         return self._current_run
+
+    # === GUARDRAIL METHODS ===
+
+    def check_guardrails_before(
+        self,
+        node_id: str,
+        intent: str,
+        tool_name: str | None = None,
+        tool_params: dict[str, Any] | None = None,
+        estimated_tokens: int = 0,
+    ) -> GuardrailResult:
+        """
+        Check guardrails before executing a decision.
+
+        Call this before decide() to check if the decision should proceed.
+        If blocked, the decision should not be executed.
+
+        Args:
+            node_id: Node making the decision
+            intent: What the decision aims to accomplish
+            tool_name: Name of tool being called (if applicable)
+            tool_params: Parameters for the tool call
+            estimated_tokens: Estimated token usage
+
+        Returns:
+            GuardrailResult indicating whether to proceed
+        """
+        if not self.guardrails_enabled or self._run_context is None:
+            return GuardrailResult()  # Allow by default
+
+        plan = DecisionPlan(
+            node_id=node_id,
+            intent=intent,
+            tool_name=tool_name,
+            tool_params=tool_params or {},
+            estimated_tokens=estimated_tokens,
+        )
+
+        result = self._guardrail_engine.check_before_decision(plan, self._run_context)
+
+        # Record any violations as problems
+        if result.has_violations and self._current_run:
+            for violation in result.violations:
+                problem_data = self._guardrail_engine.create_problem_from_violation(violation)
+                self._current_run.add_problem(**problem_data)
+
+        return result
+
+    def check_guardrails_after(
+        self,
+        node_id: str,
+        success: bool,
+        tokens_used: int = 0,
+        latency_ms: int = 0,
+        tool_name: str | None = None,
+    ) -> GuardrailResult:
+        """
+        Check guardrails after a decision has executed.
+
+        Call this after record_outcome() to evaluate the result
+        and update tracking for loop detection, etc.
+
+        Args:
+            node_id: Node that made the decision
+            success: Whether the decision succeeded
+            tokens_used: Actual tokens consumed
+            latency_ms: Actual latency
+            tool_name: Name of tool called (if any)
+
+        Returns:
+            GuardrailResult with any violations detected
+        """
+        if not self.guardrails_enabled or self._run_context is None:
+            return GuardrailResult()
+
+        result = self._guardrail_engine.check_after_decision(
+            outcome_success=success,
+            outcome_tokens=tokens_used,
+            outcome_latency_ms=latency_ms,
+            tool_name=tool_name,
+            node_id=node_id,
+            context=self._run_context,
+        )
+
+        # Record any violations as problems
+        if result.has_violations and self._current_run:
+            for violation in result.violations:
+                problem_data = self._guardrail_engine.create_problem_from_violation(violation)
+                self._current_run.add_problem(**problem_data)
+
+        return result
 
     # === DECISION RECORDING ===
 

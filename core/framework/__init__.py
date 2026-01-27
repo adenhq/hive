@@ -11,6 +11,16 @@ choice the agent makes is captured with:
 
 This gives the Builder LLM the information it needs to improve agent behavior.
 
+## Guardrails
+
+The framework includes a Guardrails system for runtime policy enforcement:
+- Tool call loop prevention
+- Token budget enforcement
+- Retry limit management
+- Latency monitoring
+
+See `framework.runtime.guardrail_engine` for details.
+
 ## Testing Framework
 
 The framework includes a Goal-Based Testing system (Goal → Agent → Eval):
@@ -26,7 +36,21 @@ from framework.builder.query import BuilderQuery
 from framework.llm import AnthropicProvider, LLMProvider
 from framework.runner import AgentOrchestrator, AgentRunner
 from framework.runtime.core import Runtime
+from framework.runtime.guardrail_engine import (
+    GuardrailEngine,
+    create_default_guardrails,
+    create_strict_guardrails,
+)
 from framework.schemas.decision import Decision, DecisionEvaluation, Option, Outcome
+from framework.schemas.guardrails import (
+    DecisionPlan,
+    GuardrailAction,
+    GuardrailConfig,
+    GuardrailResult,
+    GuardrailSeverity,
+    GuardrailViolation,
+    RunContext,
+)
 from framework.schemas.run import Problem, Run, RunSummary
 
 # Testing framework
@@ -49,8 +73,20 @@ __all__ = [
     "Run",
     "RunSummary",
     "Problem",
+    # Guardrail Schemas
+    "GuardrailConfig",
+    "GuardrailAction",
+    "GuardrailSeverity",
+    "GuardrailResult",
+    "GuardrailViolation",
+    "DecisionPlan",
+    "RunContext",
     # Runtime
     "Runtime",
+    # Guardrails
+    "GuardrailEngine",
+    "create_default_guardrails",
+    "create_strict_guardrails",
     # Builder
     "BuilderQuery",
     # LLM
