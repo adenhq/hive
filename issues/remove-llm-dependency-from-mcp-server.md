@@ -1,11 +1,24 @@
 # Issue: Remove LLM Dependency from Agent Builder MCP Server
 
+> [!NOTE]
+> **STATUS: RESOLVED** ✅
+>
+> This issue has been fixed. The `generate_constraint_tests` and `generate_success_tests` functions
+> no longer use an internal LLM call. They now return templates and guidelines for the calling agent
+> to write tests directly using the Write tool.
+>
+> **Resolution details:**
+> - Removed hardcoded `AnthropicProvider` imports and instantiation
+> - Functions now return structured JSON with test templates and guidelines
+> - The calling agent (Claude) is responsible for writing tests, not the MCP server
+> - This aligns with MCP's role as a protocol, not an LLM wrapper
+
 ## Summary
 
-The `agent_builder_server.py` MCP server has a hardcoded dependency on `AnthropicProvider` for test generation, which:
-1. Breaks when users don't have an Anthropic API key
-2. Is redundant since the calling agent (Claude) can write tests directly
-3. Violates the principle that MCP servers should be provider-agnostic utilities
+The `agent_builder_server.py` MCP server ~~has~~ **had** a hardcoded dependency on `AnthropicProvider` for test generation, which:
+1. ~~Breaks~~ Broke when users don't have an Anthropic API key
+2. ~~Is~~ Was redundant since the calling agent (Claude) can write tests directly
+3. ~~Violates~~ Violated the principle that MCP servers should be provider-agnostic utilities
 
 ## Affected Code
 
