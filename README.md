@@ -68,6 +68,21 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 - [Python 3.11+](https://www.python.org/downloads/) for agent development
 - [Docker](https://docs.docker.com/get-docker/) (v20.10+) - Optional, for containerized tools
 
+#### LLM API Keys
+
+Hive executes agents using external LLM providers (e.g. Anthropic, OpenAI, Google Gemini).
+
+To run agent workflows locally, **contributors must provide their own API key**
+for the selected provider (for example, `ANTHROPIC_API_KEY` when using Claude models).
+
+If you do not have an API key, you can still contribute to:
+- documentation
+- tests
+- non-agent components of the framework
+
+⚠️ **Never commit API keys to the repository.**
+
+
 ### Installation
 
 ```bash
