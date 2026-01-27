@@ -101,8 +101,9 @@ class LiteLLMProvider(LLMProvider):
             full_messages.append({"role": "system", "content": system})
         full_messages.extend(messages)
 
-        # Add JSON mode via prompt engineering (works across all providers)
-        if json_mode:
+        # Add JSON mode via prompt engineering (works across all providers as fallback)
+        # But skip if response_format is provided (assumes native support)
+        if json_mode and not response_format:
             json_instruction = "\n\nPlease respond with a valid JSON object."
             # Append to system message if present, otherwise add as system message
             if full_messages and full_messages[0]["role"] == "system":
@@ -169,8 +170,9 @@ class LiteLLMProvider(LLMProvider):
             full_messages.append({"role": "system", "content": system})
         full_messages.extend(messages)
 
-        # Add JSON mode via prompt engineering
-        if json_mode:
+        # Add JSON mode via prompt engineering (works across all providers as fallback)
+        # But skip if response_format is provided (assumes native support)
+        if json_mode and not response_format:
             json_instruction = "\n\nPlease respond with a valid JSON object."
             if full_messages and full_messages[0]["role"] == "system":
                 full_messages[0]["content"] += json_instruction

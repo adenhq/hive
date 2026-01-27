@@ -79,6 +79,7 @@ class MockLLMProvider(LLMProvider):
         self,
         system: str = "",
         json_mode: bool = False,
+        response_format: dict[str, Any] | None = None,
     ) -> str:
         """
         Generate a mock response based on the system prompt and mode.
@@ -86,13 +87,23 @@ class MockLLMProvider(LLMProvider):
         Args:
             system: System prompt (may contain output key hints)
             json_mode: If True, generate JSON response
+            response_format: Optional structured output format
 
         Returns:
             Mock response string
         """
-        if json_mode:
-            # Try to extract expected keys from system prompt
-            keys = self._extract_output_keys(system)
+        if json_mode or response_format:
+            keys = []
+            
+            # Try to extract keys from response_format (OpenAI style)
+            if response_format and response_format.get("type") == "json_schema":
+                schema = response_format.get("json_schema", {}).get("schema", {})
+                if "properties" in schema:
+                    keys = list(schema["properties"].keys())
+            
+            # Fallback to extraction from system prompt if needed
+            if not keys:
+                keys = self._extract_output_keys(system)
 
             if keys:
                 # Generate JSON with the expected keys
@@ -128,7 +139,9 @@ class MockLLMProvider(LLMProvider):
         Returns:
             LLMResponse with mock content
         """
-        content = self._generate_mock_response(system=system, json_mode=json_mode)
+        content = self._generate_mock_response(
+            system=system, json_mode=json_mode, response_format=response_format
+        )
 
         return LLMResponse(
             content=content,
@@ -163,7 +176,9 @@ class MockLLMProvider(LLMProvider):
         Yields:
             StreamChunk for each simulated token
         """
-        full_content = self._generate_mock_response(system=system, json_mode=json_mode)
+        full_content = self._generate_mock_response(
+            system=system, json_mode=json_mode, response_format=response_format
+        )
         
         # Simulate streaming by splitting by word
         words = full_content.split(" ")
@@ -216,9 +231,8 @@ class MockLLMProvider(LLMProvider):
         """
         # In mock mode, we don't execute tools - just return a final response
         # Try to generate JSON if the system prompt suggests structured output
-        json_mode = "json" in system.lower() or "output_keys" in system.lower()
-
-        content = self._generate_mock_response(system=system, json_mode=json_mode)
+        is_json = "json" in system.lower() or "output_keys" in system.lower()
+        content = self._generate_mock_response(system=system, json_mode=is_json)
 
         return LLMResponse(
             content=content,

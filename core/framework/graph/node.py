@@ -68,6 +68,45 @@ def find_json_object(text: str) -> str | None:
     return None
 
 
+def _clean_schema_for_llm(schema: dict[str, Any]) -> dict[str, Any]:
+    """Clean a JSON schema to make it compatible with LLM providers' strict modes.
+
+    - Removes fields not supported by OpenAI Strict Mode (like 'default' or 'title').
+    - Ensures 'additionalProperties' is False.
+    """
+    if not isinstance(schema, dict):
+        return schema
+
+    cleaned = schema.copy()
+
+    # Remove unsupported root fields
+    for field in ["title", "description", "$schema", "$id"]:
+        cleaned.pop(field, None)
+
+    # Enforce strict properties
+    if "type" in cleaned and cleaned["type"] == "object":
+        cleaned["additionalProperties"] = False
+
+    if "properties" in cleaned:
+        for prop_name, prop_info in cleaned["properties"].items():
+            # Recursively clean nested objects
+            cleaned["properties"][prop_name] = _clean_schema_for_llm(prop_info)
+            # OpenAI doesn't support 'default' in strict mode
+            cleaned["properties"][prop_name].pop("default", None)
+
+    if "items" in cleaned:
+        cleaned["items"] = _clean_schema_for_llm(cleaned["items"])
+
+    if "allOf" in cleaned:
+        cleaned["allOf"] = [_clean_schema_for_llm(i) for i in cleaned["allOf"]]
+    if "anyOf" in cleaned:
+        cleaned["anyOf"] = [_clean_schema_for_llm(i) for i in cleaned["anyOf"]]
+    if "oneOf" in cleaned:
+        cleaned["oneOf"] = [_clean_schema_for_llm(i) for i in cleaned["oneOf"]]
+
+    return cleaned
+
+
 class NodeSpec(BaseModel):
     """
     Specification for a node in the graph.
@@ -622,7 +661,7 @@ class LLMNode(NodeProtocol):
                 # Phase 3: Auto-generate JSON schema from Pydantic model
                 response_format = None
                 if ctx.node_spec.output_model is not None:
-                    json_schema = ctx.node_spec.output_model.model_json_schema()
+                    json_schema = _clean_schema_for_llm(ctx.node_spec.output_model.model_json_schema())
                     response_format = {
                         "type": "json_schema",
                         "json_schema": {
