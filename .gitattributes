@@ -1,0 +1,59 @@
+# Auto detect text files and normalize line endings to LF
+* text=auto
+
+# Explicitly declare text files
+*.md text
+*.py text
+*.sh text eol=lf
+*.js text
+*.ts text
+*.json text
+*.yml text
+*.yaml text
+*.toml text
+*.txt text
+*.cfg text
+*.ini text
+*.rst text
+*.html text
+*.css text
+
+# Ensure shell scripts always use LF (required for Unix/Mac)
+*.sh text eol=lf
+quickstart.sh text eol=lf
+scripts/* text eol=lf
+
+# Windows-specific files use CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=lf
+
+# Binary files - do not modify
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.whl binary
+*.pyc binary
+*.pyo binary
+*.so binary
+*.dylib binary
+*.dll binary
+*.exe binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.bz2 binary
+*.7z binary
+*.rar binary
+
+# Python specific
+*.pickle binary
+*.pkl binary
+
+# Git and editor configs
+.gitignore text
+.gitattributes text
+.editorconfig text
