@@ -62,6 +62,17 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 - **[Report Issues](https://github.com/adenhq/hive/issues)** - Bug reports and feature requests
 
 ## Quick Start
+### New Contributors
+
+If you're interested in contributing to Hive:
+
+- Start by reviewing **CONTRIBUTING.md**
+- Browse open issues and comment to get assigned before working on changes
+- For first-time contributors, documentation improvements are a great place to begin
+- Explore `core/` for agent runtime logic and `docs/` for guides
+
+We welcome PRs that improve developer experience, documentation clarity, and onboarding flow.
+
 
 ### Prerequisites
 
