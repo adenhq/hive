@@ -8,6 +8,7 @@ See: https://docs.litellm.ai/docs/providers
 """
 
 import json
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -17,6 +18,8 @@ except ImportError:
     litellm = None
 
 from framework.llm.provider import LLMProvider, LLMResponse, Tool, ToolResult, ToolUse
+
+logger = logging.getLogger(__name__)
 
 
 class LiteLLMProvider(LLMProvider):
@@ -123,6 +126,10 @@ class LiteLLMProvider(LLMProvider):
         if self.api_base:
             kwargs["api_base"] = self.api_base
 
+        # Set default retries for transient errors if not manually specified
+        if "num_retries" not in kwargs:
+            kwargs["num_retries"] = 0
+
         # Add tools if provided
         if tools:
             kwargs["tools"] = [self._tool_to_openai_format(t) for t in tools]
@@ -132,25 +139,67 @@ class LiteLLMProvider(LLMProvider):
         if response_format:
             kwargs["response_format"] = response_format
 
-        # Make the call
-        response = litellm.completion(**kwargs)
+        try:
+            # Make the call
+            response = litellm.completion(**kwargs)
 
-        # Extract content
-        content = response.choices[0].message.content or ""
+            # Extract content
+            content = response.choices[0].message.content or ""
 
-        # Get usage info
-        usage = response.usage
-        input_tokens = usage.prompt_tokens if usage else 0
-        output_tokens = usage.completion_tokens if usage else 0
+            # Get usage info
+            usage = response.usage
+            input_tokens = usage.prompt_tokens if usage else 0
+            output_tokens = usage.completion_tokens if usage else 0
 
-        return LLMResponse(
-            content=content,
-            model=response.model or self.model,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            stop_reason=response.choices[0].finish_reason or "",
-            raw_response=response,
-        )
+            return LLMResponse(
+                content=content,
+                model=response.model or self.model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                stop_reason=response.choices[0].finish_reason or "",
+                raw_response=response,
+            )
+
+        except litellm.exceptions.AuthenticationError as e:
+            logger.error(f"LiteLLM Authentication Error: {str(e)}. Please checks your API key.")
+            return LLMResponse(
+                content=f"Authentication Error: {str(e)}",
+                model=self.model,
+                input_tokens=0,
+                output_tokens=0,
+                stop_reason="error",
+                raw_response=None,
+            )
+        except litellm.exceptions.RateLimitError as e:
+            logger.error(f"LiteLLM Rate Limit Error: {str(e)}. Retries exhausted.")
+            return LLMResponse(
+                content=f"Rate Limit Error: {str(e)}",
+                model=self.model,
+                input_tokens=0,
+                output_tokens=0,
+                stop_reason="error",
+                raw_response=None,
+            )
+        except litellm.exceptions.APIConnectionError as e:
+            logger.error(f"LiteLLM Connection Error: {str(e)}. Check your network.")
+            return LLMResponse(
+                content=f"Connection Error: {str(e)}",
+                model=self.model,
+                input_tokens=0,
+                output_tokens=0,
+                stop_reason="error",
+                raw_response=None,
+            )
+        except Exception as e:
+            logger.error(f"LiteLLM unexpected completion failed: {str(e)}")
+            return LLMResponse(
+                content=f"Error: {str(e)}",
+                model=self.model,
+                input_tokens=0,
+                output_tokens=0,
+                stop_reason="error",
+                raw_response=None,
+            )
 
     def complete_with_tools(
         self,
@@ -188,7 +237,42 @@ class LiteLLMProvider(LLMProvider):
             if self.api_base:
                 kwargs["api_base"] = self.api_base
 
-            response = litellm.completion(**kwargs)
+            # Set default retries for transient errors if not manually specified
+            if "num_retries" not in kwargs:
+                kwargs["num_retries"] = 2
+
+            try:
+                response = litellm.completion(**kwargs)
+            except litellm.exceptions.AuthenticationError as e:
+                logger.error(f"LiteLLM Authentication Error in tool loop: {str(e)}")
+                return LLMResponse(
+                    content=f"Authentication Error: {str(e)}",
+                    model=self.model,
+                    input_tokens=total_input_tokens,
+                    output_tokens=total_output_tokens,
+                    stop_reason="error",
+                    raw_response=None,
+                )
+            except litellm.exceptions.RateLimitError as e:
+                logger.error(f"LiteLLM Rate Limit Error in tool loop: {str(e)}")
+                return LLMResponse(
+                    content=f"Rate Limit Error: {str(e)}",
+                    model=self.model,
+                    input_tokens=total_input_tokens,
+                    output_tokens=total_output_tokens,
+                    stop_reason="error",
+                    raw_response=None,
+                )
+            except Exception as e:
+                logger.error(f"LiteLLM tool loop failed: {str(e)}")
+                return LLMResponse(
+                    content=f"Error: {str(e)}",
+                    model=self.model,
+                    input_tokens=total_input_tokens,
+                    output_tokens=total_output_tokens,
+                    stop_reason="error",
+                    raw_response=None,
+                )
 
             # Track tokens
             usage = response.usage
