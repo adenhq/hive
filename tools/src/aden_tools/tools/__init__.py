@@ -10,6 +10,7 @@ Usage:
     credentials = CredentialManager()
     register_all_tools(mcp, credentials=credentials)
 """
+
 from typing import List, Optional, TYPE_CHECKING
 
 from fastmcp import FastMCP
@@ -28,11 +29,16 @@ from .audit_trail_tool import register_tools as register_audit_trail
 from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
 from .file_system_toolkits.list_dir import register_tools as register_list_dir
-from .file_system_toolkits.replace_file_content import register_tools as register_replace_file_content
+from .file_system_toolkits.replace_file_content import (
+    register_tools as register_replace_file_content,
+)
 from .file_system_toolkits.apply_diff import register_tools as register_apply_diff
 from .file_system_toolkits.apply_patch import register_tools as register_apply_patch
 from .file_system_toolkits.grep_search import register_tools as register_grep_search
-from .file_system_toolkits.execute_command_tool import register_tools as register_execute_command
+from .file_system_toolkits.execute_command_tool import (
+    register_tools as register_execute_command,
+)
+from .csv_tool import register_tools as register_csv
 
 
 def register_all_tools(
@@ -52,12 +58,12 @@ def register_all_tools(
     """
     # Tools that don't need credentials
     register_example(mcp)
-    register_web_search(mcp)
     register_web_scrape(mcp)
     register_pdf_read(mcp)
     register_audit_trail(mcp)
 
     # Tools that need credentials (pass credentials if provided)
+    # web_search supports multiple providers (Google, Brave) with auto-detection
     register_web_search(mcp, credentials=credentials)
 
     # Register file system toolkits
@@ -69,6 +75,7 @@ def register_all_tools(
     register_apply_patch(mcp)
     register_grep_search(mcp)
     register_execute_command(mcp)
+    register_csv(mcp)
 
     return [
         "example_tool",
@@ -86,6 +93,11 @@ def register_all_tools(
         "generate_audit_trail",
         "analyze_decision_patterns",
         "compare_decision_outcomes",
+        "csv_read",
+        "csv_write",
+        "csv_append",
+        "csv_info",
+        "csv_sql",
     ]
 
 
