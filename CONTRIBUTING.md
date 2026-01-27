@@ -63,6 +63,21 @@ python -c "import framework; import aden_tools; print('✓ Setup complete')"
 > If you are on native Windows, it is recommended to use **WSL (Windows Subsystem for Linux)**.  
 > Alternatively, make sure to run PowerShell or Git Bash with Python 3.11+ installed, and disable "App Execution Aliases" in Windows settings.
 
+### Manual Setup (Windows PowerShell)
+
+If the setup script fails on Windows, run these commands manually in PowerShell:
+
+```powershell
+# 1. Install Core Framework
+pip install -e core
+
+# 2. Install Tools Package
+pip install -e tools
+
+# 3. Fix Compatibility
+pip install --upgrade "openai>=1.0.0"
+```
+
 > **Tip:** Installing Claude Code skills is optional for running existing agents, but required if you plan to **build new agents**.
 
 ## Commit Convention
