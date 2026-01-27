@@ -90,6 +90,10 @@ class ConcurrentStorage:
 
         # State
         self._running = False
+        self._active_saves = 0
+        self._active_saves_lock = asyncio.Lock()
+        self._all_saves_done = asyncio.Event()
+
 
     async def start(self) -> None:
         """Start the batch writer background task."""
@@ -105,18 +109,40 @@ class ConcurrentStorage:
         if not self._running:
             return
 
+        # Signal batch writer to finish and switch save_run to queue-only mode
         self._running = False
 
-        # Cancel batch task first to prevent queue competition
+        # Wait for ALL active save operations to complete first
+        if self._active_saves > 0:
+            await self._all_saves_done.wait()
+
+        # Wait for batch writer to drain queue and exit
         if self._batch_task:
-            self._batch_task.cancel()
             try:
                 await self._batch_task
             except asyncio.CancelledError:
+                # Ignore if cancelled externally
                 pass
             self._batch_task = None
 
-        # Now flush remaining items (batch task is stopped)
+        # Flush everything and wait for queue to stabilize
+        # Keep draining until queue is empty AND stays empt
+        max_iterations = 100  # Increased for slow writers
+        stable_count = 0
+        for _ in range(max_iterations):
+            await self._flush_pending()
+            await asyncio.sleep(0.01)
+            
+            # Check if queue is empty and active saves are done
+            if self._write_queue.empty() and self._active_saves == 0:
+                stable_count += 1
+                # Require 3 consecutive stable checks to ensure we're done
+                if stable_count >= 10:
+                    break
+            else:
+                stable_count = 0
+
+        # Final flush to be absolutely sure
         await self._flush_pending()
 
         logger.info("ConcurrentStorage stopped")
@@ -127,17 +153,34 @@ class ConcurrentStorage:
         """
         Save a run to storage.
 
-        Args:
+        Args:y
             run: Run to save
             immediate: If True, save immediately (bypasses batching)
+                    Note: Ignored during shutdown - all saves queued for flush
         """
-        if immediate or not self._running:
-            await self._save_run_locked(run)
-        else:
-            await self._write_queue.put(("run", run))
+        # Track this operation
+        async with self._active_saves_lock:
+            self._active_saves += 1
+            self._all_saves_done.clear()
+        
+        try:
+            # During shutdown, always queue to ensure flush catches everything
+            if not self._running:
+                await self._write_queue.put(("run", run))
+            elif immediate:
+                # Normal operation: respect immediate flag
+                await self._save_run_locked(run)
+            else:
+                await self._write_queue.put(("run", run))
 
-        # Update cache
-        self._cache[f"run:{run.id}"] = CacheEntry(run, time.time())
+            # Update cache (moved inside try, after all paths)
+            self._cache[f"run:{run.id}"] = CacheEntry(run, time.time())
+        finally:
+            # Mark operation complete
+            async with self._active_saves_lock:
+                self._active_saves -= 1
+                if self._active_saves == 0:
+                    self._all_saves_done.set()
 
     async def _save_run_locked(self, run: Run) -> None:
         """Save a run with file locking."""
