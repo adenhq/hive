@@ -15,36 +15,50 @@ from framework.runner.runner import AgentRunner
 
 
 async def example_1_programmatic_registration():
-    """Example 1: Register MCP server programmatically"""
+    """Example 1: Programmatic MCP Server Registration (robust / minimal)."""
     print("\n=== Example 1: Programmatic MCP Server Registration ===\n")
 
-    # Load an existing agent
-    runner = AgentRunner.load("exports/task-planner")
+    # Try preferred example agent, fall back to task-planner metadata-only agent
+    preferred = Path("exports/support_ticket_agent")
+    fallback = Path("exports/task-planner")
+    agent_path = preferred if (preferred / "agent.json").exists() else fallback
 
-    # Register tools MCP server via STDIO
-    num_tools = runner.register_mcp_server(
-        name="tools",
-        transport="stdio",
-        command="python",
-        args=["-m", "aden_tools.mcp_server", "--stdio"],
-        cwd="../tools",
-    )
+    if not (agent_path / "agent.json").exists():
+        print(f"No agent.json found in {preferred} or {fallback}. Aborting example.")
+        return
 
-    print(f"Registered {num_tools} tools from tools MCP server")
+    # Load the agent (AgentRunner accepts metadata exports in this repo)
+    runner = AgentRunner.load(str(agent_path))
 
-    # List all available tools
+    # Start the tools MCP server by invoking the script inside tools/ (reliable)
+    # Use python -m ... or the script directly depending on your environment.
+    # Here we run the tools/mcp_server.py script using python and cwd=tools.
+    try:
+        num_tools = runner.register_mcp_server(
+            name="tools",
+            transport="stdio",
+            # Use python to run the tools/mcp_server.py script inside the repo's tools/ directory.
+            command="python",
+            args=["mcp_server.py", "--stdio"],
+            cwd="tools",
+        )
+        print(f"Registered {num_tools} tools from tools MCP server")
+    except FileNotFoundError as e:
+        # If the subprocess executable or script isn't found, print helpful instructions
+        print("Failed to register MCP server: Failed to connect to MCP server:", e)
+        print("Try running the tools MCP server manually in another terminal:")
+        print("  cd tools && python mcp_server.py --stdio")
+        print("Then re-run this example (it will connect to the running server).")
+        # don't raise — just continue so we can show current toolset (likely empty)
+        num_tools = 0
+
+    # Show whatever tools are currently registered (may be empty)
     tools = runner._tool_registry.get_tools()
     print(f"\nAvailable tools: {list(tools.keys())}")
 
-    # Run the agent with MCP tools available
-    result = await runner.run(
-        {"objective": "Search for 'Claude AI' and summarize the top 3 results"}
-    )
-
-    print(f"\nAgent result: {result}")
-
-    # Cleanup
+    # NOTE: do not call runner.run() here (requires LLM credentials); this example only shows tool registration.
     runner.cleanup()
+
 
 
 async def example_2_http_transport():
