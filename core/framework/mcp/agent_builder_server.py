@@ -33,6 +33,21 @@ SESSIONS_DIR = Path(".agent-builder-sessions")
 ACTIVE_SESSION_FILE = SESSIONS_DIR / ".active"
 
 
+def _validate_session_id(session_id: str) -> bool:
+    """
+    Validate that a session ID is safe and does not contain path traversal characters.
+    Returns True if valid, False otherwise.
+    """
+    if not session_id or not isinstance(session_id, str):
+        return False
+        
+    # Check for path traversal characters
+    if ".." in session_id or "/" in session_id or "\\" in session_id:
+        return False
+        
+    return True
+
+
 # Session storage
 class BuildSession:
     """Build session with persistence support."""
@@ -134,6 +149,9 @@ def _save_session(session: BuildSession):
 
 def _load_session(session_id: str) -> BuildSession:
     """Load session from disk."""
+    if not _validate_session_id(session_id):
+        raise ValueError(f"Invalid session ID: {session_id}")
+        
     session_file = SESSIONS_DIR / f"{session_id}.json"
     if not session_file.exists():
         raise ValueError(f"Session '{session_id}' not found")
@@ -265,6 +283,12 @@ def load_session_by_id(session_id: Annotated[str, "ID of the session to load"]) 
 def delete_session(session_id: Annotated[str, "ID of the session to delete"]) -> str:
     """Delete a saved agent building session."""
     global _session
+
+    if not _validate_session_id(session_id):
+        return json.dumps({
+            "success": False,
+            "error": "Invalid session ID"
+        })
 
     session_file = SESSIONS_DIR / f"{session_id}.json"
     if not session_file.exists():
