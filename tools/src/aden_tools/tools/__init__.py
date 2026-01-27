@@ -10,8 +10,7 @@ Usage:
     credentials = CredentialManager()
     register_all_tools(mcp, credentials=credentials)
 """
-
-from typing import TYPE_CHECKING, Optional
+from typing import List, Optional, TYPE_CHECKING
 
 from fastmcp import FastMCP
 
@@ -31,19 +30,17 @@ from .file_system_toolkits.list_dir import register_tools as register_list_dir
 from .file_system_toolkits.replace_file_content import (
     register_tools as register_replace_file_content,
 )
+from .audit_trail_tool import register_tools as register_audit_trail
 
 # Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
-from .pdf_read_tool import register_tools as register_pdf_read
-from .web_scrape_tool import register_tools as register_web_scrape
-from .web_search_tool import register_tools as register_web_search
 
 
 def register_all_tools(
     mcp: FastMCP,
     credentials: Optional["CredentialManager"] = None,
-) -> list[str]:
+) -> List[str]:
     """
     Register all tools with a FastMCP server.
 
@@ -57,12 +54,11 @@ def register_all_tools(
     """
     # Tools that don't need credentials
     register_example(mcp)
-    register_web_scrape(mcp)
-    register_pdf_read(mcp)
+    register_audit_trail(mcp, credentials=credentials)
 
     # Tools that need credentials (pass credentials if provided)
     # web_search supports multiple providers (Google, Brave) with auto-detection
-    register_web_search(mcp, credentials=credentials)
+    register_csv(mcp)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -73,13 +69,15 @@ def register_all_tools(
     register_apply_patch(mcp)
     register_grep_search(mcp)
     register_execute_command(mcp)
-    register_csv(mcp)
 
     return [
         "example_tool",
-        "web_search",
-        "web_scrape",
-        "pdf_read",
+        "audit_trail",
+        "csv_read",
+        "csv_write",
+        "csv_append",
+        "csv_info",
+        "csv_sql",
         "view_file",
         "write_to_file",
         "list_dir",
@@ -88,11 +86,6 @@ def register_all_tools(
         "apply_patch",
         "grep_search",
         "execute_command_tool",
-        "csv_read",
-        "csv_write",
-        "csv_append",
-        "csv_info",
-        "csv_sql",
     ]
 
 
