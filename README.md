@@ -73,6 +73,7 @@ If you're interested in contributing to Hive:
 
 We welcome PRs that improve developer experience, documentation clarity, and onboarding flow.
 
+
 ### Prerequisites
 
 - [Python 3.11+](https://www.python.org/downloads/) for agent development
