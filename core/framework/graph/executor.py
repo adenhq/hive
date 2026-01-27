@@ -171,7 +171,6 @@ class GraphExecutor:
             for key, value in session_state["memory"].items():
                 memory.write(key, value)
             self.logger.info(f"📥 Restored session state with {len(session_state['memory'])} memory keys")
-
         # Write new input data to memory (each key individually)
         if input_data:
             for key, value in input_data.items():
@@ -231,10 +230,11 @@ class GraphExecutor:
                 )
 
                 # Log actual input data being read
+                # CORRECT (batch read before loop, ~line 175):
+                # Before "Execute node":
                 if node_spec.input_keys:
-                    self.logger.info("   Reading from memory:")
-                    for key in node_spec.input_keys:
-                        value = memory.read(key)
+                    node_inputs = {k: memory.read(k) for k in node_spec.input_keys}
+                    self.logger.debug(f"Node inputs: {node_inputs}")
                         if value is not None:
                             # Truncate long values for readability
                             value_str = str(value)
@@ -301,12 +301,12 @@ class GraphExecutor:
                 if not result.success:
                     # Track retries per node
                     node_retry_counts[current_node_id] = node_retry_counts.get(current_node_id, 0) + 1
-
-                    if node_retry_counts[current_node_id] < max_retries_per_node:
-                        # Retry - don't increment steps for retries
-                        steps -= 1
-                        self.logger.info(f"   ↻ Retrying ({node_retry_counts[current_node_id]}/{max_retries_per_node})...")
-                        continue
+                    
+                    retry_count = node_retry_counts.get(current_node_id, 0) + 1
+                    node_retry_counts[current_node_id] = retry_count
+                    if retry_count < max_retries_per_node:
+                        self.logger.info(f"   ↻ Retrying ({retry_count}/{max_retries_per_node})...")
+                        continue  # ✅ No steps -= 1
                     else:
                         # Max retries exceeded - fail the execution
                         self.logger.error(f"   ✗ Max retries ({max_retries_per_node}) exceeded for node {current_node_id}")
@@ -358,9 +358,11 @@ class GraphExecutor:
                         session_state=session_state_out,
                     )
 
-                # Check if this is a terminal node - if so, we're done
+                # CORRECT (after "Handle failure" block, ~line 220):
+                # ... write memory first ... 
+                for key, value in result.output.items():
+                    memory.write(key, value)
                 if node_spec.id in graph.terminal_nodes:
-                    self.logger.info(f"✓ Reached terminal node: {node_spec.name}")
                     break
 
                 # Determine next node
@@ -386,7 +388,7 @@ class GraphExecutor:
                     current_node_id = next_node
 
                 # Update input_data for next node
-                input_data = result.output
+                input_data = {**input_data, **result.output} 
 
             # Collect output
             output = memory.read_all()
