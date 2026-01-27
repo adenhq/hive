@@ -1,12 +1,12 @@
 """LLM Provider abstraction for pluggable LLM backends."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional, Dict, List, Type, TypeVar, Generic, ClassVar
+from pydantic import BaseModel, Field, ConfigDict
 
+T = TypeVar('T', bound='LLMProvider')
 
-@dataclass
-class LLMResponse:
+class LLMResponse(BaseModel):
     """Response from an LLM call."""
     content: str
     model: str
@@ -14,33 +14,57 @@ class LLMResponse:
     output_tokens: int = 0
     stop_reason: str = ""
     raw_response: Any = None
+    
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-@dataclass
-class Tool:
+class Tool(BaseModel):
     """A tool the LLM can use."""
     name: str
     description: str
-    parameters: dict[str, Any] = field(default_factory=dict)
+    parameters: Dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
-class ToolUse:
+class ToolUse(BaseModel):
     """A tool call requested by the LLM."""
     id: str
     name: str
-    input: dict[str, Any]
+    input: Dict[str, Any]
 
 
-@dataclass
-class ToolResult:
+class ToolResult(BaseModel):
     """Result of executing a tool."""
     tool_use_id: str
     content: str
     is_error: bool = False
 
 
-class LLMProvider(ABC):
+class LLMProvider(BaseModel, ABC):
+    """
+    Abstract base class for LLM providers.
+    
+    This class is a Pydantic model to support JSON schema generation.
+    Subclasses should implement the abstract methods and can add provider-specific fields.
+    """
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_schema_extra={
+            "description": "Base class for LLM providers"
+        }
+    )
+    
+    # Provider metadata
+    provider_name: ClassVar[str] = "base"
+    supports_tools: ClassVar[bool] = False
+    
+    # Instance configuration
+    model: str = Field(..., description="The model to use for this provider")
+    
+    def __init__(self, **data):
+        # Ensure model is set from class default if not provided
+        if 'model' not in data and hasattr(self, 'model'):
+            data['model'] = self.model
+        super().__init__(**data)
     """
     Abstract LLM provider - plug in any LLM backend.
 
@@ -52,33 +76,54 @@ class LLMProvider(ABC):
     """
 
     @abstractmethod
-    def complete(
+    async def generate(
         self,
-        messages: list[dict[str, Any]],
-        system: str = "",
-        tools: list[Tool] | None = None,
-        max_tokens: int = 1024,
-        response_format: dict[str, Any] | None = None,
-        json_mode: bool = False,
+        prompt: str,
+        system_prompt: str = "",
+        tools: Optional[List[Tool]] = None,
+        **kwargs: Any,
     ) -> LLMResponse:
-        """
-        Generate a completion from the LLM.
+        """Generate text from a prompt.
 
         Args:
-            messages: Conversation history [{role: "user"|"assistant", content: str}]
-            system: System prompt
-            tools: Available tools for the LLM to use
-            max_tokens: Maximum tokens to generate
-            response_format: Optional structured output format. Use:
-                - {"type": "json_object"} for basic JSON mode
-                - {"type": "json_schema", "json_schema": {"name": "...", "schema": {...}}}
-                  for strict JSON schema enforcement
-            json_mode: If True, request structured JSON output from the LLM
+            prompt: User prompt/message
+            system_prompt: Optional system prompt
+            tools: List of tools the model can use
+            **kwargs: Provider-specific arguments
 
         Returns:
-            LLMResponse with content and metadata
+            LLMResponse containing the generated text and metadata
         """
         pass
+
+    @abstractmethod
+    async def generate_with_tools(
+        self,
+        prompt: str,
+        tools: List[Tool],
+        system_prompt: str = "",
+        **kwargs: Any,
+    ) -> tuple[LLMResponse, Optional[List[ToolUse]]]:
+        """Generate text with tool use capabilities.
+
+        Args:
+            prompt: User prompt/message
+            tools: List of tools the model can use
+            system_prompt: Optional system prompt
+            **kwargs: Provider-specific arguments
+
+        Returns:
+            Tuple of (LLMResponse, list of ToolUse if any tools were used)
+        """
+        pass
+
+    @classmethod
+    def create(cls: Type[T], *args, **kwargs) -> T:
+        """Create a new instance of the provider.
+        
+        This is a convenience method that allows creating providers with a consistent interface.
+        """
+        return cls(*args, **kwargs)
 
     @abstractmethod
     def complete_with_tools(

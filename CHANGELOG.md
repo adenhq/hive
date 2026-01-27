@@ -17,7 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive documentation
 
 ### Changed
-- N/A
+- **MCP Server**:
+  - Removed hardcoded LLM dependency from test generation tools
+  - Refactored test generation to use templates and guidelines
+  - Made test generation provider-agnostic
+  - Updated test generation to be handled by the calling agent
+- **Testing**:
+  - Added new test cases for LLM provider independence
+  - Updated test infrastructure to work without LLM dependencies
+- **Documentation**:
+  - Updated MCP server documentation to reflect new test generation approach
+  - Added clear guidelines for test template usage
 
 ### Deprecated
 - N/A
