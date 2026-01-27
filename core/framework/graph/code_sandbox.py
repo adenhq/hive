@@ -16,6 +16,7 @@ import ast
 import sys
 import signal
 from typing import Any
+import warnings
 from dataclasses import dataclass, field
 from contextlib import contextmanager
 
@@ -373,7 +374,7 @@ class CodeSandbox:
 default_sandbox = CodeSandbox()
 
 
-def safe_exec(
+def sandbox_exec(
     code: str,
     inputs: dict[str, Any] | None = None,
     timeout_seconds: int = 10,
@@ -393,7 +394,7 @@ def safe_exec(
     return sandbox.execute(code, inputs)
 
 
-def safe_eval(
+def sandbox_eval(
     expression: str,
     inputs: dict[str, Any] | None = None,
     timeout_seconds: int = 5,
@@ -411,3 +412,39 @@ def safe_eval(
     """
     sandbox = CodeSandbox(timeout_seconds=timeout_seconds)
     return sandbox.execute_expression(expression, inputs)
+
+
+def safe_exec(
+    code: str,
+    inputs: dict[str, Any] | None = None,
+    timeout_seconds: int = 10,
+) -> SandboxResult:
+    """
+    Deprecated alias for sandbox_exec.
+
+    Use sandbox_exec to avoid confusion with AST-based safe_eval.
+    """
+    warnings.warn(
+        "safe_exec is deprecated; use sandbox_exec from framework.graph.code_sandbox",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return sandbox_exec(code, inputs=inputs, timeout_seconds=timeout_seconds)
+
+
+def safe_eval(
+    expression: str,
+    inputs: dict[str, Any] | None = None,
+    timeout_seconds: int = 5,
+) -> SandboxResult:
+    """
+    Deprecated alias for sandbox_eval.
+
+    Use sandbox_eval to avoid confusion with AST-based safe_eval.
+    """
+    warnings.warn(
+        "safe_eval is deprecated; use sandbox_eval from framework.graph.code_sandbox",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return sandbox_eval(expression, inputs=inputs, timeout_seconds=timeout_seconds)
