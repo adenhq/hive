@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 ### Fixed
+- core: Resolve OpenAI + LiteLLM dependency conflict by explicitly declaring `openai>=1.0.0` in requirements and pyproject.toml; clean install no longer requires manual upgrade (#450)
 - tools: Fixed web_scrape tool attempting to parse non-HTML content (PDF, JSON) as HTML (#487)
 
 ### Security

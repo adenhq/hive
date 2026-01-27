@@ -121,29 +121,7 @@ else
 fi
 echo ""
 
-# Fix openai version compatibility with litellm
-echo "=================================================="
-echo "Fixing Package Compatibility"
-echo "=================================================="
-echo ""
-
-# Check openai version
-OPENAI_VERSION=$($PYTHON_CMD -c "import openai; print(openai.__version__)" 2>/dev/null || echo "not_installed")
-
-if [ "$OPENAI_VERSION" = "not_installed" ]; then
-    echo "Installing openai package..."
-    $PYTHON_CMD -m pip install "openai>=1.0.0" > /dev/null 2>&1
-    echo -e "${GREEN}✓${NC} openai package installed"
-elif [[ "$OPENAI_VERSION" =~ ^0\. ]]; then
-    echo -e "${YELLOW}Found old openai version: $OPENAI_VERSION${NC}"
-    echo "Upgrading to openai 1.x+ for litellm compatibility..."
-    $PYTHON_CMD -m pip install --upgrade "openai>=1.0.0" > /dev/null 2>&1
-    OPENAI_VERSION=$($PYTHON_CMD -c "import openai; print(openai.__version__)" 2>/dev/null)
-    echo -e "${GREEN}✓${NC} openai upgraded to $OPENAI_VERSION"
-else
-    echo -e "${GREEN}✓${NC} openai $OPENAI_VERSION is compatible"
-fi
-echo ""
+# openai>=1.0.0 is declared in core/pyproject.toml; no post-install fix needed.
 
 # Verify installations
 echo "=================================================="
