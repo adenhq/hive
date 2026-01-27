@@ -62,8 +62,10 @@ python -c "import litellm; print('✓ litellm OK')"
 ### Python Version
 
 - **Minimum:** Python 3.11
-- **Recommended:** Python 3.11 or 3.12
-- **Tested on:** Python 3.11, 3.12, 3.13
+- **Recommended:** Python 3.11 (officially tested in CI)
+- **Experimental:** Python 3.12, 3.13 may work but are not currently tested in CI
+
+> **⚠️ Note for Contributors:** Our GitHub Actions CI pipeline currently runs automated tests **only on Python 3.11**. While Python 3.12 and 3.13 are expected to work for basic usage, they do not have comprehensive CI test coverage. For the best development experience and to match our CI environment, **we recommend using Python 3.11**. If you encounter issues with Python 3.12 or 3.13, please [report them](https://github.com/adenhq/hive/issues).
 
 ### System Requirements
 

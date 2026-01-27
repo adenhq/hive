@@ -4,7 +4,7 @@ This guide will help you set up the Aden Agent Framework and build your first ag
 
 ## Prerequisites
 
-- **Python 3.11+** ([Download](https://www.python.org/downloads/)) - Python 3.12 or 3.13 recommended
+- **Python 3.11+** ([Download](https://www.python.org/downloads/)) - **Python 3.11 recommended** (officially CI-tested). Python 3.12/3.13 may work but are currently untested.
 - **pip** - Package installer for Python (comes with Python)
 - **git** - Version control
 - **Claude Code** ([Install](https://docs.anthropic.com/claude/docs/claude-code)) - Optional, for using building skills
