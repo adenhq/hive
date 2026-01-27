@@ -6,7 +6,14 @@ Uses Pydantic's built-in serialization.
 """
 
 import json
+import sys
+from contextlib import contextmanager
 from pathlib import Path
+
+if sys.platform != "win32":
+    import fcntl  # POSIX file locking
+else:  # pragma: no cover - windows specific
+    import msvcrt  # Windows file locking
 
 from framework.schemas.run import Run, RunStatus, RunSummary
 
@@ -138,30 +145,72 @@ class FileStorage:
 
     # === INDEX OPERATIONS ===
 
+    def _lock_index(self, index_type: str, key: str):
+        """Context manager to perform atomic read/modify/write on an index file."""
+
+        @contextmanager
+        def _locked_file():
+            index_path = self.base_path / "indexes" / index_type / f"{key}.json"
+            # Ensure parent dir exists in case called before _ensure_dirs
+            index_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # a+ lets us create the file if missing while keeping read/write
+            with open(index_path, "a+") as f:
+                try:
+                    if sys.platform != "win32":
+                        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                    else:  # pragma: no cover - windows specific
+                        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+                    # Position at start after locking for consistent reads
+                    f.seek(0)
+                    yield f
+                finally:
+                    if sys.platform != "win32":
+                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                    else:  # pragma: no cover - windows specific
+                        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+
+        return _locked_file()
+
     def _get_index(self, index_type: str, key: str) -> list[str]:
-        """Get values from an index."""
+        """Get values from an index (safe for empty or malformed files)."""
         index_path = self.base_path / "indexes" / index_type / f"{key}.json"
         if not index_path.exists():
             return []
         with open(index_path) as f:
-            return json.load(f)
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return []
 
     def _add_to_index(self, index_type: str, key: str, value: str) -> None:
         """Add a value to an index."""
-        index_path = self.base_path / "indexes" / index_type / f"{key}.json"
-        values = self._get_index(index_type, key)
-        if value not in values:
-            values.append(value)
-            with open(index_path, "w") as f:
+        with self._lock_index(index_type, key) as f:
+            try:
+                content = f.read()
+                values = json.loads(content) if content else []
+            except json.JSONDecodeError:
+                values = []
+
+            if value not in values:
+                values.append(value)
+                f.seek(0)
+                f.truncate()
                 json.dump(values, f)
 
     def _remove_from_index(self, index_type: str, key: str, value: str) -> None:
         """Remove a value from an index."""
-        index_path = self.base_path / "indexes" / index_type / f"{key}.json"
-        values = self._get_index(index_type, key)
-        if value in values:
-            values.remove(value)
-            with open(index_path, "w") as f:
+        with self._lock_index(index_type, key) as f:
+            try:
+                content = f.read()
+                values = json.loads(content) if content else []
+            except json.JSONDecodeError:
+                values = []
+
+            if value in values:
+                values.remove(value)
+                f.seek(0)
+                f.truncate()
                 json.dump(values, f)
 
     # === UTILITY ===
