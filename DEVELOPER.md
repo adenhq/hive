@@ -83,6 +83,7 @@ For running agents with real LLMs:
 # Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
 export ANTHROPIC_API_KEY="your-key-here"
 export OPENAI_API_KEY="your-key-here"        # Optional
+export GEMINI_API_KEY="your-key-here"        # Optional, for Google Gemini
 export BRAVE_SEARCH_API_KEY="your-key-here"  # Optional, for web search tool
 ```
 
@@ -90,7 +91,60 @@ Get API keys:
 
 - **Anthropic**: [console.anthropic.com](https://console.anthropic.com/)
 - **OpenAI**: [platform.openai.com](https://platform.openai.com/)
+- **Google Gemini**: [aistudio.google.com](https://aistudio.google.com/apikey)
 - **Brave Search**: [brave.com/search/api](https://brave.com/search/api/)
+
+### LLM Provider Configuration
+
+Aden supports 100+ LLM providers through [LiteLLM](https://docs.litellm.ai/docs/providers). Here are the most common configurations:
+
+#### Provider Reference
+
+| Provider | Environment Variable | Model Format | Example |
+|----------|---------------------|--------------|---------|
+| OpenAI | `OPENAI_API_KEY` | `gpt-*` | `gpt-4o-mini` |
+| Anthropic | `ANTHROPIC_API_KEY` | `claude-*` | `claude-3-haiku-20240307` |
+| Google Gemini | `GEMINI_API_KEY` | `gemini/*` | `gemini/gemini-1.5-flash` |
+| Mistral | `MISTRAL_API_KEY` | `mistral/*` | `mistral/mistral-large-latest` |
+| Groq | `GROQ_API_KEY` | `groq/*` | `groq/llama3-70b-8192` |
+| Ollama (local) | - | `ollama/*` | `ollama/llama3` |
+
+#### Usage Examples
+
+```python
+from framework.llm import LiteLLMProvider
+
+# OpenAI (default)
+provider = LiteLLMProvider(model="gpt-4o-mini")
+
+# Anthropic Claude
+provider = LiteLLMProvider(model="claude-3-haiku-20240307")
+
+# Google Gemini
+provider = LiteLLMProvider(model="gemini/gemini-1.5-flash")
+
+# Local Ollama (no API key needed)
+provider = LiteLLMProvider(model="ollama/llama3")
+```
+
+#### Agent Configuration
+
+In your agent's `config.py`:
+
+```python
+import os
+from dataclasses import dataclass
+
+@dataclass
+class AgentConfig:
+    model: str = "gemini/gemini-2.0-flash"
+    api_key: str | None = None
+
+default_config = AgentConfig(
+    model="gemini/gemini-2.0-flash",
+    api_key=os.getenv("GEMINI_API_KEY"),
+)
+```
 
 ### Install Claude Code Skills
 
