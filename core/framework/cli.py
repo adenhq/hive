@@ -18,9 +18,10 @@ Testing commands:
 
 import argparse
 import sys
-
+from pathlib import Path
 
 def main():
+    Path("exports").mkdir(parents=True, exist_ok=True)
     parser = argparse.ArgumentParser(description="Goal Agent - Build and run goal-driven agents")
     parser.add_argument(
         "--model",
