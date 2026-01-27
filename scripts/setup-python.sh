@@ -26,15 +26,15 @@ echo "=================================================="
 echo ""
 
 # Check for Python
-if ! command -v python &> /dev/null && ! command -v python3 &> /dev/null; then
+if ! command -v python &> /dev/null && ! command -v python &> /dev/null; then
     echo -e "${RED}Error: Python is not installed.${NC}"
     echo "Please install Python 3.11+ from https://python.org"
     exit 1
 fi
 
-# Use python3 if available, otherwise python
-PYTHON_CMD="python3"
-if ! command -v python3 &> /dev/null; then
+# Use python if available, otherwise python
+PYTHON_CMD="python"
+if ! command -v python &> /dev/null; then
     PYTHON_CMD="python"
 fi
 

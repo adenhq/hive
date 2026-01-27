@@ -113,7 +113,12 @@ python -c "import aden_tools; print('✓ aden_tools OK')"
 python -c "import litellm; print('✓ litellm OK')"
 
 # Run an example agent
-PYTHONPATH=core:exports python -m support_ticket_agent validate
+
+# When running from Git Bash/Bash terminal
+PYTHONPATH=. python -m exports.support_ticket_agent validate
+
+# When running from Powershell
+$env:PYTHONPATH = "."; python -m exports.support_ticket_agent validate
 ```
 
 ---

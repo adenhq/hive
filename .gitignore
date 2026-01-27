@@ -65,7 +65,7 @@ core/data/
 tmp/
 temp/
 
-exports/*
+
 
 .agent-builder-sessions/*
 

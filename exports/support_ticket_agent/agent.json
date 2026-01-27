@@ -1,0 +1,67 @@
+{
+  "graph": {
+    "id": "support_ticket_agent",
+    "goal_id": "support-ticket-processing",
+    "version": "1.0.0",
+    "entry_node": "parse-ticket",
+    "entry_points": {"start": "parse-ticket"},
+    "terminal_nodes": ["generate-response"],
+    "nodes": [
+      {
+        "id": "parse-ticket",
+        "name": "Parse Ticket",
+        "description": "Parse ticket content and determine priority",
+        "node_type": "function",
+        "input_keys": ["ticket_content", "customer_id", "ticket_id"],
+        "output_keys": ["parsed_content", "priority"],
+        "function": "parse_ticket_content"
+      },
+      {
+        "id": "generate-response",
+        "name": "Generate Response",
+        "description": "Generate a helpful response to the support ticket",
+        "node_type": "llm_generate",
+        "input_keys": ["parsed_content", "priority"],
+        "output_keys": ["response"],
+        "system_prompt": "You are a helpful customer support agent. Generate a professional and helpful response to this support ticket.",
+        "model": "claude-haiku"
+      }
+    ],
+    "edges": [
+      {
+        "id": "parse-to-generate",
+        "source": "parse-ticket",
+        "target": "generate-response",
+        "condition": "on_success"
+      }
+    ],
+    "description": "Agent for processing and responding to customer support tickets"
+  },
+  "goal": {
+    "id": "support-ticket-processing",
+    "name": "Process Support Ticket",
+    "description": "Analyze customer support ticket, determine priority, and provide appropriate response",
+    "success_criteria": [
+      {
+        "id": "priority-assigned",
+        "description": "Ticket is properly categorized and prioritized",
+        "metric": "priority_assigned",
+        "target": true
+      },
+      {
+        "id": "response-generated",
+        "description": "Response is generated and appropriate",
+        "metric": "response_generated",
+        "target": true
+      }
+    ],
+    "constraints": [
+      {
+        "id": "input-validation",
+        "description": "Must have ticket_content, customer_id, and ticket_id",
+        "constraint_type": "hard",
+        "category": "input"
+      }
+    ]
+  }
+}
