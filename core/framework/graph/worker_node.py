@@ -26,6 +26,15 @@ from framework.graph.plan import (
 )
 from framework.llm.provider import LLMProvider, Tool
 from framework.runtime.core import Runtime
+from framework.exceptions import (
+    ConfigurationError,
+    ToolExecutionError,
+    LLMError,
+    RateLimitError,
+    SubGraphError,
+    CodeExecutionError,
+    HiveExecutionError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -215,6 +224,39 @@ class WorkerNode:
 
             return result
 
+        except HiveExecutionError as e:
+            latency_ms = int((time.time() - start_time) * 1000)
+            
+            # Map exception type to error_type string
+            error_type = "execution_error"
+            if isinstance(e, RateLimitError):
+                error_type = "rate_limit"
+            elif isinstance(e, ToolExecutionError):
+                error_type = "tool_error"
+            elif isinstance(e, LLMError):
+                error_type = "llm_error"
+            elif isinstance(e, ConfigurationError):
+                error_type = "configuration"
+            elif isinstance(e, SubGraphError):
+                error_type = "sub_graph_error"
+            elif isinstance(e, CodeExecutionError):
+                error_type = "code_error"
+
+            self.runtime.record_outcome(
+                decision_id=decision_id,
+                success=False,
+                result=str(e),
+                error=e.message,
+                latency_ms=latency_ms,
+            )
+
+            return StepExecutionResult(
+                success=False,
+                error=e.message,
+                error_type=error_type,
+                latency_ms=latency_ms,
+            )
+
         except Exception as e:
             latency_ms = int((time.time() - start_time) * 1000)
 
@@ -286,13 +328,9 @@ class WorkerNode:
         context: dict[str, Any],
     ) -> StepExecutionResult:
         """Execute an LLM call action."""
+        """Execute an LLM call action."""
         if self.llm is None:
-            return StepExecutionResult(
-                success=False,
-                error="No LLM provider configured",
-                error_type="configuration",
-                executor_type="llm_call",
-            )
+            raise ConfigurationError("No LLM provider configured")
 
         try:
             # Build prompt with context data
@@ -343,13 +381,9 @@ class WorkerNode:
             )
 
         except Exception as e:
-            error_type = "rate_limit" if "rate" in str(e).lower() else "llm_error"
-            return StepExecutionResult(
-                success=False,
-                error=str(e),
-                error_type=error_type,
-                executor_type="llm_call",
-            )
+            if "rate" in str(e).lower():
+                raise RateLimitError(f"LLM rate limit exceeded: {e}") from e
+            raise LLMError(f"LLM call failed: {e}") from e
 
     async def _execute_tool_use(
         self,
@@ -359,12 +393,7 @@ class WorkerNode:
         """Execute a tool use action."""
         tool_name = action.tool_name
         if not tool_name:
-            return StepExecutionResult(
-                success=False,
-                error="No tool name specified",
-                error_type="invalid_action",
-                executor_type="tool_use",
-            )
+            raise ConfigurationError("No tool name specified for TOOL_USE action")
 
         # Merge action args with inputs
         args = {**action.tool_args, **inputs}
@@ -409,29 +438,14 @@ class WorkerNode:
                 )
 
             except Exception as e:
-                return StepExecutionResult(
-                    success=False,
-                    error=str(e),
-                    error_type="tool_exception",
-                    executor_type="tool_use",
-                )
+                raise ToolExecutionError(f"Function tool '{tool_name}' execution failed: {e}") from e
 
         # Fall back to formal Tool registry
         if tool_name not in self.tools:
-            return StepExecutionResult(
-                success=False,
-                error=f"Tool '{tool_name}' not found",
-                error_type="missing_tool",
-                executor_type="tool_use",
-            )
+            raise ConfigurationError(f"Tool '{tool_name}' not found")
 
         if self.tool_executor is None:
-            return StepExecutionResult(
-                success=False,
-                error="No tool executor configured",
-                error_type="configuration",
-                executor_type="tool_use",
-            )
+            raise ConfigurationError("No tool executor configured")
 
         try:
             # Execute tool via formal executor
@@ -446,13 +460,7 @@ class WorkerNode:
             result = self.tool_executor(tool_use)
 
             if result.is_error:
-                return StepExecutionResult(
-                    success=False,
-                    outputs={},
-                    error=result.content,
-                    error_type="tool_error",
-                    executor_type="tool_use",
-                )
+                raise ToolExecutionError(f"Tool execution failed: {result.content}")
 
             # Parse JSON result and unpack fields into outputs
             # Tools return JSON like {"lead_email": "...", "company_name": "..."}
@@ -472,13 +480,10 @@ class WorkerNode:
                 executor_type="tool_use",
             )
 
+        except HiveExecutionError:
+            raise
         except Exception as e:
-            return StepExecutionResult(
-                success=False,
-                error=str(e),
-                error_type="tool_exception",
-                executor_type="tool_use",
-            )
+            raise ToolExecutionError(f"Tool execution error: {e}") from e
 
     async def _execute_sub_graph(
         self,
@@ -487,22 +492,13 @@ class WorkerNode:
         context: dict[str, Any],
     ) -> StepExecutionResult:
         """Execute a sub-graph action."""
+        """Execute a sub-graph action."""
         if self.sub_graph_executor is None:
-            return StepExecutionResult(
-                success=False,
-                error="No sub-graph executor configured",
-                error_type="configuration",
-                executor_type="sub_graph",
-            )
+            raise ConfigurationError("No sub-graph executor configured")
 
         graph_id = action.graph_id
         if not graph_id:
-            return StepExecutionResult(
-                success=False,
-                error="No graph ID specified",
-                error_type="invalid_action",
-                executor_type="sub_graph",
-            )
+            raise ConfigurationError("No graph ID specified for SUB_GRAPH action")
 
         try:
             result = await self.sub_graph_executor(graph_id, inputs, context)
@@ -516,12 +512,7 @@ class WorkerNode:
             )
 
         except Exception as e:
-            return StepExecutionResult(
-                success=False,
-                error=str(e),
-                error_type="sub_graph_exception",
-                executor_type="sub_graph",
-            )
+            raise SubGraphError(f"Sub-graph execution failed: {e}") from e
 
     async def _execute_function(
         self,
@@ -529,22 +520,13 @@ class WorkerNode:
         inputs: dict[str, Any],
     ) -> StepExecutionResult:
         """Execute a function action."""
+        """Execute a function action."""
         func_name = action.function_name
         if not func_name:
-            return StepExecutionResult(
-                success=False,
-                error="No function name specified",
-                error_type="invalid_action",
-                executor_type="function",
-            )
+            raise ConfigurationError("No function name specified")
 
         if func_name not in self.functions:
-            return StepExecutionResult(
-                success=False,
-                error=f"Function '{func_name}' not registered",
-                error_type="missing_function",
-                executor_type="function",
-            )
+            raise ConfigurationError(f"Function '{func_name}' not registered")
 
         try:
             func = self.functions[func_name]
@@ -566,12 +548,7 @@ class WorkerNode:
             )
 
         except Exception as e:
-            return StepExecutionResult(
-                success=False,
-                error=str(e),
-                error_type="function_exception",
-                executor_type="function",
-            )
+            raise ActionExecutionError(f"Function action failed: {e}") from e
 
     def _execute_code(
         self,
@@ -582,12 +559,7 @@ class WorkerNode:
         """Execute a code action in sandbox."""
         code = action.code
         if not code:
-            return StepExecutionResult(
-                success=False,
-                error="No code specified",
-                error_type="invalid_action",
-                executor_type="code_execution",
-            )
+            raise ConfigurationError("No code specified for CODE_EXECUTION action")
 
         # Merge inputs with context for code
         code_inputs = {**context, **inputs}
@@ -606,13 +578,9 @@ class WorkerNode:
                 latency_ms=sandbox_result.execution_time_ms,
             )
         else:
-            error_type = "security" if "Security" in (sandbox_result.error or "") else "code_error"
-            return StepExecutionResult(
-                success=False,
-                error=sandbox_result.error,
-                error_type=error_type,
-                executor_type="code_execution",
-                latency_ms=sandbox_result.execution_time_ms,
+            raise CodeExecutionError(
+                f"Code execution failed: {sandbox_result.error}",
+                details={"security_violation": "Security" in (sandbox_result.error or "")}
             )
 
     def register_function(self, name: str, func: Callable) -> None:
