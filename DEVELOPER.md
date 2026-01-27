@@ -127,12 +127,12 @@ PYTHONPATH=core:exports python -m support_ticket_agent validate
  ```
 This does not indicate a setup failure.
 Agent packages are created only when:
- Using Claude Code skills to generate an agent, or
+ - Using Claude Code skills to generate an agent, or
  
- Manually adding an agent package under `exports/` 
+ - Manually adding an agent package under `exports/` 
 ---
 
-## Project Structure
+### Project Structure
 
 ```
 hive/                                    # Repository root
