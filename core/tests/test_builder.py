@@ -330,3 +330,40 @@ class TestBuilderWorkflow:
         # Step 6: Check node performance
         perf = query.get_node_performance("process-node")
         assert perf["success_rate"] < 1.0  # process-node fails in failed runs
+
+class TestEmptyDataEdgeCases:
+    """Test edge cases with empty or missing data."""
+    
+    def test_get_run_summary_nonexistent(self, tmp_path: Path):
+        """Test getting summary for non-existent run."""
+        query = BuilderQuery(tmp_path)
+        summary = query.get_run_summary("non-existent-id")
+        assert summary is None
+    
+    def test_list_runs_for_goal_no_runs(self, tmp_path: Path):
+        """Test listing runs for goal with no runs."""
+        query = BuilderQuery(tmp_path)
+        summaries = query.list_runs_for_goal("no-such-goal")
+        assert len(summaries) == 0
+    
+    def test_get_recent_failures_no_failures(self, tmp_path: Path):
+        """Test getting failures when none exist."""
+        runtime = Runtime(tmp_path)
+        create_successful_run(runtime)
+        create_successful_run(runtime)
+        
+        query = BuilderQuery(tmp_path)
+        failures = query.get_recent_failures()
+        assert len(failures) == 0
+    
+    def test_analyze_failure_nonexistent_run(self, tmp_path: Path):
+        """Test analyzing non-existent run."""
+        query = BuilderQuery(tmp_path)
+        analysis = query.analyze_failure("non-existent-id")
+        assert analysis is None
+    
+    def test_find_patterns_empty_goal(self, tmp_path: Path):
+        """Test finding patterns for goal with no runs."""
+        query = BuilderQuery(tmp_path)
+        patterns = query.find_patterns("empty-goal")
+        assert patterns is None
