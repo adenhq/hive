@@ -32,6 +32,10 @@ Before you start, make sure you have:
 ./scripts/setup-python.sh
 ```
 
+> **Note for Windows Users:**  
+> Running the setup script on native Windows shells (PowerShell / Git Bash) may sometimes fail due to Python App Execution Aliases.  
+> It is **strongly recommended to use WSL (Windows Subsystem for Linux)** for a smoother setup experience.
+
 This will:
 
 - Check Python version (requires 3.11+)
@@ -109,6 +113,8 @@ PYTHONPATH=core:exports python -m support_ticket_agent validate
 ```
 
 If this works, you're all set!
+> **Windows Tip:**  
+> On Windows, if the verification commands fail, ensure you are running them in **WSL** or after **disabling Python App Execution Aliases** in Windows Settings → Apps → App Execution Aliases.
 
 ## Requirements
 
@@ -123,6 +129,7 @@ If this works, you're all set!
 - pip (latest version)
 - 2GB+ RAM
 - Internet connection (for LLM API calls)
+- For Windows users: WSL 2 is recommended for full compatibility.
 
 ### API Keys (Optional)
 
