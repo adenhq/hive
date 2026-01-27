@@ -8,11 +8,19 @@ See: https://docs.litellm.ai/docs/providers
 """
 
 import json
-from typing import Any
+import os
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 
 import litellm
+from pydantic import ConfigDict, Field
 
-from framework.llm.provider import LLMProvider, LLMResponse, Tool, ToolUse
+from framework.llm.provider import (
+    LLMProvider, 
+    LLMResponse, 
+    Tool, 
+    ToolUse,
+    ToolResult
+)
 
 
 class LiteLLMProvider(LLMProvider):
@@ -47,30 +55,167 @@ class LiteLLMProvider(LLMProvider):
             api_base="https://my-proxy.com/v1"
         )
     """
-
+    # Provider metadata
+    provider_name: ClassVar[str] = "litellm"
+    supports_tools: ClassVar[bool] = True
+    
+    # Configuration
+    model_config = ConfigDict(extra='allow')  # Allow extra fields in the model
+    
+    # Instance configuration
+    model: str = Field(default="gpt-3.5-turbo", description="The model to use for completions")
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature (0.0 to 2.0)")
+    max_tokens: int = Field(default=1024, ge=1, description="Maximum number of tokens to generate")
+    
+    # API configuration
+    api_key: Optional[str] = Field(default=None, description="API key for the provider")
+    api_base: Optional[str] = Field(default=None, description="Base URL for the API")
+    extra_kwargs: Dict[str, Any] = Field(default_factory=dict, exclude=True)
+    
     def __init__(
         self,
-        model: str = "gpt-4o-mini",
-        api_key: str | None = None,
-        api_base: str | None = None,
+        model: Optional[str] = None,
+        api_key: Optional[str] = None,
+        api_base: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 1024,
         **kwargs: Any,
     ):
         """
         Initialize the LiteLLM provider.
 
         Args:
-            model: Model identifier (e.g., "gpt-4o-mini", "claude-3-haiku-20240307")
-                   LiteLLM auto-detects the provider from the model name.
+            model: Model identifier (e.g., "gpt-4o-mini", "claude-3-haiku-20240307").
+                  If not provided, will use LITELLM_MODEL environment variable or default to "gpt-3.5-turbo".
             api_key: API key for the provider. If not provided, LiteLLM will
                      look for the appropriate env var (OPENAI_API_KEY,
                      ANTHROPIC_API_KEY, etc.)
             api_base: Custom API base URL (for proxies or local deployments)
+            temperature: Sampling temperature to use (0.0 to 1.0)
+            max_tokens: Maximum number of tokens to generate
             **kwargs: Additional arguments passed to litellm.completion()
         """
-        self.model = model
+        # Get model from environment if not provided
+        if model is None:
+            model = os.environ.get("LITELLM_MODEL", "gpt-3.5-turbo")
+
+        # Initialize the base class with model config
+        super().__init__(
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+        
+        # Set instance attributes
         self.api_key = api_key
         self.api_base = api_base
         self.extra_kwargs = kwargs
+        
+        # Configure LiteLLM
+        if self.api_base:
+            litellm.api_base = self.api_base
+        if self.api_key:
+            litellm.api_key = self.api_key
+            
+    async def generate(
+        self,
+        prompt: str,
+        system_prompt: str = "",
+        tools: Optional[List[Tool]] = None,
+        **kwargs: Any,
+    ) -> LLMResponse:
+        """Generate a response from the LLM.
+        
+        Args:
+            prompt: The user's input prompt
+            system_prompt: Optional system prompt to guide the model's behavior
+            tools: Optional list of tools the model can use
+            **kwargs: Additional arguments to pass to the LLM
+            
+        Returns:
+            LLMResponse containing the generated text and metadata
+        """
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        
+        # Convert tools to LiteLLM format if provided
+        litellm_tools = None
+        if tools:
+            litellm_tools = [{
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.parameters
+                }
+            } for tool in tools]
+        
+        try:
+            response = await litellm.acompletion(
+                model=self.model,
+                messages=messages,
+                tools=litellm_tools,
+                **self._get_completion_kwargs(**kwargs)
+            )
+            
+            choice = response.choices[0]
+            message = choice.message
+            
+            return LLMResponse(
+                content=message.content or "",
+                model=response.model,
+                input_tokens=response.usage.prompt_tokens,
+                output_tokens=response.usage.completion_tokens,
+                stop_reason=choice.finish_reason,
+                raw_response=response
+            )
+            
+        except Exception as e:
+            if "rate limit" in str(e).lower():
+                raise RuntimeError("Rate limit exceeded. Please try again later.") from e
+            raise
+            
+    async def generate_with_tools(
+        self,
+        prompt: str,
+        tools: List[Tool],
+        system_prompt: str = "",
+        **kwargs: Any,
+    ) -> Tuple[LLMResponse, Optional[List[ToolUse]]]:
+        """Generate a response with tool usage capabilities.
+        
+        Args:
+            prompt: The user's input prompt
+            tools: List of tools the model can use
+            system_prompt: Optional system prompt
+            **kwargs: Additional arguments to pass to the LLM
+            
+        Returns:
+            Tuple of (LLMResponse, list of ToolUse if any tools were used)
+        """
+        response = await self.generate(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            tools=tools,
+            **kwargs
+        )
+        
+        # Check for tool calls in the response
+        tool_uses = None
+        if hasattr(response.raw_response.choices[0].message, 'tool_calls'):
+            tool_calls = response.raw_response.choices[0].message.tool_calls or []
+            tool_uses = [
+                ToolUse(
+                    id=tool_call.id,
+                    name=tool_call.function.name,
+                    input=json.loads(tool_call.function.arguments)
+                )
+                for tool_call in tool_calls
+            ]
+            
+        return response, tool_uses
 
     def complete(
         self,
@@ -141,11 +286,11 @@ class LiteLLMProvider(LLMProvider):
             raw_response=response,
         )
 
-    def complete_with_tools(
+    async def complete_with_tools(
         self,
-        messages: list[dict[str, Any]],
+        messages: List[Dict[str, Any]],
         system: str,
-        tools: list[Tool],
+        tools: List[Tool],
         tool_executor: callable,
         max_iterations: int = 10,
     ) -> LLMResponse:
@@ -163,104 +308,62 @@ class LiteLLMProvider(LLMProvider):
         openai_tools = [self._tool_to_openai_format(t) for t in tools]
 
         for _ in range(max_iterations):
-            # Build kwargs
-            kwargs: dict[str, Any] = {
-                "model": self.model,
-                "messages": current_messages,
-                "max_tokens": 1024,
-                "tools": openai_tools,
-                **self.extra_kwargs,
-            }
+            try:
+                # Build kwargs
+                kwargs: Dict[str, Any] = {
+                    "model": self.model,
+                    "messages": current_messages,
+                    "max_tokens": 1024,
+                    "tools": openai_tools,
+                    **self.extra_kwargs,
+                }
 
-            if self.api_key:
-                kwargs["api_key"] = self.api_key
-            if self.api_base:
-                kwargs["api_base"] = self.api_base
+                if self.api_key:
+                    kwargs["api_key"] = self.api_key
+                if self.api_base:
+                    kwargs["api_base"] = self.api_base
 
-            response = litellm.completion(**kwargs)
+                response = await litellm.acompletion(**kwargs)
 
-            # Track tokens
-            usage = response.usage
-            if usage:
-                total_input_tokens += usage.prompt_tokens
-                total_output_tokens += usage.completion_tokens
+                # Track tokens
+                usage = response.usage
+                if usage:
+                    total_input_tokens += usage.prompt_tokens
+                    total_output_tokens += usage.completion_tokens
 
-            choice = response.choices[0]
-            message = choice.message
+                choice = response.choices[0]
+                message = choice.message
 
-            # Check if we're done (no tool calls)
-            if choice.finish_reason == "stop" or not message.tool_calls:
                 return LLMResponse(
                     content=message.content or "",
-                    model=response.model or self.model,
+                    model=response.model,
                     input_tokens=total_input_tokens,
                     output_tokens=total_output_tokens,
                     stop_reason=choice.finish_reason or "stop",
                     raw_response=response,
                 )
 
-            # Process tool calls.
-            # Add assistant message with tool calls.
-            current_messages.append({
-                "role": "assistant",
-                "content": message.content,
-                "tool_calls": [
-                    {
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments,
-                        },
-                    }
-                    for tc in message.tool_calls
-                ],
-            })
+            except Exception as e:
+                # Handle rate limits and retries
+                if "rate limit" in str(e).lower():
+                    raise RuntimeError("Rate limit exceeded. Please try again later.") from e
+                raise
 
-            # Execute tools and add results.
-            for tool_call in message.tool_calls:
-                # Parse arguments
-                try:
-                    args = json.loads(tool_call.function.arguments)
-                except json.JSONDecodeError:
-                    args = {}
+    def _get_completion_kwargs(self, **kwargs: Any) -> Dict[str, Any]:
+        """Get the default completion arguments.
 
-                tool_use = ToolUse(
-                    id=tool_call.id,
-                    name=tool_call.function.name,
-                    input=args,
-                )
+        Args:
+            **kwargs: Additional arguments to override defaults
 
-                result = tool_executor(tool_use)
-
-                # Add tool result message
-                current_messages.append({
-                    "role": "tool",
-                    "tool_call_id": result.tool_use_id,
-                    "content": result.content,
-                })
-
-        # Max iterations reached
-        return LLMResponse(
-            content="Max tool iterations reached",
-            model=self.model,
-            input_tokens=total_input_tokens,
-            output_tokens=total_output_tokens,
-            stop_reason="max_iterations",
-            raw_response=None,
-        )
-
-    def _tool_to_openai_format(self, tool: Tool) -> dict[str, Any]:
-        """Convert Tool to OpenAI function calling format."""
-        return {
-            "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": {
-                    "type": "object",
-                    "properties": tool.parameters.get("properties", {}),
-                    "required": tool.parameters.get("required", []),
-                },
-            },
+        Returns:
+            Dictionary of completion arguments
+        """
+        defaults = {
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "top_p": 1.0,
+            "frequency_penalty": 0.0,
+            "presence_penalty": 0.0,
         }
+        defaults.update(kwargs)
+        return defaults

@@ -11,9 +11,10 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional, Type
 
 from mcp.server import FastMCP
+from framework.llm.provider import LLMProvider
 
 from framework.graph import Goal, SuccessCriterion, Constraint, NodeSpec, EdgeSpec, EdgeCondition
 from framework.graph.plan import Plan
@@ -26,6 +27,77 @@ from framework.testing.prompts import (
 
 # Initialize MCP server
 mcp = FastMCP("agent-builder")
+
+# Global LLM provider instance and provider class
+_llm_provider = None
+_llm_provider_class = None
+
+def set_llm_provider(provider=None, **kwargs):
+    """Set the LLM provider to be used for test generation.
+    
+    Args:
+        provider: Either a provider class (e.g., LiteLLMProvider), an instance of a provider,
+                 or None to clear the current provider.
+        **kwargs: Arguments to pass to the provider's constructor (if provider is a class)
+    
+    Example:
+        # Using LiteLLM with OpenAI (class + kwargs)
+        set_llm_provider(LiteLLMProvider, model="gpt-4")
+        
+        # Using an existing provider instance
+        my_provider = LiteLLMProvider(model="gpt-4")
+        set_llm_provider(my_provider)
+        
+        # Clear the provider
+        set_llm_provider(None)
+        
+    Note:
+        No default provider is set automatically. Call this with a valid provider
+        before using any functionality that requires an LLM.
+    """
+    global _llm_provider, _llm_provider_class
+    
+    if provider is None:
+        # Clear the provider
+        _llm_provider = None
+        _llm_provider_class = None
+        return
+        
+    if isinstance(provider, type) and issubclass(provider, LLMProvider):
+        # Provider is a class, instantiate it
+        try:
+            _llm_provider_class = provider
+            _llm_provider = provider(**kwargs) if kwargs else provider()
+        except Exception as e:
+            raise ValueError(f"Failed to initialize LLM provider {provider.__name__}: {e}") from e
+    elif isinstance(provider, LLMProvider):
+        # Provider is already an instance
+        _llm_provider_class = type(provider)
+        _llm_provider = provider
+    else:
+        raise ValueError("provider must be an LLMProvider class or instance")
+
+
+def get_llm_provider(raise_if_none: bool = True) -> Optional[LLMProvider]:
+    """Get the configured LLM provider.
+    
+    Args:
+        raise_if_none: If True (default), raises an error if no provider is configured.
+                      If False, returns None when no provider is configured.
+    
+    Returns:
+        The configured LLM provider instance, or None if no provider is configured
+        and raise_if_none is False.
+        
+    Raises:
+        ValueError: If no LLM provider has been configured and raise_if_none is True.
+    """
+    if _llm_provider is None and raise_if_none:
+        raise ValueError(
+            "No LLM provider configured. Call set_llm_provider() with a valid provider "
+            "before using LLM functionality."
+        )
+    return _llm_provider
 
 
 # Session persistence directory
@@ -2405,8 +2477,8 @@ def generate_constraint_tests(
     Returns formatted guidelines and goal data. The calling LLM should use these
     to write tests directly using the Write tool.
 
-    NOTE: This tool no longer generates tests via LLM. Instead, it returns
-    guidelines and templates for the calling agent (Claude) to write tests directly.
+    NOTE: This tool only provides test templates and guidelines. The actual test
+    generation is handled by the calling agent.
     """
     try:
         goal = Goal.model_validate_json(goal_json)
@@ -2433,7 +2505,7 @@ def generate_constraint_tests(
         agent_module=agent_module,
     )
 
-    # Return guidelines + data for Claude to write tests directly
+    # Return guidelines + data for the calling agent to write tests
     return json.dumps({
         "goal_id": goal_id,
         "agent_path": agent_path,
@@ -2460,10 +2532,16 @@ def generate_constraint_tests(
         "file_header": file_header,
         "test_template": CONSTRAINT_TEST_TEMPLATE,
         "instruction": (
-            "Write tests directly to the output_file using the Write tool. "
-            "Use the file_header as the start of the file, then add test functions following the test_template format. "
-            "Generate up to 5 tests covering the most critical constraints."
+            "Write tests directly to the output_file using the Write tool.\n\n"
+            "1. Use the file_header as the start of the file\n"
+            "2. Add test functions following the test_template format\n"
+            "3. Generate 3-5 tests covering the most critical constraints\n"
+            "4. Focus on testing the constraints in isolation"
         ),
+        "note": (
+            "No LLM provider is required for this operation. "
+            "The test generation is handled by the calling agent using the provided templates."
+        )
     })
 
 
@@ -2478,11 +2556,11 @@ def generate_success_tests(
     """
     Get success criteria test guidelines for a goal.
 
-    Returns formatted guidelines and goal data. The calling LLM should use these
+    Returns formatted guidelines and goal data. The calling agent should use these
     to write tests directly using the Write tool.
 
-    NOTE: This tool no longer generates tests via LLM. Instead, it returns
-    guidelines and templates for the calling agent (Claude) to write tests directly.
+    NOTE: This tool only provides test templates and guidelines. The actual test
+    generation is handled by the calling agent.
     """
     try:
         goal = Goal.model_validate_json(goal_json)
@@ -2513,7 +2591,7 @@ def generate_success_tests(
         agent_module=agent_module,
     )
 
-    # Return guidelines + data for Claude to write tests directly
+    # Return guidelines + data for the calling agent to write tests
     return json.dumps({
         "goal_id": goal_id,
         "agent_path": agent_path,
@@ -2544,10 +2622,16 @@ def generate_success_tests(
         "file_header": file_header,
         "test_template": SUCCESS_TEST_TEMPLATE,
         "instruction": (
-            "Write tests directly to the output_file using the Write tool. "
-            "Use the file_header as the start of the file, then add test functions following the test_template format. "
-            "Generate up to 12 tests covering the most critical success criteria."
+            "Write tests directly to the output_file using the Write tool.\n\n"
+            "1. Use the file_header as the start of the file\n"
+            "2. Add test functions following the test_template format\n"
+            "3. Generate 5-12 tests covering the most critical success criteria\n"
+            "4. Focus on testing one criterion per test for clarity"
         ),
+        "note": (
+            "No LLM provider is required for this operation. "
+            "The test generation is handled by the calling agent using the provided templates."
+        )
     })
 
 

@@ -26,7 +26,7 @@ from framework.schemas.decision import Decision, Option, Outcome, DecisionEvalua
 from framework.schemas.run import Run, RunSummary, Problem
 from framework.runtime.core import Runtime
 from framework.builder.query import BuilderQuery
-from framework.llm import LLMProvider, AnthropicProvider
+from framework.llm import LLMProvider, get_available_providers
 from framework.runner import AgentRunner, AgentOrchestrator
 
 # Testing framework
@@ -40,6 +40,31 @@ from framework.testing import (
     DebugTool,
 )
 
+# Make LLM imports optional
+_llm_providers = {}
+try:
+    from framework.llm import AnthropicProvider
+    _llm_providers['anthropic'] = AnthropicProvider
+except ImportError:
+    pass
+
+try:
+    from framework.llm import LiteLLMProvider
+    _llm_providers['litellm'] = LiteLLMProvider
+except ImportError:
+    pass
+
+def get_llm_provider(name):
+    """Get an LLM provider by name if available.
+    
+    Args:
+        name: Name of the provider ('anthropic', 'litellm', etc.)
+        
+    Returns:
+        The provider class if available, None otherwise
+    """
+    return _llm_providers.get(name)
+
 __all__ = [
     # Schemas
     "Decision",
@@ -48,6 +73,9 @@ __all__ = [
     "DecisionEvaluation",
     "Run",
     "RunSummary",
+    # LLM
+    "get_llm_provider",
+    "get_available_providers",
     "Problem",
     # Runtime
     "Runtime",
