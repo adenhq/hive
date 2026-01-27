@@ -4,9 +4,12 @@ Web Scrape Tool - Extract content from web pages.
 Uses httpx for requests and BeautifulSoup for HTML parsing.
 Returns clean text content from web pages.
 Respect robots.txt by default for ethical scraping.
+Includes SSRF protection to prevent internal network access.
 """
 from __future__ import annotations
 
+import ipaddress
+import socket
 from typing import Any, List
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
@@ -23,6 +26,87 @@ USER_AGENT = "AdenBot/1.0 (https://adenhq.com; web scraping tool)"
 
 # Browser-like User-Agent for actual page requests
 BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+
+def _is_private_ip(ip: str) -> bool:
+    """
+    Check if an IP address is private, reserved, or localhost.
+    
+    Args:
+        ip: IP address string (IPv4 or IPv6)
+        
+    Returns:
+        True if IP is private/reserved/localhost, False otherwise
+    """
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        
+        # Check for private, loopback, link-local, multicast, reserved
+        return (
+            ip_obj.is_private
+            or ip_obj.is_loopback
+            or ip_obj.is_link_local
+            or ip_obj.is_multicast
+            or ip_obj.is_reserved
+            or ip_obj.is_unspecified
+        )
+    except ValueError:
+        # Invalid IP address format
+        return True  # Block invalid IPs to be safe
+
+
+def _resolve_and_validate_url(url: str) -> tuple[bool, str]:
+    """
+    Resolve hostname to IP and validate it's not targeting internal resources.
+    
+    Args:
+        url: Full URL to validate
+        
+    Returns:
+        Tuple of (allowed: bool, reason: str)
+    """
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        
+        if not hostname:
+            return False, "Invalid URL: no hostname found"
+        
+        # Special case: block direct IP addresses
+        try:
+            ip_obj = ipaddress.ip_address(hostname)
+            if _is_private_ip(hostname):
+                return False, f"Access to private/internal IP addresses is blocked: {hostname}"
+        except ValueError:
+            # Not a direct IP, continue with DNS resolution
+            pass
+        
+        # Resolve hostname to IP address(es)
+        try:
+            # Get all IP addresses for the hostname
+            addr_info = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+            
+            # Check each resolved IP
+            for info in addr_info:
+                ip = info[4][0]
+                
+                # Remove IPv6 zone identifier if present (e.g., "fe80::1%eth0" -> "fe80::1")
+                if '%' in ip:
+                    ip = ip.split('%')[0]
+                
+                if _is_private_ip(ip):
+                    return False, f"Hostname '{hostname}' resolves to private/internal IP: {ip}"
+            
+            # All IPs are public, allow the request
+            return True, f"Hostname '{hostname}' resolved to public IP(s)"
+            
+        except socket.gaierror as e:
+            return False, f"DNS resolution failed for '{hostname}': {str(e)}"
+        except Exception as e:
+            return False, f"Error resolving hostname '{hostname}': {str(e)}"
+            
+    except Exception as e:
+        return False, f"URL validation error: {str(e)}"
 
 
 def _get_robots_parser(base_url: str, timeout: float = 10.0) -> RobotFileParser | None:
@@ -121,6 +205,15 @@ def register_tools(mcp: FastMCP) -> None:
             if not url.startswith(("http://", "https://")):
                 url = "https://" + url
 
+            # SSRF Protection: Validate URL doesn't target internal resources
+            allowed, reason = _resolve_and_validate_url(url)
+            if not allowed:
+                return {
+                    "error": f"SSRF Protection: {reason}",
+                    "blocked_by_ssrf_protection": True,
+                    "url": url,
+                }
+
             # Check robots.txt if enabled
             if respect_robots_txt:
                 allowed, reason = _is_allowed_by_robots(url)
@@ -152,8 +245,7 @@ def register_tools(mcp: FastMCP) -> None:
             if response.status_code != 200:
                 return {"error": f"HTTP {response.status_code}: Failed to fetch URL"}
 
-            # --- START FIX: Validate Content-Type ---
-            # Added validation to prevent parsing non-HTML content (like JSON, PDF, Images)
+            # Validate Content-Type to prevent parsing non-HTML content
             content_type = response.headers.get("content-type", "").lower()
             if not any(t in content_type for t in ["text/html", "application/xhtml+xml"]):
                 return {
@@ -161,7 +253,6 @@ def register_tools(mcp: FastMCP) -> None:
                     "url": url,
                     "skipped": True
                 }
-            # --- END FIX ---
 
             # Parse HTML
             soup = BeautifulSoup(response.text, "html.parser")
