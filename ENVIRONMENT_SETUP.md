@@ -85,8 +85,11 @@ export ANTHROPIC_API_KEY="your-key-here"
 All agent commands must be run from the project root with `PYTHONPATH` set:
 
 ```bash
-# From /hive/ directory
-PYTHONPATH=core:exports python -m agent_name COMMAND
+# Linux / macOS / WSL
+PYTHONPATH=core:tools/src:exports python -m agent_name COMMAND
+
+# Windows (PowerShell)
+$env:PYTHONPATH="core;tools/src;exports"; python -m agent_name COMMAND
 ```
 
 ### Example: Support Ticket Agent
@@ -181,8 +184,13 @@ source .venv/bin/activate  # macOS/Linux
 Always activate the venv before running agents:
 
 ```bash
+# Linux / macOS / WSL
 source .venv/bin/activate
-PYTHONPATH=core:exports python -m your_agent_name demo
+PYTHONPATH=core:tools/src:exports python -m your_agent_name demo
+
+# Windows (PowerShell)
+.\.venv\Scripts\activate
+$env:PYTHONPATH="core;tools/src;exports"; python -m your_agent_name demo
 ```
 
 ### "ModuleNotFoundError: No module named 'framework'"
@@ -224,7 +232,11 @@ pip install --upgrade "openai>=1.0.0"
 **Solution:** Ensure you're in the project root directory and use:
 
 ```bash
-PYTHONPATH=core:exports python -m support_ticket_agent validate
+# Linux / macOS / WSL
+PYTHONPATH=core:tools/src:exports python -m support_ticket_agent validate
+
+# Windows (PowerShell)
+$env:PYTHONPATH="core;tools/src;exports"; python -m support_ticket_agent validate
 ```
 
 ### Agent imports fail with "broken installation"
@@ -269,8 +281,11 @@ hive/
 
 The packages are installed in **editable mode** (`pip install -e`), which means:
 
-- `framework` and `aden_tools` are globally importable (no PYTHONPATH needed)
+- `framework` is globally importable if installed in editable mode (`core` directory)
+- `aden_tools` is globally importable if installed in editable mode (`tools` directory)
 - `exports` is NOT installed as a package (PYTHONPATH required)
+
+**Important:** If you haven't installed the packages in editable mode, or if you are running from a fresh clone without full setup, you must include `core` and `tools/src` in your `PYTHONPATH`.
 
 This design allows agents in `exports/` to be:
 

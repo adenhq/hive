@@ -113,7 +113,11 @@ python -c "import aden_tools; print('✓ aden_tools OK')"
 python -c "import litellm; print('✓ litellm OK')"
 
 # Run an example agent
-PYTHONPATH=core:exports python -m support_ticket_agent validate
+# Linux / macOS / WSL
+PYTHONPATH=core:tools/src:exports python -m support_ticket_agent validate
+
+# Windows (PowerShell)
+$env:PYTHONPATH="core;tools/src;exports"; python -m support_ticket_agent validate
 ```
 
 ---
@@ -287,20 +291,14 @@ If you prefer to build agents manually:
 ### Running Agents
 
 ```bash
-# Validate agent structure
-PYTHONPATH=core:exports python -m agent_name validate
+# Validate agent structure (Linux/macOS/WSL)
+PYTHONPATH=core:tools/src:exports python -m agent_name validate
 
-# Show agent information
-PYTHONPATH=core:exports python -m agent_name info
+# Validate agent structure (Windows PowerShell)
+$env:PYTHONPATH="core;tools/src;exports"; python -m agent_name validate
 
 # Run agent with input
-PYTHONPATH=core:exports python -m agent_name run --input '{
-  "ticket_content": "My login is broken",
-  "customer_id": "CUST-123"
-}'
-
-# Run in mock mode (no LLM calls)
-PYTHONPATH=core:exports python -m agent_name run --mock --input '{...}'
+PYTHONPATH=core:tools/src:exports python -m agent_name run --input '{"key": "value"}'
 ```
 
 ---

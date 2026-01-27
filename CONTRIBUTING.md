@@ -42,7 +42,14 @@ If a high-quality PR is submitted for a "stale" assigned issue (no activity for 
 2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/hive.git`
 3. Create a feature branch: `git checkout -b feature/your-feature-name`
 4. Make your changes
-5. Run tests: `PYTHONPATH=core:exports python -m pytest`
+5. Run tests:
+   ```bash
+   # Linux / macOS / WSL
+   PYTHONPATH=core:tools/src:exports python -m pytest
+
+   # Windows (PowerShell)
+   $env:PYTHONPATH="core;tools/src;exports"; python -m pytest
+   ```
 6. Commit your changes following our commit conventions
 7. Push to your fork and submit a Pull Request
 
@@ -61,7 +68,14 @@ python -c "import framework; import aden_tools; print('✓ Setup complete')"
 
 > **Windows Users:**  
 > If you are on native Windows, it is recommended to use **WSL (Windows Subsystem for Linux)**.  
-> Alternatively, make sure to run PowerShell or Git Bash with Python 3.11+ installed, and disable "App Execution Aliases" in Windows settings.
+> Alternatively, make sure to run PowerShell or Git Bash with Python 3.11+ installed.
+>
+> **Setting environment variables on Windows (PowerShell):**
+> ```powershell
+> # Set PYTHONPATH for the current session
+> $env:PYTHONPATH="core;tools/src;exports"
+> ```
+> *Note: Use `;` as a separator on Windows instead of `:`.*
 
 > **Tip:** Installing Claude Code skills is optional for running existing agents, but required if you plan to **build new agents**.
 
@@ -142,8 +156,11 @@ cd core && python -m pytest
 # Run all tests for tools
 cd tools && python -m pytest
 
-# Run tests for a specific agent
-PYTHONPATH=core:exports python -m agent_name test
+# Run tests for a specific agent (Linux/macOS/WSL)
+PYTHONPATH=core:tools/src:exports python -m agent_name test
+
+# Run tests for a specific agent (Windows PowerShell)
+$env:PYTHONPATH="core;tools/src;exports"; python -m agent_name test
 ```
 
 ## Questions?
