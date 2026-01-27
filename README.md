@@ -62,6 +62,9 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 - **[Report Issues](https://github.com/adenhq/hive/issues)** - Bug reports and feature requests
 
 ## Quick Start
+### Environment Setup Note
+For local development, users can run Hive using a Python virtual environment.
+Docker is optional and mainly required for containerized deployments.
 
 ### Prerequisites
 
