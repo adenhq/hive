@@ -43,9 +43,13 @@ def register_tools(mcp: FastMCP) -> None:
             else:
                 secure_cwd = session_root
 
+            # Security Fix: Use shlex to split command and shell=False to prevent RCE
+            import shlex
+            args = shlex.split(command)
+            
             result = subprocess.run(
-                command,
-                shell=True,
+                args,
+                shell=False,
                 cwd=secure_cwd,
                 capture_output=True,
                 text=True,
