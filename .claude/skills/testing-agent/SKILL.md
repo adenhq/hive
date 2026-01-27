@@ -1029,6 +1029,19 @@ mcp__agent-builder__debug_test(
 )
 ```
 
+### Test Execution Tools
+
+- `run_agent_tests` - Execute pytest and get structured results
+  - Supports specific test files, verbose mode, and pytest markers
+  - Returns detailed output for CI/CD integration
+  
+- `list_agent_tests` - List all test files in agent directory
+  - Optional details including test function counts
+  
+- `debug_test_failure` - Re-run failing test with maximum verbosity
+  - Shows local variables and full tracebacks
+  - Useful for diagnosing complex test failures
+
 ## run_tests Options
 
 ```python

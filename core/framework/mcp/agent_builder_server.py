@@ -2998,6 +2998,218 @@ def load_exported_plan(
         return json.dumps({"success": False, "error": str(e)})
 
 
+@mcp.tool()
+def run_agent_tests(
+    agent_path: Annotated[str, "Path to agent export folder (e.g, 'exports/my_agent')"],
+    test_file: Annotated[str, "Specific test file to run (optional, e.g, 'test_constraints.py')"] = "",
+    verbose: Annotated[bool, "Enable verbose pytest output"] = False,
+    marker: Annotated[str, "Run tests with specific pytest marker (e.g, 'asyncio')"] = "",
+) -> str:
+    """
+    Execute pytest for an agent and return structured results.
+
+    This tool runs the agent's test suite and return detailed results including:
+    - Test success/failure status
+    - Stdout/stderr output
+    - Exit code for CI/CD integration
+
+    Examples:
+        - Run all tests: run_agent_tests("explore/my_agent")
+        - Run specific file: run_agent_tests("exports/my_agent", "test_constraints.py")
+        - Run with verbose: run_agent_tests("exports/my_agent", verbose=True)
+        - Run async tests only: run_agent_tests("exports/my_agent", marker="asyncio)
+    """
+    import subprocess
+    from pathlib import Path
+
+    agent_dir = Path(agent_path)
+    if not agent_dir.exists():
+        return json.dumps({
+            "error": f"No tests directory found in {agent_path}",
+            "agent_path": agent_path,
+            "suggestion": "Create tests using generate_constraint_tests or generate_success_tests tools"
+        }, indent=2)
+
+        # Build pytest command
+        cmd = ["pytest"]
+
+        if test_file:
+            test_path = tests_dir / test_file
+            if not test_path.exists():
+                return json.dumps({
+                    "error": f"Test file not found: {test_file}",
+                    "available_tests": [f.name for f in tests_dir.glob("test_*.py")]
+                }, indent=2)
+            cmd.append(str(test_path))
+        else:
+            cmd.append(str(tests_dir))
+        if verbose:
+            cmd.append("-v")
+        if marker:
+            cmd.append(["-m", marker])
+        
+        # Add color and summary options
+        cmd.extend(["--color=yes", "-ra"])
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=str(agent_dir),
+                timeout=300 # 5 min timeout
+            )
+
+            return json.dumps({
+                "success": result.returncode == 0,
+                "exit_code": result.returncode,
+                "command": " ".join(cmd),
+                "agent_path": agent_path,
+                "stdout": result.stdout,
+                "stderr": result.stderr if result.stderr else None,
+            }, indent=2)
+        except subprocess.TimeoutExpired:
+            return json.dumps({
+                "error": f"Failed to run tests: {str(e)}",
+                "agent_path": agent_path
+            }, indent=2)
+
+
+@mcp.tool()
+def list_agent_tests(
+    agent_path: Annotated[str, "Path to agent export folder (e.g, 'exports/my_agent')"],
+    include_details: Annotated[bool, "Include test function counts and details"] = False,
+) -> str:
+    """
+    List all test files in an agent's tests directory.
+
+    Return a list of test files with their paths relative to the agent directory.
+    Optionally includes details about test functions in each file.
+
+    Examples:
+        - Basic list: list_agent_tests("exports/my_agent")
+        - With details: list_agent_tests("exports/my_agent", include_details=True)
+    """
+
+
+    from pathlib import Path
+    import re
+    
+    agent_dir = Path(agent_Path)
+    if not agent_dir.exists():
+        return json.dumps({
+            "error": f"Agent path does not exist: {agent_path}",
+            "agent_path": agent_path
+        }, indent=2)
+    
+    tests_dir = agent_dir / "tests"
+    if not tests_dir.exists():
+        return json.dumps({
+            "agent_path": agent_path,
+            "test_files": [],
+            "message": "No tests directory found. Create using generate_constraint_tests or generate_success_tests tools."
+        }, indent=2)
+
+    test_file = []
+    for test_file in sorted(tests_dir.glob("test_*.py")):
+        file_info = {
+            "filename": test_file.name,
+            "relative_path": str(test_file.relative_to(agent_dir)),
+            "size_bytes": test_file.stat().st_size,
+        }
+
+        if include_details:
+            # Count test function in the file
+            try:
+                content = test_file.read_text(encoding='utf=8')
+                test_functions = re.findall(r'^\s*(?:async\s+)?def\s+(test_\w+)', content, re.MULTILINE)
+                file_info["test_count"] = len(test_functions)
+                file_info["test_functions"] = test_functions[:10] # first 10 tests
+                if len(test_functions) > 10:
+                    file_info["more_tests"] = len(test_functions) - 10
+            except Exception as e:
+                file_info["detailed_error"] = str(e)
+        test_files.append(file_info)
+    return json.dumps({
+        "agent_path": agent_path,
+        "test_files": test_files,
+        "total_files": len(test_files),
+        "total_size_bytes": sum(f["size_bytes"] for f in test_files)
+    }, indent=2)
+
+
+@mcp.tool()
+def debug_test_failure(
+    agent_path: Annotated[str, "Path to agent export folder (e.g., 'exports/my_agent')"],
+    test_name: Annotated[str, "Name of the failing test function (e.g., 'test_constraint_budget_exceeds')"],
+) -> str:
+    """
+    Re-run a specific failing test with maximum verbosity and debugging information.
+    
+    Useful for diagnosing test failures. Returns detailed output including:
+    - Full pytest output with -vv verbosity
+    - Local variables on failure
+    - Full traceback
+    
+    Example:
+        debug_test_failure("exports/my_agent", "test_constraint_budget_exceeds")
+    """
+    import subprocess
+    from pathlib import Path
+    
+    agent_dir = Path(agent_path)
+    if not agent_dir.exists():
+        return json.dumps({
+            "error": f"Agent path does not exist: {agent_path}"
+        }, indent=2)
+    
+    tests_dir = agent_dir / "tests"
+    if not tests_dir.exists():
+        return json.dumps({
+            "error": f"No tests directory found in {agent_path}"
+        }, indent=2)
+    
+    # Build pytest command with debugging flags
+    cmd = [
+        "pytest",
+        str(tests_dir),
+        "-k", test_name,  # Run only matching test
+        "-vv",  # Very verbose
+        "--tb=long",  # Long traceback format
+        "--showlocals",  # Show local variables
+        "-s",  # Don't capture output
+        "--color=yes"
+    ]
+    
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=str(agent_dir),
+            timeout=120
+        )
+        
+        return json.dumps({
+            "test_name": test_name,
+            "found": "test session starts" in result.stdout.lower(),
+            "exit_code": result.returncode,
+            "command": " ".join(cmd),
+            "output": result.stdout,
+            "errors": result.stderr if result.stderr else None,
+            "suggestion": "Review the local variables and traceback above to diagnose the failure"
+        }, indent=2)
+    except subprocess.TimeoutExpired:
+        return json.dumps({
+            "error": "Test debugging timed out after 120 seconds",
+            "test_name": test_name
+        }, indent=2)
+    except Exception as e:
+        return json.dumps({
+            "error": f"Failed to debug test: {str(e)}"
+        }, indent=2)
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
