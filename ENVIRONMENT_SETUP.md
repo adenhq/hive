@@ -177,6 +177,27 @@ source .venv/bin/activate
 PYTHONPATH=core:exports python -m your_agent_name demo
 ```
 
+### Windows: "Python was not found" or setup script fails
+
+**Cause:** Windows creates fake `python.exe` and `python3.exe` commands via App Execution Aliases. These redirect to the Microsoft Store instead of running your actual Python installation, causing setup scripts to fail.
+
+**Solution:** Disable the Windows App Execution Aliases:
+
+1. Open **Settings** → **Apps** → **Advanced app settings** → **App execution aliases**
+2. Disable both `python.exe` and `python3.exe` entries
+3. Restart your terminal and try the setup script again
+
+Alternatively, use the full path to Python or use `py` launcher:
+```bash
+# Use Python launcher (recommended on Windows)
+py -3 --version
+
+# Or use full path
+C:\Users\YourName\AppData\Local\Programs\Python\Python313\python.exe --version
+```
+
+**Note:** After disabling the aliases, `python` and `python3` commands will work correctly with your installed Python.
+
 ### "ModuleNotFoundError: No module named 'framework'"
 
 **Solution:** Install the core package:
