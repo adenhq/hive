@@ -98,8 +98,9 @@ Get API keys:
 # Install building-agents and testing-agent skills
 ./quickstart.sh
 ```
+This installs Claude Code skills used to build and test agents, but does not generate any agent packages by default.
 
-This installs:
+Installed skills include:
 
 - `/building-agents` - Build new goal-driven agents
 - `/testing-agent` - Test agents with evaluation framework
@@ -112,10 +113,23 @@ python -c "import framework; print('✓ framework OK')"
 python -c "import aden_tools; print('✓ aden_tools OK')"
 python -c "import litellm; print('✓ litellm OK')"
 
-# Run an example agent
+```
+Note: Example agent commands assume that an agent package already exists under `exports/`
+
+On a clean clone, the `exports/` directory may not exist yet, and running agent-specific
+commands such as 
+```bash
 PYTHONPATH=core:exports python -m support_ticket_agent validate
 ```
-
+ may result in 
+ ```bash 
+ No module named <agent_name>
+ ```
+This does not indicate a setup failure.
+Agent packages are created only when:
+ Using Claude Code skills to generate an agent, or
+ 
+ Manually adding an agent package under `exports/` 
 ---
 
 ## Project Structure
