@@ -114,6 +114,21 @@ class AgentRuntime:
             config: Optional runtime configuration
         """
         self.graph = graph
+
+
+                # --- Input validation (fail fast) ---
+        if graph is None:
+            raise ValueError("graph must not be None")
+
+        if goal is None:
+            raise ValueError("goal must not be None")
+
+        if storage_path is None:
+            raise ValueError("storage_path must not be None")
+
+        if not hasattr(goal, "id"):
+            raise ValueError("goal must have an 'id' attribute")
+
         self.goal = goal
         self._config = config or AgentRuntimeConfig()
 
