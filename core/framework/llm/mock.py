@@ -164,19 +164,19 @@ class MockLLMProvider(LLMProvider):
             StreamChunk for each simulated token
         """
         full_content = self._generate_mock_response(system=system, json_mode=json_mode)
-        
+
         # Simulate streaming by splitting by word
         words = full_content.split(" ")
         for i, word in enumerate(words):
             # Add back the space except for the last word
             chunk_content = word + (" " if i < len(words) - 1 else "")
-            
+
             # Simulated delay
             await asyncio.sleep(0.05)
-            
+
             is_complete = (i == len(words) - 1)
             stop_reason = "mock_complete" if is_complete else ""
-            
+
             chunk = StreamChunk(
                 content=chunk_content,
                 is_complete=is_complete,
@@ -185,10 +185,10 @@ class MockLLMProvider(LLMProvider):
                 model=self.model,
                 stop_reason=stop_reason,
             )
-            
+
             if callback:
                 callback(chunk)
-                
+
             yield chunk
 
     def complete_with_tools(

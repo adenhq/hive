@@ -1096,12 +1096,13 @@ def _interactive_multi(agents_dir: Path) -> int:
 def cmd_debug(args: argparse.Namespace) -> int:
     """Run an agent in debug mode."""
     import logging
-    from framework.runner import AgentRunner
-    from framework.debugger.session import DebugSession
+
     from framework.debugger.cli_interface import DebugCLI
-    
+    from framework.debugger.session import DebugSession
+    from framework.runner import AgentRunner
+
     # Configure logging
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     # Load input context
     context = {}
@@ -1127,11 +1128,11 @@ def cmd_debug(args: argparse.Namespace) -> int:
             self.debug_hook = None
         def set_debug_hook(self, hook):
             self.debug_hook = hook
-            
+
     shim = ExecutorShim()
     debug_session = DebugSession(shim) # type: ignore
     debug_cli = DebugCLI(debug_session)
-    
+
     def debug_hook_callback(node_id, node_spec, context, memory):
         """Bridge between Executor hook and DebugSession logic."""
         action = debug_session.on_step(node_id, node_spec, context, memory)
@@ -1139,29 +1140,29 @@ def cmd_debug(args: argparse.Namespace) -> int:
             # Enter interactive CLI loop
             print(f"\n⏸  Paused at node: {node_spec.name} ({node_id})")
             debug_cli.cmdloop()
-            
+
     # Set the hook on the runner
     runner.set_debug_hook(debug_hook_callback)
-    
+
     print(f"🐞 Starting Debugger for agent: {runner.info().name}")
     print("   Type 'help' for commands.")
-    
+
     # Run the agent
     try:
         result = asyncio.run(runner.run(context))
-        
+
         if result.success:
             print("\n🎉 Execution completed successfully!")
             print("Final Output:")
             print(json.dumps(result.output, indent=2, default=str))
         else:
             print(f"\n💥 Execution failed: {result.error}")
-            
+
     except KeyboardInterrupt:
         print("\n\nDebugger interrupted.")
         return 1
     except Exception as e:
         print(f"\nError running agent: {e}")
         return 1
-        
+
     return 0
