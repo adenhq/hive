@@ -10,6 +10,7 @@ def register_tools(mcp: FastMCP) -> None:
     if getattr(mcp, "_file_tools_registered", False):
         return
     mcp._file_tools_registered = True
+    
     @mcp.tool()
     def view_file(
         path: str,
@@ -58,8 +59,14 @@ def register_tools(mcp: FastMCP) -> None:
             with open(secure_path, "r", encoding=encoding) as f:
                 content = f.read()
 
-            if len(content.encode(encoding)) > max_size:
-                content = content[:max_size]
+            content_bytes = content.encode(encoding)
+            if len(content_bytes) > max_size:
+                # Truncate by bytes, ensuring we don't split a multi-byte character
+                truncated_bytes = content_bytes[:max_size]
+                
+                # Decode with 'ignore' to handle partial multi-byte characters at the boundary
+                # Then re-encode to get clean UTF-8
+                content = truncated_bytes.decode(encoding, errors='ignore')
                 content += "\n\n[... Content truncated due to size limit ...]"
 
             return {

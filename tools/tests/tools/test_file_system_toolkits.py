@@ -160,6 +160,157 @@ class TestViewFileTool:
         assert "error" in result
         assert "Failed to read file" in result["error"]
 
+    def test_view_file_emoji_truncation_respects_byte_limit(self, view_file_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Truncation with emoji (4 bytes each) respects byte limit, not character limit."""
+        test_file = tmp_path / "emoji.txt"
+        # Each emoji is 4 bytes in UTF-8, so 100 emojis = 400 bytes
+        content = "🔥" * 100
+        test_file.write_text(content, encoding="utf-8")
+
+        # Set max_size to 20 bytes
+        result = view_file_fn(path="emoji.txt", max_size=20, **mock_workspace)
+
+        assert result["success"] is True
+        assert "[... Content truncated due to size limit ...]" in result["content"]
+        
+        # The truncated content (excluding the truncation message) should be within reasonable bounds
+        # We expect around 20 bytes of emoji content + the truncation message
+        content_without_message = result["content"].replace("\n\n[... Content truncated due to size limit ...]", "")
+        content_bytes = len(content_without_message.encode("utf-8"))
+        
+        # Should have truncated to approximately max_size bytes (allowing for character boundaries)
+        assert content_bytes <= 20, f"Emoji content should be ≤20 bytes, got {content_bytes} bytes"
+        # Should have at least 1 emoji (4 bytes)
+        assert content_bytes >= 4, f"Should have at least 1 emoji (4 bytes), got {content_bytes} bytes"
+
+    def test_view_file_mixed_multibyte_truncation(self, view_file_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Truncation with mixed ASCII and multi-byte characters respects byte limit."""
+        test_file = tmp_path / "mixed.txt"
+        # Mix of ASCII (1 byte) and Chinese characters (3 bytes each)
+        content = "Hello 世界 " * 50  # "Hello " = 6 bytes, "世界 " = 7 bytes, total per iteration = 13 bytes
+        test_file.write_text(content, encoding="utf-8")
+
+        result = view_file_fn(path="mixed.txt", max_size=50, **mock_workspace)
+
+        assert result["success"] is True
+        assert "[... Content truncated due to size limit ...]" in result["content"]
+        
+        content_without_message = result["content"].replace("\n\n[... Content truncated due to size limit ...]", "")
+        content_bytes = len(content_without_message.encode("utf-8"))
+        
+        # Should respect the 50 byte limit
+        assert content_bytes <= 50, f"Mixed content should be ≤50 bytes, got {content_bytes} bytes"
+
+    def test_view_file_cyrillic_truncation(self, view_file_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Truncation with Cyrillic text (2 bytes per character) respects byte limit."""
+        test_file = tmp_path / "cyrillic.txt"
+        # Cyrillic characters are typically 2 bytes each in UTF-8
+        content = "Привет мир " * 30  # ~24 bytes per iteration
+        test_file.write_text(content, encoding="utf-8")
+
+        result = view_file_fn(path="cyrillic.txt", max_size=30, **mock_workspace)
+
+        assert result["success"] is True
+        assert "[... Content truncated due to size limit ...]" in result["content"]
+        
+        content_without_message = result["content"].replace("\n\n[... Content truncated due to size limit ...]", "")
+        content_bytes = len(content_without_message.encode("utf-8"))
+        
+        assert content_bytes <= 30, f"Cyrillic content should be ≤30 bytes, got {content_bytes} bytes"
+
+    def test_view_file_truncation_at_character_boundary(self, view_file_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Truncation handles partial multi-byte characters at boundaries gracefully."""
+        test_file = tmp_path / "boundary.txt"
+        # Use 4-byte emoji to test boundary handling
+        # If we truncate at byte 10 in a sequence of emojis, we'll be in the middle of the 3rd emoji
+        content = "🔥" * 50  # 200 bytes total
+        test_file.write_text(content, encoding="utf-8")
+
+        result = view_file_fn(path="boundary.txt", max_size=10, **mock_workspace)
+
+        assert result["success"] is True
+        assert "[... Content truncated due to size limit ...]" in result["content"]
+        
+        # The result should be valid UTF-8 (no broken characters)
+        # This shouldn't raise an encoding error
+        content_without_message = result["content"].replace("\n\n[... Content truncated due to size limit ...]", "")
+        try:
+            content_without_message.encode("utf-8")
+            valid_utf8 = True
+        except UnicodeEncodeError:
+            valid_utf8 = False
+        
+        assert valid_utf8, "Truncated content should be valid UTF-8"
+        
+        content_bytes = len(content_without_message.encode("utf-8"))
+        # Should have truncated to complete characters only (multiples of 4 bytes for emojis)
+        assert content_bytes % 4 == 0, f"Should have complete emojis only, got {content_bytes} bytes"
+        assert content_bytes <= 10, f"Should be ≤10 bytes, got {content_bytes} bytes"
+
+    def test_view_file_ascii_truncation_still_works(self, view_file_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Truncation with ASCII-only content still works correctly after fix."""
+        test_file = tmp_path / "ascii.txt"
+        content = "a" * 100  # 100 bytes
+        test_file.write_text(content)
+
+        result = view_file_fn(path="ascii.txt", max_size=20, **mock_workspace)
+
+        assert result["success"] is True
+        assert "[... Content truncated due to size limit ...]" in result["content"]
+        
+        content_without_message = result["content"].replace("\n\n[... Content truncated due to size limit ...]", "")
+        content_bytes = len(content_without_message.encode("utf-8"))
+        
+        # For ASCII, 1 character = 1 byte, so should be exactly 20 bytes
+        assert content_bytes == 20, f"ASCII content should be exactly 20 bytes, got {content_bytes} bytes"
+
+    def test_view_file_no_truncation_for_small_multibyte_file(self, view_file_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Small multi-byte files under the limit are not truncated."""
+        test_file = tmp_path / "small_emoji.txt"
+        content = "🔥🌍🎉"  # 12 bytes total (3 emojis × 4 bytes)
+        test_file.write_text(content, encoding="utf-8")
+
+        result = view_file_fn(path="small_emoji.txt", max_size=100, **mock_workspace)
+
+        assert result["success"] is True
+        assert result["content"] == content
+        assert "[... Content truncated due to size limit ...]" not in result["content"]
+        assert result["size_bytes"] == 12
+
+    def test_view_file_exact_boundary_truncation(self, view_file_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Truncation at exact character boundary works correctly."""
+        test_file = tmp_path / "exact.txt"
+        # 5 emojis = exactly 20 bytes
+        content = "🔥" * 5
+        test_file.write_text(content, encoding="utf-8")
+
+        # Truncate at exactly 20 bytes (no partial characters)
+        result = view_file_fn(path="exact.txt", max_size=20, **mock_workspace)
+
+        assert result["success"] is True
+        # Should not truncate since content is exactly at the limit
+        # Actually, since len(content_bytes) == max_size, it shouldn't trigger truncation
+        # But the condition is >, so exactly 20 bytes should NOT be truncated
+        assert "[... Content truncated due to size limit ...]" not in result["content"]
+        assert result["content"] == content
+
+    def test_view_file_one_byte_over_limit(self, view_file_fn, mock_workspace, mock_secure_path, tmp_path):
+        """Truncation when content is just 1 byte over limit."""
+        test_file = tmp_path / "one_over.txt"
+        # 21 bytes: 5 emojis (20 bytes) + 1 ASCII char (1 byte)
+        content = "🔥" * 5 + "a"
+        test_file.write_text(content, encoding="utf-8")
+
+        result = view_file_fn(path="one_over.txt", max_size=20, **mock_workspace)
+
+        assert result["success"] is True
+        assert "[... Content truncated due to size limit ...]" in result["content"]
+        
+        content_without_message = result["content"].replace("\n\n[... Content truncated due to size limit ...]", "")
+        content_bytes = len(content_without_message.encode("utf-8"))
+        
+        assert content_bytes <= 20, f"Content should be ≤20 bytes, got {content_bytes} bytes"
+
 
 class TestWriteToFileTool:
     """Tests for write_to_file tool."""
