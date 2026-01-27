@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- UnicodeEncodeError on Windows when saving test results with Unicode characters (added UTF-8 encoding to storage backend)
+- UnicodeEncodeError on Windows when saving/reading files with Unicode characters (added UTF-8 encoding to ALL file operations across storage, testing, MCP, and runner modules)
 
 ### Security
 
