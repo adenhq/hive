@@ -10,30 +10,32 @@ The executor:
 """
 
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
-from framework.runtime.core import Runtime
+from framework.graph.edge import GraphSpec
 from framework.graph.goal import Goal
 from framework.graph.node import (
-    NodeSpec,
-    NodeContext,
-    NodeResult,
-    NodeProtocol,
-    SharedMemory,
-    LLMNode,
-    RouterNode,
     FunctionNode,
+    LLMNode,
+    NodeContext,
+    NodeProtocol,
+    NodeResult,
+    NodeSpec,
+    RouterNode,
+    SharedMemory,
 )
-from framework.graph.edge import GraphSpec
+from framework.graph.output_cleaner import CleansingConfig, OutputCleaner
 from framework.graph.validator import OutputValidator
-from framework.graph.output_cleaner import OutputCleaner, CleansingConfig
 from framework.llm.provider import LLMProvider, Tool
+from framework.runtime.core import Runtime
 
 
 @dataclass
 class ExecutionResult:
     """Result of executing a graph."""
+
     success: bool
     output: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
@@ -118,11 +120,11 @@ class GraphExecutor:
                 if missing:
                     errors.append(
                         f"Node '{node.name}' (id={node.id}) requires tools {sorted(missing)} "
-                        f"but they are not registered. Available tools: {sorted(available_tool_names) if available_tool_names else 'none'}"
+                        f"but they are not registered. Available tools: "
+                        f"{sorted(available_tool_names) if available_tool_names else 'none'}"
                     )
 
         return errors
-
 
     async def execute(
         self,
@@ -159,7 +161,8 @@ class GraphExecutor:
                 self.logger.error(f"   • {err}")
             return ExecutionResult(
                 success=False,
-                error=f"Missing tools: {'; '.join(tool_errors)}. Register tools via ToolRegistry or remove tool declarations from nodes.",
+                error=(f"Missing tools: {'; '.join(tool_errors)}. Register "
+                       f"tools via ToolRegistry or remove tool declarations from nodes."),
             )
 
         # Initialize execution state
@@ -170,7 +173,9 @@ class GraphExecutor:
             # Restore memory from previous session
             for key, value in session_state["memory"].items():
                 memory.write(key, value)
-            self.logger.info(f"📥 Restored session state with {len(session_state['memory'])} memory keys")
+            self.logger.info(
+                f"📥 Restored session state with {len(session_state['memory'])} memory keys"
+            )
 
         # Write new input data to memory (each key individually)
         if input_data:
@@ -277,7 +282,10 @@ class GraphExecutor:
                             )
 
                 if result.success:
-                    self.logger.info(f"   ✓ Success (tokens: {result.tokens_used}, latency: {result.latency_ms}ms)")
+                    self.logger.info(
+                        f"✓ Success (tokens: {result.tokens_used}, "
+                        f"latency: {result.latency_ms}ms)"
+                    )
 
                     # Generate and log human-readable summary
                     summary = result.to_summary(node_spec)
@@ -300,28 +308,39 @@ class GraphExecutor:
                 # Handle failure
                 if not result.success:
                     # Track retries per node
-                    node_retry_counts[current_node_id] = node_retry_counts.get(current_node_id, 0) + 1
+                    node_retry_counts[current_node_id] = (
+                        node_retry_counts.get(current_node_id, 0) + 1
+                    )
 
                     if node_retry_counts[current_node_id] < max_retries_per_node:
                         # Retry - don't increment steps for retries
                         steps -= 1
-                        self.logger.info(f"   ↻ Retrying ({node_retry_counts[current_node_id]}/{max_retries_per_node})...")
+                        self.logger.info(
+                            f"↻ Retrying "
+                            f"({node_retry_counts[current_node_id]}/{max_retries_per_node})..."
+                        )
                         continue
                     else:
                         # Max retries exceeded - fail the execution
-                        self.logger.error(f"   ✗ Max retries ({max_retries_per_node}) exceeded for node {current_node_id}")
+                        self.logger.error(
+                            f"✗ Max retries ({max_retries_per_node}) "
+                             f"exceeded for node {current_node_id}"
+                        )
                         self.runtime.report_problem(
                             severity="critical",
-                            description=f"Node {current_node_id} failed after {max_retries_per_node} attempts: {result.error}",
+                            description=(f"Node {current_node_id} failed after "
+                                         f"{max_retries_per_node} attempts: {result.error}"),
                         )
                         self.runtime.end_run(
                             success=False,
                             output_data=memory.read_all(),
-                            narrative=f"Failed at {node_spec.name} after {max_retries_per_node} retries: {result.error}",
+                            narrative=f"Failed at {node_spec.name} after "
+                            f"{max_retries_per_node} retries: {result.error}",
                         )
                         return ExecutionResult(
                             success=False,
-                            error=f"Node '{node_spec.name}' failed after {max_retries_per_node} attempts: {result.error}",
+                            error=(f"Node '{node_spec.name}' failed after "
+                                   f"{max_retries_per_node} attempts: {result.error}"),
                             output=memory.read_all(),
                             steps_executed=steps,
                             total_tokens=total_tokens,
@@ -494,8 +513,7 @@ class GraphExecutor:
         if node_spec.node_type == "function":
             # Function nodes need explicit registration
             raise RuntimeError(
-                f"Function node '{node_spec.id}' not registered. "
-                "Register with node_registry."
+                f"Function node '{node_spec.id}' not registered. Register with node_registry."
             )
 
         if node_spec.node_type == "human_input":
@@ -540,9 +558,7 @@ class GraphExecutor:
                     )
 
                     if not validation.valid:
-                        self.logger.warning(
-                            f"⚠ Output validation failed: {validation.errors}"
-                        )
+                        self.logger.warning(f"⚠ Output validation failed: {validation.errors}")
 
                         # Clean the output
                         cleaned_output = self.output_cleaner.clean_output(

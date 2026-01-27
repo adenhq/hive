@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ValidationResult:
     """Result of validating an output."""
+
     success: bool
     errors: list[str]
 
@@ -51,8 +52,7 @@ class OutputValidator:
 
         if not isinstance(output, dict):
             return ValidationResult(
-                success=False,
-                errors=[f"Output is not a dict, got {type(output).__name__}"]
+                success=False, errors=[f"Output is not a dict, got {type(output).__name__}"]
             )
 
         for key in expected_keys:
@@ -95,14 +95,19 @@ class OutputValidator:
 
             # Check for Python-like code
             code_indicators = [
-                "def ", "class ", "import ", "from ", "if __name__",
-                "async def ", "await ", "try:", "except:"
+                "def ",
+                "class ",
+                "import ",
+                "from ",
+                "if __name__",
+                "async def ",
+                "await ",
+                "try:",
+                "except:",
             ]
             if any(indicator in value[:500] for indicator in code_indicators):
                 # Could be legitimate, but warn
-                logger.warning(
-                    f"Output key '{key}' may contain code - verify this is expected"
-                )
+                logger.warning(f"Output key '{key}' may contain code - verify this is expected")
 
             # Check for overly long values
             if len(value) > max_length:
