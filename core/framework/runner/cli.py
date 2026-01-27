@@ -431,7 +431,7 @@ def cmd_list(args: argparse.Namespace) -> int:
             print(f"  {agent['name']}")
             print(f"    Path: {agent['path']}")
             print(f"    Description: {agent['description']}")
-            print(f"    Steps: {agent['steps']}, Tools: {agent['tools']}")
+            print(f"    Steps: {agent['nodes']}, Tools: {agent['tools']}")
             print()
 
     return 0
@@ -651,7 +651,9 @@ Output ONLY valid JSON, no explanation:"""
         return json.loads(json_str)
     except Exception:
         # Fallback: try to infer the main field
-        if len(input_keys) == 1:
+        if not input_keys:
+            return {"input": user_input}
+        elif len(input_keys) == 1:
             return {input_keys[0]: user_input}
         else:
             # Put it in the first field as fallback
@@ -797,7 +799,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
             # RESUMING: Pass only the new input in the "input" key
             # The executor will restore all session memory automatically
             # The resume node expects fresh input, not merged session context
-            run_context = {"input": user_input}  # Pass raw user input for resume nodes
+            run_context = context  # Use parsed context object, not raw string
             print(f"\n🔄 Resuming from paused state: {agent_session_state.get('paused_at')}")
             print(f"User's answer: {user_input}")
         else:
