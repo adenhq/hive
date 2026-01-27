@@ -497,11 +497,42 @@ def add_node(
     """Add a node to the agent graph. Nodes are units of work that process inputs and produce outputs."""
     session = get_session()
 
-    # Parse JSON inputs
-    input_keys_list = json.loads(input_keys)
-    output_keys_list = json.loads(output_keys)
-    tools_list = json.loads(tools)
-    routes_dict = json.loads(routes)
+    # Parse JSON inputs with error handling
+    try:
+        input_keys_list = json.loads(input_keys)
+    except json.JSONDecodeError as e:
+        return json.dumps({
+            "valid": False,
+            "errors": [f"Invalid JSON in input_keys: {e}"],
+            "warnings": [],
+        })
+
+    try:
+        output_keys_list = json.loads(output_keys)
+    except json.JSONDecodeError as e:
+        return json.dumps({
+            "valid": False,
+            "errors": [f"Invalid JSON in output_keys: {e}"],
+            "warnings": [],
+        })
+
+    try:
+        tools_list = json.loads(tools)
+    except json.JSONDecodeError as e:
+        return json.dumps({
+            "valid": False,
+            "errors": [f"Invalid JSON in tools: {e}"],
+            "warnings": [],
+        })
+
+    try:
+        routes_dict = json.loads(routes)
+    except json.JSONDecodeError as e:
+        return json.dumps({
+            "valid": False,
+            "errors": [f"Invalid JSON in routes: {e}"],
+            "warnings": [],
+        })
 
     # Validate credentials for tools BEFORE adding the node
     cred_error = _validate_tool_credentials(tools_list)
@@ -677,7 +708,14 @@ def update_node(
 
     # Validate credentials for new tools BEFORE updating
     if tools:
-        tools_list = json.loads(tools)
+        try:
+            tools_list = json.loads(tools)
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "valid": False,
+                "errors": [f"Invalid JSON in tools: {e}"],
+                "warnings": [],
+            })
         cred_error = _validate_tool_credentials(tools_list)
         if cred_error:
             return json.dumps(cred_error)
@@ -690,15 +728,43 @@ def update_node(
     if node_type:
         node.node_type = node_type
     if input_keys:
-        node.input_keys = json.loads(input_keys)
+        try:
+            node.input_keys = json.loads(input_keys)
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "valid": False,
+                "errors": [f"Invalid JSON in input_keys: {e}"],
+                "warnings": [],
+            })
     if output_keys:
-        node.output_keys = json.loads(output_keys)
+        try:
+            node.output_keys = json.loads(output_keys)
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "valid": False,
+                "errors": [f"Invalid JSON in output_keys: {e}"],
+                "warnings": [],
+            })
     if system_prompt:
         node.system_prompt = system_prompt
     if tools:
-        node.tools = json.loads(tools)
+        try:
+            node.tools = json.loads(tools)
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "valid": False,
+                "errors": [f"Invalid JSON in tools: {e}"],
+                "warnings": [],
+            })
     if routes:
-        node.routes = json.loads(routes)
+        try:
+            node.routes = json.loads(routes)
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "valid": False,
+                "errors": [f"Invalid JSON in routes: {e}"],
+                "warnings": [],
+            })
 
     # Validate
     errors = []
