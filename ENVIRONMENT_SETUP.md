@@ -21,6 +21,21 @@ This will:
 - Fix package compatibility issues (openai + litellm)
 - Verify all installations
 
+## Windows (Git Bash / PowerShell)
+
+1. Install Python 3.10+ from https://www.python.org/downloads/
+   - Check "Add Python to PATH"
+
+2. Verify installation:
+   python --version
+   pip --version
+
+3. If pip is missing:
+   python get-pip.py
+
+4. Run setup:
+   ./scripts/setup-python.sh
+
 ## Manual Setup (Alternative)
 
 If you prefer to set up manually or the script fails:
