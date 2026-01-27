@@ -68,7 +68,7 @@ class FailureAnalysis:
             lines.append("")
             lines.append("Suggestions:")
             for sug in self.suggestions:
-                lines.append(f"  → {sug}")
+                lines.append(f"  -> {sug}")
 
         return "\n".join(lines)
 

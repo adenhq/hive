@@ -77,6 +77,8 @@ cd hive
 
 # Run Python environment setup
 ./scripts/setup-python.sh
+# Windows (PowerShell)
+# .\scripts\setup-python.ps1
 ```
 
 This installs:
@@ -89,6 +91,8 @@ This installs:
 ```bash
 # Install Claude Code skills (one-time)
 ./quickstart.sh
+# Windows (PowerShell)
+# .\quickstart.ps1
 
 # Build an agent using Claude Code
 claude> /building-agents
@@ -98,6 +102,8 @@ claude> /testing-agent
 
 # Run your agent
 PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'
+# Windows (PowerShell)
+# $env:PYTHONPATH="core;exports"; python -m your_agent_name run --input '{...}'
 ```
 
 **[📖 Complete Setup Guide](ENVIRONMENT_SETUP.md)** - Detailed instructions for agent development
@@ -241,6 +247,8 @@ For building and running goal-driven agents with the framework:
 ```bash
 # One-time setup
 ./scripts/setup-python.sh
+# Windows (PowerShell)
+# .\scripts\setup-python.ps1
 
 # This installs:
 # - framework package (core runtime)
@@ -255,6 +263,8 @@ claude> /testing-agent
 
 # Run agents
 PYTHONPATH=core:exports python -m agent_name run --input '{...}'
+# Windows (PowerShell)
+# $env:PYTHONPATH="core;exports"; python -m agent_name run --input '{...}'
 ```
 
 See [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) for complete setup instructions.
