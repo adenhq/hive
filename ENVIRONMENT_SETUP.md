@@ -72,18 +72,17 @@ For running agents with real LLMs:
 export ANTHROPIC_API_KEY="your-key-here"
 ```
 
-## Important Note About Running Agents
+## Running Agents (Important Note)
 
- **Agents are NOT included by default.**  
+**Agents are NOT included by default.**  
 You must generate an agent (or manually create one under `exports/`) **before running any command like**:
-
-
 
 The `exports/` folder is only created when:
 - You build a new agent using **Claude Code**, or
 - You manually add an agent package under `exports/`
 
 Because of this, **agent commands will fail on a fresh clone**.
+
 
 For example, the following commands will fail unless an agent exists:
 
