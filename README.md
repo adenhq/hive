@@ -56,7 +56,9 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 ## Quick Links
 
 - **[Documentation](https://docs.adenhq.com/)** - Complete guides and API reference
+- **[Gemini Setup Guide](docs/gemini-setup.md)** - Using Google Gemini's free tier for development
 - **[Self-Hosting Guide](https://docs.adenhq.com/getting-started/quickstart)** - Deploy Hive on your infrastructure
+- **[WebSocket Streaming](docs/configuration.md#websocket-streaming)** - Real-time agent event streaming
 - **[Changelog](https://github.com/adenhq/hive/releases)** - Latest updates and releases
 <!-- - **[Roadmap](https://adenhq.com/roadmap)** - Upcoming features and plans -->
 - **[Report Issues](https://github.com/adenhq/hive/issues)** - Bug reports and feature requests
@@ -67,6 +69,7 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 
 - [Python 3.11+](https://www.python.org/downloads/) for agent development
 - [Docker](https://docs.docker.com/get-docker/) (v20.10+) - Optional, for containerized tools
+- **LLM API Key** - [Google Gemini](https://aistudio.google.com/apikey) offers a free tier for development
 
 ### Installation
 
