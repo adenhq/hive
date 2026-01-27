@@ -29,6 +29,50 @@ from framework.runtime.core import Runtime
 logger = logging.getLogger(__name__)
 
 
+# Caches for shared provider/client instances to avoid repeated expensive
+# instantiation across utility calls in this module.
+_ANTHROPIC_CLIENTS: dict[str, object] = {}
+_LITELLM_PROVIDERS: dict[tuple, object] = {}
+
+
+def get_anthropic_client(api_key: str | None = None):
+    """Return a cached anthropic.Anthropic client for `api_key`, creating it lazily.
+
+    Raises ValueError if no api_key is available.
+    """
+    import os
+
+    key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        raise ValueError("No ANTHROPIC_API_KEY available to create client")
+
+    client = _ANTHROPIC_CLIENTS.get(key)
+    if client is None:
+        # Import locally to avoid module-level hard dependency when not needed
+        import anthropic
+
+        client = anthropic.Anthropic(api_key=key)
+        _ANTHROPIC_CLIENTS[key] = client
+
+    return client
+
+
+def get_litellm_provider(api_key: str, model: str, temperature: float = 0.0):
+    """Return a cached LiteLLMProvider for the given (api_key, model, temperature).
+
+    Creates the provider lazily and caches by key tuple.
+    """
+    key = (api_key or "", model or "", float(temperature))
+    provider = _LITELLM_PROVIDERS.get(key)
+    if provider is None:
+        from framework.llm.litellm import LiteLLMProvider
+
+        provider = LiteLLMProvider(api_key=api_key, model=model, temperature=temperature)
+        _LITELLM_PROVIDERS[key] = provider
+
+    return provider
+
+
 def find_json_object(text: str) -> str | None:
     """Find the first valid JSON object in text using balanced brace matching.
 
@@ -409,7 +453,7 @@ class NodeResult:
                 "understand. Focus on the key information produced."
             )
 
-            client = anthropic.Anthropic(api_key=api_key)
+            client = get_anthropic_client(api_key)
             message = client.messages.create(
                 model="claude-3-5-haiku-20241022",
                 max_tokens=200,
@@ -925,18 +969,18 @@ class LLMNode(NodeProtocol):
             )
 
         # Use fast LLM to clean the response (Cerebras llama-3.3-70b preferred)
-        from framework.llm.litellm import LiteLLMProvider
-
         if os.environ.get("CEREBRAS_API_KEY"):
-            cleaner_llm = LiteLLMProvider(
+            cleaner_llm = get_litellm_provider(
                 api_key=os.environ.get("CEREBRAS_API_KEY"),
                 model="cerebras/llama-3.3-70b",
                 temperature=0.0,
             )
         else:
             # Fallback to Anthropic Haiku via LiteLLM for consistency
-            cleaner_llm = LiteLLMProvider(
-                api_key=api_key, model="claude-3-5-haiku-20241022", temperature=0.0
+            cleaner_llm = get_litellm_provider(
+                api_key=api_key,
+                model="claude-3-5-haiku-20241022",
+                temperature=0.0
             )
 
         prompt = f"""Extract the JSON object from this LLM response.
@@ -1037,9 +1081,7 @@ Output ONLY the JSON object, nothing else."""
         )
 
         try:
-            import anthropic
-
-            client = anthropic.Anthropic(api_key=api_key)
+            client = get_anthropic_client(api_key)
             message = client.messages.create(
                 model="claude-3-5-haiku-20241022",
                 max_tokens=1000,
