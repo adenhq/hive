@@ -87,8 +87,7 @@ Because of this, **agent commands will fail on a fresh clone**.
 
 For example, the following commands will fail unless an agent exists:
 
-```bash
-PYTHONPATH=core:exports python -m support_ticket_agent validate
+
 
 
 
