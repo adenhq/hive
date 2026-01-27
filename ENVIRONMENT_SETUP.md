@@ -10,7 +10,24 @@ Complete setup guide for building and running goal-driven agents with the Aden A
 ```
 
 > **Note for Windows Users:**  
-> Running the setup script on native Windows shells (PowerShell / Git Bash) may sometimes fail due to Python App Execution Aliases.  
+> Running the setup script on native Windows shells (Command Prompt / PowerShell) will fail,
+because `.sh` scripts require a Unix-like environment.
+ due to Python App Execution Aliases.  
+
+
+ ### Windows (Recommended Options)
+
+Choose ONE of the following:
+
+1. **WSL (Best & Recommended)**
+   - Install WSL 2 (Ubuntu)
+   - Run all setup commands inside WSL
+
+2. **Manual Setup (No Scripts)**
+   - Follow the Manual Setup section below
+   - Do NOT run `.sh` files
+
+
 > It is **strongly recommended to use WSL (Windows Subsystem for Linux)** for a smoother setup experience.
 
 This will:

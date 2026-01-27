@@ -79,6 +79,11 @@ cd hive
 ./scripts/setup-python.sh
 ```
 
+> ⚠️ **Windows Users**
+> This script will NOT run in Command Prompt or PowerShell.
+> Please use **WSL (recommended)** or follow the **Manual Setup** in ENVIRONMENT_SETUP.md.
+
+
 This installs:
 - **framework** - Core agent runtime and graph executor
 - **aden_tools** - 19 MCP tools for agent capabilities
