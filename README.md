@@ -61,44 +61,44 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 <!-- - **[Roadmap](https://adenhq.com/roadmap)** - Upcoming features and plans -->
 - **[Report Issues](https://github.com/adenhq/hive/issues)** - Bug reports and feature requests
 
-## Quick Start
+## Quick start
+## Prerequisites:
+1. Python 3.11+ download from (https://www.python.org/downloads/). This is for Agent Development
+2. Docker version(v20.10+) from (https://docs.docker.com/get-docker/). This is used to provide portable ways to build, ship, run applications by packing them into containers.
 
-### Prerequisites
-
-- [Python 3.11+](https://www.python.org/downloads/) for agent development
-- [Docker](https://docs.docker.com/get-docker/) (v20.10+) - Optional, for containerized tools
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/adenhq/hive.git
-cd hive
-
-# Run Python environment setup
+##Installation:
+``` bash
+Command to clone: git clone https://github.com/adenhq/hive.git
+Now that it is in out local PC and we want to move into it's directory:
+Write : cd hive
 ./scripts/setup-python.sh
+Here the folder name is hive and we have cloned it successfully to our own PC/VSCode.
 ```
-
-This installs:
-- **framework** - Core agent runtime and graph executor
-- **aden_tools** - 19 MCP tools for agent capabilities
-- All required dependencies
-
-### Build Your First Agent
-
+This successfully installs:
+1. Framework- Core agent runtime & Graph executor
+2. Aden_tool- Many tools for agent capablities
+3. All required dependencies
+Few instances to run a clean clone without causing errors:
 ```bash
-# Install Claude Code skills (one-time)
-./quickstart.sh
-
-# Build an agent using Claude Code
-claude> /building-agents
-
-# Test your agent
-claude> /testing-agent
-
-# Run your agent
-PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'
+PYTHONPATH=core python core/examples/manual_agent.py
 ```
+```
+ls core/examples/
+PYTHONPATH= core python core/examples/basic_workflow.py
+```
+Now let's build our First Agent
+``` bash
+./quickstart.sh
+claude> /testing-agents
+clause> /building-agents
+```
+Now let us understand the Structure:
+1. 'core/'- Main code and examples
+2. 'exports/'- User generated output from agent building (User themselves build these agents they don't exists in fresh clones.
+3. 'docs/'- This is documentation and guides
+4. '.claude/skills/'- Agent building skills and patterns etc.
+
+Note: The `exports/` folder is created when you build agents. If it's missing, that's normal. See [DEVELOPER.md](DEVELOPER.md) for build instructions.
 
 **[📖 Complete Setup Guide](ENVIRONMENT_SETUP.md)** - Detailed instructions for agent development
 
