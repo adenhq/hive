@@ -1,0 +1,83 @@
+{
+    "graph": {
+        "id": "support-ticket-agent",
+        "description": "An agent that categorizes, prioritizes, and routes support tickets.",
+        "version": "1.0.0",
+        "entry_node": "categorize",
+        "terminal_nodes": [
+            "route"
+        ],
+        "nodes": [
+            {
+                "id": "categorize",
+                "name": "Categorize Ticket",
+                "description": "Categorizes the support ticket based on its content.",
+                "node_type": "llm_generate",
+                "input_keys": [
+                    "ticket_content"
+                ],
+                "output_keys": [
+                    "category",
+                    "ticket_content"
+                ],
+                "system_prompt": "You are a support agent. Categorize the following ticket into one of: 'Technical', 'Billing', 'Feature Request', or 'General Inquiry'. Return ONLY the category name.\n\nTicket: {ticket_content}"
+            },
+            {
+                "id": "prioritize",
+                "name": "Prioritize Ticket",
+                "description": "Assigns a priority level to the ticket.",
+                "node_type": "llm_generate",
+                "input_keys": [
+                    "ticket_content",
+                    "category"
+                ],
+                "output_keys": [
+                    "priority",
+                    "category"
+                ],
+                "system_prompt": "Assign a priority (Low, Medium, High, Urgent) to this '{category}' ticket based on its content: '{ticket_content}'. Return ONLY the priority level."
+            },
+            {
+                "id": "route",
+                "name": "Route Ticket",
+                "description": "Suggests the best department for the ticket.",
+                "node_type": "llm_generate",
+                "input_keys": [
+                    "category",
+                    "priority"
+                ],
+                "output_keys": [
+                    "department"
+                ],
+                "system_prompt": "Suggest the best department for a '{category}' ticket with '{priority}' priority. Return ONLY the department name."
+            }
+        ],
+        "edges": [
+            {
+                "id": "cat-to-pri",
+                "source": "categorize",
+                "target": "prioritize",
+                "condition": "on_success"
+            },
+            {
+                "id": "pri-to-route",
+                "source": "prioritize",
+                "target": "route",
+                "condition": "on_success"
+            }
+        ]
+    },
+    "goal": {
+        "id": "support-verification",
+        "name": "Verify Support Flow",
+        "description": "Ensure the support ticket is correctly processed.",
+        "success_criteria": [
+            {
+                "id": "department-suggested",
+                "description": "A department has been suggested",
+                "metric": "custom",
+                "target": "any"
+            }
+        ]
+    }
+}
