@@ -33,6 +33,7 @@ class AgentRuntimeConfig:
     cache_ttl: float = 60.0
     batch_interval: float = 0.1
     max_history: int = 1000
+    workspace_id: str = "default"
 
 
 class AgentRuntime:
@@ -113,7 +114,6 @@ class AgentRuntime:
         self.graph = graph
         self.goal = goal
         self._config = config or AgentRuntimeConfig()
-        self.workspace_id = getattr(config, "workspace_id", "default")
         
         # If storage_path is relative, it might be relative to workspace
         # But we'll trust the caller provided a resolved path for storage
@@ -211,7 +211,7 @@ class AgentRuntime:
                     llm=self._llm,
                     tools=self._tools,
                     tool_executor=self._tool_executor,
-                    workspace_id=self.workspace_id,
+                    workspace_id=self._config.workspace_id,
                 )
                 await stream.start()
                 self._streams[ep_id] = stream
@@ -451,9 +451,8 @@ def create_agent_runtime(
     if config is None:
         config = AgentRuntimeConfig()
     
-    # Store workspace_id in config for now so it's passed to init
-    # (Or relying on the init modification above which checks config)
-    setattr(config, "workspace_id", workspace_id)
+    # Store workspace_id in config
+    config.workspace_id = workspace_id
 
     runtime = AgentRuntime(
         graph=graph,
