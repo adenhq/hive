@@ -301,7 +301,7 @@ class GraphExecutor:
                     )
 
                     # Generate and log human-readable summary
-                    summary = result.to_summary(node_spec)
+                    summary = result.to_summary(node_spec, llm_provider=self.llm)
                     self.logger.info(f"   📝 Summary: {summary}")
 
                     # Log what was written to memory (detailed view)

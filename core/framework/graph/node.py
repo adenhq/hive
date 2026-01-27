@@ -362,12 +362,12 @@ class NodeResult:
     # Pydantic validation errors (if any)
     validation_errors: list[str] = field(default_factory=list)
 
-    def to_summary(self, node_spec: Any = None) -> str:
+    def to_summary(self, node_spec: Any = None, llm_provider: LLMProvider | None = None) -> str:
         """
         Generate a human-readable summary of this node's execution and output.
 
         This is like toString() - it describes what the node produced in its current state.
-        Uses Haiku to intelligently summarize complex outputs.
+        Uses the provided LLM provider to intelligently summarize complex outputs.
         """
         if not self.success:
             return f"❌ Failed: {self.error}"
@@ -375,59 +375,48 @@ class NodeResult:
         if not self.output:
             return "✓ Completed (no output)"
 
-        # Use Haiku to generate intelligent summary
-        import os
+        # Use LLM to generate intelligent summary if provider is available
+        if llm_provider:
+            try:
+                import json
+                import logging # Added import for logger
 
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+                logger = logging.getLogger(__name__) # Initialize logger
 
-        if not api_key:
-            # Fallback: simple key-value listing
-            parts = [f"✓ Completed with {len(self.output)} outputs:"]
-            for key, value in list(self.output.items())[:5]:  # Limit to 5 keys
-                value_str = str(value)[:100]
-                if len(str(value)) > 100:
-                    value_str += "..."
-                parts.append(f"  • {key}: {value_str}")
-            return "\n".join(parts)
+                node_context = ""
+                if node_spec:
+                    node_context = f"\nNode: {node_spec.name}\nPurpose: {node_spec.description}"
 
-        # Use Haiku to generate intelligent summary
-        try:
-            import json
+                output_json = json.dumps(self.output, indent=2, default=str)[:2000]
+                prompt = (
+                    f"Generate a 1-2 sentence human-readable summary of "
+                    f"what this node produced.{node_context}\n\n"
+                    f"Node output:\n{output_json}\n\n"
+                    "Provide a concise, clear summary that a human can quickly "
+                    "understand. Focus on the key information produced."
+                )
 
-            import anthropic
+                response = llm_provider.complete(
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=200,
+                )
 
-            node_context = ""
-            if node_spec:
-                node_context = f"\nNode: {node_spec.name}\nPurpose: {node_spec.description}"
+                summary = response.content.strip()
+                return f"✓ {summary}"
 
-            output_json = json.dumps(self.output, indent=2, default=str)[:2000]
-            prompt = (
-                f"Generate a 1-2 sentence human-readable summary of "
-                f"what this node produced.{node_context}\n\n"
-                f"Node output:\n{output_json}\n\n"
-                "Provide a concise, clear summary that a human can quickly "
-                "understand. Focus on the key information produced."
-            )
+            except Exception as e:
+                # Fallback on error (silently fallback to key-value listing)
+                logger.warning(f"Failed to generate summary with LLM: {e}")
+                pass
 
-            client = anthropic.Anthropic(api_key=api_key)
-            message = client.messages.create(
-                model="claude-3-5-haiku-20241022",
-                max_tokens=200,
-                messages=[{"role": "user", "content": prompt}],
-            )
-
-            summary = message.content[0].text.strip()
-            return f"✓ {summary}"
-
-        except Exception:
-            # Fallback on error
-            parts = [f"✓ Completed with {len(self.output)} outputs:"]
-            for key, value in list(self.output.items())[:3]:
-                value_str = str(value)[:80]
-                if len(str(value)) > 80:
-                    value_str += "..."
-                parts.append(f"  • {key}: {value_str}")
-            return "\n".join(parts)
+        # Fallback: simple key-value listing
+        parts = [f"✓ Completed with {len(self.output)} outputs:"]
+        for key, value in list(self.output.items())[:5]:  # Limit to 5 keys
+            value_str = str(value)[:100]
+            if len(str(value)) > 100:
+                value_str += "..."
+            parts.append(f"  • {key}: {value_str}")
+        return "\n".join(parts)
 
 
 class NodeProtocol(ABC):
