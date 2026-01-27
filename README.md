@@ -67,6 +67,7 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 
 - [Python 3.11+](https://www.python.org/downloads/) for agent development
 - [Docker](https://docs.docker.com/get-docker/) (v20.10+) - Optional, for containerized tools
+- [Claude Code CLI](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview) - Required for creating new agents
 
 ### Installation
 

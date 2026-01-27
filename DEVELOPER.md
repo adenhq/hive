@@ -46,7 +46,10 @@ Ensure you have installed:
 - **Python 3.11+** - [Download](https://www.python.org/downloads/) (3.12 or 3.13 recommended)
 - **pip** - Package installer for Python (comes with Python)
 - **git** - Version control
-- **Claude Code** - [Install](https://docs.anthropic.com/claude/docs/claude-code) (optional, for using building skills)
+- **Claude Code** - [Install](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview) (Required for building agents)
+  ```bash
+  npm install -g @anthropic-ai/claude-code
+  ```
 
 Verify installation:
 
@@ -54,6 +57,7 @@ Verify installation:
 python --version    # Should be 3.11+
 pip --version       # Should be latest
 git --version       # Any recent version
+claude --version    # Should verify Claude Code installation
 ```
 
 ### Step-by-Step Setup
