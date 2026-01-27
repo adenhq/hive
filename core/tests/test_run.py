@@ -1,6 +1,7 @@
 """
 Test the run module.
 """
+
 from datetime import datetime
 
 from framework.schemas.decision import Decision, Option, Outcome
@@ -9,6 +10,7 @@ from framework.schemas.run import Run, RunMetrics, RunStatus, RunSummary
 
 class TestRuntimeMetrics:
     """Test the RunMetrics class."""
+
     def test_success_rate(self):
         metrics = RunMetrics(
             total_decisions=10,
@@ -25,8 +27,10 @@ class TestRuntimeMetrics:
         )
         assert metrics.success_rate == 0.0
 
+
 class TestRun:
     """Test the Run class."""
+
     def test_duration_ms(self):
         run = Run(
             id="test_run",
@@ -126,8 +130,10 @@ class TestRun:
         assert run.status == RunStatus.COMPLETED
         assert run.narrative == "Test narrative"
 
+
 class TestRunSummary:
     """Test the RunSummary class."""
+
     def test_from_run_basic(self):
         run = Run(
             id="test_run",
