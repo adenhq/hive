@@ -14,11 +14,12 @@ from pathlib import Path
 
 class Colors:
     """ANSI color codes for terminal output."""
-    GREEN = '\033[0;32m'
-    YELLOW = '\033[1;33m'
-    RED = '\033[0;31m'
-    BLUE = '\033[0;34m'
-    NC = '\033[0m'  # No Color
+
+    GREEN = "\033[0;32m"
+    YELLOW = "\033[1;33m"
+    RED = "\033[0;31m"
+    BLUE = "\033[0;34m"
+    NC = "\033[0m"  # No Color
 
 
 def print_step(message: str, color: str = Colors.YELLOW):
@@ -59,8 +60,7 @@ def main():
     # Step 1: Install framework package
     print_step("Step 1: Installing framework package...")
     if not run_command(
-        [sys.executable, "-m", "pip", "install", "-e", "."],
-        "Failed to install framework package"
+        [sys.executable, "-m", "pip", "install", "-e", "."], "Failed to install framework package"
     ):
         sys.exit(1)
     print_success("Framework package installed")
@@ -70,7 +70,7 @@ def main():
     print_step("Step 2: Installing MCP dependencies...")
     if not run_command(
         [sys.executable, "-m", "pip", "install", "mcp", "fastmcp"],
-        "Failed to install MCP dependencies"
+        "Failed to install MCP dependencies",
     ):
         sys.exit(1)
     print_success("MCP dependencies installed")
@@ -95,7 +95,7 @@ def main():
                 "agent-builder": {
                     "command": "python",
                     "args": ["-m", "framework.mcp.agent_builder_server"],
-                    "cwd": str(script_dir)
+                    "cwd": str(script_dir),
                 }
             }
         }
@@ -114,7 +114,7 @@ def main():
             [sys.executable, "-c", "from framework.mcp import agent_builder_server"],
             check=True,
             capture_output=True,
-            text=True
+            text=True,
         )
         print_success("MCP server module verified")
     except subprocess.CalledProcessError as e:
@@ -143,7 +143,7 @@ def main():
             "agent-builder": {
                 "command": "python",
                 "args": ["-m", "framework.mcp.agent_builder_server"],
-                "cwd": str(script_dir)
+                "cwd": str(script_dir),
             }
         }
     }
