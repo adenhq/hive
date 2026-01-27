@@ -58,6 +58,20 @@ python -c "import framework; import aden_tools; print('✓ Setup complete')"
 # Install Claude Code skills (optional)
 ./quickstart.sh
 ```
+## Minimum Setup for Contributors
+
+Contributors do not need to run a full agent to begin working on most issues.
+
+A setup can be considered successful if:
+
+- The project installs without dependency errors  
+- Core framework modules can be imported in Python  
+- Basic commands or scripts run without crashing  
+
+Running a full agent workflow is only necessary for advanced, agent-specific tasks.
+
+For documentation, tooling, or framework-level issues, verifying the environment setup is sufficient.
+
 
 > **Windows Users:**  
 > If you are on native Windows, it is recommended to use **WSL (Windows Subsystem for Linux)**.  
