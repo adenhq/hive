@@ -11,6 +11,7 @@ from framework.graph import Goal
 from framework.graph.edge import AsyncEntryPointSpec, EdgeCondition, EdgeSpec, GraphSpec
 from framework.graph.executor import ExecutionResult, GraphExecutor
 from framework.graph.node import NodeSpec
+from framework.llm.api_resolver import get_api_key_env_var
 from framework.llm.provider import LLMProvider, Tool
 from framework.runner.tool_registry import ToolRegistry
 
@@ -425,7 +426,7 @@ class AgentRunner:
             self._llm = MockLLMProvider(model=self.model)
         else:
             # Detect required API key from model name
-            api_key_env = self._get_api_key_env_var(self.model)
+            api_key_env = get_api_key_env_var(self.model)
             if api_key_env and os.environ.get(api_key_env):
                 from framework.llm.litellm import LiteLLMProvider
 
@@ -444,38 +445,6 @@ class AgentRunner:
         else:
             # Single-entry-point mode: use legacy GraphExecutor
             self._setup_legacy_executor(tools, tool_executor)
-
-    def _get_api_key_env_var(self, model: str) -> str | None:
-        """Get the environment variable name for the API key based on model name."""
-        model_lower = model.lower()
-
-        # Map model prefixes to API key environment variables
-        # LiteLLM uses these conventions
-        if model_lower.startswith("cerebras/"):
-            return "CEREBRAS_API_KEY"
-        elif model_lower.startswith("openai/") or model_lower.startswith("gpt-"):
-            return "OPENAI_API_KEY"
-        elif model_lower.startswith("anthropic/") or model_lower.startswith("claude"):
-            return "ANTHROPIC_API_KEY"
-        elif model_lower.startswith("gemini/") or model_lower.startswith("google/"):
-            return "GOOGLE_API_KEY"
-        elif model_lower.startswith("mistral/"):
-            return "MISTRAL_API_KEY"
-        elif model_lower.startswith("groq/"):
-            return "GROQ_API_KEY"
-        elif model_lower.startswith("ollama/"):
-            return None  # Ollama doesn't need an API key (local)
-        elif model_lower.startswith("azure/"):
-            return "AZURE_API_KEY"
-        elif model_lower.startswith("cohere/"):
-            return "COHERE_API_KEY"
-        elif model_lower.startswith("replicate/"):
-            return "REPLICATE_API_KEY"
-        elif model_lower.startswith("together/"):
-            return "TOGETHER_API_KEY"
-        else:
-            # Default: assume OpenAI-compatible
-            return "OPENAI_API_KEY"
 
     def _setup_legacy_executor(self, tools: list, tool_executor: Callable | None) -> None:
         """Set up legacy single-entry-point execution using GraphExecutor."""
@@ -855,7 +824,7 @@ class AgentRunner:
                 node.node_type in ("llm_generate", "llm_tool_use") for node in self.graph.nodes
             )
             if has_llm_nodes:
-                api_key_env = self._get_api_key_env_var(self.model)
+                api_key_env = get_api_key_env_var(self.model)
                 if api_key_env and not os.environ.get(api_key_env):
                     if api_key_env not in missing_credentials:
                         missing_credentials.append(api_key_env)
