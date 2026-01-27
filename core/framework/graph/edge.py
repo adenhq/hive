@@ -22,12 +22,16 @@ allowing the LLM to evaluate whether proceeding along an edge makes sense
 given the current goal, context, and execution state.
 """
 
+
+import logging
 from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 from framework.graph.safe_eval import safe_eval
+
+logger = logging.getLogger(__name__)
 
 
 class EdgeCondition(str, Enum):
@@ -176,12 +180,10 @@ class EdgeSpec(BaseModel):
         safe_memory = {k: v for k, v in memory.items() if k not in RESERVED_KEYS}
 
         # Warn about conflicts
-        conflicts = set(memory.keys()) - set(safe_memory.keys())
+        conflicts = set(memory.keys()) & RESERVED_KEYS
         if conflicts:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.warning(
-                f"      ⚠ Memory keys {conflicts} conflict with reserved context variables. "
+                f"⚠ Memory keys {conflicts} conflict with reserved context variables. "
                 f"Access them via memory['{list(conflicts)[0]}'] instead."
             )
 
@@ -193,11 +195,8 @@ class EdgeSpec(BaseModel):
             return bool(safe_eval(self.condition_expr, context))
         except Exception as e:
             # Log the error for debugging
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.warning(f"      ⚠ Condition evaluation failed: {self.condition_expr}")
-            logger.warning(f"         Error: {e}")
+            logger.warning(f"⚠ Condition evaluation failed: {self.condition_expr}")
+            logger.warning(f"Error: {e}")
             logger.warning(f"         Available context keys: {list(context.keys())}")
             return False
 
