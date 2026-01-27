@@ -263,6 +263,7 @@ class AgentRunner:
         mock_mode: bool = False,
         storage_path: Path | None = None,
         model: str = "cerebras/zai-glm-4.7",
+        version: str | None = None,
     ) -> "AgentRunner":
         """
         Load an agent from an export folder.
@@ -272,19 +273,33 @@ class AgentRunner:
             mock_mode: If True, use mock LLM responses
             storage_path: Path for runtime storage (defaults to temp)
             model: LLM model to use (any LiteLLM-compatible model name)
-
+            version: Optional version or tag to load
+        
         Returns:
             AgentRunner instance ready to run
         """
         agent_path = Path(agent_path)
 
-        # Load agent.json
-        agent_json_path = agent_path / "agent.json"
-        if not agent_json_path.exists():
-            raise FileNotFoundError(f"agent.json not found in {agent_path}")
+        if version:
+            from framework.runner.versioning_manager import AgentVersionManager
+            manager = AgentVersionManager(agent_path)
+            snapshot = manager.get_version(version)
+            if not snapshot:
+                raise ValueError(f"Version or tag '{version}' not found for agent at {agent_path}")
+            
+            graph = snapshot.graph
+            goal = snapshot.goal
+            # Note: tools_code and mcp_config from snapshot are NOT automatically 
+            # loaded into the tool registry yet in this simple implementation.
+            # They would require manual registration or a temporary file.
+        else:
+            # Load agent.json
+            agent_json_path = agent_path / "agent.json"
+            if not agent_json_path.exists():
+                raise FileNotFoundError(f"agent.json not found in {agent_path}")
 
-        with open(agent_json_path) as f:
-            graph, goal = load_agent_export(f.read())
+            with open(agent_json_path) as f:
+                graph, goal = load_agent_export(f.read())
 
         return cls(
             agent_path=agent_path,

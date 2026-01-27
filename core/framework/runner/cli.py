@@ -173,6 +173,43 @@ def register_commands(subparsers: argparse._SubParsersAction) -> None:
         help="Disable human-in-the-loop approval (auto-approve all steps)",
     )
     shell_parser.set_defaults(func=cmd_shell)
+    
+    # version command group
+    version_parser = subparsers.add_parser(
+        "version",
+        help="Manage agent versions and rollbacks",
+        description="Save, list, tag, and rollback agent versions.",
+    )
+    version_subparsers = version_parser.add_subparsers(dest="version_command")
+    
+    # version save
+    v_save = version_subparsers.add_parser("save", help="Save a new version snapshot")
+    v_save.add_argument("agent_path", type=str, help="Path to agent folder")
+    v_save.add_argument("version", type=str, help="Semantic version string (e.g., 1.0.0)")
+    v_save.add_argument("--message", "-m", type=str, required=True, help="Change description")
+    
+    # version list
+    v_list = version_subparsers.add_parser("list", help="List all saved versions")
+    v_list.add_argument("agent_path", type=str, help="Path to agent folder")
+    
+    # version rollback
+    v_rollback = version_subparsers.add_parser("rollback", help="Restore a previous version")
+    v_rollback.add_argument("agent_path", type=str, help="Path to agent folder")
+    v_rollback.add_argument("target", type=str, help="Version string or tag to restore")
+    
+    # version tag
+    v_tag = version_subparsers.add_parser("tag", help="Assign a tag to a version")
+    v_tag.add_argument("agent_path", type=str, help="Path to agent folder")
+    v_tag.add_argument("version", type=str, help="Version string to tag")
+    v_tag.add_argument("tag", type=str, help="Tag name (e.g., stable, canary)")
+    
+    # version diff
+    v_diff = version_subparsers.add_parser("diff", help="Compare two versions")
+    v_diff.add_argument("agent_path", type=str, help="Path to agent folder")
+    v_diff.add_argument("v1", type=str, help="First version or tag")
+    v_diff.add_argument("v2", type=str, help="Second version or tag")
+    
+    version_parser.set_defaults(func=cmd_version)
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -1067,3 +1104,60 @@ def _interactive_multi(agents_dir: Path) -> int:
 
     orchestrator.cleanup()
     return 0
+
+
+def cmd_version(args: argparse.Namespace) -> int:
+    """Handle version command group."""
+    from framework.runner.versioning_manager import AgentVersionManager
+
+    try:
+        manager = AgentVersionManager(args.agent_path)
+        
+        if args.version_command == "save":
+            print(f"Saving version {args.version} for agent at {args.agent_path}...")
+            manager.save_version(args.version, args.message)
+            print(f"✓ Version {args.version} saved successfully.")
+            
+        elif args.version_command == "list":
+            versions = manager.list_versions()
+            if not versions:
+                print(f"No versions found for agent at {args.agent_path}")
+                return 0
+            
+            print(f"\nVersions for {Path(args.agent_path).name}:")
+            print(f"{'VERSION':<10} {'CREATED':<20} {'TAGS':<15} {'MESSAGE'}")
+            print("-" * 70)
+            for v in versions:
+                tags = ", ".join(v.tags) if v.tags else "-"
+                ts = v.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                print(f"{v.version:<10} {ts:<20} {tags:<15} {v.message}")
+            print()
+            
+        elif args.version_command == "tag":
+            manager.tag_version(args.version, args.tag)
+            print(f"✓ Tag '{args.tag}' assigned to version {args.version}.")
+            
+        elif args.version_command == "rollback":
+            print(f"Rolling back agent at {args.agent_path} to {args.target}...")
+            snapshot = manager.rollback(args.target)
+            print(f"✓ Successfully rolled back to version {snapshot.version}.")
+            
+        elif args.version_command == "diff":
+            print(f"Comparing {args.v1} vs {args.v2}...")
+            diff = manager.diff(args.v1, args.v2)
+            if not diff["changes"]:
+                print("No major structural changes detected.")
+            else:
+                print(f"\nChanges between {diff['v1']} and {diff['v2']}:")
+                for change in diff["changes"]:
+                    print(f"  • {change}")
+            print()
+            
+        else:
+            print(f"Error: Unknown version command '{args.version_command}'", file=sys.stderr)
+            return 1
+            
+        return 0
+    except Exception as e:
+        print(f"Error managing versions: {e}", file=sys.stderr)
+        return 1
