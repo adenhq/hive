@@ -9,6 +9,23 @@ Complete setup guide for building and running goal-driven agents with the Aden A
 ./scripts/setup-python.sh
 ```
 
+## Windows Setup Notes
+
+If you're on Windows, use **Git Bash** or **WSL** to run `setup-python.sh`.
+Command Prompt and PowerShell do not execute `.sh` scripts directly.
+
+Recommended setup:
+- Install Python **3.11 or 3.12** from python.org with **"Add to PATH"** checked
+- Disable Microsoft Store **App Execution Aliases** for `python`/`python3`
+  (Settings → Apps → App execution aliases)
+- Run the script from **Git Bash**:
+  ```bash
+  ./scripts/setup-python.sh
+  ```
+
+If `python` resolves to the Microsoft Store stub in Git Bash, disable the alias
+and reopen the terminal.
+
 This will:
 
 - Check Python version (requires 3.11+)

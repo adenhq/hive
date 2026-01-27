@@ -79,6 +79,11 @@ cd hive
 ./scripts/setup-python.sh
 ```
 
+**Windows users:** Run the setup script from **Git Bash** or **WSL**. Command Prompt
+and PowerShell do not execute `.sh` scripts. If `python` resolves to the Microsoft
+Store stub, disable **App Execution Aliases** for `python`/`python3`, then reopen
+your terminal. Python **3.11–3.12** is recommended on Windows.
+
 This installs:
 - **framework** - Core agent runtime and graph executor
 - **aden_tools** - 19 MCP tools for agent capabilities
