@@ -1,10 +1,12 @@
 """Tool discovery and registration for agent runner."""
 
+import asyncio
 import importlib.util
 import inspect
 import json
 import logging
-from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as ExecutorTimeoutError
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
@@ -13,12 +15,172 @@ from framework.llm.provider import Tool, ToolUse, ToolResult
 logger = logging.getLogger(__name__)
 
 
+class AsyncToolExecutor:
+    """
+    Executes synchronous tool functions asynchronously in a thread pool.
+
+    Prevents blocking the asyncio event loop when tools perform blocking I/O
+    (subprocess.run, file operations, network calls, sleep, etc.).
+
+    Configuration:
+        max_workers: Maximum concurrent tool executions (default: 10)
+        timeout: Default timeout per tool execution in seconds (default: 30)
+
+    Example:
+        async_executor = AsyncToolExecutor(max_workers=10, timeout=30.0)
+        result = await async_executor.execute(blocking_func, arg1, arg2)
+        await async_executor.cleanup()
+    """
+
+    def __init__(
+        self,
+        max_workers: int = 10,
+        timeout: float = 30.0,
+    ):
+        """
+        Initialize async tool executor.
+
+        Args:
+            max_workers: Maximum number of concurrent tool executions
+            timeout: Default timeout in seconds for each tool execution
+        """
+        self._executor = ThreadPoolExecutor(
+            max_workers=max_workers,
+            thread_name_prefix="aden-tool-",
+        )
+        self._timeout = timeout
+        self._active_tasks: set[asyncio.Task] = set()
+        self._lock = asyncio.Lock()
+        logger.debug(
+            f"Initialized AsyncToolExecutor with {max_workers} workers, "
+            f"{timeout}s timeout"
+        )
+
+    async def execute(
+        self,
+        func: Callable,
+        *args: Any,
+        timeout: float | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        """
+        Execute a synchronous function in the thread pool.
+
+        Args:
+            func: Synchronous function to execute
+            *args: Positional arguments for func
+            timeout: Timeout in seconds (uses default if None)
+            **kwargs: Keyword arguments for func
+
+        Returns:
+            Return value of func
+
+        Raises:
+            asyncio.TimeoutError: If execution exceeds timeout
+            Exception: Any exception raised by func
+        """
+        timeout = timeout or self._timeout
+
+        try:
+            # Get the current event loop and run function in executor
+            loop = asyncio.get_event_loop()
+
+            # Create a task for tracking
+            task = asyncio.create_task(
+                asyncio.wait_for(
+                    loop.run_in_executor(
+                        self._executor,
+                        self._safe_call,
+                        func,
+                        args,
+                        kwargs,
+                    ),
+                    timeout=timeout,
+                )
+            )
+
+            # Track active task
+            async with self._lock:
+                self._active_tasks.add(task)
+                task.add_done_callback(
+                    lambda t: self._active_tasks.discard(t)
+                )
+
+            # Execute and return result
+            result = await task
+            return result
+
+        except asyncio.TimeoutError:
+            logger.warning(
+                f"Tool execution timeout after {timeout}s: {func.__name__}"
+            )
+            raise asyncio.TimeoutError(
+                f"Tool '{func.__name__}' exceeded {timeout}s timeout"
+            ) from None
+        except Exception as e:
+            logger.error(
+                f"Tool execution error in {func.__name__}: {e}",
+                exc_info=True,
+            )
+            raise
+
+    @staticmethod
+    def _safe_call(
+        func: Callable,
+        args: tuple,
+        kwargs: dict,
+    ) -> Any:
+        """
+        Safely call function with arguments. Used in executor.
+        
+        Handles both:
+        - Functions called with **kwargs unpacking: func(**input_dict)
+        - Functions called with positional args: func(arg1, arg2)
+        """
+        # If we have kwargs but no args, unpack kwargs
+        if kwargs and not args:
+            return func(**kwargs)
+        # If we have both args and kwargs, pass both (common case)
+        elif args and kwargs:
+            return func(*args, **kwargs)
+        # If we only have args, pass them positionally
+        elif args:
+            return func(*args)
+        # If nothing, call with no arguments
+        else:
+            return func()
+
+    async def cleanup(self) -> None:
+        """
+        Cleanup: wait for pending tasks and shutdown executor.
+
+        Should be called before process exit to allow graceful shutdown.
+        """
+        # Wait for active tasks with timeout
+        if self._active_tasks:
+            logger.debug(f"Waiting for {len(self._active_tasks)} active tasks...")
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*self._active_tasks, return_exceptions=True),
+                    timeout=5.0,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"Cleanup timeout: {len(self._active_tasks)} tasks still running"
+                )
+
+        # Shutdown executor
+        self._executor.shutdown(wait=False)
+        logger.debug("AsyncToolExecutor cleaned up")
+
+
 @dataclass
 class RegisteredTool:
     """A tool with its executor function."""
 
     tool: Tool
     executor: Callable[[dict], Any]
+    is_async: bool = False  # True if executor is async
 
 
 class ToolRegistry:
@@ -32,10 +194,29 @@ class ToolRegistry:
     4. Manually registered tools
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        max_workers: int = 10,
+        tool_timeout: float = 30.0,
+    ):
+        """
+        Initialize tool registry.
+
+        Args:
+            max_workers: Maximum concurrent tool executions in thread pool
+            tool_timeout: Default timeout in seconds for tool execution
+        """
         self._tools: dict[str, RegisteredTool] = {}
         self._mcp_clients: list[Any] = []  # List of MCPClient instances
         self._session_context: dict[str, Any] = {}  # Auto-injected context for tools
+        self._async_executor = AsyncToolExecutor(
+            max_workers=max_workers,
+            timeout=tool_timeout,
+        )
+        logger.debug(
+            f"ToolRegistry initialized with async executor: "
+            f"{max_workers} workers, {tool_timeout}s timeout"
+        )
 
     def register(
         self,
@@ -191,9 +372,20 @@ class ToolRegistry:
         Get unified tool executor function.
 
         Returns a function that dispatches to the appropriate tool executor.
+        This executor is ASYNC - it must be awaited.
+
+        The executor:
+        1. Routes to the correct tool executor (sync)
+        2. Runs it in a thread pool to avoid blocking the event loop
+        3. Returns ToolResult with output or error
+
+        Example:
+            executor = registry.get_executor()
+            result = await executor(tool_use)  # NOTE: Must await!
         """
 
-        def executor(tool_use: ToolUse) -> ToolResult:
+        async def async_executor(tool_use: ToolUse) -> ToolResult:
+            """Async executor that wraps sync execution in thread pool."""
             if tool_use.name not in self._tools:
                 return ToolResult(
                     tool_use_id=tool_use.id,
@@ -203,22 +395,43 @@ class ToolRegistry:
 
             registered = self._tools[tool_use.name]
             try:
-                result = registered.executor(tool_use.input)
+                # Run the sync executor in thread pool
+                # The registered.executor expects to be called with a dict as input
+                # For tool executors, we pass the dict as a positional argument
+                # For other executors, they can be called directly
+                
+                # Create a wrapper that calls the executor with the input dict
+                def executor_wrapper():
+                    return registered.executor(tool_use.input)
+                
+                result = await self._async_executor.execute(executor_wrapper)
+
+                # Handle different result types
                 if isinstance(result, ToolResult):
                     return result
+
                 return ToolResult(
                     tool_use_id=tool_use.id,
                     content=json.dumps(result) if not isinstance(result, str) else result,
                     is_error=False,
                 )
+
+            except asyncio.TimeoutError:
+                logger.warning(f"Tool '{tool_use.name}' execution timed out")
+                return ToolResult(
+                    tool_use_id=tool_use.id,
+                    content=json.dumps({"error": f"Tool execution timed out"}),
+                    is_error=True,
+                )
             except Exception as e:
+                logger.error(f"Tool '{tool_use.name}' execution failed: {e}")
                 return ToolResult(
                     tool_use_id=tool_use.id,
                     content=json.dumps({"error": str(e)}),
                     is_error=True,
                 )
 
-        return executor
+        return async_executor
 
     def get_registered_names(self) -> list[str]:
         """Get list of registered tool names."""
@@ -357,6 +570,24 @@ class ToolRegistry:
             except Exception as e:
                 logger.warning(f"Error disconnecting MCP client: {e}")
         self._mcp_clients.clear()
+
+    async def async_cleanup(self) -> None:
+        """
+        Async cleanup: disconnect MCP clients and shutdown async executor.
+
+        Should be called before process exit to allow graceful shutdown.
+        """
+        # Disconnect MCP clients
+        for client in self._mcp_clients:
+            try:
+                client.disconnect()
+            except Exception as e:
+                logger.warning(f"Error disconnecting MCP client: {e}")
+        self._mcp_clients.clear()
+
+        # Shutdown async executor
+        await self._async_executor.cleanup()
+        logger.debug("ToolRegistry cleaned up")
 
     def __del__(self):
         """Destructor to ensure cleanup."""

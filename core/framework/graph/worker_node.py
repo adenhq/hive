@@ -420,7 +420,8 @@ class WorkerNode:
                 input=args,
             )
 
-            result = self.tool_executor(tool_use)
+            # Tool executor is async - must await it
+            result = await self.tool_executor(tool_use)
 
             if result.is_error:
                 return StepExecutionResult(
