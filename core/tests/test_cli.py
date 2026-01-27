@@ -21,7 +21,14 @@ class TestCLIMain:
     def test_main_with_valid_command(
         self, mock_exit, mock_parse_args, mock_register_testing, mock_register_runner
     ):
-        """Test main function with a valid command that has a func attribute."""
+        """Test main function with a valid command that has a func attribute.
+
+        Validates that when a user provides a valid command with a func handler:
+        - Both runner and testing command subparsers are registered
+        - Argument parsing is called correctly
+        - The command's func is invoked with parsed arguments
+        - sys.exit is called with the return value (0 for success)
+        """
         # Mock parsed args with a func
         mock_args = MagicMock()
         mock_args.func = MagicMock(return_value=0)
@@ -48,7 +55,13 @@ class TestCLIMain:
     def test_main_with_command_returning_non_zero(
         self, mock_exit, mock_parse_args, mock_register_testing, mock_register_runner
     ):
-        """Test main function when command func returns non-zero exit code."""
+        """Test main function when command func returns non-zero exit code.
+
+        Validates error handling and propagation:
+        - When a command handler returns a non-zero exit code (e.g., 1)
+        - sys.exit is called with that exact exit code
+        - Errors from command execution are properly communicated to the OS
+        """
         # Mock parsed args with a func that returns 1
         mock_args = MagicMock()
         mock_args.func = MagicMock(return_value=1)
@@ -66,7 +79,14 @@ class TestCLIMain:
     def test_main_without_func_attribute(
         self, mock_parse_args, mock_register_testing, mock_register_runner
     ):
-        """Test main function when parsed args has no func attribute."""
+        """Test main function when parsed args has no func attribute.
+
+        Validates graceful handling of edge cases:
+        - When a user provides no subcommand (argparse should require one)
+        - When parsed args lacks a func attribute (defensive check)
+        - The program should not crash but handle this gracefully
+        - Command registration should still occur before this check
+        """
         # Mock parsed args without func
         mock_args = MagicMock(spec=[])  # No func attribute
         mock_parse_args.return_value = mock_args
@@ -88,7 +108,14 @@ class TestCLIMain:
     def test_main_parser_configuration(
         self, mock_exit, mock_parse_args, mock_register_testing, mock_register_runner
     ):
-        """Test that the argument parser is configured correctly."""
+        """Test that the argument parser is configured correctly.
+
+        Validates CLI argument parser setup and configuration:
+        - ArgumentParser is initialized with correct description
+        - --model argument is added with correct default and help text
+        - Subparsers are created with required=True (forces subcommand)
+        - Parser configuration matches CLI requirements for Goal Agent
+        """
         # Mock parse_args to avoid actual parsing
         mock_args = MagicMock()
         mock_args.func = MagicMock(return_value=0)
@@ -127,7 +154,14 @@ class TestCLIMain:
     def test_main_imports_and_registers_commands(
         self, mock_exit, mock_parse_args, mock_register_testing, mock_register_runner
     ):
-        """Test that the correct modules are imported and their functions called."""
+        """Test that the correct modules are imported and their functions called.
+
+        Validates command registration and module integration:
+        - framework.runner.cli.register_commands is called to register runner commands
+        - framework.testing.cli.register_testing_commands is called for testing commands
+        - Commands are properly registered with the argument parser
+        - sys.exit is called with the return value from command execution
+        """
         # Mock parsed args
         mock_args = MagicMock()
         mock_args.func = MagicMock(return_value=0)
