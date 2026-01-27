@@ -102,6 +102,15 @@ PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'
 
 **[📖 Complete Setup Guide](ENVIRONMENT_SETUP.md)** - Detailed instructions for agent development
 
+## Verify your setup
+
+After completing the setup steps, you can verify that your local environment is working correctly.
+
+This step is intended to confirm that the project installs and runs without requiring any LLM API keys.
+
+If this validation succeeds, your environment is ready for further development. If it fails, the issue is likely related to local setup rather than agent configuration or external APIs.
+
+
 ## Features
 
 - **Goal-Driven Development** - Define objectives in natural language; the coding agent generates the agent graph and connection code to achieve them
