@@ -99,6 +99,10 @@ claude> /testing-agent
 # Run your agent
 PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'
 ```
+**Note**
+- The 'exports/' directory is not created by default.
+- Agents are exported into the directory only after they are generated(for example, using Claude Code), or the  directory can be created manually when writing custom agents.
+
 
 **[📖 Complete Setup Guide](ENVIRONMENT_SETUP.md)** - Detailed instructions for agent development
 
