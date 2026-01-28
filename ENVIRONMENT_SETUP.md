@@ -9,10 +9,6 @@ Complete setup guide for building and running goal-driven agents with the Aden A
 ./scripts/setup-python.sh
 ```
 
-> **Note for Windows Users:**  
-> Running the setup script on native Windows shells (PowerShell / Git Bash) may sometimes fail due to Python App Execution Aliases.  
-> It is **strongly recommended to use WSL (Windows Subsystem for Linux)** for a smoother setup experience.
-
 This will:
 
 - Check Python version (requires 3.11+)
@@ -74,9 +70,6 @@ python -c "import aden_tools; print('✓ aden_tools OK')"
 python -c "import litellm; print('✓ litellm OK')"
 ```
 
-> **Windows Tip:**  
-> On Windows, if the verification commands fail, ensure you are running them in **WSL** or after **disabling Python App Execution Aliases** in Windows Settings → Apps → App Execution Aliases.
-
 ## Requirements
 
 ### Python Version
@@ -90,7 +83,6 @@ python -c "import litellm; print('✓ litellm OK')"
 - pip (latest version)
 - 2GB+ RAM
 - Internet connection (for LLM API calls)
-- For Windows users: WSL 2 is recommended for full compatibility.
 
 ### API Keys (Optional)
 
@@ -163,7 +155,7 @@ This installs agent-related Claude Code skills:
 ### 2. Build an Agent
 
 ```
-claude> /building-agents-construction
+claude> /building-agents
 ```
 
 Follow the prompts to:
@@ -236,31 +228,6 @@ This workflow orchestrates all agent-building skills to take you from idea → p
 
 ## Troubleshooting
 
-### "externally-managed-environment" error (PEP 668)
-
-**Cause:** Python 3.12+ on macOS/Homebrew, WSL, or some Linux distros prevents system-wide pip installs.
-
-**Solution:** Create and use a virtual environment:
-
-```bash
-# Create virtual environment
-python3 -m venv .venv
-
-# Activate it
-source .venv/bin/activate  # macOS/Linux
-# .venv\Scripts\activate   # Windows
-
-# Then run setup
-./scripts/setup-python.sh
-```
-
-Always activate the venv before running agents:
-
-```bash
-source .venv/bin/activate
-PYTHONPATH=core:exports python -m your_agent_name demo
-```
-
 ### "ModuleNotFoundError: No module named 'framework'"
 
 **Solution:** Install the core package:
@@ -297,7 +264,7 @@ pip install --upgrade "openai>=1.0.0"
 
 **Cause:** Not running from project root or missing PYTHONPATH
 
-**Solution:** Ensure you're in the project root directory and use:
+**Solution:** Ensure you're in `/home/timothy/oss/hive/` and use:
 
 ```bash
 PYTHONPATH=core:exports python -m support_ticket_agent validate
@@ -365,7 +332,7 @@ This design allows agents in `exports/` to be:
 ### 2. Build Agent (Claude Code)
 
 ```
-claude> /building-agents-construction
+claude> /building-agents
 Enter goal: "Build an agent that processes customer support tickets"
 ```
 
@@ -453,3 +420,22 @@ When contributing agent packages:
 - **Issues:** https://github.com/adenhq/hive/issues
 - **Discord:** https://discord.com/invite/MXE49hrKDk
 - **Documentation:** https://docs.adenhq.com/
+
+---
+
+### "externally-managed-environment" error (PEP 668) on macOS (Homebrew)
+
+On some macOS setups (notably Homebrew Python), `pip install` outside of a virtual environment can fail with
+`externally-managed-environment` due to PEP 668.
+
+**Good news:** `./scripts/setup-python.sh` handles this automatically.
+If it detects the PEP 668 error, it will create a project-local virtual environment at `.venv/` and retry the install there.
+
+Activate the venv later (macOS):
+
+    source .venv/bin/activate
+
+You don’t need to activate the venv to use it — you can run the venv interpreter directly:
+
+    ./.venv/bin/python -m pip install -U pip
+
