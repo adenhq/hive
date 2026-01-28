@@ -6,7 +6,9 @@ while preserving the goal-driven approach.
 """
 
 import asyncio
+import json
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +20,7 @@ from framework.runtime.execution_stream import EntryPointSpec, ExecutionStream
 from framework.runtime.outcome_aggregator import OutcomeAggregator
 from framework.runtime.shared_state import SharedStateManager
 from framework.storage.concurrent import ConcurrentStorage
+from framework.tools import ToolRegistry
 
 if TYPE_CHECKING:
     from framework.graph.edge import GraphSpec
@@ -100,6 +103,7 @@ class AgentRuntime:
         tools: list["Tool"] | None = None,
         tool_executor: Callable | None = None,
         config: AgentRuntimeConfig | None = None,
+        tool_registry: ToolRegistry | None = None,
     ):
         """
         Initialize agent runtime.
@@ -132,7 +136,13 @@ class AgentRuntime:
         # LLM and tools
         self._llm = llm
         self._tools = tools or []
+        self._tool_registry = tool_registry or ToolRegistry()
         self._tool_executor = tool_executor
+
+        # If tools provided but no registry, register them in default registry
+        if tools and not tool_registry:
+            for t in tools:
+                self._tool_registry.register(t.name, t, lambda x: {"error": "No executor"})
 
         # Entry points and streams
         self._entry_points: dict[str, EntryPointSpec] = {}
@@ -196,6 +206,9 @@ class AgentRuntime:
             # Start storage
             await self._storage.start()
 
+            # Load shared state
+            await self._load_shared_state()
+
             # Create streams for each entry point
             for ep_id, spec in self._entry_points.items():
                 stream = ExecutionStream(
@@ -210,6 +223,7 @@ class AgentRuntime:
                     llm=self._llm,
                     tools=self._tools,
                     tool_executor=self._tool_executor,
+                    tool_registry=self._tool_registry,
                     result_retention_max=self._config.execution_result_max,
                     result_retention_ttl_seconds=self._config.execution_result_ttl_seconds,
                 )
@@ -230,6 +244,9 @@ class AgentRuntime:
                 await stream.stop()
 
             self._streams.clear()
+
+            # Save shared state
+            await self._save_shared_state()
 
             # Stop storage
             await self._storage.stop()
@@ -415,6 +432,55 @@ class AgentRuntime:
     def is_running(self) -> bool:
         """Check if runtime is running."""
         return self._running
+
+
+    async def _save_shared_state(self) -> None:
+        """Save global and stream state to persistent storage."""
+        try:
+            state_path = self._storage.base_path / "shared_state.json"
+            state_data = {
+                "global": self._state_manager._global_state,
+                "stream": self._state_manager._stream_state,
+                "version": self._state_manager._version,
+                "updated_at": time.time(),
+            }
+            
+            # Write atomically using a temporary file
+            temp_path = state_path.with_suffix(".tmp")
+            with open(temp_path, "w") as f:
+                json.dump(state_data, f, indent=2)
+            temp_path.replace(state_path)
+            
+            logger.info(f"💾 Saved shared state to {state_path}")
+        except Exception as e:
+            logger.error(f"Failed to save shared state: {e}")
+
+    async def _load_shared_state(self) -> None:
+        """Load global and stream state from persistent storage."""
+        try:
+            state_path = self._storage.base_path / "shared_state.json"
+            if not state_path.exists():
+                return
+
+            with open(state_path) as f:
+                state_data = json.load(f)
+
+            # Restore global state
+            self._state_manager._global_state = state_data.get("global", {})
+            
+            # Restore stream state
+            self._state_manager._stream_state = state_data.get("stream", {})
+            
+            # Version tracking
+            self._state_manager._version = state_data.get("version", 0)
+            
+            logger.info(
+                f"📥 Loaded shared state from {state_path} "
+                f"({len(self._state_manager._global_state)} global keys, "
+                f"{len(self._state_manager._stream_state)} streams)"
+            )
+        except Exception as e:
+            logger.error(f"Failed to load shared state: {e}")
 
 
 # === CONVENIENCE FACTORY ===

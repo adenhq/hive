@@ -26,9 +26,9 @@ timeline
 - [ ] **Node-Based Architecture (Agent as a node)**
     - [x] Object schema definition
     - [x] Node wrapper SDK
-    - [ ] Shared memory access
-    - [ ] Default monitoring hooks
-    - [ ] Tool access layer
+    - [x] Shared memory access
+    - [x] Default monitoring hooks
+    - [x] Tool access layer
     - [x] LLM integration layer (Natively supports all mainstream LLMs through LiteLLM)
         - [x] Anthropic
         - [x] OpenAI

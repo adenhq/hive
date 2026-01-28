@@ -1,5 +1,3 @@
-"""Tests for web_search tool with multi-provider support (FastMCP)."""
-
 import pytest
 from fastmcp import FastMCP
 
@@ -44,6 +42,41 @@ class TestWebSearchTool:
         result = web_search_fn(query="x" * 501)
 
         assert "error" in result
+
+    def test_search_success_mock(self, web_search_fn, monkeypatch):
+        """Search success with mocked provider."""
+        from unittest.mock import MagicMock, patch
+
+        # Mock keys
+        monkeypatch.setenv("BRAVE_SEARCH_API_KEY", "mock-key")
+
+        # Mock httpx response
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "web": {
+                "results": [
+                    {"title": "Mock Result 1", "url": "http://mock1.com", "description": "Desc 1"},
+                    {"title": "Mock Result 2", "url": "http://mock2.com", "description": "Desc 2"},
+                ]
+            }
+        }
+
+        # Patch httpx.get where it is used
+        target = "aden_tools.tools.web_search_tool.web_search_tool.httpx.get"
+        with patch(target, return_value=mock_response) as mock_get:
+            result = web_search_fn(query="test query")
+
+            assert "error" not in result
+            assert result["total"] == 2
+            assert result["results"][0]["title"] == "Mock Result 1"
+            assert result["provider"] == "brave"
+
+            # Verify call args
+            mock_get.assert_called_once()
+            args, kwargs = mock_get.call_args
+            assert args[0] == "https://api.search.brave.com/res/v1/web/search"
+            assert kwargs["headers"]["X-Subscription-Token"] == "mock-key"
 
 
 class TestBraveProvider:

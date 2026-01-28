@@ -107,6 +107,12 @@ class GraphExecutor:
         cleansing_config: CleansingConfig | None = None,
         enable_parallel_execution: bool = True,
         parallel_config: ParallelExecutionConfig | None = None,
+        state_manager: Any = None,
+        execution_id: str | None = None,
+        stream_id: str | None = None,
+        isolation_level: Any = None,
+        event_bus: Any = None,
+        tool_registry: Any = None,
     ):
         """
         Initialize the executor.
@@ -125,11 +131,31 @@ class GraphExecutor:
         self.runtime = runtime
         self.llm = llm
         self.tools = tools or []
-        self.tool_executor = tool_executor
+        self._tool_executor = tool_executor
+        self._tool_registry = tool_registry
         self.node_registry = node_registry or {}
         self.approval_callback = approval_callback
         self.validator = OutputValidator()
         self.logger = logging.getLogger(__name__)
+
+    @property
+    def tool_executor(self) -> Any:
+        """Get the current tool executor."""
+        return self._tool_executor
+
+        # If registry is provided, use it to manage tools and executor
+        if self._tool_registry:
+            # Sync tools from registry
+            reg_tools = self._tool_registry.get_tools()
+            for t_name, t_spec in reg_tools.items():
+                if t_name not in [t.name for t in self.tools]:
+                    self.tools.append(t_spec)
+            
+            # Create ToolExecutor if not provided
+            if not self._tool_executor:
+                from framework.tools.executor import ToolExecutor
+                self._tool_executor_service = ToolExecutor(self._tool_registry, self.runtime)
+                self._tool_executor = self._tool_executor_service.execute
 
         # Initialize output cleaner
         self.cleansing_config = cleansing_config or CleansingConfig()
@@ -141,6 +167,13 @@ class GraphExecutor:
         # Parallel execution settings
         self.enable_parallel_execution = enable_parallel_execution
         self._parallel_config = parallel_config or ParallelExecutionConfig()
+
+        # Shared State Management
+        self._state_manager = state_manager
+        self._execution_id = execution_id
+        self._stream_id = stream_id
+        self._isolation_level = isolation_level
+        self._event_bus = event_bus
 
     def _validate_tools(self, graph: GraphSpec) -> list[str]:
         """
@@ -207,7 +240,13 @@ class GraphExecutor:
             )
 
         # Initialize execution state
-        memory = SharedMemory()
+        from framework.runtime.shared_state import IsolationLevel
+        memory = SharedMemory(
+            _manager=self._state_manager,
+            _execution_id=self._execution_id,
+            _stream_id=self._stream_id,
+            _isolation=self._isolation_level or IsolationLevel.ISOLATED
+        )
 
         # Restore session state if provided
         if session_state and "memory" in session_state:
@@ -308,7 +347,34 @@ class GraphExecutor:
 
                 # Execute node
                 self.logger.info("   Executing...")
+                
+                # Emit node started event
+                if self._event_bus and self._stream_id and self._execution_id:
+                    asyncio.create_task(
+                        self._event_bus.emit_node_started(
+                            stream_id=self._stream_id,
+                            execution_id=self._execution_id,
+                            node_id=node_spec.id,
+                            node_name=node_spec.name,
+                            node_type=node_spec.node_type,
+                        )
+                    )
+
                 result = await node_impl.execute(ctx)
+
+                # Emit node completed event
+                if self._event_bus and self._stream_id and self._execution_id:
+                    asyncio.create_task(
+                        self._event_bus.emit_node_completed(
+                            stream_id=self._stream_id,
+                            execution_id=self._execution_id,
+                            node_id=node_spec.id,
+                            success=result.success,
+                            tokens_used=result.tokens_used,
+                            latency_ms=result.latency_ms,
+                            error=result.error,
+                        )
+                    )
 
                 if result.success:
                     # Validate output before accepting it
@@ -618,7 +684,7 @@ class GraphExecutor:
                     "Either add tools to the node or change type to 'llm_generate'."
                 )
             return LLMNode(
-                tool_executor=self.tool_executor,
+                tool_executor=self._tool_executor,
                 require_tools=True,
                 cleanup_llm_model=cleanup_llm_model,
             )

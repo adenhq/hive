@@ -110,6 +110,7 @@ class ExecutionStream:
         llm: "LLMProvider | None" = None,
         tools: list["Tool"] | None = None,
         tool_executor: Callable | None = None,
+        tool_registry: Any = None,
         result_retention_max: int | None = 1000,
         result_retention_ttl_seconds: float | None = None,
     ):
@@ -140,6 +141,7 @@ class ExecutionStream:
         self._llm = llm
         self._tools = tools or []
         self._tool_executor = tool_executor
+        self._tool_registry = tool_registry
         self._result_retention_max = result_retention_max
         self._result_retention_ttl_seconds = result_retention_ttl_seconds
 
@@ -320,6 +322,12 @@ class ExecutionStream:
                     llm=self._llm,
                     tools=self._tools,
                     tool_executor=self._tool_executor,
+                    state_manager=self._state_manager,
+                    execution_id=execution_id,
+                    stream_id=self.stream_id,
+                    isolation_level=ctx.isolation_level,
+                    event_bus=self._event_bus,
+                    tool_registry=self._tool_registry,
                 )
 
                 # Create modified graph with entry point
