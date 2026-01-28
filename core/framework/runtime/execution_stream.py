@@ -213,7 +213,7 @@ class ExecutionStream:
         self._running = False
 
         # Cancel all active executions
-        for _, task in self._execution_tasks.items():
+        for _, task in list(self._execution_tasks.items()):
             if not task.done():
                 task.cancel()
                 try:
