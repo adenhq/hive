@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from framework.storage.backend import FileStorage
+from framework.schemas.run import Run
 
 
 class TestPathTraversalProtection:
@@ -170,6 +171,22 @@ class TestPathTraversalProtection:
         """Block attempts to modify sudoers file."""
         with pytest.raises(ValueError):
             storage._add_to_index("by_status", "../../../../etc/sudoers", "ALL=(ALL) NOPASSWD:ALL")
+
+    def test_blocks_run_id_traversal_on_save(self, storage):
+        """Save should block path traversal in run IDs."""
+        run = Run(id="../evil", goal_id="goal")
+        with pytest.raises(ValueError):
+            storage.save_run(run)
+
+    def test_blocks_run_id_traversal_on_load(self, storage):
+        """Load should block path traversal in run IDs."""
+        with pytest.raises(ValueError):
+            storage.load_run("../../secret")
+
+    def test_blocks_run_id_traversal_on_delete(self, storage):
+        """Delete should block path traversal in run IDs."""
+        with pytest.raises(ValueError):
+            storage.delete_run("../escape")
 
 
 class TestPathTraversalWithActualFiles:

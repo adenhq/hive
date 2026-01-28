@@ -195,6 +195,9 @@ class ConcurrentStorage:
             for node_id in run.metrics.nodes_executed:
                 index_lock_keys.append(f"index:by_node:{node_id}")
 
+            # Ensure deterministic lock acquisition order to prevent deadlocks
+            index_lock_keys.sort()
+
             # Collect index locks
             index_locks = [await get_lock(k) for k in index_lock_keys]
 

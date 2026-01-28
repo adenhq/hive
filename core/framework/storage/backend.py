@@ -84,6 +84,7 @@ class FileStorage:
 
     def save_run(self, run: Run) -> None:
         """Save a run to storage."""
+        self._validate_key(run.id)
         # Save full run using Pydantic's model_dump_json
         run_path = self.base_path / "runs" / f"{run.id}.json"
         with open(run_path, "w") as f:
@@ -103,6 +104,7 @@ class FileStorage:
 
     def load_run(self, run_id: str) -> Run | None:
         """Load a run from storage."""
+        self._validate_key(run_id)
         run_path = self.base_path / "runs" / f"{run_id}.json"
         if not run_path.exists():
             return None
@@ -111,6 +113,7 @@ class FileStorage:
 
     def load_summary(self, run_id: str) -> RunSummary | None:
         """Load just the summary (faster than full run)."""
+        self._validate_key(run_id)
         summary_path = self.base_path / "summaries" / f"{run_id}.json"
         if not summary_path.exists():
             # Fall back to computing from full run
@@ -124,6 +127,7 @@ class FileStorage:
 
     def delete_run(self, run_id: str) -> bool:
         """Delete a run from storage."""
+        self._validate_key(run_id)
         run_path = self.base_path / "runs" / f"{run_id}.json"
         summary_path = self.base_path / "summaries" / f"{run_id}.json"
 
