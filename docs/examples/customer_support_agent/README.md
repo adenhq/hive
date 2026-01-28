@@ -1,34 +1,43 @@
-\# Customer Support Agent (Example)
+# Customer Support Agent (Interactive + Voice)
+
+This is a runnable, interactive customer support agent built using the
+Aden Hive framework.
+
+The agent demonstrates how outcome-driven AI agents can:
+- Accept real-time user input
+- Classify intent
+- Escalate sensitive issues to humans
+- Respond using both text and voice
+
+---
+
+## Features
+
+- Interactive terminal-based chat
+- Voice (text-to-speech) responses
+- Intent classification (refund, complaint, greeting, general)
+- Human-in-the-loop escalation
+- Demo-first and production-friendly design
+
+---
+
+## Requirements
+
+- Python 3.11+
+- Offline Text-to-Speech support via `pyttsx3`
+
+Install dependency:
+
+```bash
+##pip install pyttsx3
 
 
 
-This document demonstrates a simple real-world use case of the Aden Hive
+## Example Interaction
+'''
+👤 You: I want a refund
 
-framework for customer support automation.
-
-
-
-\## Goal
-
-Automatically handle common customer queries and escalate complex issues
-
-to a human operator.
-
-
-
-\## Key Concepts Demonstrated
-
-\- Goal-driven agent behavior
-
-\- Human-in-the-loop escalation
-
-\- Production-oriented agent design
-
-
-
-\## Usage
-
-This example is intended as a reference for contributors learning how to
-
-design outcome-driven agents using Aden Hive.
-
+🤖 Agent:
+- Intent: human_escalation
+- Response: This issue requires human support. I am escalating it now.
+- Escalated: true'''
