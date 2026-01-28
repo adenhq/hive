@@ -219,8 +219,7 @@ def register_tools(mcp: FastMCP) -> None:
                 if len(row) != num_cols:
                     return {
                         "error": (
-                            f"Row {i} has {len(row)} columns, "
-                            f"but headers have {num_cols} columns"
+                            f"Row {i} has {len(row)} columns, but headers have {num_cols} columns"
                         )
                     }
 
@@ -230,8 +229,7 @@ def register_tools(mcp: FastMCP) -> None:
             elif len(alignment) != num_cols:
                 return {
                     "error": (
-                        f"alignment has {len(alignment)} items, "
-                        f"but headers have {num_cols} columns"
+                        f"alignment has {len(alignment)} items, but headers have {num_cols} columns"
                     )
                 }
 
