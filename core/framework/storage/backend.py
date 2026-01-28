@@ -47,6 +47,40 @@ class FileStorage:
         for d in dirs:
             d.mkdir(parents=True, exist_ok=True)
 
+    def _validate_key(self, key: str) -> None:
+        """
+        Validate key to prevent path traversal attacks.
+
+        Args:
+            key: The key to validate
+
+        Raises:
+            ValueError: If key contains path traversal or dangerous patterns
+        """
+        if not key or key.strip() == "":
+            raise ValueError("Key cannot be empty")
+
+        # Block path separators
+        if "/" in key or "\\" in key:
+            raise ValueError(f"Invalid key format: path separators not allowed in '{key}'")
+
+        # Block parent directory references
+        if ".." in key or key.startswith("."):
+            raise ValueError(f"Invalid key format: path traversal detected in '{key}'")
+
+        # Block absolute paths
+        if key.startswith("/") or (len(key) > 1 and key[1] == ":"):
+            raise ValueError(f"Invalid key format: absolute paths not allowed in '{key}'")
+
+        # Block null bytes (Unix path injection)
+        if "\x00" in key:
+            raise ValueError("Invalid key format: null bytes not allowed")
+
+        # Block other dangerous special characters
+        dangerous_chars = {"<", ">", "|", "&", "$", "`", "'", '"'}
+        if any(char in key for char in dangerous_chars):
+            raise ValueError(f"Invalid key format: contains dangerous characters in '{key}'")
+
     # === RUN OPERATIONS ===
 
     def save_run(self, run: Run) -> None:
@@ -150,7 +184,7 @@ class FileStorage:
 
     def _add_to_index(self, index_type: str, key: str, value: str) -> None:
         index_path = self.base_path / "indexes" / index_type / f"{key}.json"
-        values = self._get_index(index_type, key)
+        values = self._get_index(index_type, key)  # Already validated in _get_index
         if value not in values:
             values.append(value)
             with open(index_path, "w", encoding="utf-8") as f:
@@ -158,7 +192,7 @@ class FileStorage:
 
     def _remove_from_index(self, index_type: str, key: str, value: str) -> None:
         index_path = self.base_path / "indexes" / index_type / f"{key}.json"
-        values = self._get_index(index_type, key)
+        values = self._get_index(index_type, key)  # Already validated in _get_index
         if value in values:
             values.remove(value)
             with open(index_path, "w", encoding="utf-8") as f:
