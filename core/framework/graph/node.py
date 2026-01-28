@@ -22,7 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model
 
 from framework.llm.provider import LLMProvider, Tool
 from framework.runtime.core import Runtime
@@ -749,9 +749,8 @@ Keep the same JSON structure but with shorter content values.
                     max_tokens=ctx.max_tokens,
                 )
             else:
-                # Use JSON mode for llm_generate nodes with output_keys
-                # Skip strict schema validation - just validate keys after parsing
-                use_json_mode = (
+                # Check if we should use structured outputs
+                use_structured = (
                     ctx.node_spec.node_type == "llm_generate"
                     and ctx.node_spec.output_keys
                     and len(ctx.node_spec.output_keys) >= 1
@@ -953,6 +952,7 @@ Keep the same JSON structure but with shorter content values.
             ):
                 try:
                     import json
+                    parsed = None
 
                     # Try to extract JSON from response
                     parsed = self._extract_json(
@@ -1046,6 +1046,21 @@ Keep the same JSON structure but with shorter content values.
                 latency_ms=latency_ms,
             )
             return NodeResult(success=False, error=str(e), latency_ms=latency_ms)
+
+    def _create_output_model(self, name: str, keys: list[str]) -> type[BaseModel]:
+        """Dynamically create a Pydantic model for output validation."""
+        # Clean name to be a valid class identifier
+        clean_name = "".join(c for c in name if c.isalnum() or c == "_")
+        if not clean_name:
+            clean_name = "DynamicOutput"
+
+        # All outputs are treated as strings by default for maximum flexibility
+        # unless we extend NodeSpec to support typing.
+        fields = {
+            key: (str, Field(..., description=f"Output for {key}"))
+            for key in keys
+        }
+        return create_model(clean_name, **fields)
 
     def _parse_output(self, content: str, node_spec: NodeSpec) -> dict[str, Any]:
         """
