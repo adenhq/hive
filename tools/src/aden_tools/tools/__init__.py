@@ -76,6 +76,7 @@ def register_all_tools(
     register_csv(mcp)
 
     return [
+        "csv_analysis_tool",
         "example_tool",
         "web_search",
         "web_scrape",
