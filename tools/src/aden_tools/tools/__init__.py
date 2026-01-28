@@ -21,14 +21,6 @@ if TYPE_CHECKING:
 # Import register_tools from each tool module
 from .csv_tool import register_tools as register_csv
 from .example_tool import register_tools as register_example
-<<<<<<< Updated upstream
-from .file_system_toolkits.apply_diff import register_tools as register_apply_diff
-from .file_system_toolkits.apply_patch import register_tools as register_apply_patch
-from .file_system_toolkits.execute_command_tool import (
-    register_tools as register_execute_command,
-)
-from .file_system_toolkits.grep_search import register_tools as register_grep_search
-=======
 from .web_search_tool import register_tools as register_web_search
 from .web_scrape_tool import register_tools as register_web_scrape
 from .pdf_read_tool import register_tools as register_pdf_read
@@ -37,18 +29,16 @@ from .wikipedia_tool import register_tools as register_wikipedia
 # Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
->>>>>>> Stashed changes
 from .file_system_toolkits.list_dir import register_tools as register_list_dir
 from .file_system_toolkits.replace_file_content import (
     register_tools as register_replace_file_content,
 )
-
-# Import file system toolkits
-from .file_system_toolkits.view_file import register_tools as register_view_file
-from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
-from .pdf_read_tool import register_tools as register_pdf_read
-from .web_scrape_tool import register_tools as register_web_scrape
-from .web_search_tool import register_tools as register_web_search
+from .file_system_toolkits.apply_diff import register_tools as register_apply_diff
+from .file_system_toolkits.apply_patch import register_tools as register_apply_patch
+from .file_system_toolkits.grep_search import register_tools as register_grep_search
+from .file_system_toolkits.execute_command_tool import (
+    register_tools as register_execute_command,
+)
 
 
 def register_all_tools(
