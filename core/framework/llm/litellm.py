@@ -8,6 +8,7 @@ See: https://docs.litellm.ai/docs/providers
 """
 
 import json
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -18,6 +19,32 @@ except ImportError:
 
 from framework.llm.provider import LLMProvider, LLMResponse, Tool, ToolResult, ToolUse
 
+logger = logging.getLogger(__name__)
+
+
+class LLMAPIError(Exception):
+    """Exception for LLM API errors with structured context.
+    
+    Attributes:
+        model: The model that was being called
+        error_type: Category of error (rate_limit, auth, connection, api_error)
+        original_error: The underlying exception
+        retryable: Whether this error is potentially recoverable with retry
+    """
+
+    def __init__(
+        self,
+        message: str,
+        model: str,
+        error_type: str,
+        original_error: Exception | None = None,
+        retryable: bool = False,
+    ):
+        super().__init__(message)
+        self.model = model
+        self.error_type = error_type
+        self.original_error = original_error
+        self.retryable = retryable
 
 class LiteLLMProvider(LLMProvider):
     """
@@ -132,8 +159,11 @@ class LiteLLMProvider(LLMProvider):
         if response_format:
             kwargs["response_format"] = response_format
 
-        # Make the call
-        response = litellm.completion(**kwargs)  # type: ignore[union-attr]
+        # Make the call with error handling
+        try:
+            response = litellm.completion(**kwargs)  # type: ignore[union-attr]
+        except Exception as e:
+            self._handle_llm_error(e, "complete")
 
         # Extract content
         content = response.choices[0].message.content or ""
@@ -189,7 +219,10 @@ class LiteLLMProvider(LLMProvider):
             if self.api_base:
                 kwargs["api_base"] = self.api_base
 
-            response = litellm.completion(**kwargs)  # type: ignore[union-attr]
+            try:
+                response = litellm.completion(**kwargs)  # type: ignore[union-attr]
+            except Exception as e:
+                self._handle_llm_error(e, "complete_with_tools")
 
             # Track tokens
             usage = response.usage
@@ -280,3 +313,67 @@ class LiteLLMProvider(LLMProvider):
                 },
             },
         }
+
+    def _handle_llm_error(self, error: Exception, method: str) -> None:
+        """Handle and categorize LLM API errors with appropriate logging.
+        
+        Args:
+            error: The caught exception
+            method: Name of the calling method (for logging context)
+            
+        Raises:
+            LLMAPIError: Always raises with structured error information
+        """
+        error_str = str(error).lower()
+        error_type_name = type(error).__name__
+        
+        # Categorize error type
+        if "rate" in error_str and "limit" in error_str:
+            error_type = "rate_limit"
+            retryable = True
+            logger.warning(
+                f"🚦 Rate limit hit for model '{self.model}' in {method}(): {error}. "
+                "Consider implementing backoff or switching models."
+            )
+            message = (
+                f"Rate limit exceeded for model '{self.model}'. "
+                "Wait before retrying or switch to a different model."
+            )
+        elif any(auth_term in error_str for auth_term in ["auth", "api_key", "apikey", "unauthorized", "401"]):
+            error_type = "auth"
+            retryable = False
+            logger.error(
+                f"🔐 Authentication failed for model '{self.model}' in {method}(): {error}. "
+                "Check your API key configuration."
+            )
+            message = (
+                f"Authentication failed for model '{self.model}'. "
+                "Verify your API key is set correctly (check environment variables or api_key parameter)."
+            )
+        elif any(conn_term in error_str for conn_term in ["connection", "timeout", "connect", "network", "unreachable"]):
+            error_type = "connection"
+            retryable = True
+            logger.warning(
+                f"🌐 Connection issue for model '{self.model}' in {method}(): {error}. "
+                "Check network connectivity."
+            )
+            message = (
+                f"Connection error for model '{self.model}'. "
+                "Check network connectivity and try again."
+            )
+        else:
+            error_type = "api_error"
+            retryable = False
+            logger.error(
+                f"❌ LLM API error for model '{self.model}' in {method}(): "
+                f"[{error_type_name}] {error}"
+            )
+            message = f"LLM API error for model '{self.model}': {error}"
+        
+        raise LLMAPIError(
+            message=message,
+            model=self.model,
+            error_type=error_type,
+            original_error=error,
+            retryable=retryable,
+        )

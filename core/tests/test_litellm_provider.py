@@ -476,3 +476,101 @@ class TestJsonMode:
         messages = call_kwargs["messages"]
         assert messages[0]["role"] == "system"
         assert "Please respond with a valid JSON object" in messages[0]["content"]
+
+
+class TestLLMAPIErrorHandling:
+    """Test error handling in LiteLLMProvider."""
+
+    @patch("litellm.completion")
+    def test_complete_handles_rate_limit_error(self, mock_completion):
+        """Test that rate limit errors are properly categorized."""
+        from framework.llm.litellm import LLMAPIError
+
+        mock_completion.side_effect = Exception("Rate limit exceeded. Please wait before retrying.")
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+
+        try:
+            provider.complete(messages=[{"role": "user", "content": "Hello"}])
+            assert False, "Should have raised LLMAPIError"
+        except LLMAPIError as e:
+            assert e.error_type == "rate_limit"
+            assert e.retryable is True
+            assert e.model == "gpt-4o-mini"
+            assert "Rate limit" in str(e)
+
+    @patch("litellm.completion")
+    def test_complete_handles_auth_error(self, mock_completion):
+        """Test that authentication errors are properly categorized."""
+        from framework.llm.litellm import LLMAPIError
+
+        mock_completion.side_effect = Exception("Invalid api_key provided. Check your credentials.")
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="bad-key")
+
+        try:
+            provider.complete(messages=[{"role": "user", "content": "Hello"}])
+            assert False, "Should have raised LLMAPIError"
+        except LLMAPIError as e:
+            assert e.error_type == "auth"
+            assert e.retryable is False
+            assert "Authentication failed" in str(e)
+
+    @patch("litellm.completion")
+    def test_complete_handles_connection_error(self, mock_completion):
+        """Test that connection errors are properly categorized."""
+        from framework.llm.litellm import LLMAPIError
+
+        mock_completion.side_effect = Exception("Connection timeout after 30 seconds")
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+
+        try:
+            provider.complete(messages=[{"role": "user", "content": "Hello"}])
+            assert False, "Should have raised LLMAPIError"
+        except LLMAPIError as e:
+            assert e.error_type == "connection"
+            assert e.retryable is True
+            assert "Connection error" in str(e)
+
+    @patch("litellm.completion")
+    def test_complete_handles_generic_error(self, mock_completion):
+        """Test that unknown errors are categorized as api_error."""
+        from framework.llm.litellm import LLMAPIError
+
+        mock_completion.side_effect = Exception("Some unexpected LLM error")
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+
+        try:
+            provider.complete(messages=[{"role": "user", "content": "Hello"}])
+            assert False, "Should have raised LLMAPIError"
+        except LLMAPIError as e:
+            assert e.error_type == "api_error"
+            assert e.retryable is False
+            assert e.original_error is not None
+
+    @patch("litellm.completion")
+    def test_complete_with_tools_handles_errors(self, mock_completion):
+        """Test that complete_with_tools also has proper error handling."""
+        from framework.llm.litellm import LLMAPIError
+
+        mock_completion.side_effect = Exception("Rate limit exceeded")
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        tools = [Tool(name="test", description="test", parameters={"properties": {}, "required": []})]
+
+        def tool_executor(tool_use: ToolUse) -> ToolResult:
+            return ToolResult(tool_use_id=tool_use.id, content="result")
+
+        try:
+            provider.complete_with_tools(
+                messages=[{"role": "user", "content": "Hello"}],
+                system="You are helpful.",
+                tools=tools,
+                tool_executor=tool_executor,
+            )
+            assert False, "Should have raised LLMAPIError"
+        except LLMAPIError as e:
+            assert e.error_type == "rate_limit"
+            assert e.retryable is True
