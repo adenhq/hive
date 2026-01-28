@@ -39,6 +39,64 @@ Build reliable, self-improving AI agents without hardcoding workflows. Define yo
 
 Visit [adenhq.com](https://adenhq.com) for complete documentation, examples, and guides.
 
+## How Hive Works (High-level Overview)
+
+Hive is an agent framework designed to orchestrate tasks, tools, and execution flows in a structured way.
+
+At a high level, Hive operates as follows:
+
+1. **Agents** define behavior and decision-making logic.
+2. **Tasks** represent individual units of work.
+3. **Tools** provide external capabilities (files, APIs, services).
+4. **Executors** coordinate how tasks are run and evaluated.
+5. **Results** are returned once execution completes.
+
+### Conceptual Flow
+
+```mermaid
+flowchart TD
+  User --> Agent
+  Agent --> Task
+  Task --> Tool
+  Tool --> Executor
+  Executor --> Result
+```
+
+## Getting Started
+
+### 1. Install
+
+```bash
+pip install hive-agent-framework
+```
+
+### 2. Create a simple agent
+
+```python
+from hive import Agent
+
+agent = Agent(
+  name="Example Agent",
+  goal="Demonstrate basic Hive execution"
+)
+```
+
+### 3. Run the agent
+
+```python
+result = agent.run()
+print(result)
+```
+
+## Glossary
+
+**Agent** — entity responsible for decision-making and task execution  
+**Task** — single unit of work performed by an agent  
+**Tool** — external capability used by an agent (e.g., file access, APIs)  
+**Workflow** — structured sequence of tasks executed by an agent  
+**Executor** — component responsible for coordinating task execution  
+**Result** — output produced after an agent completes its workflow
+
 ## What is Aden
 
 <p align="center">
