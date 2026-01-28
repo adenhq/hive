@@ -32,9 +32,11 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
+  "pytest>=7.0.0",
+  "pytest-asyncio>=0.21.0",
+  "ruff>=0.6.0",
 ]
+
 sandbox = [
     "RestrictedPython>=7.0",
 ]
@@ -51,6 +53,9 @@ all = [
     "pillow>=10.0.0",
     "duckdb>=1.0.0",
 ]
+[project.scripts]
+
+aden-tools-credentials = "aden_tools.credentials.cli:main"
 
 [build-system]
 requires = ["hatchling"]
