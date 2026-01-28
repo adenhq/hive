@@ -10,6 +10,7 @@ The executor:
 """
 
 import logging
+import json
 from typing import Any, Callable
 from dataclasses import dataclass, field
 
@@ -426,13 +427,13 @@ class GraphExecutor:
                  "last_node_id": last_node_id,
                  "last_node_name": last_node_name,
                  "path": path[-5:],
-    }
-
+               }
+ 
                self.logger.exception("Unhandled exception during graph execution")
 
                self.runtime.report_problem(
                  severity="critical",
-                 description=str(error_context),
+                 description=json.dumps(error_context, ensure_ascii=False),
     )
 
                self.runtime.end_run(
