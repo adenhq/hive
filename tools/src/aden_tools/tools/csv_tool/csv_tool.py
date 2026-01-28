@@ -5,6 +5,7 @@ import os
 
 from fastmcp import FastMCP
 
+from ...utils import error_response
 from ..file_system_toolkits.security import get_secure_path
 
 
@@ -38,7 +39,7 @@ def register_tools(mcp: FastMCP) -> None:
             secure_path = get_secure_path(path, workspace_id, agent_id, session_id)
 
             if not os.path.exists(secure_path):
-                return {"error": f"File not found: {path}"}
+                return {"error": "File not found"}
 
             if not path.lower().endswith(".csv"):
                 return {"error": "File must have .csv extension"}
@@ -78,11 +79,11 @@ def register_tools(mcp: FastMCP) -> None:
             }
 
         except csv.Error as e:
-            return {"error": f"CSV parsing error: {str(e)}"}
+            return error_response(e, "CSV parsing error", path=path)
         except UnicodeDecodeError:
             return {"error": "File encoding error: unable to decode as UTF-8"}
         except Exception as e:
-            return {"error": f"Failed to read CSV: {str(e)}"}
+            return error_response(e, "Failed to read CSV", path=path)
 
     @mcp.tool()
     def csv_write(
@@ -137,7 +138,7 @@ def register_tools(mcp: FastMCP) -> None:
             }
 
         except Exception as e:
-            return {"error": f"Failed to write CSV: {str(e)}"}
+            return error_response(e, "Failed to write CSV", path=path)
 
     @mcp.tool()
     def csv_append(
@@ -164,7 +165,7 @@ def register_tools(mcp: FastMCP) -> None:
             secure_path = get_secure_path(path, workspace_id, agent_id, session_id)
 
             if not os.path.exists(secure_path):
-                return {"error": f"File not found: {path}. Use csv_write to create a new file."}
+                return {"error": "File not found. Use csv_write to create a new file."}
 
             if not path.lower().endswith(".csv"):
                 return {"error": "File must have .csv extension"}
@@ -199,11 +200,11 @@ def register_tools(mcp: FastMCP) -> None:
             }
 
         except csv.Error as e:
-            return {"error": f"CSV parsing error: {str(e)}"}
+            return error_response(e, "CSV parsing error", path=path)
         except UnicodeDecodeError:
             return {"error": "File encoding error: unable to decode as UTF-8"}
         except Exception as e:
-            return {"error": f"Failed to append to CSV: {str(e)}"}
+            return error_response(e, "Failed to append to CSV", path=path)
 
     @mcp.tool()
     def csv_info(
@@ -228,7 +229,7 @@ def register_tools(mcp: FastMCP) -> None:
             secure_path = get_secure_path(path, workspace_id, agent_id, session_id)
 
             if not os.path.exists(secure_path):
-                return {"error": f"File not found: {path}"}
+                return {"error": "File not found"}
 
             if not path.lower().endswith(".csv"):
                 return {"error": "File must have .csv extension"}
@@ -258,11 +259,11 @@ def register_tools(mcp: FastMCP) -> None:
             }
 
         except csv.Error as e:
-            return {"error": f"CSV parsing error: {str(e)}"}
+            return error_response(e, "CSV parsing error", path=path)
         except UnicodeDecodeError:
             return {"error": "File encoding error: unable to decode as UTF-8"}
         except Exception as e:
-            return {"error": f"Failed to get CSV info: {str(e)}"}
+            return error_response(e, "Failed to get CSV info", path=path)
 
     @mcp.tool()
     def csv_sql(
@@ -316,7 +317,7 @@ def register_tools(mcp: FastMCP) -> None:
             secure_path = get_secure_path(path, workspace_id, agent_id, session_id)
 
             if not os.path.exists(secure_path):
-                return {"error": f"File not found: {path}"}
+                return {"error": "File not found"}
 
             if not path.lower().endswith(".csv"):
                 return {"error": "File must have .csv extension"}
@@ -343,7 +344,7 @@ def register_tools(mcp: FastMCP) -> None:
             ]
             for keyword in disallowed:
                 if keyword in query_upper:
-                    return {"error": f"'{keyword}' is not allowed in queries"}
+                    return {"error": "Disallowed keyword in query"}
 
             # Execute query using in-memory DuckDB
             con = duckdb.connect(":memory:")
@@ -372,8 +373,4 @@ def register_tools(mcp: FastMCP) -> None:
                 con.close()
 
         except Exception as e:
-            error_msg = str(e)
-            # Make DuckDB errors more readable
-            if "Catalog Error" in error_msg:
-                return {"error": f"SQL error: {error_msg}. Remember the table is named 'data'."}
-            return {"error": f"Query failed: {error_msg}"}
+            return error_response(e, "Query failed", path=path)

@@ -6,7 +6,11 @@ Demonstrates native FastMCP tool registration pattern.
 
 from __future__ import annotations
 
+import logging
+
 from fastmcp import FastMCP
+
+logger = logging.getLogger(__name__)
 
 
 def register_tools(mcp: FastMCP) -> None:
@@ -49,4 +53,5 @@ def register_tools(mcp: FastMCP) -> None:
             return result
 
         except Exception as e:
-            return f"Error processing message: {str(e)}"
+            logger.warning("Example tool error", exc_info=True)
+            return "Error processing message"

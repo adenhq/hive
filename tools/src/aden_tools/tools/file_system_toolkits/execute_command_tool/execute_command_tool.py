@@ -3,6 +3,7 @@ import subprocess
 
 from mcp.server.fastmcp import FastMCP
 
+from ....utils import error_response
 from ..security import WORKSPACES_DIR, get_secure_path
 
 
@@ -62,4 +63,4 @@ def register_tools(mcp: FastMCP) -> None:
         except subprocess.TimeoutExpired:
             return {"error": "Command timed out after 60 seconds"}
         except Exception as e:
-            return {"error": f"Failed to execute command: {str(e)}"}
+            return error_response(e, "Failed to execute command")

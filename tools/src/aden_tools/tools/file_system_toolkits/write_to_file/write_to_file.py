@@ -2,6 +2,7 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
+from ....utils import error_response
 from ..security import get_secure_path
 
 
@@ -58,4 +59,4 @@ def register_tools(mcp: FastMCP) -> None:
                 "bytes_written": len(content.encode("utf-8")),
             }
         except Exception as e:
-            return {"error": f"Failed to write to file: {str(e)}"}
+            return error_response(e, "Failed to write to file", path=path)

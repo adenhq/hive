@@ -16,6 +16,8 @@ import httpx
 from bs4 import BeautifulSoup
 from fastmcp import FastMCP
 
+from ...utils import error_response
+
 # Cache for robots.txt parsers (domain -> parser)
 _robots_cache: dict[str, RobotFileParser | None] = {}
 
@@ -91,7 +93,7 @@ def _is_allowed_by_robots(url: str) -> tuple[bool, str]:
     if parser.can_fetch(USER_AGENT, path) and parser.can_fetch("*", path):
         return True, "Allowed by robots.txt"
     else:
-        return False, f"Blocked by robots.txt for path: {path}"
+        return False, "Blocked by robots.txt"
 
 
 def register_tools(mcp: FastMCP) -> None:
@@ -128,10 +130,10 @@ def register_tools(mcp: FastMCP) -> None:
 
             # Check robots.txt if enabled
             if respect_robots_txt:
-                allowed, reason = _is_allowed_by_robots(url)
+                allowed, _reason = _is_allowed_by_robots(url)
                 if not allowed:
                     return {
-                        "error": f"Scraping blocked: {reason}",
+                        "error": "Scraping blocked by robots.txt",
                         "blocked_by_robots_txt": True,
                         "url": url,
                     }
@@ -184,7 +186,7 @@ def register_tools(mcp: FastMCP) -> None:
             if selector:
                 content_elem = soup.select_one(selector)
                 if not content_elem:
-                    return {"error": f"No elements found matching selector: {selector}"}
+                    return {"error": "No elements found matching selector"}
                 text = content_elem.get_text(separator=" ", strip=True)
             else:
                 # Auto-detect main content
@@ -231,6 +233,6 @@ def register_tools(mcp: FastMCP) -> None:
         except httpx.TimeoutException:
             return {"error": "Request timed out"}
         except httpx.RequestError as e:
-            return {"error": f"Network error: {str(e)}"}
+            return error_response(e, "Network error")
         except Exception as e:
-            return {"error": f"Scraping failed: {str(e)}"}
+            return error_response(e, "Scraping failed")

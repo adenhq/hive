@@ -13,6 +13,8 @@ from typing import Any
 from fastmcp import FastMCP
 from pypdf import PdfReader
 
+from ...utils import error_response
+
 
 def register_tools(mcp: FastMCP) -> None:
     """Register PDF read tools with the MCP server."""
@@ -59,8 +61,8 @@ def register_tools(mcp: FastMCP) -> None:
 
             return {"error": f"Invalid page format: '{pages}'. Use 'all', '5', '1-10', or '1,3,5'."}
 
-        except ValueError as e:
-            return {"error": f"Invalid page format: '{pages}'. {str(e)}"}
+        except ValueError:
+            return {"error": "Invalid page format. Use 'all', '5', '1-10', or '1,3,5'."}
 
     @mcp.tool()
     def pdf_read(
@@ -90,14 +92,14 @@ def register_tools(mcp: FastMCP) -> None:
 
             # Validate file exists
             if not path.exists():
-                return {"error": f"PDF file not found: {file_path}"}
+                return {"error": "PDF file not found"}
 
             if not path.is_file():
-                return {"error": f"Not a file: {file_path}"}
+                return {"error": "Not a file"}
 
             # Check extension
             if path.suffix.lower() != ".pdf":
-                return {"error": f"Not a PDF file (expected .pdf): {file_path}"}
+                return {"error": "Not a PDF file (expected .pdf)"}
 
             # Validate max_pages
             if max_pages < 1:
@@ -128,7 +130,7 @@ def register_tools(mcp: FastMCP) -> None:
             content = "\n\n".join(content_parts)
 
             result: dict[str, Any] = {
-                "path": str(path),
+                "path": file_path,
                 "name": path.name,
                 "total_pages": total_pages,
                 "pages_extracted": len(page_indices),
@@ -154,6 +156,6 @@ def register_tools(mcp: FastMCP) -> None:
             return result
 
         except PermissionError:
-            return {"error": f"Permission denied: {file_path}"}
+            return {"error": "Permission denied"}
         except Exception as e:
-            return {"error": f"Failed to read PDF: {str(e)}"}
+            return error_response(e, "Failed to read PDF", path=file_path)
