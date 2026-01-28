@@ -7,7 +7,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, get_type_hints
 
 from framework.llm.provider import Tool, ToolResult, ToolUse
 
@@ -57,19 +57,26 @@ class ToolRegistry:
     def _validate_and_bind_arguments(
         self,
         tool_name: str,
+        func: Callable,
         sig: inspect.Signature,
         inputs: dict[str, Any],
     ) -> inspect.BoundArguments:
         """
         Validate and bind arguments for tool execution.
 
-        Validates:
-        - Required parameters are provided
-        - No unexpected parameters (unless *args/**kwargs present)
-        - Basic type checking for annotated parameters
+        Uses Python's signature.bind() for validation, then performs basic type checking.
+        This ensures Python's binding rules (positional-only, keyword-only, etc.) are respected.
+
+        Type checking policy:
+        - int: only int
+        - float: int or float (numeric widening allowed)
+        - bool: only bool
+        - str: only str
+        - None values are allowed for optional parameters
 
         Args:
             tool_name: Name of the tool (for error messages)
+            func: Function object (for type hint resolution)
             sig: Function signature to validate against
             inputs: Input dictionary from tool execution
 
@@ -82,69 +89,91 @@ class ToolRegistry:
         # Filter out 'self' and 'cls' from inputs if present
         filtered_inputs = {k: v for k, v in inputs.items() if k not in ("self", "cls")}
 
-        # Check for **kwargs in signature
-        has_var_keyword = any(
-            p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
-        )
-
-        # Get valid parameter names (excluding self/cls)
-        valid_param_names = {
-            name
-            for name, param in sig.parameters.items()
-            if name not in ("self", "cls")
-            and param.kind
-            not in (
-                inspect.Parameter.VAR_POSITIONAL,
-                inspect.Parameter.VAR_KEYWORD,
-            )
-        }
-
-        # Check for missing required parameters
-        missing_required = []
-        for param_name, param in sig.parameters.items():
-            if param_name in ("self", "cls"):
-                continue
-            if param.default == inspect.Parameter.empty and param_name not in filtered_inputs:
-                missing_required.append(param_name)
-
-        if missing_required:
-            raise ValueError(
-                f"Tool '{tool_name}' missing required argument(s): {', '.join(missing_required)}"
-            )
-
-        # Check for unexpected parameters (only if no **kwargs)
-        if not has_var_keyword:
-            provided_params = set(filtered_inputs.keys())
-            extra_params = provided_params - valid_param_names
-            if extra_params:
-                raise ValueError(
-                    f"Tool '{tool_name}' received unexpected argument(s): "
-                    f"{', '.join(sorted(extra_params))}. "
-                    f"Valid parameters are: {', '.join(sorted(valid_param_names))}"
-                )
-
-        # Use bind_partial to apply defaults and prepare arguments
-        # bind_partial doesn't raise for missing params, but we've already checked above
+        # Use Python's bind() to validate arguments - this catches:
+        # - Missing required parameters
+        # - Extra unexpected parameters (unless **kwargs present)
+        # - Positional-only parameters passed as keywords
+        # - Keyword-only parameters passed positionally
         try:
-            bound = sig.bind_partial(**filtered_inputs)
+            bound = sig.bind(**filtered_inputs)
             bound.apply_defaults()
         except TypeError as e:
-            # This should rarely happen now, but handle edge cases
-            raise ValueError(f"Tool '{tool_name}' argument binding failed: {str(e)}") from e
+            # Convert Python's TypeError to ValueError with clearer message
+            error_msg = str(e)
+            if "missing" in error_msg.lower() and "required" in error_msg.lower():
+                raise ValueError(
+                    f"Tool '{tool_name}' argument validation failed: {error_msg}"
+                ) from e
+            elif "unexpected keyword argument" in error_msg or "got an unexpected" in error_msg:
+                raise ValueError(
+                    f"Tool '{tool_name}' argument validation failed: {error_msg}"
+                ) from e
+            elif "positional only" in error_msg.lower():
+                raise ValueError(
+                    f"Tool '{tool_name}' argument validation failed: {error_msg}"
+                ) from e
+            else:
+                raise ValueError(f"Tool '{tool_name}' argument binding failed: {error_msg}") from e
 
-        # Type validation for provided parameters
+        # Type validation using proper type hint resolution
+        try:
+            type_hints = get_type_hints(func, include_extras=False)
+        except Exception:
+            # If type hints can't be resolved, skip type checking
+            # This can happen with complex types or missing imports
+            type_hints = {}
+
         for param_name, param in sig.parameters.items():
             if param_name in ("self", "cls") or param_name not in bound.arguments:
                 continue
 
             value = bound.arguments[param_name]
-            annotation = param.annotation
 
-            # Skip type checking if annotation is empty or value is None (for optional params)
-            if annotation == inspect.Parameter.empty or value is None:
+            # Skip type checking if value is None (for optional params)
+            if value is None:
                 continue
 
-            # Basic type checking
+            # Get resolved type hint (handles string annotations properly)
+            annotation = type_hints.get(param_name, inspect.Parameter.empty)
+            if annotation == inspect.Parameter.empty:
+                # Fallback to signature annotation if type_hints didn't resolve it
+                annotation = param.annotation
+                if isinstance(annotation, str):
+                    # Last resort: try to resolve common string annotations
+                    base_annotation = annotation.split("|", 1)[0].strip().strip("'\"")
+                    if base_annotation == "int":
+                        annotation = int
+                    elif base_annotation == "float":
+                        annotation = float
+                    elif base_annotation == "bool":
+                        annotation = bool
+                    elif base_annotation == "str":
+                        annotation = str
+                    else:
+                        # Can't resolve, skip type checking
+                        continue
+
+            # Handle Optional/Union types (e.g., int | None, Optional[int])
+            # Python 3.10+ uses types.UnionType for `|` syntax (e.g., float | None)
+            # typing.Union for older syntax
+            if hasattr(annotation, "__args__"):
+                args = annotation.__args__
+                if type(None) in args:
+                    # Optional type - extract the non-None type
+                    non_none_types = [t for t in args if t is not type(None)]
+                    if non_none_types:
+                        annotation = non_none_types[0]
+                    else:
+                        continue
+                else:
+                    # Union of multiple non-None types - skip complex unions
+                    continue
+
+            # Skip if still can't resolve to a concrete type
+            if annotation == inspect.Parameter.empty or not isinstance(annotation, type):
+                continue
+
+            # Basic type checking with pragmatic numeric widening
             if annotation is int:
                 if not isinstance(value, int):
                     raise ValueError(
@@ -152,6 +181,7 @@ class ToolRegistry:
                         f"got {type(value).__name__}"
                     )
             elif annotation is float:
+                # Pragmatic: allow int → float conversion (numeric widening)
                 if not isinstance(value, (int, float)):
                     raise ValueError(
                         f"Tool '{tool_name}' parameter '{param_name}' must be float, "
@@ -230,7 +260,7 @@ class ToolRegistry:
             """
             Execute the function with validated inputs.
             """
-            bound = self._validate_and_bind_arguments(tool_name, sig, inputs)
+            bound = self._validate_and_bind_arguments(tool_name, func, sig, inputs)
             return func(**bound.arguments)
 
         self.register(tool_name, tool, executor)
