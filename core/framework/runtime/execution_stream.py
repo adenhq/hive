@@ -430,6 +430,7 @@ class ExecutionStream:
     async def wait_for_completion(
         self,
         execution_id: str,
+        *,
         timeout: float | None = None,
     ) -> ExecutionResult | None:
         """

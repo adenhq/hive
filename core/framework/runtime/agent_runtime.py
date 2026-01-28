@@ -275,6 +275,7 @@ class AgentRuntime:
         self,
         entry_point_id: str,
         input_data: dict[str, Any],
+        *,
         timeout: float | None = None,
         session_state: dict[str, Any] | None = None,
     ) -> ExecutionResult | None:
@@ -294,7 +295,10 @@ class AgentRuntime:
         stream = self._streams.get(entry_point_id)
         if stream is None:
             raise ValueError(f"Entry point '{entry_point_id}' not found")
-        return await stream.wait_for_completion(exec_id, timeout)
+        if timeout is None:
+            return await stream.wait_for_completion(exec_id)
+        async with asyncio.timeout(timeout):
+            return await stream.wait_for_completion(exec_id)
 
     async def get_goal_progress(self) -> dict[str, Any]:
         """

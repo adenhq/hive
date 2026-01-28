@@ -411,6 +411,7 @@ class EventBus:
         event_type: EventType,
         stream_id: str | None = None,
         execution_id: str | None = None,
+        *,
         timeout: float | None = None,
     ) -> AgentEvent | None:
         """

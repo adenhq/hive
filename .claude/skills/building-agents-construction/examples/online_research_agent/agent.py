@@ -1,4 +1,5 @@
 """Agent graph construction for Online Research Agent."""
+import asyncio
 
 from framework.graph import EdgeSpec, EdgeCondition, Goal, SuccessCriterion, Constraint
 from framework.graph.edge import GraphSpec
@@ -311,6 +312,7 @@ class OnlineResearchAgent:
         self,
         entry_point: str,
         input_data: dict,
+        *,
         timeout: float | None = None,
         session_state: dict | None = None,
     ) -> ExecutionResult | None:
@@ -328,9 +330,24 @@ class OnlineResearchAgent:
         """
         if self._runtime is None or not self._runtime.is_running:
             raise RuntimeError("Agent runtime not started. Call start() first.")
-        return await self._runtime.trigger_and_wait(
-            entry_point, input_data, timeout, session_state=session_state
-        )
+
+        try:
+            if timeout is None:
+                return await self._runtime.trigger_and_wait(
+                    entry_point,
+                    input_data,
+                    session_state=session_state,
+                )
+
+            async with asyncio.timeout(timeout):
+                return await self._runtime.trigger_and_wait(
+                    entry_point,
+                    input_data,
+                    session_state=session_state,
+                )
+
+        except TimeoutError:
+            return None
 
     async def run(
         self, context: dict, mock_mode=False, session_state=None
