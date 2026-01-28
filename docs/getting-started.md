@@ -206,3 +206,21 @@ pip uninstall -y framework tools
 - **Issues**: [github.com/adenhq/hive/issues](https://github.com/adenhq/hive/issues)
 - **Discord**: [discord.com/invite/MXE49hrKDk](https://discord.com/invite/MXE49hrKDk)
 - **Build Agents**: Use `/building-agents` skill to create agents
+### Mac / Homebrew Users
+
+If you installed Python using Homebrew, your system Python may still point to an older version
+(e.g. Python 3.9), which can cause setup errors.
+
+To ensure the correct Python version (3.11+) is used, create your virtual environment
+with the explicit Homebrew Python path:
+
+```bash
+# Check available Python versions
+ls /opt/homebrew/bin/python3*
+
+# Create virtual environment with the correct Python version
+/opt/homebrew/bin/python3.14 -m venv venv
+source venv/bin/activate
+
+# Then run the setup script
+./scripts/setup-python.sh
