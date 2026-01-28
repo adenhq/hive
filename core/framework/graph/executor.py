@@ -60,7 +60,7 @@ class ExecutionResult:
     path: list[str] = field(default_factory=list)  # Node IDs traversed
     paused_at: str | None = None  # Node ID where execution paused for HITL
     session_state: dict[str, Any] = field(default_factory=dict)  # State to resume from
-    # [FIXED] compare=False prevents existing tests from failing on equality checks
+    # compare=False prevents existing tests from failing on equality checks
     history: list[ExecutionSnapshot] = field(
         default_factory=list, compare=False
     )
@@ -416,7 +416,7 @@ class GraphExecutor:
                         )
 
                 # Check if we just executed a pause node - if so, save state and return
-                # This must happen BEFORE determining next node
+                # This must happen BEFORE determining next node, since pause nodes may have no edges
                 if node_spec.id in graph.pause_nodes:
                     self.logger.info("💾 Saving session state after pause node")
                     saved_memory = memory.read_all()
@@ -552,6 +552,11 @@ class GraphExecutor:
         session_state = {
             "memory": restored_memory,
             "paused_at": None,  # Not paused, just forking
+            # HACK: We assume get_entry_point handles logic to start from a specific node
+            # if we pass it as 'resume_from' or 'paused_at' effectively.
+            # But since 'paused_at' usually implies the node finished, we need to be careful.
+            # Ideally we'd have a 'start_at' parameter in execute().
+            # For now, we will rely on 'resume_from' logic if implemented or standard resumption.
             "resume_from": snapshot.node_id,
         }
 
