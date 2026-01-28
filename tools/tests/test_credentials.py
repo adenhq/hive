@@ -339,7 +339,7 @@ class TestNodeTypeValidation:
                 required=True,
             )
         }
-        
+
         # Use custom specs strictly for this test
         creds = CredentialManager(dotenv_path=tmp_path / ".env", specs=custom_specs)
         missing = creds.get_missing_for_node_types(["llm_generate"])
