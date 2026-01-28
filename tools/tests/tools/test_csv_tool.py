@@ -820,3 +820,20 @@ class TestCsvSql:
         assert result["success"] is True
         assert result["row_count"] == 1
         assert result["rows"][0]["名前"] == "商品B"
+
+    def test_single_quote_in_filename(self, csv_tools, session_dir, tmp_path):
+        """Filenames with single quotes should not break SQL query."""
+        csv_file = session_dir / "report'2024.csv"
+        csv_file.write_text("id,value\n1,100\n2,200\n")
+
+        with patch("aden_tools.tools.file_system_toolkits.security.WORKSPACES_DIR", str(tmp_path)):
+            result = csv_tools["csv_sql"](
+                path="report'2024.csv",
+                workspace_id=TEST_WORKSPACE_ID,
+                agent_id=TEST_AGENT_ID,
+                session_id=TEST_SESSION_ID,
+                query="SELECT * FROM data",
+            )
+
+        assert result["success"] is True
+        assert result["row_count"] == 2

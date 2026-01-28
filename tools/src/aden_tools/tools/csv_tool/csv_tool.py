@@ -349,7 +349,7 @@ def register_tools(mcp: FastMCP) -> None:
             con = duckdb.connect(":memory:")
             try:
                 # Load CSV as 'data' table
-                con.execute(f"CREATE TABLE data AS SELECT * FROM read_csv_auto('{secure_path}')")
+                con.execute("CREATE TABLE data AS SELECT * FROM read_csv_auto(?)", [secure_path])
 
                 # Execute user query
                 result = con.execute(query)
