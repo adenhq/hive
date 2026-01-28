@@ -61,46 +61,176 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 <!-- - **[Roadmap](https://adenhq.com/roadmap)** - Upcoming features and plans -->
 - **[Report Issues](https://github.com/adenhq/hive/issues)** - Bug reports and feature requests
 
+## Project Architecture Overview
+
+Hive is built on a modular architecture designed for scalability and extensibility:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Your AI Agent                              │
+│  (Multi-node graph with LLM, routing, and tool use)             │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+        ┌────────────┴────────────┐
+        │                         │
+    ┌───▼────────────┐    ┌──────▼──────────┐
+    │  Core Framework│    │   MCP Tools     │
+    │                │    │                 │
+    │ • GraphExecutor│    │ • Web Search    │
+    │ • NodeContext  │    │ • Web Scraping  │
+    │ • SharedMemory │    │ • File System   │
+    │ • Runtime      │    │ • ... 16 more   │
+    └────────────────┘    └─────────────────┘
+            │                      │
+            └──────────┬───────────┘
+                       │
+        ┌──────────────▼─────────────────┐
+        │   LLM Providers (LiteLLM)      │
+        │                                │
+        │ • OpenAI (GPT-4, GPT-4o)      │
+        │ • Anthropic (Claude)           │
+        │ • Google Gemini                │
+        │ • Cerebras & More              │
+        └────────────────────────────────┘
+```
+
+**Key Components:**
+- **Core Framework** - Agent runtime with graph execution, memory management, and monitoring
+- **MCP Tools** - 19 production-ready tools for agent capabilities (web search, scraping, file ops, etc.)
+- **LLM Integrations** - Multi-provider support via LiteLLM (Claude, GPT, Gemini, etc.)
+
 ## Quick Start
 
 ### Prerequisites
 
-- [Python 3.11+](https://www.python.org/downloads/) for agent development
-- [Docker](https://docs.docker.com/get-docker/) (v20.10+) - Optional, for containerized tools
+- **[Python 3.11+](https://www.python.org/downloads/)** - Python 3.12 or 3.13 recommended
+- **[Docker](https://docs.docker.com/get-docker/)** - v20.10+ (optional, for containerized tools)
+- **[Git](https://git-scm.com/)** - For version control
+- **API Key** - From [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/)
 
-### Installation
+### Setup Checklist
+
+Follow these steps to get started:
+
+#### ✅ Step 1: Clone & Setup (5 minutes)
 
 ```bash
 # Clone the repository
 git clone https://github.com/adenhq/hive.git
 cd hive
 
-# Run Python environment setup
+# Run automated Python setup
 ./scripts/setup-python.sh
+
+# Verify installation
+python -c "import framework; import aden_tools; print('✓ Setup complete')"
 ```
 
-This installs:
-- **framework** - Core agent runtime and graph executor
-- **aden_tools** - 19 MCP tools for agent capabilities
-- All required dependencies
+#### ✅ Step 2: Configure Environment Variables (2 minutes)
+
+Create a `.env` file in the project root or add to your shell profile:
+
+```bash
+# Required: At least one LLM API key
+export ANTHROPIC_API_KEY="sk-ant-..."
+# export OPENAI_API_KEY="sk-..."  # Optional, for OpenAI models
+
+# Optional: For web search capabilities
+export BRAVE_SEARCH_API_KEY="..."
+
+# Optional: For Cerebras models
+export CEREBRAS_API_KEY="..."
+```
+
+**How to get API keys:**
+- **Anthropic**: [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys)
+- **OpenAI**: [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+- **Brave Search**: [api.search.brave.com](https://api.search.brave.com/)
+
+#### ✅ Step 3: Verify LLM Access (2 minutes)
+
+```bash
+# Test that your LLM is accessible
+python -c "
+from framework.llm.litellm import LiteLLMProvider
+llm = LiteLLMProvider(model='claude-3-5-sonnet-20241022')
+print('✓ LLM provider initialized')
+"
+```
+
+#### ✅ Step 4: Install Claude Code Skills (Optional, 2 minutes)
+
+```bash
+# Install building and testing skills (one-time)
+./quickstart.sh
+
+# Verify Claude Code is installed
+claude --version
+```
 
 ### Build Your First Agent
 
+Once setup is complete, choose your approach:
+
+**Option A: Using Claude Code (Recommended)** - Interactive GUI
+
 ```bash
-# Install Claude Code skills (one-time)
+# Install skills if not done
 ./quickstart.sh
 
-# Build an agent using Claude Code
+# Start building
 claude> /building-agents
 
-# Test your agent
-claude> /testing-agent
-
-# Run your agent
-PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'
+# Follow the prompts to:
+# 1. Define your agent's goal
+# 2. Design the workflow (nodes and edges)
+# 3. Generate the agent package
+# 4. Test the agent
 ```
 
-**[📖 Complete Setup Guide](ENVIRONMENT_SETUP.md)** - Detailed instructions for agent development
+**Option B: Code-First (Pure Python)**
+
+```bash
+# View minimal example
+cat core/examples/manual_agent.py
+
+# Run it (no API keys required)
+PYTHONPATH=core python core/examples/manual_agent.py
+```
+
+**Option C: Manual Agent Creation**
+
+```bash
+mkdir -p exports/my_first_agent
+cd exports/my_first_agent
+
+# Create agent.json with your node graph
+# Create tools.py with your custom functions
+# See DEVELOPER.md for full structure
+
+# Validate and run
+PYTHONPATH=core:exports python -m my_first_agent run --input '{...}'
+```
+
+### Run Your Agent
+
+```bash
+# Validate agent structure
+PYTHONPATH=core:exports python -m your_agent_name validate
+
+# Show agent configuration
+PYTHONPATH=core:exports python -m your_agent_name info
+
+# Run with input
+PYTHONPATH=core:exports python -m your_agent_name run --input '{
+  "task": "Your task here"
+}'
+
+# Run in mock mode (no LLM calls)
+PYTHONPATH=core:exports python -m your_agent_name run --mock --input '{...}'
+```
+
+**[📖 Complete Setup Guide](ENVIRONMENT_SETUP.md)** - Detailed instructions, troubleshooting, and advanced configuration
 
 ## Features
 

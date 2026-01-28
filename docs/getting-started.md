@@ -1,152 +1,345 @@
-# Getting Started
+# Getting Started with Hive
 
-This guide will help you set up the Aden Agent Framework and build your first agent.
+Welcome! This guide will help you set up the Aden Agent Framework and build your first self-improving AI agent.
+
+## Overview
+
+**Hive** is an open-source framework for building, deploying, and operating goal-driven AI agents that adapt and improve themselves. Instead of hardcoding workflows, you describe what you want to achieve, and the framework generates the agent graph and connection code.
+
+### What You'll Learn
+
+- ✅ Setting up the development environment
+- ✅ Configuring LLM providers (Claude, GPT, etc.)
+- ✅ Building your first agent
+- ✅ Running and testing agents
+- ✅ Understanding the project structure
 
 ## Prerequisites
 
-- **Python 3.11+** ([Download](https://www.python.org/downloads/)) - Python 3.12 or 3.13 recommended
-- **pip** - Package installer for Python (comes with Python)
-- **git** - Version control
-- **Claude Code** ([Install](https://docs.anthropic.com/claude/docs/claude-code)) - Optional, for using building skills
+Before you start, make sure you have:
 
-## Quick Start
+1. **[Python 3.11+](https://www.python.org/downloads/)** - Python 3.12 or 3.13 recommended
+   - Verify: `python --version`
 
-The fastest way to get started:
+2. **[Git](https://git-scm.com/)** - For cloning the repository
+   - Verify: `git --version`
+
+3. **API Key** - From [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/)
+   - Get key: https://console.anthropic.com/settings/keys
+   - (Optional) Additional keys for web search, etc.
+
+4. **Code Editor** - VS Code, PyCharm, or your favorite
+   - Optional but recommended for development
+
+## Quick Start (5 minutes)
+
+### Step 1: Clone the Repository
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/adenhq/hive.git
 cd hive
+```
 
-# 2. Run automated Python setup
+### Step 2: Run Setup Script
+
+```bash
 ./scripts/setup-python.sh
+```
 
-# 3. Verify installation
-python -c "import framework; import aden_tools; print('✓ Setup complete')"
+Expected output:
+```
+✓ Python version OK (3.11+)
+✓ framework installed
+✓ aden_tools installed
+✓ All dependencies verified
+```
+
+### Step 3: Configure Your API Key
+
+**Option A: Using .env file (Recommended)**
+
+```bash
+# Create .env file in project root
+cat > .env << 'EOF'
+ANTHROPIC_API_KEY=sk-ant-...
+EOF
+
+# Load it
+source .env  # macOS/Linux
+# set /p ANTHROPIC_API_KEY=< .env  # Windows
+```
+
+**Option B: Export in shell**
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+**Option C: Windows PowerShell**
+
+```powershell
+$env:ANTHROPIC_API_KEY = "sk-ant-..."
+```
+
+### Step 4: Verify Setup
+
+```bash
+python -c "
+from framework.llm.litellm import LiteLLMProvider
+llm = LiteLLMProvider(model='claude-3-5-sonnet-20241022')
+print('✓ LLM access verified!')
+"
 ```
 
 ## Building Your First Agent
 
-### Option 1: Using Claude Code Skills (Recommended)
+### Option 1: Interactive CLI (Recommended)
+
+Most user-friendly approach:
 
 ```bash
 # Install Claude Code skills (one-time)
 ./quickstart.sh
 
-# Start Claude Code and build an agent
+# Start building
 claude> /building-agents
 ```
 
-Follow the interactive prompts to:
-1. Define your agent's goal
-2. Design the workflow (nodes and edges)
-3. Generate the agent package
-4. Test the agent
+Follow the interactive prompts to define your agent's goal, design nodes, and connect edges. The system generates everything!
 
-### Option 2: Create Agent Manually
+### Option 2: Code-First (Pure Python)
 
-> **Note:** The `exports/` directory is where your agents are created. It is not included in the repository (gitignored) because agents are user-generated via Claude Code skills or created manually.
+For developers who prefer writing code directly:
 
 ```bash
-# Create exports directory if it doesn't exist
-mkdir -p exports/my_agent
-
-# Create your agent structure
-cd exports/my_agent
-# Create agent.json, tools.py, README.md (see DEVELOPER.md for structure)
-
-# Validate the agent
-PYTHONPATH=core:exports python -m my_agent validate
-```
-
-### Option 3: Manual Code-First (Minimal Example)
-
-If you prefer to start with code rather than CLI wizards, check out the manual agent example:
-
-```bash
-# View the minimal example
+# View minimal example
 cat core/examples/manual_agent.py
 
-# Run it (no API keys required)
+# Run it (no API keys needed!)
 PYTHONPATH=core python core/examples/manual_agent.py
 ```
 
-This demonstrates the core runtime loop using pure Python functions, skipping the complexity of LLM setup and file-based configuration.
+This shows the framework in action with pure Python functions.
+
+### Option 3: Manual Creation
+
+For fine-grained control:
+
+```bash
+# Create agent directory
+mkdir -p exports/my_first_agent
+cd exports/my_first_agent
+
+# Create agent.json, tools.py, etc.
+# See DEVELOPER.md for full specification
+```
+
+## Running Your Agent
+
+Once created, run your agent with:
+
+```bash
+# Validate structure
+PYTHONPATH=core:exports python -m your_agent_name validate
+
+# View configuration
+PYTHONPATH=core:exports python -m your_agent_name info
+
+# Run with input
+PYTHONPATH=core:exports python -m your_agent_name run --input '{
+  "task": "What you want the agent to do"
+}'
+
+# Test without LLM calls (free & instant)
+PYTHONPATH=core:exports python -m your_agent_name run --mock --input '{
+  "task": "Test input"
+}'
+```
 
 ## Project Structure
 
+Understanding the layout helps you navigate the codebase:
+
 ```
 hive/
-├── core/                   # Core Framework
-│   ├── framework/          # Agent runtime, graph executor
-│   │   ├── runner/         # AgentRunner - loads and runs agents
-│   │   ├── executor/       # GraphExecutor - executes node graphs
-│   │   ├── protocols/      # Standard protocols (hooks, tracing)
-│   │   ├── llm/            # LLM provider integrations
-│   │   └── memory/         # Memory systems (STM, LTM/RLM)
-│   └── pyproject.toml      # Package metadata
+├── core/                          # Core Framework
+│   ├── framework/                 # Agent runtime & execution
+│   │   ├── runner/                # AgentRunner - loads agents
+│   │   ├── executor/              # GraphExecutor - runs graphs
+│   │   ├── graph/                 # Node definitions
+│   │   ├── llm/                   # LLM provider integrations
+│   │   ├── storage/               # Data persistence
+│   │   └── runtime/               # Runtime environment
+│   ├── examples/                  # Example agents
+│   │   └── manual_agent.py        # Pure Python example
+│   ├── tests/                     # Framework tests
+│   └── pyproject.toml             # Package configuration
 │
-├── tools/                  # MCP Tools Package
-│   └── src/aden_tools/     # 19 tools for agent capabilities
-│       ├── tools/          # Individual tool implementations
+├── tools/                         # MCP Tools Package
+│   └── src/aden_tools/            # 19 production tools
+│       ├── tools/                 # Individual tool implementations
 │       │   ├── web_search_tool/
 │       │   ├── web_scrape_tool/
-│       │   └── file_system_toolkits/
-│       └── mcp_server.py   # HTTP MCP server
+│       │   ├── file_system_toolkits/
+│       │   └── ... 16 more tools
+│       └── mcp_server.py          # MCP HTTP server
 │
-├── exports/                # Agent Packages (user-generated, not in repo)
-│   └── your_agent/         # Your agents created via /building-agents
+├── exports/                       # Your Created Agents
+│   └── your_agent/                # Generated by /building-agents
+│       ├── agent.json             # Graph specification
+│       ├── tools.py               # Custom tools
+│       ├── test_*.py              # Test files
+│       └── README.md
 │
-├── .claude/                # Claude Code Skills
-│   └── skills/
-│       ├── agent-workflow/
-│       ├── building-agents-construction/
-│       ├── building-agents-core/
-│       ├── building-agents-patterns/
-│       └── testing-agent/
+├── .claude/                       # Claude Code Skills
+│   └── skills/                    # Building & testing skills
 │
-└── docs/                   # Documentation
+├── docs/                          # Documentation
+│   ├── getting-started.md         # THIS FILE
+│   ├── architecture/              # Architecture guides
+│   ├── configuration.md           # Configuration reference
+│   └── articles/                  # Detailed articles
+│
+├── scripts/                       # Setup & utilities
+│   ├── setup-python.sh            # Automated setup
+│   ├── setup.sh                   # Frontend setup
+│   └── generate-env.ts            # Environment generation
+│
+├── ENVIRONMENT_SETUP.md           # Detailed setup guide
+├── DEVELOPER.md                   # Development guide
+├── CONTRIBUTING.md                # Contributing guidelines
+└── README.md                      # Project overview
 ```
 
-## Running an Agent
+## Common Tasks
+
+### Build a Web Search Agent
 
 ```bash
-# Validate agent structure
-PYTHONPATH=core:exports python -m my_agent validate
+claude> /building-agents
 
-# Show agent information
-PYTHONPATH=core:exports python -m my_agent info
-
-# Run agent with input
-PYTHONPATH=core:exports python -m my_agent run --input '{
-  "task": "Your input here"
-}'
-
-# Run in mock mode (no LLM calls)
-PYTHONPATH=core:exports python -m my_agent run --mock --input '{...}'
+# Define goal: "Search the web for user queries"
+# Add nodes: LLM, WebSearchTool, ResponseGenerator
+# Connect edges: Query → Search → Generate → Output
+# Done! It's created and ready to test
 ```
 
-## API Keys Setup
-
-For running agents with real LLMs:
+### Build a Customer Support Agent
 
 ```bash
-# Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
-export ANTHROPIC_API_KEY="your-key-here"
-export OPENAI_API_KEY="your-key-here"        # Optional
-export BRAVE_SEARCH_API_KEY="your-key-here"  # Optional, for web search
+claude> /building-agents
+
+# Define goal: "Analyze support tickets and generate responses"
+# Nodes: Ticket Analysis → Solution Lookup → Response Generator
+# Tools: FileSystemTool, WebSearch
+# Test with sample tickets
 ```
 
-Get your API keys:
-- **Anthropic**: [console.anthropic.com](https://console.anthropic.com/)
-- **OpenAI**: [platform.openai.com](https://platform.openai.com/)
-- **Brave Search**: [brave.com/search/api](https://brave.com/search/api/)
-
-## Testing Your Agent
+### Run in Mock Mode (Free Testing)
 
 ```bash
-# Using Claude Code
-claude> /testing-agent
+# No API calls = no costs, instant feedback
+PYTHONPATH=core:exports python -m your_agent --mock --input '{...}'
+```
+
+### View Agent Configuration
+
+```bash
+PYTHONPATH=core:exports python -m your_agent_name info
+```
+
+Shows:
+- Agent goals
+- Node configuration
+- Available tools
+- Connection graph
+
+### Run with Specific Model
+
+```bash
+# Use OpenAI instead of Anthropic
+PYTHONPATH=core:exports python -m your_agent_name run \
+  --model openai/gpt-4o \
+  --input '{...}'
+```
+
+## API Configuration
+
+### Supported LLM Providers
+
+| Provider | Model Example | Cost |
+|----------|---------------|------|
+| **Anthropic** ⭐ | claude-3-5-sonnet | ~$3/1M input tokens |
+| **OpenAI** | gpt-4o | ~$5/1M input tokens |
+| **Google Gemini** | gemini-2.0-flash | ~$0.075/1M input tokens |
+| **Cerebras** | llama-3.3-70b | ~$0.50/1M input tokens |
+
+### Set Your API Key
+
+```bash
+# Anthropic (Recommended)
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+# OpenAI (Alternative)
+export OPENAI_API_KEY="sk-..."
+
+# Google Gemini
+export GOOGLE_API_KEY="..."
+
+# Cerebras
+export CEREBRAS_API_KEY="..."
+```
+
+### Optional: Web Search
+
+```bash
+# For web search tool
+export BRAVE_SEARCH_API_KEY="..."
+
+# Get key: https://api.search.brave.com/
+```
+
+## Troubleshooting
+
+### Issue: "ModuleNotFoundError: No module named 'framework'"
+
+**Solution:**
+```bash
+cd core && pip install -e .
+```
+
+### Issue: "APIError: Incorrect API Key"
+
+**Solution:**
+```bash
+# Verify key is set
+echo $ANTHROPIC_API_KEY
+
+# Should start with sk-ant-
+```
+
+### Issue: "externally-managed-environment"
+
+**Solution:** Use a virtual environment
+```bash
+python3 -m venv .venv
+source .venv/bin/activate  # macOS/Linux
+.venv\Scripts\activate     # Windows
+
+./scripts/setup-python.sh
+```
+
+### Issue: Agents run slowly
+
+**Solution:** Use a faster/cheaper model for testing
+```bash
+export ANTHROPIC_MODEL=claude-3-haiku-20240307
+
+# Or run in mock mode
+PYTHONPATH=core:exports python -m agent --mock --input '{...}'
+```
+
+See [ENVIRONMENT_SETUP.md](../ENVIRONMENT_SETUP.md#troubleshooting) for more detailed troubleshooting.
 
 # Or manually
 PYTHONPATH=core:exports python -m my_agent test
