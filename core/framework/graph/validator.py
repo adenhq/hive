@@ -1,244 +1,168 @@
-"""Output validation for agent nodes.
-
-Validates node outputs against schemas and expected keys to prevent
-garbage from propagating through the graph.
-"""
-
 import logging
-from dataclasses import dataclass
-from typing import Any
-
+from typing import List, Dict, Any, Tuple, Optional, Union
+from collections import deque
 from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger(__name__)
 
-
-@dataclass
 class ValidationResult:
-    """Result of validating an output."""
-
-    success: bool
-    errors: list[str]
+    """
+    Resultado de validação unificado. 
+    Suporta 'success' (padrão main) e 'valid' (retrocompatibilidade).
+    """
+    def __init__(self, success: bool, errors: List[str] = None):
+        self.success = success
+        self.valid = success  
+        self.errors = errors or []
 
     @property
     def error(self) -> str:
-        """Get combined error message."""
         return "; ".join(self.errors) if self.errors else ""
 
+    def __bool__(self):
+        return self.success
 
-class OutputValidator:
+class GraphValidator:
     """
-    Validates node outputs against schemas and expected keys.
+    Valida a integridade topológica, segurança de código e conformidade de esquema.
+    """
 
-    Used by the executor to catch bad outputs before they pollute memory.
-    """
+    @staticmethod
+    def validate(graph_spec: Any) -> ValidationResult:
+        """Verifica integridade, ciclos (DFS) e conectividade (BFS)."""
+        if not all(hasattr(graph_spec, attr) for attr in ["nodes", "edges", "entry_node"]):
+            return ValidationResult(False, ["GraphSpec missing required attributes"])
+
+        node_ids = {n.id for n in graph_spec.nodes}
+        adj_list = {n_id: [] for n_id in node_ids}
+        
+        for edge in graph_spec.edges:
+            if edge.source not in node_ids or edge.target not in node_ids:
+                return ValidationResult(False, [f"Invalid edge: {edge.source}->{edge.target}"])
+            adj_list[edge.source].append(edge.target)
+
+        if graph_spec.entry_node not in node_ids:
+            return ValidationResult(False, [f"Entry node '{graph_spec.entry_node}' not found"])
+
+        # DFS para Ciclos
+        visited, rec_stack = set(), set()
+        def has_cycle(u):
+            visited.add(u)
+            rec_stack.add(u)
+            for v in adj_list[u]:
+                if v not in visited:
+                    if has_cycle(v): return True
+                elif v in rec_stack: return True
+            rec_stack.remove(u)
+            return False
+
+        for node_id in node_ids:
+            if node_id not in visited:
+                if has_cycle(node_id):
+                    return ValidationResult(False, [f"Cycle detected at node '{node_id}'"])
+
+        # BFS para Alcance
+        reachable = {graph_spec.entry_node}
+        q = deque([graph_spec.entry_node])
+        while q:
+            u = q.popleft()
+            for v in adj_list[u]:
+                if v not in reachable:
+                    reachable.add(v)
+                    q.append(v)
+                        
+        unreachable = node_ids - reachable
+        if unreachable:
+            return ValidationResult(False, [f"Unreachable nodes: {unreachable}"])
+
+        return ValidationResult(True)
 
     def _contains_code_indicators(self, value: str) -> bool:
-        """
-        Check for code patterns in a string using sampling for efficiency.
-
-        For strings under 10KB, checks the entire content.
-        For longer strings, samples at strategic positions to balance
-        performance with detection accuracy.
-
-        Args:
-            value: The string to check for code indicators
-
-        Returns:
-            True if code indicators are found, False otherwise
-        """
-        code_indicators = [
-            # Python
-            "def ",
-            "class ",
-            "import ",
-            "from ",
-            "if __name__",
-            "async def ",
-            "await ",
-            "try:",
-            "except:",
-            # JavaScript/TypeScript
-            "function ",
-            "const ",
-            "let ",
-            "=> {",
-            "require(",
-            "export ",
-            # SQL
-            "SELECT ",
-            "INSERT ",
-            "UPDATE ",
-            "DELETE ",
-            "DROP ",
-            # HTML/Script injection
-            "<script",
-            "<?php",
-            "<%",
-        ]
-
-        # For strings under 10KB, check the entire content
+        """Detecta padrões de injeção de código para segurança."""
+        indicators = ["def ", "import ", "async def ", "await ", "SELECT ", "DROP ", "<script"]
+        val_lower = value.lower()
         if len(value) < 10000:
-            return any(indicator in value for indicator in code_indicators)
-
-        # For longer strings, sample at strategic positions
-        sample_positions = [
-            0,  # Start
-            len(value) // 4,  # 25%
-            len(value) // 2,  # 50%
-            3 * len(value) // 4,  # 75%
-            max(0, len(value) - 2000),  # Near end
-        ]
-
+            return any(ind.lower() in val_lower for ind in indicators)
+        
+        sample_positions = [0, len(value)//2, max(0, len(value)-2000)]
         for pos in sample_positions:
-            chunk = value[pos : pos + 2000]
-            if any(indicator in chunk for indicator in code_indicators):
+            if any(ind.lower() in val_lower[pos:pos+2000] for ind in indicators):
                 return True
-
         return False
 
     def validate_output_keys(
-        self,
-        output: dict[str, Any],
-        expected_keys: list[str],
+        self, 
+        output: dict[str, Any], 
+        expected_keys: list[str], 
+        max_length: int = 5000,
         allow_empty: bool = False,
         nullable_keys: list[str] | None = None,
     ) -> ValidationResult:
         """
-        Validate that all expected keys are present and non-empty.
-
-        Args:
-            output: The output dict to validate
-            expected_keys: Keys that must be present
-            allow_empty: If True, allow empty string values
-            nullable_keys: Keys that are allowed to be None
-
-        Returns:
-            ValidationResult with success status and any errors
+        Valida chaves obrigatórias, tamanho, conteúdo vazio, segurança e nulidade.
         """
+        if not isinstance(output, dict):
+            return ValidationResult(False, [f"Output must be dict, got {type(output).__name__}"])
+
         errors = []
         nullable_keys = nullable_keys or []
-
-        if not isinstance(output, dict):
-            return ValidationResult(
-                success=False, errors=[f"Output is not a dict, got {type(output).__name__}"]
-            )
 
         for key in expected_keys:
             if key not in output:
                 errors.append(f"Missing required output key: '{key}'")
-            elif not allow_empty:
-                value = output[key]
-                if value is None:
-                    if key not in nullable_keys:
-                        errors.append(f"Output key '{key}' is None")
-                elif isinstance(value, str) and len(value.strip()) == 0:
+                continue
+            
+            value = output[key]
+            val_str = str(value)
+
+            # 1. Verificação de Nulidade
+            if value is None:
+                if key not in nullable_keys:
+                    errors.append(f"Output key '{key}' is None")
+                continue
+
+            # 2. Verificação de Segurança (Injeção de código)
+            if self._contains_code_indicators(val_str):
+                logger.warning(f"Security Warning: Key '{key}' may contain code indicators.")
+
+            # 3. Verificação de tamanho
+            if len(val_str) > max_length:
+                errors.append(f"Key '{key}' exceeds max length ({len(val_str)} > {max_length})")
+
+            # 4. Verificação de vazio
+            if not allow_empty:
+                if isinstance(value, str) and not value.strip():
                     errors.append(f"Output key '{key}' is empty string")
 
         return ValidationResult(success=len(errors) == 0, errors=errors)
 
     def validate_with_pydantic(
-        self,
-        output: dict[str, Any],
-        model: type[BaseModel],
-    ) -> tuple[ValidationResult, BaseModel | None]:
-        """
-        Validate output against a Pydantic model.
-
-        Args:
-            output: The output dict to validate
-            model: Pydantic model class to validate against
-
-        Returns:
-            Tuple of (ValidationResult, validated_model_instance or None)
-        """
+        self, output: Dict[str, Any], model: type[BaseModel]
+    ) -> Tuple[ValidationResult, Optional[BaseModel]]:
+        """Validação Pydantic conforme a main."""
         try:
             validated = model.model_validate(output)
-            return ValidationResult(success=True, errors=[]), validated
+            return ValidationResult(True), validated
         except ValidationError as e:
-            errors = []
-            for error in e.errors():
-                field_path = ".".join(str(loc) for loc in error["loc"])
-                msg = error["msg"]
-                error_type = error["type"]
-                errors.append(f"{field_path}: {msg} (type: {error_type})")
-            return ValidationResult(success=False, errors=errors), None
-
-    def format_validation_feedback(
-        self,
-        validation_result: ValidationResult,
-        model: type[BaseModel],
-    ) -> str:
-        """
-        Format validation errors as feedback for LLM retry.
-
-        Args:
-            validation_result: The failed validation result
-            model: The Pydantic model that was used for validation
-
-        Returns:
-            Formatted feedback string to include in retry prompt
-        """
-        # Get the model's JSON schema for reference
-        schema = model.model_json_schema()
-
-        feedback = "Your previous response had validation errors:\n\n"
-        feedback += "ERRORS:\n"
-        for error in validation_result.errors:
-            feedback += f"  - {error}\n"
-
-        feedback += "\nEXPECTED SCHEMA:\n"
-        feedback += f"  Model: {model.__name__}\n"
-
-        if "properties" in schema:
-            feedback += "  Required fields:\n"
-            required = schema.get("required", [])
-            for prop_name, prop_info in schema["properties"].items():
-                req_marker = " (required)" if prop_name in required else ""
-                prop_type = prop_info.get("type", "any")
-                feedback += f"    - {prop_name}: {prop_type}{req_marker}\n"
-
-        feedback += "\nPlease fix the errors and respond with valid JSON matching the schema."
-
-        return feedback
+            errors = [f"{'.'.join(str(l) for l in err['loc'])}: {err['msg']}" for err in e.errors()]
+            return ValidationResult(False, errors), None
 
     def validate_no_hallucination(
-        self,
-        output: dict[str, Any],
-        max_length: int = 10000,
+        self, output: dict[str, Any], max_length: int = 10000
     ) -> ValidationResult:
-        """
-        Check for signs of LLM hallucination in output values.
-
-        Detects:
-        - Code blocks where structured data was expected
-        - Overly long values that suggest raw LLM output
-        - Common hallucination patterns
-
-        Args:
-            output: The output dict to validate
-            max_length: Maximum allowed length for string values
-
-        Returns:
-            ValidationResult with success status and any errors
-        """
+        """Verifica sinais de alucinação e padrões de código em strings."""
         errors = []
-
         for key, value in output.items():
             if not isinstance(value, str):
                 continue
-
-            # Check for code patterns in the entire string, not just first 500 chars
-            if self._contains_code_indicators(value):
-                # Could be legitimate, but warn
-                logger.warning(f"Output key '{key}' may contain code - verify this is expected")
-
-            # Check for overly long values
+            
             if len(value) > max_length:
-                errors.append(
-                    f"Output key '{key}' exceeds max length ({len(value)} > {max_length})"
-                )
-
+                errors.append(f"Output key '{key}' exceeds max length ({len(value)} > {max_length})")
+            
+            if self._contains_code_indicators(value):
+                # No contexto de alucinação, código onde deveria ser texto é red flag
+                logger.debug(f"Possible hallucination in '{key}': code pattern detected.")
+        
         return ValidationResult(success=len(errors) == 0, errors=errors)
 
     def validate_schema(
@@ -246,16 +170,7 @@ class OutputValidator:
         output: dict[str, Any],
         schema: dict[str, Any],
     ) -> ValidationResult:
-        """
-        Validate output against a JSON schema.
-
-        Args:
-            output: The output dict to validate
-            schema: JSON schema to validate against
-
-        Returns:
-            ValidationResult with success status and any errors
-        """
+        """Valida a saída contra um esquema JSON."""
         try:
             import jsonschema
         except ImportError:
@@ -279,32 +194,17 @@ class OutputValidator:
         check_hallucination: bool = True,
         nullable_keys: list[str] | None = None,
     ) -> ValidationResult:
-        """
-        Run all applicable validations on output.
-
-        Args:
-            output: The output dict to validate
-            expected_keys: Optional list of required keys
-            schema: Optional JSON schema
-            check_hallucination: Whether to check for hallucination patterns
-            nullable_keys: Keys that are allowed to be None
-
-        Returns:
-            Combined ValidationResult
-        """
+        """Executa todas as validações aplicáveis."""
         all_errors = []
 
-        # Validate keys if provided
         if expected_keys:
             result = self.validate_output_keys(output, expected_keys, nullable_keys=nullable_keys)
             all_errors.extend(result.errors)
 
-        # Validate schema if provided
         if schema:
             result = self.validate_schema(output, schema)
             all_errors.extend(result.errors)
 
-        # Check for hallucination
         if check_hallucination:
             result = self.validate_no_hallucination(output)
             all_errors.extend(result.errors)
