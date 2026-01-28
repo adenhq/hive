@@ -271,6 +271,7 @@ See [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) for complete setup instructions
 Aden Agent Framework aims to help developers build outcome oriented, self-adaptive agents. Please find our roadmap here
 
 [ROADMAP.md](ROADMAP.md)
+Hive helps businesses run AI agents autonomously.
 
 ```mermaid
 timeline
