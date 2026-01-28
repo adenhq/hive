@@ -41,6 +41,10 @@ class EventType(str, Enum):
     STREAM_STARTED = "stream_started"
     STREAM_STOPPED = "stream_stopped"
 
+    # Node monitoring
+    NODE_STARTED = "node_started"
+    NODE_COMPLETED = "node_completed"
+
     # Custom events
     CUSTOM = "custom"
 
@@ -355,6 +359,54 @@ class EventBus:
                     "old_value": old_value,
                     "new_value": new_value,
                     "scope": scope,
+                },
+            )
+        )
+
+    async def emit_node_started(
+        self,
+        stream_id: str,
+        execution_id: str,
+        node_id: str,
+        node_name: str,
+        node_type: str,
+    ) -> None:
+        """Emit node started event."""
+        await self.publish(
+            AgentEvent(
+                type=EventType.NODE_STARTED,
+                stream_id=stream_id,
+                execution_id=execution_id,
+                data={
+                    "node_id": node_id,
+                    "node_name": node_name,
+                    "node_type": node_type,
+                },
+            )
+        )
+
+    async def emit_node_completed(
+        self,
+        stream_id: str,
+        execution_id: str,
+        node_id: str,
+        success: bool,
+        tokens_used: int = 0,
+        latency_ms: int = 0,
+        error: str | None = None,
+    ) -> None:
+        """Emit node completed event."""
+        await self.publish(
+            AgentEvent(
+                type=EventType.NODE_COMPLETED,
+                stream_id=stream_id,
+                execution_id=execution_id,
+                data={
+                    "node_id": node_id,
+                    "success": success,
+                    "tokens_used": tokens_used,
+                    "latency_ms": latency_ms,
+                    "error": error,
                 },
             )
         )

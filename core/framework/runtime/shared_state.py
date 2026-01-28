@@ -285,6 +285,78 @@ class SharedStateManager:
         if len(self._change_history) > self._max_history:
             self._change_history = self._change_history[-self._max_history :]
 
+    def read_sync(
+        self,
+        key: str,
+        execution_id: str,
+        stream_id: str,
+        isolation: IsolationLevel,
+    ) -> Any:
+        """
+        Synchronous read for compatibility.
+        Does not use asyncio.Lock (safe for reading dicts in Python).
+        """
+        # Always check execution-local first
+        if execution_id in self._execution_state:
+            if key in self._execution_state[execution_id]:
+                return self._execution_state[execution_id][key]
+
+        # Check stream-level (unless isolated)
+        if isolation != IsolationLevel.ISOLATED:
+            if stream_id in self._stream_state:
+                if key in self._stream_state[stream_id]:
+                    return self._stream_state[stream_id][key]
+
+            # Check global
+            if key in self._global_state:
+                return self._global_state[key]
+
+        return None
+
+    def write_sync(
+        self,
+        key: str,
+        value: Any,
+        execution_id: str,
+        stream_id: str,
+        isolation: IsolationLevel,
+        scope: StateScope = StateScope.EXECUTION,
+    ) -> None:
+        """
+        Synchronous write for compatibility.
+        Warning: Does not respect synchronized isolation locks.
+        """
+        # Record change (simple version)
+        old_value = self.read_sync(key, execution_id, stream_id, isolation)
+
+        if isolation == IsolationLevel.ISOLATED:
+            scope = StateScope.EXECUTION
+
+        if scope == StateScope.EXECUTION:
+            if execution_id not in self._execution_state:
+                self._execution_state[execution_id] = {}
+            self._execution_state[execution_id][key] = value
+        elif scope == StateScope.STREAM:
+            if stream_id not in self._stream_state:
+                self._stream_state[stream_id] = {}
+            self._stream_state[stream_id][key] = value
+        elif scope == StateScope.GLOBAL:
+            self._global_state[key] = value
+
+        self._version += 1
+        
+        # Change recording
+        self._record_change(
+            StateChange(
+                key=key,
+                old_value=old_value,
+                new_value=value,
+                scope=scope,
+                execution_id=execution_id,
+                stream_id=stream_id,
+            )
+        )
+
     # === BULK OPERATIONS ===
 
     async def read_all(
