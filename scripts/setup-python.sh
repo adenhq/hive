@@ -6,7 +6,7 @@
 # for building and running goal-driven agents.
 #
 
-set -e
+set -euo pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -24,6 +24,20 @@ echo "=================================================="
 echo "  Aden Agent Framework - Python Setup"
 echo "=================================================="
 echo ""
+
+# Detect OS
+OS_TYPE="$(uname -s)"
+echo -e "${BLUE}Detected OS:${NC} $OS_TYPE"
+
+# Warn if not using virtual environment
+if [[ -z "$VIRTUAL_ENV" ]]; then
+    echo -e "${YELLOW}⚠ Warning: You are not inside a Python virtual environment.${NC}"
+    echo -e "${YELLOW}It is recommended to use venv or conda to avoid global package conflicts.${NC}"
+    echo ""
+fi
+
+
+
 
 # Check for Python
 if ! command -v python &> /dev/null && ! command -v python3 &> /dev/null; then
