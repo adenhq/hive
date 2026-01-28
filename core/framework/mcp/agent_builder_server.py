@@ -93,6 +93,7 @@ class BuildSession:
                     "on_success": EdgeCondition.ON_SUCCESS,
                     "on_failure": EdgeCondition.ON_FAILURE,
                     "conditional": EdgeCondition.CONDITIONAL,
+                    "llm_decide": EdgeCondition.LLM_DECIDE,
                 }
                 e["condition"] = condition_map.get(condition_str, EdgeCondition.ON_SUCCESS)
             session.edges.append(EdgeSpec(**e))
@@ -524,11 +525,13 @@ def add_node(
         tools_list = json.loads(tools)
         routes_dict = json.loads(routes)
     except json.JSONDecodeError as e:
-        return json.dumps({
-            "valid": False,
-            "errors": [f"Invalid JSON input: {e}"],
-            "warnings": [],
-        })
+        return json.dumps(
+            {
+                "valid": False,
+                "errors": [f"Invalid JSON input: {e}"],
+                "warnings": [],
+            }
+        )
 
     # Validate credentials for tools BEFORE adding the node
     cred_error = _validate_tool_credentials(tools_list)
@@ -627,6 +630,7 @@ def add_edge(
         "on_success": EdgeCondition.ON_SUCCESS,
         "on_failure": EdgeCondition.ON_FAILURE,
         "conditional": EdgeCondition.CONDITIONAL,
+        "llm_decide": EdgeCondition.LLM_DECIDE,
     }
     edge_condition = condition_map.get(condition, EdgeCondition.ON_SUCCESS)
 
@@ -717,11 +721,13 @@ def update_node(
         tools_list = json.loads(tools) if tools else None
         routes_dict = json.loads(routes) if routes else None
     except json.JSONDecodeError as e:
-        return json.dumps({
-            "valid": False,
-            "errors": [f"Invalid JSON input: {e}"],
-            "warnings": [],
-        })
+        return json.dumps(
+            {
+                "valid": False,
+                "errors": [f"Invalid JSON input: {e}"],
+                "warnings": [],
+            }
+        )
 
     # Validate credentials for new tools BEFORE updating
     if tools_list:
