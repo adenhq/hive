@@ -6,3 +6,4 @@ COPY core ./core
 COPY tools ./tools
 
 CMD ["python", "-c", "print('hello hive')"]
+#comment
