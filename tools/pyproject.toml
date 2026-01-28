@@ -45,11 +45,17 @@ ocr = [
 sql = [
     "duckdb>=1.0.0",
 ]
+markdown = [
+    "markdown>=3.0.0",
+    "html2text>=2020.0.0",
+]
 all = [
     "RestrictedPython>=7.0",
     "pytesseract>=0.3.10",
     "pillow>=10.0.0",
     "duckdb>=1.0.0",
+    "markdown>=3.0.0",
+    "html2text>=2020.0.0",
 ]
 
 [build-system]

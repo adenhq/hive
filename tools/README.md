@@ -75,6 +75,10 @@ python mcp_server.py
 | `web_search`           | Search the web (Google or Brave, auto-detected) |
 | `web_scrape`           | Scrape and extract content from webpages       |
 | `pdf_read`             | Read and extract text from PDF files           |
+| `markdown_to_html`     | Convert markdown to HTML                       |
+| `html_to_markdown`     | Convert HTML to markdown                       |
+| `format_text`          | Apply markdown formatting to text              |
+| `create_markdown_table`| Create markdown tables from data               |
 
 ## Project Structure
 
