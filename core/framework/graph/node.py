@@ -210,6 +210,7 @@ class SharedMemory:
     def _looks_like_hallucinated_code(self, value: str) -> bool:
         """
         Distinguish hallucinated code from legitimate tool/execution output.
+        Uses sampling for large strings to avoid performance regression.
         
         Legitimate output has contextual markers (error messages, execution logs, etc.)
         Hallucinated code is raw code without context.
@@ -232,56 +233,29 @@ class SharedMemory:
             "fix:", "before:", "after:", "change:", "modified:",
         ]
         
-        value_lower = value.lower()
-        indicator_count = sum(1 for indicator in code_indicators if indicator in value)
-        
-        if indicator_count == 0:
-            return False
-        
-        context_markers = [m for m in legitimate_markers if m in value_lower]
-        has_strong_context = len(context_markers) >= 2
-        
-        if has_strong_context:
-            return False
-        
-        has_markdown_blocks = value.count("```") >= 2
-        has_weak_context = len(context_markers) == 1
-        
-        if has_markdown_blocks and has_weak_context:
-            return False
-        
-        return True
-
-    def _contains_code_indicators(self, value: str) -> bool:
-        """
-        Check for code patterns in a string using sampling for efficiency.
-
-        For strings under 10KB, checks the entire content.
-        For longer strings, samples at strategic positions to balance
-        performance with detection accuracy.
-
-        Args:
-            value: The string to check for code indicators
-
-        Returns:
-            True if code indicators are found, False otherwise
-        """
-        code_indicators = [
-            # Python
-            "```python", "def ", "class ", "import ", "async def ", "from ",
-            # JavaScript/TypeScript
-            "function ", "const ", "let ", "=> {", "require(", "export ",
-            # SQL
-            "SELECT ", "INSERT ", "UPDATE ", "DELETE ", "DROP ",
-            # HTML/Script injection
-            "<script", "<?php", "<%",
-        ]
-
-        # For strings under 10KB, check the entire content
+        # For small strings (< 10KB)
         if len(value) < 10000:
-            return any(indicator in value for indicator in code_indicators)
-
-        # For longer strings, sample at strategic positions
+            value_lower = value.lower()
+            indicator_count = sum(1 for indicator in code_indicators if indicator in value)
+            
+            if indicator_count == 0:
+                return False
+            
+            context_markers = [m for m in legitimate_markers if m in value_lower]
+            has_strong_context = len(context_markers) >= 2
+            
+            if has_strong_context:
+                return False
+            
+            has_markdown_blocks = value.count("```") >= 2
+            has_weak_context = len(context_markers) == 1
+            
+            if has_markdown_blocks and has_weak_context:
+                return False
+            
+            return True
+        
+        # For large strings
         sample_positions = [
             0,                          # Start
             len(value) // 4,            # 25%
@@ -289,13 +263,36 @@ class SharedMemory:
             3 * len(value) // 4,        # 75%
             max(0, len(value) - 2000),  # Near end
         ]
-
+        
+        indicator_count = 0
+        context_marker_count = 0
+        markdown_blocks = 0
+        
         for pos in sample_positions:
             chunk = value[pos:pos + 2000]
-            if any(indicator in chunk for indicator in code_indicators):
-                return True
+            chunk_lower = chunk.lower()
+            
+            indicator_count += sum(1 for indicator in code_indicators if indicator in chunk)
+            context_marker_count += sum(1 for marker in legitimate_markers if marker in chunk_lower)
+            markdown_blocks += chunk.count("```")
+        
+        if indicator_count == 0:
+            return False
+        
+        has_strong_context = context_marker_count >= 2
+        
+        if has_strong_context:
+            return False
+        
+        has_markdown_blocks = markdown_blocks >= 2
+        has_weak_context = context_marker_count == 1
+        
+        if has_markdown_blocks and has_weak_context:
+            return False
+        
+        return True
 
-        return False
+
 
     def read_all(self) -> dict[str, Any]:
         """Read all accessible data."""
