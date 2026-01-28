@@ -7,9 +7,11 @@ to clean malformed outputs before they flow to the next node.
 This prevents cascading failures and dramatically improves execution success rates.
 """
 
+import hashlib
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -24,8 +26,23 @@ class CleansingConfig:
     fast_model: str = "cerebras/llama-3.3-70b"  # Fast, cheap model for cleaning
     max_retries: int = 2
     cache_successful_patterns: bool = True
+    cache_max_size: int = 100  # Maximum number of cached patterns
+    cache_ttl_seconds: int = 3600  # Cache entries expire after 1 hour
     fallback_to_raw: bool = True  # If cleaning fails, pass raw output
     log_cleanings: bool = True  # Log when cleansing happens
+
+
+@dataclass
+class CachedPattern:
+    """A cached successful cleansing pattern."""
+
+    source_node_id: str
+    target_node_id: str
+    error_signature: str  # Hash of validation errors
+    original_output: dict[str, Any]  # The raw output that was cleaned
+    cleaned_output: dict[str, Any]  # The successful cleaned result
+    created_at: float  # Timestamp for TTL tracking
+    hit_count: int = 0  # Number of times this pattern was reused
 
 
 @dataclass
@@ -78,9 +95,11 @@ class OutputCleaner:
                          will create a LiteLLMProvider with the configured fast_model.
         """
         self.config = config
-        self.success_cache: dict[str, Any] = {}  # Cache successful patterns
+        self.success_cache: dict[str, CachedPattern] = {}  # Cache successful patterns
         self.failure_count: dict[str, int] = {}  # Track edge failures
         self.cleansing_count = 0  # Track total cleanings performed
+        self.cache_hits = 0  # Track cache hits
+        self.cache_misses = 0  # Track cache misses
 
         # Initialize LLM provider for cleaning
         if llm_provider:
@@ -111,6 +130,192 @@ class OutputCleaner:
                 self.llm = None
         else:
             self.llm = None
+
+    def _make_cache_key(
+        self,
+        source_node_id: str,
+        target_node_id: str,
+        validation_errors: list[str],
+    ) -> str:
+        """
+        Create a cache key from the node transition and error signature.
+
+        The key combines:
+        - Source node ID
+        - Target node ID
+        - Hash of sorted validation errors (for pattern matching)
+        """
+        # Create a stable hash of the errors
+        error_str = "|".join(sorted(validation_errors))
+        error_hash = hashlib.md5(error_str.encode()).hexdigest()[:8]
+        return f"{source_node_id}→{target_node_id}:{error_hash}"
+
+    def _get_cached_pattern(
+        self,
+        source_node_id: str,
+        target_node_id: str,
+        validation_errors: list[str],
+        output: dict[str, Any],
+    ) -> CachedPattern | None:
+        """
+        Check if we have a cached pattern for this transition and errors.
+
+        Returns the cached pattern if found and not expired, otherwise None.
+        """
+        if not self.config.cache_successful_patterns:
+            return None
+
+        cache_key = self._make_cache_key(source_node_id, target_node_id, validation_errors)
+
+        if cache_key not in self.success_cache:
+            return None
+
+        pattern = self.success_cache[cache_key]
+
+        # Check TTL expiration
+        if time.time() - pattern.created_at > self.config.cache_ttl_seconds:
+            del self.success_cache[cache_key]
+            logger.debug(f"Cache entry expired: {cache_key}")
+            return None
+
+        # Check if output structure is similar enough to apply cached pattern
+        if self._outputs_similar(output, pattern.original_output):
+            return pattern
+
+        return None
+
+    def _outputs_similar(
+        self,
+        output1: dict[str, Any],
+        output2: dict[str, Any],
+    ) -> bool:
+        """
+        Check if two outputs have similar structure (same keys, similar types).
+
+        This determines if a cached cleaning pattern can be reused.
+        """
+        # Same keys check
+        if set(output1.keys()) != set(output2.keys()):
+            return False
+
+        # Check value types match
+        for key in output1.keys():
+            type1 = type(output1[key]).__name__
+            type2 = type(output2[key]).__name__
+            if type1 != type2:
+                return False
+
+        return True
+
+    def _cache_pattern(
+        self,
+        source_node_id: str,
+        target_node_id: str,
+        validation_errors: list[str],
+        original_output: dict[str, Any],
+        cleaned_output: dict[str, Any],
+    ) -> None:
+        """
+        Cache a successful cleansing pattern for future reuse.
+        """
+        if not self.config.cache_successful_patterns:
+            return
+
+        cache_key = self._make_cache_key(source_node_id, target_node_id, validation_errors)
+
+        # Enforce max cache size (LRU-style: remove oldest entries)
+        if len(self.success_cache) >= self.config.cache_max_size:
+            # Remove the oldest entry by created_at
+            oldest_key = min(
+                self.success_cache.keys(),
+                key=lambda k: self.success_cache[k].created_at
+            )
+            del self.success_cache[oldest_key]
+            logger.debug(f"Cache full, evicted oldest entry: {oldest_key}")
+
+        self.success_cache[cache_key] = CachedPattern(
+            source_node_id=source_node_id,
+            target_node_id=target_node_id,
+            error_signature=cache_key.split(":")[-1],
+            original_output=original_output.copy(),
+            cleaned_output=cleaned_output.copy(),
+            created_at=time.time(),
+            hit_count=0,
+        )
+
+        logger.debug(f"Cached cleansing pattern: {cache_key}")
+
+    def _apply_cached_pattern(
+        self,
+        output: dict[str, Any],
+        pattern: CachedPattern,
+    ) -> dict[str, Any]:
+        """
+        Apply a cached cleansing pattern to a new similar output.
+
+        This is a smart mapping: if the cached pattern shows how to transform
+        certain fields, we apply the same transformation logic.
+        """
+        # Update hit count
+        pattern.hit_count += 1
+        self.cache_hits += 1
+
+        # For simple cases, if the structure matches, we can apply the same field mappings
+        # This works well for common cases like nested JSON string extraction
+
+        cleaned = {}
+
+        for key in pattern.cleaned_output.keys():
+            if key in output:
+                original_val = pattern.original_output.get(key)
+                cleaned_val = pattern.cleaned_output.get(key)
+                current_val = output.get(key)
+
+                # Case 1: Original was a JSON string containing the key, cleaned extracted it
+                # e.g., original: '{"data": "value"}' -> cleaned: "value" (for key "data")
+                if isinstance(original_val, str) and isinstance(current_val, str):
+                    try:
+                        original_parsed = json.loads(original_val)
+                        current_parsed = json.loads(current_val)
+
+                        # Check if we extracted a nested field in the original cleaning
+                        if isinstance(original_parsed, dict) and key in original_parsed:
+                            if isinstance(current_parsed, dict) and key in current_parsed:
+                                # Same pattern: extract the nested key
+                                cleaned[key] = current_parsed[key]
+                                continue
+                    except json.JSONDecodeError:
+                        pass
+
+                # Case 2: Original was a JSON string and cleaned was a dict (parsed JSON)
+                if isinstance(original_val, str) and isinstance(cleaned_val, dict):
+                    if isinstance(current_val, str):
+                        try:
+                            parsed = json.loads(current_val)
+                            if isinstance(parsed, dict) and key in parsed:
+                                cleaned[key] = parsed[key]
+                            else:
+                                cleaned[key] = parsed
+                            continue
+                        except json.JSONDecodeError:
+                            pass
+
+                # Case 3: Same types - just use the current value
+                if type(original_val) == type(cleaned_val):
+                    cleaned[key] = current_val
+                else:
+                    # Type transformation happened, try to replicate
+                    cleaned[key] = current_val
+            else:
+                # Key not in current output but was in pattern - use pattern value as template
+                cleaned[key] = pattern.cleaned_output[key]
+
+        if self.config.log_cleanings:
+            logger.info(
+                f"⚡ Cache hit! Applied cached pattern (hit #{pattern.hit_count})"
+            )
+
+        return cleaned
 
     def validate_output(
         self,
@@ -201,6 +406,9 @@ class OutputCleaner:
         """
         Use fast LLM to clean malformed output.
 
+        First checks for a cached pattern from a previous similar cleaning.
+        If no cache hit, uses the LLM and caches the successful result.
+
         Args:
             output: Raw output from source node
             source_node_id: ID of source node
@@ -216,6 +424,21 @@ class OutputCleaner:
         if not self.config.enabled:
             logger.warning("⚠ Output cleansing disabled in config")
             return output
+
+        # Check cache first - avoid LLM call if we've seen this pattern before
+        cached_pattern = self._get_cached_pattern(
+            source_node_id=source_node_id,
+            target_node_id=target_node_spec.id,
+            validation_errors=validation_errors,
+            output=output,
+        )
+
+        if cached_pattern is not None:
+            # Cache hit! Apply the cached transformation
+            return self._apply_cached_pattern(output, cached_pattern)
+
+        # Cache miss - need to use LLM
+        self.cache_misses += 1
 
         if not self.llm:
             logger.warning("⚠ No LLM provider available for cleansing")
@@ -272,6 +495,16 @@ Return ONLY valid JSON matching the expected schema. No explanations, no markdow
 
             if isinstance(cleaned, dict):
                 self.cleansing_count += 1
+
+                # Cache this successful pattern for future reuse
+                self._cache_pattern(
+                    source_node_id=source_node_id,
+                    target_node_id=target_node_spec.id,
+                    validation_errors=validation_errors,
+                    original_output=output,
+                    cleaned_output=cleaned,
+                )
+
                 if self.config.log_cleanings:
                     logger.info(
                         f"✓ Output cleaned successfully (total cleanings: {self.cleansing_count})"
@@ -355,9 +588,21 @@ Return ONLY valid JSON matching the expected schema. No explanations, no markdow
         return True
 
     def get_stats(self) -> dict[str, Any]:
-        """Get cleansing statistics."""
+        """Get cleansing statistics including cache performance."""
+        total_requests = self.cache_hits + self.cache_misses
+        hit_rate = (self.cache_hits / total_requests * 100) if total_requests > 0 else 0.0
+
         return {
             "total_cleanings": self.cleansing_count,
             "failure_count": dict(self.failure_count),
             "cache_size": len(self.success_cache),
+            "cache_hits": self.cache_hits,
+            "cache_misses": self.cache_misses,
+            "cache_hit_rate": f"{hit_rate:.1f}%",
+            "llm_calls_saved": self.cache_hits,  # Each cache hit saves an LLM call
         }
+
+    def clear_cache(self) -> None:
+        """Clear the pattern cache."""
+        self.success_cache.clear()
+        logger.info("🗑️ Output cleaner cache cleared")
