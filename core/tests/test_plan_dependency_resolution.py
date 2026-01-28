@@ -6,7 +6,6 @@ instead of hanging indefinitely.
 """
 
 import pytest
-from datetime import datetime
 
 from framework.graph.plan import (
     Plan,
