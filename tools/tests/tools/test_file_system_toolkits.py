@@ -1,8 +1,9 @@
 """Tests for file_system_toolkits tools (FastMCP)."""
 
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from fastmcp import FastMCP
 
 
@@ -545,7 +546,11 @@ class TestExecuteCommandTool:
 
     def test_execute_simple_command(self, execute_command_fn, mock_workspace, mock_secure_path):
         """Executing a simple command returns output."""
-        with patch("aden_tools.tools.file_system_toolkits.execute_command_tool.execute_command_tool.subprocess.run") as mock_run:
+        target = (
+            "aden_tools.tools.file_system_toolkits.execute_command_tool."
+            "execute_command_tool.subprocess.run"
+        )
+        with patch(target) as mock_run:
             mock_run.return_value = MagicMock(stdout="Hello World", stderr="", returncode=0)
 
             result = execute_command_fn(command="echo 'Hello World'", **mock_workspace)
@@ -556,7 +561,11 @@ class TestExecuteCommandTool:
 
     def test_execute_failing_command(self, execute_command_fn, mock_workspace, mock_secure_path):
         """Executing a failing command returns non-zero exit code."""
-        with patch("aden_tools.tools.file_system_toolkits.execute_command_tool.execute_command_tool.subprocess.run") as mock_run:
+        target = (
+            "aden_tools.tools.file_system_toolkits.execute_command_tool."
+            "execute_command_tool.subprocess.run"
+        )
+        with patch(target) as mock_run:
             mock_run.return_value = MagicMock(stdout="", stderr="Error", returncode=1)
 
             result = execute_command_fn(command="exit 1", **mock_workspace)
@@ -568,7 +577,11 @@ class TestExecuteCommandTool:
         self, execute_command_fn, mock_workspace, mock_secure_path
     ):
         """Executing a command that writes to stderr captures it."""
-        with patch("aden_tools.tools.file_system_toolkits.execute_command_tool.execute_command_tool.subprocess.run") as mock_run:
+        target = (
+            "aden_tools.tools.file_system_toolkits.execute_command_tool."
+            "execute_command_tool.subprocess.run"
+        )
+        with patch(target) as mock_run:
             mock_run.return_value = MagicMock(stdout="", stderr="error message", returncode=0)
 
             result = execute_command_fn(command="echo 'error message' >&2", **mock_workspace)
@@ -583,7 +596,11 @@ class TestExecuteCommandTool:
         # Create a test file
         (tmp_path / "testfile.txt").write_text("content")
 
-        with patch("aden_tools.tools.file_system_toolkits.execute_command_tool.execute_command_tool.subprocess.run") as mock_run:
+        target = (
+            "aden_tools.tools.file_system_toolkits.execute_command_tool."
+            "execute_command_tool.subprocess.run"
+        )
+        with patch(target) as mock_run:
             mock_run.return_value = MagicMock(stdout="testfile.txt", stderr="", returncode=0)
 
             result = execute_command_fn(command=f"ls {tmp_path}", **mock_workspace)
@@ -594,10 +611,17 @@ class TestExecuteCommandTool:
 
     def test_execute_command_with_pipe(self, execute_command_fn, mock_workspace, mock_secure_path):
         """Executing a command with pipe works correctly."""
-        with patch("aden_tools.tools.file_system_toolkits.execute_command_tool.execute_command_tool.subprocess.run") as mock_run:
+        target = (
+            "aden_tools.tools.file_system_toolkits.execute_command_tool."
+            "execute_command_tool.subprocess.run"
+        )
+        with patch(target) as mock_run:
             mock_run.return_value = MagicMock(stdout="HELLO WORLD", stderr="", returncode=0)
 
-            result = execute_command_fn(command="echo 'hello world' | tr 'a-z' 'A-Z'", **mock_workspace)
+            result = execute_command_fn(
+                command="echo 'hello world' | tr 'a-z' 'A-Z'",
+                **mock_workspace
+            )
 
             assert result["success"] is True
             assert result["return_code"] == 0
