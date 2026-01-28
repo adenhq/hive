@@ -639,7 +639,7 @@ class LLMNode(NodeProtocol):
                                 ctx.memory.write(key, ctx.input_data[key])
                                 output[key] = ctx.input_data[key]
                             else:
-                                # Key not in parsed JSON or input,
+                                # Key not in parsed JSON or inputs
                                 # write the whole response (stripped)
                                 stripped_content = self._strip_code_blocks(
                                     response.content
