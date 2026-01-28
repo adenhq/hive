@@ -192,11 +192,11 @@ class CodeSandbox:
     Usage:
         sandbox = CodeSandbox(timeout_seconds=5)
         result = sandbox.execute(
-            code="x = 1 + 2\\nresult = x * 3",
+            code="x = 1 + 2\nresult = x * 3",
             inputs={"multiplier": 2},
         )
         if result.success:
-            print(result.variables["result"])  # 6
+            
     """
 
     def __init__(
