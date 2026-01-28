@@ -1,0 +1,36 @@
+{
+  "goal": {
+    "goal_id": "handle_support_ticket",
+    "name": "Support Ticket Handler",
+    "description": "Analyzes customer support tickets and generates appropriate responses.",
+    "success_criteria": "The ticket is correctly categorized, priority is assigned, and a draft response is generated."
+  },
+  "nodes": [
+    {
+      "node_id": "analyze_ticket",
+      "name": "Analyze Ticket",
+      "description": "Analyzes the sentiment and priority of the ticket",
+      "node_type": "llm_generate",
+      "system_prompt": "You are a senior support agent. Analyze the incoming ticket content. Determine the 'category' (Billing, Technical, Account, or Other), the 'priority' (High, Medium, Low), and the customer 'sentiment' (Positive, Neutral, Negative). Output ONLY valid JSON.",
+      "input_keys": ["ticket_content"],
+      "output_keys": ["category", "priority", "sentiment"]
+    },
+    {
+      "node_id": "draft_response",
+      "name": "Draft Response",
+      "description": "Drafts a polite response based on analysis",
+      "node_type": "llm_generate",
+      "system_prompt": "You are a helpful support agent. Draft a polite and professional response to the customer based on their issue and the analyzed priority. If priority is High, be empathetic and urgent. If sentiment is Negative, apologize sincerely.",
+      "input_keys": ["ticket_content", "category", "priority", "sentiment"],
+      "output_keys": ["response_draft"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "analyze_to_draft",
+      "source": "analyze_ticket",
+      "target": "draft_response",
+      "condition": "on_success"
+    }
+  ]
+}
