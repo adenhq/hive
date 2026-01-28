@@ -12,57 +12,66 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { parse } from 'yaml';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { z } from 'zod'; 
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '..');
 
-interface Config {
-  app: {
-    name: string;
-    environment: string;
-    log_level: string;
-  };
-  server: {
-    frontend: {
-      port: number;
-    };
-    backend: {
-      port: number;
-      host: string;
-    };
-  };
-  timescaledb: {
-    url: string;
-    port: number;
-  };
-  mongodb: {
-    url: string;
-    database: string;
-    erp_database: string;
-    port: number;
-  };
-  redis: {
-    url: string;
-    port: number;
-  };
-  auth: {
-    jwt_secret: string;
-    jwt_expires_in: string;
-    passphrase: string;
-  };
-  npm: {
-    token: string;
-  };
-  cors: {
-    origin: string;
-  };
-  features: {
-    registration: boolean;
-    rate_limiting: boolean;
-    request_logging: boolean;
-    mcp_server: boolean;
-  };
-}
+// ------------------------------------------------------------------
+// 1. Define the Validation Schema
+// ------------------------------------------------------------------
+const ConfigSchema = z.object({
+  app: z.object({
+    name: z.string().min(1, "App name is required"),
+    environment: z.enum(['development', 'production', 'test']).default('development'),
+    log_level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  }),
+  server: z.object({
+    frontend: z.object({
+      port: z.number().int().min(1).max(65535, "Invalid frontend port"),
+    }),
+    backend: z.object({
+      port: z.number().int().min(1).max(65535, "Invalid backend port"),
+      host: z.string().default('0.0.0.0'),
+    }),
+  }),
+  timescaledb: z.object({
+    url: z.string().url("Invalid TimescaleDB URL"),
+    port: z.number().int().min(1).max(65535),
+  }),
+  mongodb: z.object({
+    url: z.string().min(1, "MongoDB URL is required"),
+    database: z.string().min(1),
+    erp_database: z.string().min(1),
+    port: z.number().int().min(1).max(65535),
+  }),
+  redis: z.object({
+    url: z.string().min(1, "Redis URL is required"),
+    port: z.number().int().min(1).max(65535),
+  }),
+  auth: z.object({
+    jwt_secret: z.string().min(8, "JWT secret must be at least 8 chars"),
+    jwt_expires_in: z.string(),
+    passphrase: z.string().min(8, "Passphrase must be at least 8 chars"),
+  }),
+  npm: z.object({
+    token: z.string().optional().default(''),
+  }),
+  cors: z.object({
+    origin: z.string().min(1),
+  }),
+  features: z.object({
+    registration: z.boolean(),
+    rate_limiting: z.boolean(),
+    request_logging: z.boolean(),
+    mcp_server: z.boolean(),
+  }),
+});
+
+// ------------------------------------------------------------------
+// 2. Infer Type from Schema (Single Source of Truth)
+// ------------------------------------------------------------------
+type Config = z.infer<typeof ConfigSchema>;
 
 function loadConfig(): Config {
   const configPath = join(PROJECT_ROOT, 'config.yaml');
@@ -73,8 +82,25 @@ function loadConfig(): Config {
     process.exit(1);
   }
 
-  const configContent = readFileSync(configPath, 'utf-8');
-  return parse(configContent) as Config;
+  try {
+    const configContent = readFileSync(configPath, 'utf-8');
+    const rawConfig = parse(configContent);
+
+    // ------------------------------------------------------------------
+    // 3. Validate Data
+    // ------------------------------------------------------------------
+    return ConfigSchema.parse(rawConfig);
+
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      console.error('\nConfiguration Validation Failed:');
+      error.issues.forEach((err: any) => {
+        console.error(`   -> [${err.path.join('.')}] ${err.message}`);
+      });
+      process.exit(1);
+    }
+    throw error;
+  }
 }
 
 function generateRootEnv(config: Config): string {
@@ -105,7 +131,7 @@ JWT_SECRET=${config.auth.jwt_secret}
 PASSPHRASE=${config.auth.passphrase}
 
 # NPM (for Docker builds with private packages)
-NPM_TOKEN=${config.npm.token}
+NPM_TOKEN=${config.npm.token || ''}
 
 # CORS
 CORS_ORIGIN=${config.cors.origin}
@@ -154,9 +180,19 @@ FEATURE_MCP_SERVER=${config.features.mcp_server}
 }
 
 function main() {
-  console.log('Generating environment files from config.yaml...\n');
+  // Check for --dry-run flag
+  const isDryRun = process.argv.includes('--dry-run');
 
-  const config = loadConfig();
+  console.log(`Generating environment files from config.yaml...${isDryRun ? ' (DRY RUN)' : ''}\n`);
+
+  // This will throw and exit(1) if invalid, effectively testing the config
+  const config = loadConfig(); 
+
+  if (isDryRun) {
+    console.log('Configuration is valid!');
+    console.log('Skipping file generation (dry-run mode).');
+    return; // Stop here, don't write files
+  }
 
   // Generate root .env (for docker-compose)
   const rootEnvPath = join(PROJECT_ROOT, '.env');
@@ -176,5 +212,4 @@ function main() {
   console.log('\nDone! Environment files have been generated.');
   console.log('\nNote: These files are git-ignored. Regenerate after editing config.yaml.');
 }
-
 main();
