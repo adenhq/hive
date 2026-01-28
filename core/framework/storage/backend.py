@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 
 from framework.schemas.run import Run, RunStatus, RunSummary
+from framework.storage.file_lock import atomic_write_json, file_lock
 
 
 class FileStorage:
@@ -138,31 +139,41 @@ class FileStorage:
 
     # === INDEX OPERATIONS ===
 
-    def _get_index(self, index_type: str, key: str) -> list[str]:
-        """Get values from an index."""
-        index_path = self.base_path / "indexes" / index_type / f"{key}.json"
+    def _index_lock_path(self, index_path: Path) -> Path:
+        return index_path.with_suffix(index_path.suffix + ".lock")
+
+    def _read_index_unlocked(self, index_path: Path) -> list[str]:
         if not index_path.exists():
             return []
         with open(index_path) as f:
             return json.load(f)
 
+    def _get_index(self, index_type: str, key: str) -> list[str]:
+        """Get values from an index."""
+        index_path = self.base_path / "indexes" / index_type / f"{key}.json"
+        lock_path = self._index_lock_path(index_path)
+        with file_lock(lock_path):
+            return self._read_index_unlocked(index_path)
+
     def _add_to_index(self, index_type: str, key: str, value: str) -> None:
         """Add a value to an index."""
         index_path = self.base_path / "indexes" / index_type / f"{key}.json"
-        values = self._get_index(index_type, key)
-        if value not in values:
-            values.append(value)
-            with open(index_path, "w") as f:
-                json.dump(values, f)
+        lock_path = self._index_lock_path(index_path)
+        with file_lock(lock_path):
+            values = self._read_index_unlocked(index_path)
+            if value not in values:
+                values.append(value)
+                atomic_write_json(index_path, values)
 
     def _remove_from_index(self, index_type: str, key: str, value: str) -> None:
         """Remove a value from an index."""
         index_path = self.base_path / "indexes" / index_type / f"{key}.json"
-        values = self._get_index(index_type, key)
-        if value in values:
-            values.remove(value)
-            with open(index_path, "w") as f:
-                json.dump(values, f)
+        lock_path = self._index_lock_path(index_path)
+        with file_lock(lock_path):
+            values = self._read_index_unlocked(index_path)
+            if value in values:
+                values.remove(value)
+                atomic_write_json(index_path, values)
 
     # === UTILITY ===
 
