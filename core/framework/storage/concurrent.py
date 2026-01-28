@@ -63,6 +63,7 @@ class ConcurrentStorage:
         batch_interval: float = 0.1,
         max_batch_size: int = 100,
         max_locks: int = 1000,
+        max_cache_size: int = 1000,
     ):
         """
         Initialize concurrent storage.
@@ -78,8 +79,9 @@ class ConcurrentStorage:
         self._base_storage = FileStorage(base_path)
 
         # Caching
-        self._cache: dict[str, CacheEntry] = {}
+        self._cache: OrderedDict[str, CacheEntry] = OrderedDict()
         self._cache_ttl = cache_ttl
+        self._max_cache_size = max_cache_size
 
         # Batching
         self._write_queue: asyncio.Queue = asyncio.Queue()
@@ -173,7 +175,7 @@ class ConcurrentStorage:
             await self._write_queue.put(("run", run))
 
         # Update cache
-        self._cache[f"run:{run.id}"] = CacheEntry(run, time.time())
+        self._set_cache(f"run:{run.id}", run)
 
     async def _save_run_locked(self, run: Run) -> None:
         """Save a run with file locking, including index locks."""
@@ -225,12 +227,18 @@ class ConcurrentStorage:
         if use_cache:
             cache_key = f"run:{run_id}"
             cached = self._cache.get(cache_key)
-            if cached and not cached.is_expired(self._cache_ttl):
-                # CRITICAL: Touch LRU even on cache hit
-                lock_key = f"run:{run_id}"
-                if lock_key in self._lru_tracking:
-                    self._lru_tracking.move_to_end(lock_key)
-                return cached.value
+            if cached:
+                if cached.is_expired(self._cache_ttl):
+                    # Remove expired entry so cache doesn't grow unbounded
+                    self._cache.pop(cache_key, None)
+                else:
+                    # Touch cache LRU on hit
+                    self._cache.move_to_end(cache_key)
+                    # CRITICAL: Touch lock LRU even on cache hit
+                    lock_key = f"run:{run_id}"
+                    if lock_key in self._lru_tracking:
+                        self._lru_tracking.move_to_end(lock_key)
+                    return cached.value
 
         # CRITICAL: Acquire lock to trigger LRU update
         lock_key = f"run:{run_id}"
@@ -240,7 +248,7 @@ class ConcurrentStorage:
 
         # Update cache
         if run:
-            self._cache[f"run:{run_id}"] = CacheEntry(run, time.time())
+            self._set_cache(f"run:{run_id}", run)
 
         return run
 
@@ -251,7 +259,11 @@ class ConcurrentStorage:
         # Check cache
         if use_cache and cache_key in self._cache:
             entry = self._cache[cache_key]
-            if not entry.is_expired(self._cache_ttl):
+            if entry.is_expired(self._cache_ttl):
+                # Remove expired entry so cache doesn't grow unbounded
+                self._cache.pop(cache_key, None)
+            else:
+                self._cache.move_to_end(cache_key)
                 return entry.value
 
         # Load from storage
@@ -262,7 +274,7 @@ class ConcurrentStorage:
 
         # Update cache
         if summary:
-            self._cache[cache_key] = CacheEntry(summary, time.time())
+            self._set_cache(cache_key, summary)
 
         return summary
 
@@ -380,6 +392,39 @@ class ConcurrentStorage:
             await self._flush_batch(batch)
 
     # === CACHE MANAGEMENT ===
+
+    def _cleanup_expired_cache(self) -> int:
+        """Remove expired entries from the cache.
+
+        Returns:
+            Number of entries removed.
+        """
+        expired_keys = [
+            key
+            for key, entry in self._cache.items()
+            if entry.is_expired(self._cache_ttl)
+        ]
+
+        for key in expired_keys:
+            self._cache.pop(key, None)
+
+        if expired_keys:
+            logger.debug(f"Cleaned up {len(expired_keys)} expired cache entries")
+
+        return len(expired_keys)
+
+    def _set_cache(self, key: str, value: Any) -> None:
+        """Insert or update a cache entry with LRU + TTL cleanup."""
+        # First remove expired entries
+        self._cleanup_expired_cache()
+
+        # Insert / update value and mark as most recently used
+        self._cache[key] = CacheEntry(value, time.time())
+        self._cache.move_to_end(key)
+
+        # Enforce max cache size (LRU eviction)
+        while len(self._cache) > self._max_cache_size:
+            self._cache.popitem(last=False)
 
     def clear_cache(self) -> None:
         """Clear all cached values."""
