@@ -13,7 +13,17 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
+
+
+class StrictBaseModel(BaseModel):
+    """Base model with strict type validation.
+
+    Note: extra='allow' is used to accommodate @computed_field properties
+    which are serialized but not part of the model signature.
+    """
+
+    model_config = ConfigDict(strict=True, extra="allow")
 
 
 class DecisionType(str, Enum):
@@ -29,7 +39,7 @@ class DecisionType(str, Enum):
     CUSTOM = "custom"  # User-defined decision type
 
 
-class Option(BaseModel):
+class Option(StrictBaseModel):
     """
     One possible choice the agent could make.
 
@@ -49,10 +59,8 @@ class Option(BaseModel):
     # Agent's confidence in this option (0-1)
     confidence: float = 0.5
 
-    model_config = {"extra": "allow"}
 
-
-class Outcome(BaseModel):
+class Outcome(StrictBaseModel):
     """
     What actually happened when a decision was executed.
 
@@ -74,10 +82,8 @@ class Outcome(BaseModel):
 
     timestamp: datetime = Field(default_factory=datetime.now)
 
-    model_config = {"extra": "allow"}
 
-
-class DecisionEvaluation(BaseModel):
+class DecisionEvaluation(StrictBaseModel):
     """
     Post-hoc evaluation of whether a decision was good.
 
@@ -103,10 +109,8 @@ class DecisionEvaluation(BaseModel):
     # Explanation for Builder
     explanation: str = ""
 
-    model_config = {"extra": "allow"}
 
-
-class Decision(BaseModel):
+class Decision(StrictBaseModel):
     """
     The atomic unit of agent behavior that Builder analyzes.
 
@@ -144,8 +148,6 @@ class Decision(BaseModel):
 
     # Was this a GOOD decision? (Evaluated later)
     evaluation: DecisionEvaluation | None = None
-
-    model_config = {"extra": "allow"}
 
     @computed_field
     @property
