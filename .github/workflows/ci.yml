@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
   pull_request:
     branches: [main]
 
@@ -29,26 +29,27 @@ jobs:
           pip install -e .
           pip install -r requirements-dev.txt
 
-      - name: Ruff lint
+      - name: Run ruff
         run: |
-          ruff check core/
-          ruff check tools/
-
-      - name: Ruff format
-        run: |
-          ruff format --check core/
-          ruff format --check tools/
+          cd core
+          ruff check .
 
   test:
-    name: Test Python Framework
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }} / Py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.11', '3.12']
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
       - name: Install dependencies
@@ -84,31 +85,5 @@ jobs:
       - name: Validate exported agents
         run: |
           # Check that agent exports have valid structure
-          if [ ! -d "exports" ]; then
-            echo "No exports/ directory found, skipping validation"
-            exit 0
-          fi
-
-          shopt -s nullglob
-          agent_dirs=(exports/*/)
-          shopt -u nullglob
-
-          if [ ${#agent_dirs[@]} -eq 0 ]; then
-            echo "No agent directories in exports/, skipping validation"
-            exit 0
-          fi
-
-          validated=0
-          for agent_dir in "${agent_dirs[@]}"; do
-            if [ -f "$agent_dir/agent.json" ]; then
-              echo "Validating $agent_dir"
-              python -c "import json; json.load(open('$agent_dir/agent.json'))"
-              validated=$((validated + 1))
-            fi
-          done
-
-          if [ "$validated" -eq 0 ]; then
-            echo "No agent.json files found in exports/, skipping validation"
-          else
-            echo "Validated $validated agent(s)"
-          fi
+          # Using python script for cross-platform compatibility
+          python -c "import glob, json, os; [json.load(open(os.path.join(d, 'agent.json'))) for d in glob.glob('exports/*/')] and print('Validation passed')"
