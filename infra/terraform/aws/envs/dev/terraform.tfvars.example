@@ -1,0 +1,27 @@
+aws_region         = "us-east-1"
+name_prefix        = "hive-dev"
+
+vpc_id             = "vpc-0123456789abcdef0"
+public_subnet_ids  = ["subnet-0123456789abcdef0", "subnet-0123456789abcdef1"]
+private_subnet_ids = ["subnet-0123456789abcdef2", "subnet-0123456789abcdef3"]
+
+image              = "123456789012.dkr.ecr.us-east-1.amazonaws.com/hive:latest"
+container_port     = 4000
+health_check_path  = "/health"
+
+cpu           = 512
+memory        = 1024
+desired_count = 1
+
+env_vars = {
+  NODE_ENV = "production"
+}
+
+secrets = [
+  {
+    name = "ANTHROPIC_API_KEY"
+    arn  = "arn:aws:secretsmanager:us-east-1:123456789012:secret:anthropic"
+  }
+]
+
+log_retention_days = 14
