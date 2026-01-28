@@ -9,9 +9,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from framework.schemas.decision import Decision, Outcome
+from framework.schemas.decision import Decision, Outcome, StrictBaseModel
 
 
 class RunStatus(str, Enum):
@@ -24,7 +24,7 @@ class RunStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class Problem(BaseModel):
+class Problem(StrictBaseModel):
     """
     A problem that occurred during the run.
 
@@ -39,10 +39,8 @@ class Problem(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
     suggested_fix: str | None = None
 
-    model_config = {"extra": "allow"}
 
-
-class RunMetrics(BaseModel):
+class RunMetrics(StrictBaseModel):
     """Quantitative metrics about a run."""
 
     total_decisions: int = 0
@@ -62,10 +60,8 @@ class RunMetrics(BaseModel):
             return 0.0
         return self.successful_decisions / self.total_decisions
 
-    model_config = {"extra": "allow"}
 
-
-class Run(BaseModel):
+class Run(StrictBaseModel):
     """
     A complete execution of an agent graph.
 
@@ -96,8 +92,6 @@ class Run(BaseModel):
     goal_description: str = ""
     input_data: dict[str, Any] = Field(default_factory=dict)
     output_data: dict[str, Any] = Field(default_factory=dict)
-
-    model_config = {"extra": "allow"}
 
     @computed_field
     @property
@@ -189,7 +183,7 @@ class Run(BaseModel):
         return " ".join(parts)
 
 
-class RunSummary(BaseModel):
+class RunSummary(StrictBaseModel):
     """
     A condensed view of a run for Builder to quickly scan.
 
@@ -218,8 +212,6 @@ class RunSummary(BaseModel):
 
     # What worked
     successes: list[str] = Field(default_factory=list)
-
-    model_config = {"extra": "allow"}
 
     @classmethod
     def from_run(cls, run: Run) -> "RunSummary":
