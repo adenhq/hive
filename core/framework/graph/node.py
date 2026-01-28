@@ -248,7 +248,7 @@ class SharedMemory:
                     mid = length // 2
                     middle_window = value[mid - 500 : mid + 500]
                     end_window = value[-1000:]
-                    
+
                     if (
                         any(i in start_window for i in code_indicators)
                         or any(i in middle_window for i in code_indicators)
