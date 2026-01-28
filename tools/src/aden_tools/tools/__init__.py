@@ -22,7 +22,7 @@ from .example_tool import register_tools as register_example
 from .web_search_tool import register_tools as register_web_search
 from .web_scrape_tool import register_tools as register_web_scrape
 from .pdf_read_tool import register_tools as register_pdf_read
-
+from .llm_json_cleaner import register_tools as register_llm_json_cleaner
 # Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
@@ -54,6 +54,7 @@ def register_all_tools(
     register_web_search(mcp)
     register_web_scrape(mcp)
     register_pdf_read(mcp)
+    register_llm_json_cleaner(mcp)
 
     # Tools that need credentials (pass credentials if provided)
     register_web_search(mcp, credentials=credentials)
@@ -67,12 +68,13 @@ def register_all_tools(
     register_apply_patch(mcp)
     register_grep_search(mcp)
     register_execute_command(mcp)
-
+   
     return [
         "example_tool",
         "web_search",
         "web_scrape",
         "pdf_read",
+        "llm_json_cleaner",
         "view_file",
         "write_to_file",
         "list_dir",
