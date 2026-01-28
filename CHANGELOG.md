@@ -25,8 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - N/A
 
+
 ### Fixed
 - Runtime argument validation for tool execution to prevent TypeErrors when LLM provides malformed arguments (#168)
+- tools: Fixed web_scrape tool attempting to parse non-HTML content (PDF, JSON) as HTML (#487)
 
 ### Security
 - N/A
