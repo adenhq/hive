@@ -12,7 +12,10 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from framework.storage.concurrent import ConcurrentStorage
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +78,13 @@ class SharedStateManager:
         value = await memory.read("customer_id")
     """
 
-    def __init__(self):
+    def __init__(self, storage: ConcurrentStorage | None = None):
+        """
+        Initialize shared state manager.
+
+        Args:
+            storage: Optional storage backend for persistence
+        """
         # State storage at each level
         self._global_state: dict[str, Any] = {}
         self._stream_state: dict[str, dict[str, Any]] = {}  # stream_id -> {key: value}
@@ -92,6 +101,9 @@ class SharedStateManager:
 
         # Version tracking
         self._version = 0
+
+        # Storage backend for persistence
+        self._storage: ConcurrentStorage | None = storage
 
     def create_memory(
         self,
@@ -341,6 +353,48 @@ class SharedStateManager:
     def get_recent_changes(self, limit: int = 10) -> list[StateChange]:
         """Get recent state changes."""
         return self._change_history[-limit:]
+
+    # === PERSISTENCE OPERATIONS ===
+
+    async def _persist_scope(self, scope: str, id: str) -> None:
+        """
+        Persist a state scope to disk asynchronously.
+
+        Only persists state if the scope actually exists in memory to prevent
+        overwriting existing disk state with empty dictionaries.
+
+        Args:
+            scope: State scope ("global", "stream", or "execution")
+            id: Scope identifier (empty string for global)
+        """
+        if not self._storage:
+            return
+
+        try:
+            # Get current state for the scope
+            if scope == "global":
+                state_data = self._global_state.copy()
+            elif scope == "stream":
+                # Skip persistence if scope doesn't exist in memory
+                if id not in self._stream_state:
+                    logger.debug(f"Skipping persistence for {scope}: {id} - not in memory")
+                    return
+                state_data = self._stream_state[id].copy()
+            elif scope == "execution":
+                # Skip persistence if scope doesn't exist in memory
+                if id not in self._execution_state:
+                    logger.debug(f"Skipping persistence for {scope}: {id} - not in memory")
+                    return
+                state_data = self._execution_state[id].copy()
+            else:
+                return
+
+            # Only persist if we have actual state data
+            if state_data:
+                # Save to disk (uses batch writer for performance)
+                await self._storage.save_state(scope, id, state_data, immediate=False)
+        except Exception as e:
+            logger.warning(f"Failed to persist {scope} state for {id}: {e}")
 
 
 class StreamMemory:

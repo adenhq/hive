@@ -311,6 +311,52 @@ class ConcurrentStorage:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._base_storage.list_all_goals)
 
+    # === STATE OPERATIONS ===
+
+    async def save_state(
+        self, scope: str, id: str, state_data: dict, immediate: bool = False
+    ) -> None:
+        """
+        Save state data for a scope.
+
+        Args:
+            scope: State scope ("global", "stream", or "execution")
+            id: Scope identifier (empty string for global)
+            state_data: State data dictionary to save
+            immediate: If True, save immediately (bypasses batching)
+        """
+        if immediate or not self._running:
+            await self._save_state_locked(scope, id, state_data)
+        else:
+            await self._write_queue.put(("state", (scope, id, state_data)))
+
+    async def _save_state_locked(self, scope: str, id: str, state_data: dict) -> None:
+        """Save state with file locking."""
+        lock_key = f"state:{scope}:{id}"
+        async with await self._get_lock(lock_key):
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None, self._base_storage.save_state, scope, id, state_data
+            )
+
+    async def load_state(self, scope: str, id: str) -> dict | None:
+        """
+        Load state data for a scope.
+
+        Args:
+            scope: State scope ("global", "stream", or "execution")
+            id: Scope identifier (empty string for global)
+
+        Returns:
+            State data dictionary or None if not found
+        """
+        lock_key = f"state:{scope}:{id}"
+        async with await self._get_lock(lock_key):
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(
+                None, self._base_storage.load_state, scope, id
+            )
+
     # === BATCH OPERATIONS ===
 
     async def _batch_writer(self) -> None:
@@ -363,6 +409,9 @@ class ConcurrentStorage:
             try:
                 if item_type == "run":
                     await self._save_run_locked(item)
+                elif item_type == "state":
+                    scope, id, state_data = item
+                    await self._save_state_locked(scope, id, state_data)
             except Exception as e:
                 logger.error(f"Failed to save {item_type}: {e}")
 
