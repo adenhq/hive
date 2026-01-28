@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple, Optional, Union
 from collections import deque
 from pydantic import BaseModel, ValidationError
 
@@ -92,16 +92,21 @@ class GraphValidator:
 
     def validate_output_keys(
         self, 
-        output: Dict[str, Any], 
-        expected_keys: List[str], 
+        output: dict[str, Any], 
+        expected_keys: list[str], 
         max_length: int = 5000,
-        allow_empty: bool = False
+        allow_empty: bool = False,
+        nullable_keys: list[str] | None = None,
     ) -> ValidationResult:
-        """Valida chaves obrigatórias, tamanho, conteúdo vazio e segurança."""
+        """
+        Valida chaves obrigatórias, tamanho, conteúdo vazio, segurança e nulidade.
+        """
         if not isinstance(output, dict):
             return ValidationResult(False, [f"Output must be dict, got {type(output).__name__}"])
 
         errors = []
+        nullable_keys = nullable_keys or []
+
         for key in expected_keys:
             if key not in output:
                 errors.append(f"Missing required output key: '{key}'")
@@ -110,18 +115,24 @@ class GraphValidator:
             value = output[key]
             val_str = str(value)
 
-            # Verificação de segurança (Sua feature)
+            # 1. Verificação de Nulidade
+            if value is None:
+                if key not in nullable_keys:
+                    errors.append(f"Output key '{key}' is None")
+                continue
+
+            # 2. Verificação de Segurança (Injeção de código)
             if self._contains_code_indicators(val_str):
                 logger.warning(f"Security Warning: Key '{key}' may contain code indicators.")
 
-            # Verificação de tamanho
+            # 3. Verificação de tamanho
             if len(val_str) > max_length:
                 errors.append(f"Key '{key}' exceeds max length ({len(val_str)} > {max_length})")
 
-            # Verificação de vazio (Padrão main)
+            # 4. Verificação de vazio
             if not allow_empty:
-                if value is None or (isinstance(value, str) and not value.strip()):
-                    errors.append(f"Output key '{key}' cannot be empty")
+                if isinstance(value, str) and not value.strip():
+                    errors.append(f"Output key '{key}' is empty string")
 
         return ValidationResult(success=len(errors) == 0, errors=errors)
 
@@ -137,19 +148,65 @@ class GraphValidator:
             return ValidationResult(False, errors), None
 
     def validate_no_hallucination(
-        self, output: Dict[str, Any], max_length: int = 10000
+        self, output: dict[str, Any], max_length: int = 10000
     ) -> ValidationResult:
-        """Verifica sinais de alucinação em valores de string."""
+        """Verifica sinais de alucinação e padrões de código em strings."""
         errors = []
         for key, value in output.items():
             if not isinstance(value, str):
                 continue
             
             if len(value) > max_length:
-                errors.append(f"Hallucination check: Key '{key}' value too long ({len(value)} chars)")
+                errors.append(f"Output key '{key}' exceeds max length ({len(value)} > {max_length})")
             
             if self._contains_code_indicators(value):
                 # No contexto de alucinação, código onde deveria ser texto é red flag
                 logger.debug(f"Possible hallucination in '{key}': code pattern detected.")
         
-        return ValidationResult(len(errors) == 0, errors)
+        return ValidationResult(success=len(errors) == 0, errors=errors)
+
+    def validate_schema(
+        self,
+        output: dict[str, Any],
+        schema: dict[str, Any],
+    ) -> ValidationResult:
+        """Valida a saída contra um esquema JSON."""
+        try:
+            import jsonschema
+        except ImportError:
+            logger.warning("jsonschema not installed, skipping schema validation")
+            return ValidationResult(success=True, errors=[])
+
+        errors = []
+        validator = jsonschema.Draft7Validator(schema)
+
+        for error in validator.iter_errors(output):
+            path = ".".join(str(p) for p in error.path) if error.path else "root"
+            errors.append(f"{path}: {error.message}")
+
+        return ValidationResult(success=len(errors) == 0, errors=errors)
+
+    def validate_all(
+        self,
+        output: dict[str, Any],
+        expected_keys: list[str] | None = None,
+        schema: dict[str, Any] | None = None,
+        check_hallucination: bool = True,
+        nullable_keys: list[str] | None = None,
+    ) -> ValidationResult:
+        """Executa todas as validações aplicáveis."""
+        all_errors = []
+
+        if expected_keys:
+            result = self.validate_output_keys(output, expected_keys, nullable_keys=nullable_keys)
+            all_errors.extend(result.errors)
+
+        if schema:
+            result = self.validate_schema(output, schema)
+            all_errors.extend(result.errors)
+
+        if check_hallucination:
+            result = self.validate_no_hallucination(output)
+            all_errors.extend(result.errors)
+
+        return ValidationResult(success=len(all_errors) == 0, errors=all_errors)
