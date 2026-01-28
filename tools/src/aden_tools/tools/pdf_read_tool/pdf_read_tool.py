@@ -1,8 +1,17 @@
 """
-PDF Read Tool - Parse and extract text from PDF files.
+PDF Read Tool
 
-Uses pypdf to read PDF documents and extract text content
-along with metadata.
+Provides a FastMCP-compatible tool for extracting text content
+from PDF files using pypdf.
+
+Features:
+- Supports reading all pages or selected page ranges
+- Enforces page limits for memory safety
+- Handles common error cases (missing files, invalid PDFs, encryption)
+- Optionally extracts PDF metadata (author, title, dates)
+
+This tool is intended for document ingestion, analysis pipelines,
+and agent-based workflows that require reliable PDF text extraction.
 """
 
 from __future__ import annotations
@@ -15,52 +24,64 @@ from pypdf import PdfReader
 
 
 def register_tools(mcp: FastMCP) -> None:
-    """Register PDF read tools with the MCP server."""
+    """
+    Register the PDF read tool with the FastMCP server.
 
-    def parse_page_range(pages: str | None, total_pages: int, max_pages: int) -> list[int] | dict:
+    This makes the `pdf_read` tool available for invocation
+    by agents and MCP-compatible clients.
+    """
+
+    def parse_page_range(
+        pages: str | None, total_pages: int, max_pages: int
+    ) -> list[int] | dict:
         """
-        Parse page range string into list of 0-indexed page numbers.
+        Parse a user-provided page range string into 0-indexed page numbers.
 
-        Returns list of indices or error dict.
+        Supported formats:
+        - None or "all": extract all pages (up to max_pages)
+        - "5": extract a single page
+        - "1-10": extract a page range (inclusive)
+        - "1,3,5": extract specific pages
+
+        Returns:
+            A list of 0-indexed page numbers on success,
+            or a dict with an "error" message on failure.
         """
         if pages is None or pages.lower() == "all":
-            indices = list(range(min(total_pages, max_pages)))
-            return indices
+            return list(range(min(total_pages, max_pages)))
 
         try:
-            # Single page: "5"
             if pages.isdigit():
                 page_num = int(pages)
                 if page_num < 1 or page_num > total_pages:
                     return {"error": f"Page {page_num} out of range. PDF has {total_pages} pages."}
                 return [page_num - 1]
 
-            # Range: "1-10"
             if "-" in pages and "," not in pages:
                 start_str, end_str = pages.split("-", 1)
                 start, end = int(start_str), int(end_str)
+
                 if start > end:
-                    return {"error": f"Invalid page range: {pages}. Start must be less than end."}
+                    return {"error": f"Invalid page range: {pages}. Start must be <= end."}
                 if start < 1:
                     return {"error": f"Page numbers start at 1, got {start}."}
                 if end > total_pages:
                     return {"error": f"Page {end} out of range. PDF has {total_pages} pages."}
-                indices = list(range(start - 1, min(end, start - 1 + max_pages)))
-                return indices
 
-            # Comma-separated: "1,3,5"
+                return list(range(start - 1, min(end, start - 1 + max_pages)))
+
             if "," in pages:
                 page_nums = [int(p.strip()) for p in pages.split(",")]
                 for p in page_nums:
                     if p < 1 or p > total_pages:
                         return {"error": f"Page {p} out of range. PDF has {total_pages} pages."}
-                indices = [p - 1 for p in page_nums[:max_pages]]
-                return indices
 
-            return {"error": f"Invalid page format: '{pages}'. Use 'all', '5', '1-10', or '1,3,5'."}
+                return [p - 1 for p in page_nums[:max_pages]]
 
-        except ValueError as e:
-            return {"error": f"Invalid page format: '{pages}'. {str(e)}"}
+            return {"error": f"Invalid page format: '{pages}'."}
+
+        except ValueError as exc:
+            return {"error": f"Invalid page format: '{pages}'. {exc}"}
 
     @mcp.tool()
     def pdf_read(
@@ -70,60 +91,61 @@ def register_tools(mcp: FastMCP) -> None:
         include_metadata: bool = True,
     ) -> dict:
         """
-        Read and extract text content from a PDF file.
+        Extract text content from a PDF file.
 
-        Returns text content with page markers and optional metadata.
-        Use for reading PDFs, reports, documents, or any PDF file.
+        This tool reads a local PDF file and returns extracted text
+        along with optional metadata. Page extraction can be limited
+        using ranges or a maximum page count for safety.
 
         Args:
-            file_path: Path to the PDF file to read (absolute or relative)
-            pages: Page range - 'all'/None for all, '5' for single,
-                '1-10' for range, '1,3,5' for specific
-            max_pages: Maximum number of pages to process (1-1000, memory safety)
-            include_metadata: Include PDF metadata (author, title, creation date, etc.)
+            file_path: Absolute or relative path to the PDF file.
+            pages: Page selection format:
+                - None or "all": all pages
+                - "5": single page
+                - "1-10": page range
+                - "1,3,5": specific pages
+            max_pages: Maximum number of pages to extract (1–1000).
+            include_metadata: Whether to include PDF metadata.
 
         Returns:
-            Dict with extracted text and metadata, or error dict
+            On success, a dict containing:
+            - path: Absolute file path
+            - name: File name
+            - total_pages: Total page count
+            - pages_extracted: Number of pages extracted
+            - content: Extracted text with page markers
+            - char_count: Character count of extracted text
+            - metadata (optional): PDF metadata
+
+            On failure, returns a dict with an "error" key.
         """
         try:
             path = Path(file_path).resolve()
 
-            # Validate file exists
             if not path.exists():
                 return {"error": f"PDF file not found: {file_path}"}
-
             if not path.is_file():
                 return {"error": f"Not a file: {file_path}"}
-
-            # Check extension
             if path.suffix.lower() != ".pdf":
-                return {"error": f"Not a PDF file (expected .pdf): {file_path}"}
+                return {"error": f"Not a PDF file: {file_path}"}
 
-            # Validate max_pages
-            if max_pages < 1:
-                max_pages = 1
-            elif max_pages > 1000:
-                max_pages = 1000
+            max_pages = max(1, min(max_pages, 1000))
 
-            # Open and read PDF
             reader = PdfReader(path)
 
-            # Check for encryption
             if reader.is_encrypted:
-                return {"error": "Cannot read encrypted PDF. Password required."}
+                return {"error": "Cannot read encrypted PDF."}
 
             total_pages = len(reader.pages)
 
-            # Parse page range
             page_indices = parse_page_range(pages, total_pages, max_pages)
-            if isinstance(page_indices, dict):  # Error dict
+            if isinstance(page_indices, dict):
                 return page_indices
 
-            # Extract text from pages
             content_parts = []
-            for i in page_indices:
-                page_text = reader.pages[i].extract_text() or ""
-                content_parts.append(f"--- Page {i + 1} ---\n{page_text}")
+            for idx in page_indices:
+                text = reader.pages[idx].extract_text() or ""
+                content_parts.append(f"--- Page {idx + 1} ---\n{text}")
 
             content = "\n\n".join(content_parts)
 
@@ -136,7 +158,6 @@ def register_tools(mcp: FastMCP) -> None:
                 "char_count": len(content),
             }
 
-            # Add metadata if requested
             if include_metadata and reader.metadata:
                 meta = reader.metadata
                 result["metadata"] = {
@@ -145,9 +166,7 @@ def register_tools(mcp: FastMCP) -> None:
                     "subject": meta.get("/Subject"),
                     "creator": meta.get("/Creator"),
                     "producer": meta.get("/Producer"),
-                    "created": str(meta.get("/CreationDate"))
-                    if meta.get("/CreationDate")
-                    else None,
+                    "created": str(meta.get("/CreationDate")) if meta.get("/CreationDate") else None,
                     "modified": str(meta.get("/ModDate")) if meta.get("/ModDate") else None,
                 }
 
@@ -155,5 +174,5 @@ def register_tools(mcp: FastMCP) -> None:
 
         except PermissionError:
             return {"error": f"Permission denied: {file_path}"}
-        except Exception as e:
-            return {"error": f"Failed to read PDF: {str(e)}"}
+        except Exception as exc:
+            return {"error": f"Failed to read PDF: {exc}"}
