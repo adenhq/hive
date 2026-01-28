@@ -5,15 +5,15 @@ These tests verify that plan execution correctly handles failed dependencies
 instead of hanging indefinitely.
 """
 
+
 import pytest
-from datetime import datetime
 
 from framework.graph.plan import (
+    ActionSpec,
+    ActionType,
     Plan,
     PlanStep,
     StepStatus,
-    ActionSpec,
-    ActionType,
 )
 
 
