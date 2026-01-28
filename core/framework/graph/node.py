@@ -158,14 +158,16 @@ class NodeSpec(BaseModel):
 
     # Data flow
     input_keys: list[str] = Field(
-        default_factory=list, description="Keys this node reads from shared memory or input"
+        default_factory=list,
+        description="Keys this node reads from shared memory or input",
     )
     output_keys: list[str] = Field(
-        default_factory=list, description="Keys this node writes to shared memory or output"
+        default_factory=list,
+        description="Keys this node writes to shared memory or output",
     )
     nullable_output_keys: list[str] = Field(
         default_factory=list,
-        description="Output keys that can be None without triggering validation errors"
+        description="Output keys that can be None without triggering validation errors",
     )
 
     # Optional schemas for validation and cleansing
@@ -185,8 +187,12 @@ class NodeSpec(BaseModel):
     )
 
     # For LLM nodes
-    system_prompt: str | None = Field(default=None, description="System prompt for LLM nodes")
-    tools: list[str] = Field(default_factory=list, description="Tool names this node can use")
+    system_prompt: str | None = Field(
+        default=None, description="System prompt for LLM nodes"
+    )
+    tools: list[str] = Field(
+        default_factory=list, description="Tool names this node can use"
+    )
     model: str | None = Field(
         default=None, description="Specific model to use (defaults to graph default)"
     )
@@ -198,12 +204,15 @@ class NodeSpec(BaseModel):
 
     # For router nodes
     routes: dict[str, str] = Field(
-        default_factory=dict, description="Condition -> target_node_id mapping for routers"
+        default_factory=dict,
+        description="Condition -> target_node_id mapping for routers",
     )
 
     # Retry behavior
     max_retries: int = Field(default=3)
-    retry_on: list[str] = Field(default_factory=list, description="Error types to retry on")
+    retry_on: list[str] = Field(
+        default_factory=list, description="Error types to retry on"
+    )
 
     # Pydantic model for output validation
     output_model: type[BaseModel] | None = Field(
@@ -724,7 +733,9 @@ Keep the same JSON structure but with shorter content values.
                 else f"         User message: {messages[-1]['content']}"
             )
             if ctx.available_tools:
-                logger.info(f"         Tools available: {[t.name for t in ctx.available_tools]}")
+                logger.info(
+                    f"         Tools available: {[t.name for t in ctx.available_tools]}"
+                )
 
             # Call LLM
             if ctx.available_tools and self.tool_executor:
@@ -818,7 +829,9 @@ Keep the same JSON structure but with shorter content values.
 
             # Phase 2: Validation retry loop for Pydantic models
             max_validation_retries = (
-                ctx.node_spec.max_validation_retries if ctx.node_spec.output_model else 0
+                ctx.node_spec.max_validation_retries
+                if ctx.node_spec.output_model
+                else 0
             )
             validation_attempt = 0
             total_input_tokens = 0
@@ -831,7 +844,9 @@ Keep the same JSON structure but with shorter content values.
 
                 # Log the response
                 response_preview = (
-                    response.content[:200] if len(response.content) > 200 else response.content
+                    response.content[:200]
+                    if len(response.content) > 200
+                    else response.content
                 )
                 if len(response.content) > 200:
                     response_preview += "..."
@@ -845,20 +860,26 @@ Keep the same JSON structure but with shorter content values.
                 try:
                     import json
 
-                    parsed = self._extract_json(response.content, ctx.node_spec.output_keys)
+                    parsed = self._extract_json(
+                        response.content, ctx.node_spec.output_keys
+                    )
 
                     if isinstance(parsed, dict):
                         from framework.graph.validator import OutputValidator
 
                         validator = OutputValidator()
-                        validation_result, validated_model = validator.validate_with_pydantic(
-                            parsed, ctx.node_spec.output_model
+                        validation_result, validated_model = (
+                            validator.validate_with_pydantic(
+                                parsed, ctx.node_spec.output_model
+                            )
                         )
 
                         if validation_result.success:
                             # Validation passed, break out of retry loop
                             model_name = ctx.node_spec.output_model.__name__
-                            logger.info(f"      ✓ Pydantic validation passed for {model_name}")
+                            logger.info(
+                                f"      ✓ Pydantic validation passed for {model_name}"
+                            )
                             break
                         else:
                             # Validation failed
@@ -874,13 +895,17 @@ Keep the same JSON structure but with shorter content values.
                                     f"(attempt {validation_attempt}/{max_validation_retries}): "
                                     f"{validation_result.error}"
                                 )
-                                logger.info("      🔄 Retrying with validation feedback...")
+                                logger.info(
+                                    "      🔄 Retrying with validation feedback..."
+                                )
 
                                 # Add the assistant's failed response and feedback
                                 current_messages.append(
                                     {"role": "assistant", "content": response.content}
                                 )
-                                current_messages.append({"role": "user", "content": feedback})
+                                current_messages.append(
+                                    {"role": "user", "content": feedback}
+                                )
 
                                 # Re-call LLM with feedback
                                 if ctx.available_tools and self.tool_executor:
@@ -911,7 +936,8 @@ Keep the same JSON structure but with shorter content values.
                                     decision_id=decision_id,
                                     success=False,
                                     error=f"Validation failed: {validation_result.error}",
-                                    tokens_used=total_input_tokens + total_output_tokens,
+                                    tokens_used=total_input_tokens
+                                    + total_output_tokens,
                                     latency_ms=latency_ms,
                                 )
                                 error_msg = (
@@ -922,7 +948,8 @@ Keep the same JSON structure but with shorter content values.
                                     success=False,
                                     error=error_msg,
                                     output=parsed,
-                                    tokens_used=total_input_tokens + total_output_tokens,
+                                    tokens_used=total_input_tokens
+                                    + total_output_tokens,
                                     latency_ms=latency_ms,
                                     validation_errors=validation_result.errors,
                                 )
@@ -956,7 +983,9 @@ Keep the same JSON structure but with shorter content values.
 
                     # Try to extract JSON from response
                     parsed = self._extract_json(
-                        response.content, ctx.node_spec.output_keys, self.cleanup_llm_model
+                        response.content,
+                        ctx.node_spec.output_keys,
+                        self.cleanup_llm_model,
                     )
 
                     # If parsed successfully, write each field to its corresponding output key
@@ -968,8 +997,10 @@ Keep the same JSON structure but with shorter content values.
                             from framework.graph.validator import OutputValidator
 
                             validator = OutputValidator()
-                            validation_result, validated_model = validator.validate_with_pydantic(
-                                parsed, ctx.node_spec.output_model
+                            validation_result, validated_model = (
+                                validator.validate_with_pydantic(
+                                    parsed, ctx.node_spec.output_model
+                                )
                             )
                             # Use validated model's dict representation
                             if validated_model:
@@ -985,11 +1016,15 @@ Keep the same JSON structure but with shorter content values.
                                 output[key] = value
                             elif key in ctx.input_data:
                                 # Key not in JSON but exists in input - pass through
-                                ctx.memory.write(key, ctx.input_data[key], validate=False)
+                                ctx.memory.write(
+                                    key, ctx.input_data[key], validate=False
+                                )
                                 output[key] = ctx.input_data[key]
                             else:
                                 # Key not in JSON or input, write whole response (stripped)
-                                stripped_content = self._strip_code_blocks(response.content)
+                                stripped_content = self._strip_code_blocks(
+                                    response.content
+                                )
                                 ctx.memory.write(key, stripped_content, validate=False)
                                 output[key] = stripped_content
                     else:
@@ -1058,7 +1093,10 @@ Keep the same JSON structure but with shorter content values.
         return {"result": content}
 
     def _extract_json(
-        self, raw_response: str, output_keys: list[str], cleanup_llm_model: str | None = None
+        self,
+        raw_response: str,
+        output_keys: list[str],
+        cleanup_llm_model: str | None = None,
     ) -> dict[str, Any]:
         """Extract clean JSON from potentially verbose LLM response.
 
@@ -1104,7 +1142,9 @@ Keep the same JSON structure but with shorter content values.
             # Try fixing unescaped newlines in string values
             try:
                 fixed = _fix_unescaped_newlines_in_json(content)
-                logger.info(f"      Fixed content first 200 chars repr: {repr(fixed[:200])}")
+                logger.info(
+                    f"      Fixed content first 200 chars repr: {repr(fixed[:200])}"
+                )
                 parsed = json.loads(fixed)
                 if isinstance(parsed, dict):
                     logger.info("      ✓ Parsed JSON after fixing unescaped newlines")
@@ -1132,7 +1172,9 @@ Keep the same JSON structure but with shorter content values.
                         try:
                             parsed = json.loads(extracted)
                         except json.JSONDecodeError:
-                            parsed = json.loads(_fix_unescaped_newlines_in_json(extracted))
+                            parsed = json.loads(
+                                _fix_unescaped_newlines_in_json(extracted)
+                            )
                         if isinstance(parsed, dict):
                             return parsed
                 except json.JSONDecodeError:
@@ -1166,7 +1208,9 @@ Keep the same JSON structure but with shorter content values.
                         try:
                             parsed = json.loads(json_str)
                         except json.JSONDecodeError:
-                            parsed = json.loads(_fix_unescaped_newlines_in_json(json_str))
+                            parsed = json.loads(
+                                _fix_unescaped_newlines_in_json(json_str)
+                            )
                         if isinstance(parsed, dict):
                             logger.info(
                                 "      ✓ Extracted JSON via brace matching after markdown strip"
@@ -1192,7 +1236,9 @@ Keep the same JSON structure but with shorter content values.
             logger.info(f"      Using configured cleanup LLM: {cleanup_llm_model}")
         else:
             # Fall back to default logic: Cerebras preferred, then Haiku
-            api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+            api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get(
+                "ANTHROPIC_API_KEY"
+            )
             if not api_key:
                 raise ValueError(
                     "Cannot parse JSON and no API key for LLM cleanup "
@@ -1357,13 +1403,19 @@ Output ONLY the JSON object, nothing else."""
             if json_str:
                 extracted = json.loads(json_str)
                 # Format as key: value pairs
-                parts = [f"{k}: {v}" for k, v in extracted.items() if k in ctx.node_spec.input_keys]
+                parts = [
+                    f"{k}: {v}"
+                    for k, v in extracted.items()
+                    if k in ctx.node_spec.input_keys
+                ]
                 if parts:
                     return "\n".join(parts)
 
         except Exception as e:
             # Fallback to simple formatting on error
-            logger.warning(f"Haiku formatting failed: {e}, falling back to simple format")
+            logger.warning(
+                f"Haiku formatting failed: {e}, falling back to simple format"
+            )
 
         # Fallback: simple key-value formatting
         parts = []
@@ -1486,7 +1538,10 @@ class RouterNode(NodeProtocol):
 
         # Build routing options description
         options_desc = "\n".join(
-            [f"- {opt['id']}: {opt['description']} → goes to '{opt['target']}'" for opt in options]
+            [
+                f"- {opt['id']}: {opt['description']} → goes to '{opt['target']}'"
+                for opt in options
+            ]
         )
 
         # Build context
