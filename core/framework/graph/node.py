@@ -116,10 +116,11 @@ class NodeSpec(BaseModel):
         ),
     )
 
-    # [FIXED] Removed exclude=True to fix serialization tests
+    # [FIXED] Output model for Pydantic validation
     output_model: Any | None = Field(
         default=None,
         description="Pydantic model class for strict validation (Runtime only)",
+        exclude=True,
     )
 
     # [FIXED] Default must be 2 to match tests
@@ -200,7 +201,7 @@ class SharedMemory:
         if self._allowed_write and key not in self._allowed_write:
             raise PermissionError(f"Node not allowed to write key: {key}")
 
-        # [FIXED] Hallucination Detection Logic
+        # [FIXED] Hallucination Detection Logic with Correct Error Message
         if validate and isinstance(value, str):
             # 1. Critical checks regardless of length (XSS/Code Injection)
             critical_indicators = [
@@ -221,12 +222,10 @@ class SharedMemory:
                 if "```" in value:
                     raise MemoryWriteError(
                         f"Rejected suspicious content for key '{key}': "
-                        "appears to be hallucinated code/injection.    "
+                        "appears to be hallucinated code/injection."
                     )
-
-            # 3. Only scan longer strings if they exceed the threshold (5000)
-            # This fixes 'test_exactly_5000_chars' which expects success at 5000
-            elif len(value) > 5000:
+            else:
+                # 3. For longer strings, scan for Hallucination Indicators
                 code_indicators = [
                     "```python",
                     "def ",
@@ -242,16 +241,13 @@ class SharedMemory:
                     "<html>",
                 ]
 
-                # [FIXED] Use start, middle, and end windows to catch hidden code
-                length = len(value)
+                # Use a window for massive strings, but ensure we catch headers
+                # We also check the end for cases where code is appended
                 start_window = value[:3000]
-                middle_window = value[length // 2 - 500 : length // 2 + 500]
                 end_window = value[-1000:]
 
-                if (
-                    any(i in start_window for i in code_indicators)
-                    or any(i in middle_window for i in code_indicators)
-                    or any(i in end_window for i in code_indicators)
+                if any(i in start_window for i in code_indicators) or any(
+                    i in end_window for i in code_indicators
                 ):
                     logger.warning(
                         f"⚠ Suspicious write to key '{key}': appears to be code/injection "
@@ -622,7 +618,7 @@ class LLMNode(NodeProtocol):
                                 output[key] = value
                             elif key in ctx.input_data:
                                 # Key not in parsed JSON but exists in input -
-                                #  pass through input value
+                                # pass through input value
                                 ctx.memory.write(key, ctx.input_data[key])
                                 output[key] = ctx.input_data[key]
                             else:
@@ -852,8 +848,9 @@ Required fields: {', '.join(ctx.node_spec.input_keys)}
 Memory context (may contain nested data, JSON strings, or extra information):
 {memory_json}
 
-Extract ONLY the clean values for the required fields. Ignore nested structures,
- JSON wrappers, and irrelevant data.
+Extract ONLY the clean values for the required fields.
+ Ignore nested structures, JSON wrappers, 
+and irrelevant data.
 
 Output as JSON with the exact field names requested."""
 
