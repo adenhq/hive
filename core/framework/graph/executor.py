@@ -60,8 +60,7 @@ class ExecutionResult:
     path: list[str] = field(default_factory=list)  # Node IDs traversed
     paused_at: str | None = None  # Node ID where execution paused for HITL
     session_state: dict[str, Any] = field(default_factory=dict)  # State to resume from
-
-    # [CHANGED] Add compare=False so existing tests don't fail on inequality
+    # [FIXED] compare=False prevents existing tests from failing on equality checks
     history: list[ExecutionSnapshot] = field(
         default_factory=list, compare=False
     )
@@ -196,7 +195,6 @@ class GraphExecutor:
         # Restore session state if provided
         if session_state and "memory" in session_state:
             memory_data = session_state["memory"]
-            # [RESTORED] Type safety check
             if not isinstance(memory_data, dict):
                 self.logger.warning(
                     f"⚠️ Invalid memory data type in session state: "
@@ -361,7 +359,6 @@ class GraphExecutor:
                         node_retry_counts.get(current_node_id, 0) + 1
                     )
 
-                    # [CORRECTED] Use node_spec.max_retries instead of hardcoded 3
                     max_retries = getattr(node_spec, "max_retries", 3)
 
                     if node_retry_counts[current_node_id] < max_retries:
@@ -419,7 +416,7 @@ class GraphExecutor:
                         )
 
                 # Check if we just executed a pause node - if so, save state and return
-                # This must happen BEFORE determining next node, since pause nodes may have no edges
+                # This must happen BEFORE determining next node
                 if node_spec.id in graph.pause_nodes:
                     self.logger.info("💾 Saving session state after pause node")
                     saved_memory = memory.read_all()
@@ -555,11 +552,6 @@ class GraphExecutor:
         session_state = {
             "memory": restored_memory,
             "paused_at": None,  # Not paused, just forking
-            # HACK: We assume get_entry_point handles logic to start from a specific node
-            # if we pass it as 'resume_from' or 'paused_at' effectively.
-            # But since 'paused_at' usually implies the node finished, we need to be careful.
-            # Ideally we'd have a 'start_at' parameter in execute().
-            # For now, we will rely on 'resume_from' logic if implemented or standard resumption.
             "resume_from": snapshot.node_id,
         }
 
@@ -620,7 +612,8 @@ class GraphExecutor:
             raise RuntimeError(
                 f"Invalid node type '{node_spec.node_type}' for node '{node_spec.id}'. "
                 f"Must be one of: {sorted(self.VALID_NODE_TYPES)}. "
-                f"Use 'llm_tool_use' for nodes that call tools, 'llm_generate' for text generation."
+                f"Use 'llm_tool_use' for nodes that call tools, "
+                f"'llm_generate' for text generation."
             )
 
         # Create based on type
@@ -641,7 +634,8 @@ class GraphExecutor:
         if node_spec.node_type == "function":
             # Function nodes need explicit registration
             raise RuntimeError(
-                f"Function node '{node_spec.id}' not registered. Register with node_registry."
+                f"Function node '{node_spec.id}' not registered. "
+                "Register with node_registry."
             )
 
         if node_spec.node_type == "human_input":
