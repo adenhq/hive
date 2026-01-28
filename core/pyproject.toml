@@ -53,3 +53,6 @@ lint.isort.section-order = [
   "first-party",
   "local-folder",
 ]
+
+[project.scripts]
+hive = "framework.cli:main"
