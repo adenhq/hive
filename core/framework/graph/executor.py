@@ -34,7 +34,6 @@ from framework.llm.provider import LLMProvider, Tool
 from framework.runtime.core import Runtime
 
 
-# [RESTORED] Class required by tests/test_fanout.py
 @dataclass
 class ParallelExecutionConfig:
     """
@@ -103,11 +102,20 @@ class GraphExecutor:
         node_registry: dict[str, NodeProtocol] | None = None,
         approval_callback: Callable | None = None,
         cleansing_config: CleansingConfig | None = None,
-        # [RESTORED] Added param to support parallel config
         parallel_config: ParallelExecutionConfig | None = None,
     ):
         """
         Initialize the executor.
+
+        Args:
+            runtime: Runtime for decision logging
+            llm: LLM provider for LLM nodes
+            tools: Available tools
+            tool_executor: Function to execute tools
+            node_registry: Custom node implementations by ID
+            approval_callback: Optional callback for human-in-the-loop approval
+            cleansing_config: Optional output cleansing configuration
+            parallel_config: Configuration for parallel execution
         """
         self.runtime = runtime
         self.llm = llm
@@ -117,7 +125,6 @@ class GraphExecutor:
         self.approval_callback = approval_callback
         self.validator = OutputValidator()
         self.logger = logging.getLogger(__name__)
-        # [RESTORED]
         self.parallel_config = parallel_config or ParallelExecutionConfig()
 
         # Initialize output cleaner
