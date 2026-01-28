@@ -65,6 +65,7 @@ cd hive
 
 # 2. Run automated Python setup
 ./scripts/setup-python.sh
+# Windows (Powershell): powershell -ExecutionPolicy Bypass -File .\scripts\setup-python.ps1
 ```
 
 The setup script performs these actions:
@@ -117,6 +118,7 @@ python -c "import litellm; print('✓ litellm OK')"
 
 # Run an example agent
 PYTHONPATH=core:exports python -m support_ticket_agent validate
+# Windows (PowerShell): $env:PYTHONPATH="core;exports"; python -m support_ticket_agent validate
 ```
 
 ---
@@ -252,9 +254,10 @@ claude> /testing-agent
 
 4. **Validate the Agent**
 
-   ```bash
-   PYTHONPATH=core:exports python -m your_agent_name validate
-   ```
+```bash
+PYTHONPATH=core:exports python -m your_agent_name validate
+# Windows (PowerShell): $env:PYTHONPATH="core;exports"; python -m your_agent_name validate
+```
 
 5. **Test the Agent**
    ```
@@ -300,18 +303,19 @@ If you prefer to build agents manually:
 ```bash
 # Validate agent structure
 PYTHONPATH=core:exports python -m agent_name validate
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m agent_name validate)
 
 # Show agent information
 PYTHONPATH=core:exports python -m agent_name info
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m agent_name info)
 
 # Run agent with input
-PYTHONPATH=core:exports python -m agent_name run --input '{
-  "ticket_content": "My login is broken",
-  "customer_id": "CUST-123"
-}'
+PYTHONPATH=core:exports python -m agent_name run --input '{"ticket_content": "broken", "customer_id": "123"}'
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m agent_name run --input '{"ticket_content": "broken", "customer_id": "123"}')
 
 # Run in mock mode (no LLM calls)
 PYTHONPATH=core:exports python -m agent_name run --mock --input '{...}'
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m agent_name run --mock --input '{...}')
 ```
 
 ---
@@ -336,16 +340,19 @@ This generates and runs:
 ```bash
 # Run all tests for an agent
 PYTHONPATH=core:exports python -m agent_name test
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m agent_name test)
 
 # Run specific test type
 PYTHONPATH=core:exports python -m agent_name test --type constraint
-PYTHONPATH=core:exports python -m agent_name test --type success
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m agent_name test --type constraint)
 
 # Run with parallel execution
 PYTHONPATH=core:exports python -m agent_name test --parallel 4
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m agent_name test --parallel 4)
 
 # Fail fast (stop on first failure)
 PYTHONPATH=core:exports python -m agent_name test --fail-fast
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m agent_name test --fail-fast)
 ```
 
 ### Writing Custom Tests
@@ -698,9 +705,11 @@ logging.basicConfig(level=logging.DEBUG)
 
 # Run with verbose output
 PYTHONPATH=core:exports python -m agent_name run --input '{...}' --verbose
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m agent_name run --input '{...}' --verbose)
 
 # Use mock mode to test without LLM calls
 PYTHONPATH=core:exports python -m agent_name run --mock --input '{...}'
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m agent_name run --mock --input '{...}')
 ```
 
 ---

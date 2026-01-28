@@ -20,6 +20,7 @@ cd hive
 
 # 2. Run automated Python setup
 ./scripts/setup-python.sh
+# Windows (Poweshell: powershell -ExecutionPolicy Bypass -File .\scripts\setup-python.ps1
 
 # 3. Verify installation
 python -c "import framework; import aden_tools; print('✓ Setup complete')"
@@ -50,13 +51,15 @@ Follow the interactive prompts to:
 ```bash
 # Create exports directory if it doesn't exist
 mkdir -p exports/my_agent
+# Windows (PowerShell): New-Item -ItemType Directory -Force -Path exports/my_agent
 
 # Create your agent structure
 cd exports/my_agent
 # Create agent.json, tools.py, README.md (see DEVELOPER.md for structure)
 
-# Validate the agent
+# 3. Validate the agent (Must be run from the /hive root directory)
 PYTHONPATH=core:exports python -m my_agent validate
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m my_agent validate)
 ```
 
 ### Option 3: Manual Code-First (Minimal Example)
@@ -113,17 +116,21 @@ hive/
 ```bash
 # Validate agent structure
 PYTHONPATH=core:exports python -m my_agent validate
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m my_agent validate)
 
 # Show agent information
 PYTHONPATH=core:exports python -m my_agent info
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m my_agent info)
 
 # Run agent with input
 PYTHONPATH=core:exports python -m my_agent run --input '{
   "task": "Your input here"
 }'
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m my_agent run --input '{"task": "Your input here"}')
 
 # Run in mock mode (no LLM calls)
 PYTHONPATH=core:exports python -m my_agent run --mock --input '{...}'
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m my_agent run --mock --input '{...}')
 ```
 
 ## API Keys Setup
@@ -150,10 +157,15 @@ claude> /testing-agent
 
 # Or manually
 PYTHONPATH=core:exports python -m my_agent test
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m my_agent test)
 
 # Run with specific test type
 PYTHONPATH=core:exports python -m my_agent test --type constraint
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m my_agent test --type constraint)
+
+
 PYTHONPATH=core:exports python -m my_agent test --type success
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m my_agent test --type success)
 ```
 
 ## Next Steps
@@ -187,9 +199,11 @@ pip install -e .
 ```bash
 # Verify API key is set
 echo $ANTHROPIC_API_KEY
+# Windows (PowerShell): $env:ANTHROPIC_API_KEY
 
 # Run in mock mode to test without API
 PYTHONPATH=core:exports python -m my_agent run --mock --input '{...}'
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m my_agent run --mock --input '{...}')
 ```
 
 ### Package Installation Issues

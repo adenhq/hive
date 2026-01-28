@@ -51,9 +51,10 @@ If a high-quality PR is submitted for a "stale" assigned issue (no activity for 
 ```bash
 # Install Python packages
 ./scripts/setup-python.sh
+# Windows(Powershell): powershell -ExecutionPolicy Bypass -File .\scripts\setup-python.ps1
 
 # Verify installation
-python -c "import framework; import aden_tools; print('✓ Setup complete')"
+python -c "import framework; import aden_tools; print('`n✓ Setup complete')"
 
 # Install Claude Code skills (optional)
 ./quickstart.sh
@@ -142,8 +143,9 @@ cd core && python -m pytest
 # Run all tests for tools
 cd tools && python -m pytest
 
-# Run tests for a specific agent
+# 3. Run tests for a specific agent
 PYTHONPATH=core:exports python -m agent_name test
+# Windows (PowerShell): ($env:PYTHONPATH='core;exports'; python -m agent_name test)
 ```
 
 ## Questions?
