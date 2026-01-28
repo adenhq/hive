@@ -997,6 +997,7 @@ Keep the same JSON structure but with shorter content values.
                 model="cerebras/llama-3.3-70b",
                 temperature=0.0,
             )
+            cleanup_llm_model = "cerebras/llama-3.3-70b"
             logger.info(f"      Using configured cleanup LLM: {cleanup_llm_model}")
         else:
             # Fallback to Anthropic Haiku via LiteLLM for consistency
