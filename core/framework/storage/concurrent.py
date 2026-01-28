@@ -18,6 +18,7 @@ from weakref import WeakValueDictionary
 
 from framework.schemas.run import Run, RunStatus, RunSummary
 from framework.storage.backend import FileStorage
+from core.framework.utils.safety import LoopGuard
 
 logger = logging.getLogger(__name__)
 
@@ -316,8 +317,13 @@ class ConcurrentStorage:
     async def _batch_writer(self) -> None:
         """Background task that batches writes for performance."""
         batch: list[tuple[str, Any]] = []
+        # Initialize guard for background task
+        # No duration limit here because it's meant to run as long as the app is alive,
+        # but we'll check it every iteration.
 
+        guard = LoopGuard(label="Storage Batch Writer")
         while self._running:
+            guard.check()
             try:
                 # Collect items with timeout
                 try:
@@ -369,7 +375,9 @@ class ConcurrentStorage:
     async def _flush_pending(self) -> None:
         """Flush all pending writes."""
         batch = []
+        guard = LoopGuard(max_iters=10000, max_duration=60, label="Storage Shutdown Flush")
         while True:
+            guard.check()
             try:
                 item = self._write_queue.get_nowait()
                 batch.append(item)

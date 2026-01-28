@@ -5,6 +5,7 @@ import asyncio
 import json
 import sys
 from pathlib import Path
+from core.framework.utils.safety import LoopGuard 
 
 
 def register_commands(subparsers: argparse._SubParsersAction) -> None:
@@ -608,7 +609,10 @@ def _interactive_approval(request):
     print("  [x] Abort   - Stop entire execution")
     print()
 
+    guard = LoopGuard(max_iters=20, label="Approval Menu")
+
     while True:
+        guard.check() # --- ADDED CHECK HERE ---
         try:
             choice = input("Your choice (a/r/s/x): ").strip().lower()
         except (EOFError, KeyboardInterrupt):
@@ -759,7 +763,11 @@ def cmd_shell(args: argparse.Namespace) -> int:
     conversation_history = []
     agent_session_state = None  # Track paused agent state
 
+    # --- ADDED GUARD HERE ---
+    guard = LoopGuard(max_iters=100, max_duration=3600, label="CLI Shell Session")
+
     while True:
+        guard.check() # --- ADDED CHECK HERE ---
         try:
             user_input = input(">>> ").strip()
         except (EOFError, KeyboardInterrupt):
