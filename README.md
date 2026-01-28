@@ -53,29 +53,6 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 - **Adapt** - Continuous evaluation, supervision, and adaptation ensure agents improve over time
 - **Infra** - Shared memory, LLM integrations, tools, and skills power every agent
 
-## How Hive Works (High-level Overview)
-
-Hive is an agent framework designed to orchestrate tasks, tools, and execution flows in a structured way.
-
-At a high level, Hive operates as follows:
-
-1. **Agents** define behavior and decision-making logic.
-2. **Tasks** represent individual units of work.
-3. **Tools** provide external capabilities (files, APIs, services).
-4. **Executors** coordinate how tasks are run and evaluated.
-5. **Results** are returned once execution completes.
-
-### Conceptual Flow
-
-```mermaid
-flowchart TD
-    User --> Agent
-    Agent --> Task
-    Task --> Tool
-    Tool --> Executor
-    Executor --> Result
-```
-
 ## Quick Links
 
 - **[Documentation](https://docs.adenhq.com/)** - Complete guides and API reference
@@ -124,6 +101,29 @@ PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'
 ```
 
 **[📖 Complete Setup Guide](ENVIRONMENT_SETUP.md)** - Detailed instructions for agent development
+
+## How Hive Works (High-level Overview)
+
+Hive is an agent framework designed to orchestrate tasks, tools, and execution flows in a structured way.
+
+At a high level, Hive operates as follows:
+
+1. **Agents** define behavior and decision-making logic.
+2. **Tasks** represent individual units of work.
+3. **Tools** provide external capabilities (files, APIs, services).
+4. **Executors** coordinate how tasks are run and evaluated.
+5. **Results** are returned once execution completes.
+
+### Conceptual Flow
+
+```mermaid
+flowchart TD
+    User --> Agent
+    Agent --> Task
+    Task --> Tool
+    Tool --> Executor
+    Executor --> Result
+```
 
 ## Getting Started
 
@@ -372,15 +372,6 @@ For security concerns, please see [SECURITY.md](SECURITY.md).
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
-## Glossary
-
-**Agent** — entity responsible for decision-making and task execution  
-**Task** — single unit of work performed by an agent  
-**Tool** — external capability used by an agent (e.g., file access, APIs)  
-**Workflow** — structured sequence of tasks executed by an agent  
-**Executor** — component responsible for coordinating task execution  
-**Result** — output produced after an agent completes its workflow
-
 ## Frequently Asked Questions (FAQ)
 
 **Q: Does Aden depend on LangChain or other agent frameworks?**
@@ -446,6 +437,15 @@ Contributions are welcome! Fork the repository, create your feature branch, impl
 **Q: Does Aden offer enterprise support?**
 
 For enterprise inquiries, contact the Aden team through [adenhq.com](https://adenhq.com) or join our [Discord community](https://discord.com/invite/MXE49hrKDk) for support and discussions.
+
+## Glossary
+
+**Agent** — entity responsible for decision-making and task execution  
+**Task** — single unit of work performed by an agent  
+**Tool** — external capability used by an agent (e.g., file access, APIs)  
+**Workflow** — structured sequence of tasks executed by an agent  
+**Executor** — component responsible for coordinating task execution  
+**Result** — output produced after an agent completes its workflow
 
 ---
 
