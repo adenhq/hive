@@ -21,10 +21,7 @@ if TYPE_CHECKING:
 # Import register_tools from each tool module
 from .csv_tool import register_tools as register_csv
 from .example_tool import register_tools as register_example
-from .web_search_tool import register_tools as register_web_search
-from .web_scrape_tool import register_tools as register_web_scrape
-from .pdf_read_tool import register_tools as register_pdf_read
-from .wikipedia_tool import register_tools as register_wikipedia
+
 
 # Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
@@ -39,6 +36,12 @@ from .file_system_toolkits.grep_search import register_tools as register_grep_se
 from .file_system_toolkits.execute_command_tool import (
     register_tools as register_execute_command,
 )
+
+# Web and PDF tools
+from .web_search_tool import register_tools as register_web_search
+from .web_scrape_tool import register_tools as register_web_scrape
+from .pdf_read_tool import register_tools as register_pdf_read
+from .wikipedia_tool import register_tools as register_wikipedia
 
 
 def register_all_tools(
