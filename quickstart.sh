@@ -69,6 +69,27 @@ fi
 echo -e "${GREEN}  ✓ Python version OK${NC}"
 echo ""
 
+# ------------------------------------------------------------
+# Setup project virtual environment (pyvenv)
+# ------------------------------------------------------------
+VENV_DIR="$SCRIPT_DIR/.venv"
+if [ -z "$VIRTUAL_ENV" ]; then
+    echo -e "${BLUE}Using virtual environment:${NC} $VENV_DIR"
+    if [ ! -d "$VENV_DIR" ]; then
+        echo "  Creating virtual environment..."
+        if ! $PYTHON_CMD -m venv "$VENV_DIR"; then
+            echo -e "${RED}  ✗ Failed to create virtual environment${NC}"
+            exit 1
+        fi
+    fi
+    # Activate the venv for this shell
+    . "$VENV_DIR/bin/activate"
+    PYTHON_CMD="python"
+else
+    echo -e "${BLUE}Using active virtual environment:${NC} $VIRTUAL_ENV"
+    PYTHON_CMD="python"
+fi
+
 # Check for pip
 if ! $PYTHON_CMD -m pip --version &> /dev/null; then
     echo -e "${RED}Error: pip is not installed${NC}"
@@ -292,7 +313,7 @@ else
     echo -e "${YELLOW}  ⚠ ANTHROPIC_API_KEY not found${NC}"
     echo ""
     echo "    For real agent testing, you'll need to set your API key:"
-    echo "    ${BLUE}export ANTHROPIC_API_KEY='your-key-here'${NC}"
+    echo -e "    ${BLUE}export ANTHROPIC_API_KEY='your-key-here'${NC}"
     echo ""
     echo "    Or add it to your .env file or credential manager."
 fi
@@ -321,16 +342,16 @@ echo "  • /agent-workflow              - Complete workflow"
 echo ""
 echo "Usage:"
 echo "  1. Open Claude Code in this directory:"
-echo "     ${BLUE}cd $SCRIPT_DIR && claude${NC}"
+echo -e "     ${BLUE}cd $SCRIPT_DIR && claude${NC}"
 echo ""
 echo "  2. Build a new agent:"
-echo "     ${BLUE}/building-agents-construction${NC}"
+echo -e "     ${BLUE}/building-agents-construction${NC}"
 echo ""
 echo "  3. Test an existing agent:"
-echo "     ${BLUE}/testing-agent${NC}"
+echo -e "     ${BLUE}/testing-agent${NC}"
 echo ""
 echo "  4. Or use the complete workflow:"
-echo "     ${BLUE}/agent-workflow${NC}"
+echo -e "     ${BLUE}/agent-workflow${NC}"
 echo ""
 echo "MCP Tools available (when running from this directory):"
 echo "  • mcp__agent-builder__create_session"
