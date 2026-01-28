@@ -6,7 +6,7 @@ Exposes tools for building goal-driven agents via the Model Context Protocol.
 Usage:
     python -m framework.mcp.agent_builder_server
 """
-
+import logging
 import json
 import os
 from datetime import datetime
@@ -22,6 +22,10 @@ from framework.graph.plan import Plan
 from framework.testing.prompts import (
     PYTEST_TEST_FILE_HEADER,
 )
+
+
+logger = logging.getLogger(__name__)
+
 
 # Initialize MCP server
 mcp = FastMCP("agent-builder")
@@ -214,8 +218,10 @@ def list_sessions() -> str:
                             "has_goal": data.get("goal") is not None,
                         }
                     )
-            except Exception:
-                pass  # Skip corrupted files
+            except Exception as e :
+                # Log the specific file path and the error details
+                logger.error(f"Failed to load agent building session from {session_file}: {e}", exc_info=True)
+                continue  # Explicitly skip to the next file
 
     # Check which session is currently active
     active_id = None
@@ -223,8 +229,11 @@ def list_sessions() -> str:
         try:
             with open(ACTIVE_SESSION_FILE) as f:
                 active_id = f.read().strip()
-        except Exception:
-            pass
+                
+        except Exception as e:
+            logger.warning(f"Could not read active session file {ACTIVE_SESSION_FILE}: {e}")
+            # active_id remains None as the safe fallback
+           
 
     return json.dumps(
         {

@@ -302,8 +302,13 @@ class WorkerNode:
             if inputs:
                 try:
                     prompt = prompt.format(**inputs)
-                except (KeyError, ValueError):
-                    pass  # Keep original prompt if formatting fails
+                except (KeyError, ValueError) as e :
+                    # warning
+                    logger.warning(
+                        f"Prompt formatting failed for action '{action.name}' in node '{self.id}'. "
+                        f"Missing or invalid keys in inputs. Error: {e}. "
+                        "Proceeding with unformatted prompt template."
+                    )
 
             # Always append context data so LLM can personalize
             # This ensures the LLM has access to lead info, company context, etc.
@@ -463,8 +468,13 @@ class WorkerNode:
                 if isinstance(parsed, dict):
                     # Unpack all fields from the JSON response
                     outputs.update(parsed)
-            except (json.JSONDecodeError, TypeError):
-                pass  # Keep result as-is if not valid JSON
+            except (json.JSONDecodeError, TypeError) as e:
+                # warning
+                logger.warning(
+                    f"Failed to unpack JSON outputs for tool '{tool_name}'. "
+                    f"Content is not a valid JSON dictionary: {e}. "
+                    "Proceeding with raw result content."
+                )
 
             return StepExecutionResult(
                 success=True,
