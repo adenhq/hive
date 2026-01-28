@@ -29,6 +29,7 @@ from framework.graph.node import (
 )
 from framework.graph.output_cleaner import CleansingConfig, OutputCleaner
 from framework.graph.validator import OutputValidator
+from framework.graph.retry_controller import RunRetryConfig, RunRetryController
 from framework.llm.provider import LLMProvider, Tool
 from framework.runtime.core import Runtime
 
@@ -107,6 +108,8 @@ class GraphExecutor:
         cleansing_config: CleansingConfig | None = None,
         enable_parallel_execution: bool = True,
         parallel_config: ParallelExecutionConfig | None = None,
+        retry_controller: RunRetryController | None = None,
+        retry_config: RunRetryConfig | None = None,
     ):
         """
         Initialize the executor.
@@ -141,6 +144,19 @@ class GraphExecutor:
         # Parallel execution settings
         self.enable_parallel_execution = enable_parallel_execution
         self._parallel_config = parallel_config or ParallelExecutionConfig()
+
+        # Run-level retry controller (optional, backward compatible)
+        if retry_controller is not None:
+            self.retry_controller = retry_controller
+        elif retry_config is not None:
+            # Create a controller from config using executor logger for consistency
+            self.retry_controller = RunRetryController(
+                config=retry_config,
+                logger_=self.logger,
+            )
+        else:
+            # If not provided, per-node retries still work as before
+            self.retry_controller = None
 
     def _validate_tools(self, graph: GraphSpec) -> list[str]:
         """
@@ -367,16 +383,74 @@ class GraphExecutor:
                     max_retries = getattr(node_spec, "max_retries", 3)
 
                     if node_retry_counts[current_node_id] < max_retries:
+                        # First consult run-level retry controller if configured
+                        delay: float
+                        if self.retry_controller is not None:
+                            decision = await self.retry_controller.request_retry(
+                                node_id=current_node_id,
+                                last_error=result.error,
+                            )
+
+                            if not decision.allow:
+                                reason = (
+                                    decision.reason
+                                    or "Global retry budget exhausted"
+                                )
+                                self.logger.error(
+                                    "   ✗ %s (node=%s, total_retries=%s/%s)",
+                                    reason,
+                                    current_node_id,
+                                    getattr(
+                                        self.retry_controller,
+                                        "total_retries",
+                                        "unknown",
+                                    ),
+                                    self.retry_controller.max_total_retries,
+                                )
+                                self.runtime.report_problem(
+                                    severity="critical",
+                                    description=reason,
+                                )
+                                self.runtime.end_run(
+                                    success=False,
+                                    output_data=memory.read_all(),
+                                    narrative=(
+                                        f"Failed at {node_spec.name}: {reason}"
+                                    ),
+                                )
+                                return ExecutionResult(
+                                    success=False,
+                                    error=(
+                                        f"Node '{node_spec.name}' failed: {reason}"
+                                    ),
+                                    output=memory.read_all(),
+                                    steps_executed=steps,
+                                    total_tokens=total_tokens,
+                                    total_latency_ms=total_latency,
+                                    path=path,
+                                )
+
+                            delay = decision.delay_seconds
+                            self.logger.info(
+                                "   Using global backoff: Sleeping %.2fs before retry "
+                                "(global retry %s/%s)...",
+                                delay,
+                                decision.retry_index,
+                                self.retry_controller.max_total_retries,
+                            )
+                        else:
+                            # Retry - don't increment steps for retries
+                            retry_count = node_retry_counts[current_node_id]
+                            # Backoff formula: 1.0 * (2^(retry - 1)) -> 1s, 2s, 4s...
+                            delay = 1.0 * (2 ** (retry_count - 1))
+                            self.logger.info(
+                                f"   Using backoff: Sleeping {delay}s before retry..."
+                            )
+
+                        # Don't increment steps for retries
                         # Retry - don't increment steps for retries
                         steps -= 1
-
-                        # --- EXPONENTIAL BACKOFF ---
-                        retry_count = node_retry_counts[current_node_id]
-                        # Backoff formula: 1.0 * (2^(retry - 1)) -> 1s, 2s, 4s...
-                        delay = 1.0 * (2 ** (retry_count - 1))
-                        self.logger.info(f"   Using backoff: Sleeping {delay}s before retry...")
                         await asyncio.sleep(delay)
-                        # --------------------------------------
 
                         self.logger.info(
                             f"   ↻ Retrying ({node_retry_counts[current_node_id]}/"
@@ -905,6 +979,34 @@ class GraphExecutor:
                     self.logger.warning(
                         f"      ↻ Branch {node_spec.name}: retry {attempt + 1}/{node_spec.max_retries}"
                     )
+
+                    # Apply run-level retry budget and backoff if configured
+                    if self.retry_controller is not None:
+                        decision = await self.retry_controller.request_retry(
+                            node_id=branch.node_id,
+                            last_error=result.error,
+                        )
+                        if not decision.allow:
+                            reason = decision.reason or "Global retry budget exhausted"
+                            branch.status = "failed"
+                            branch.error = reason
+                            self.logger.error(
+                                "      ✗ Global retry budget exceeded in branch %s: %s",
+                                branch.node_id,
+                                reason,
+                            )
+                            return branch, result
+
+                        delay = decision.delay_seconds
+                        self.logger.info(
+                            "      ⏱ Branch %s global backoff: sleeping %.2fs "
+                            "(global retry %s/%s)...",
+                            branch.node_id,
+                            delay,
+                            decision.retry_index,
+                            self.retry_controller.max_total_retries,
+                        )
+                        await asyncio.sleep(delay)
 
                 # All retries exhausted
                 branch.status = "failed"
