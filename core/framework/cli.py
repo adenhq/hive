@@ -18,9 +18,11 @@ Testing commands:
 
 import argparse
 import sys
+from dotenv import load_dotenv
 
 
 def main():
+    load_dotenv()
     parser = argparse.ArgumentParser(description="Goal Agent - Build and run goal-driven agents")
     parser.add_argument(
         "--model",
