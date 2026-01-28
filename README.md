@@ -63,6 +63,14 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 
 ## Quick Start
 
+### Windows Users
+
+- Python 3.11 or higher is required.
+- Using WSL (Windows Subsystem for Linux) is recommended for best compatibility.
+- Alternatively, PowerShell or Git Bash can be used with Python 3.11+ installed.
+- Ensure "App Execution Aliases" for Python are disabled in Windows settings.
+
+
 ### Prerequisites
 
 - [Python 3.11+](https://www.python.org/downloads/) for agent development
