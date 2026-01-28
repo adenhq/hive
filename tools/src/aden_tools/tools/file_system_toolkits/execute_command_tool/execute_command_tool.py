@@ -1,14 +1,18 @@
 import os
 import subprocess
-from typing import Optional
+
 from mcp.server.fastmcp import FastMCP
-from ..security import get_secure_path, WORKSPACES_DIR
+
+from ..security import WORKSPACES_DIR, get_secure_path
+
 
 def register_tools(mcp: FastMCP) -> None:
     """Register command execution tools with the MCP server."""
 
     @mcp.tool()
-    def execute_command_tool(command: str, workspace_id: str, agent_id: str, session_id: str, cwd: Optional[str] = None) -> dict:
+    def execute_command_tool(
+        command: str, workspace_id: str, agent_id: str, session_id: str, cwd: str | None = None
+    ) -> dict:
         """
         Purpose
             Execute a shell command within the session sandbox.
@@ -58,7 +62,7 @@ def register_tools(mcp: FastMCP) -> None:
                 "return_code": result.returncode,
                 "stdout": result.stdout,
                 "stderr": result.stderr,
-                "cwd": cwd or "."
+                "cwd": cwd or ".",
             }
         except subprocess.TimeoutExpired:
             return {"error": "Command timed out after 60 seconds"}
