@@ -1,7 +1,8 @@
 """Tests for web_scrape tool (FastMCP)."""
-import pytest
 
+import pytest
 from fastmcp import FastMCP
+
 from aden_tools.tools.web_scrape_tool import register_tools
 
 
@@ -91,3 +92,11 @@ class TestSSRFProtection:
         result = web_scrape_fn(url="https://example.com")
         # Should not be blocked by SSRF protection
         assert result.get("blocked_by_ssrf_protection") is not True
+    def test_non_html_content_rejected(self, web_scrape_fn):
+        """Ensure non-HTML content types (like JSON) are rejected."""
+        # GitHub's Zen API returns text/plain, not html
+        result = web_scrape_fn(url="https://api.github.com/zen")
+
+        # We expect an error about skipping non-HTML
+        assert "error" in result
+        assert "Skipping non-HTML content" in result["error"]
