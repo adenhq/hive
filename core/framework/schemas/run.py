@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, computed_field
 from framework.schemas.decision import Decision, Outcome
 
 
-class RunStatus(StrEnum):   
+class RunStatus(StrEnum):
     """Status of a run."""
 
     RUNNING = "running"
