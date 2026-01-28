@@ -321,19 +321,19 @@ class WorkerNode:
                 full_content = ""
                 stream_input_tokens = 0
                 stream_output_tokens = 0
-                
+
                 # We could support a callback here too if passed in execute()
                 stream = self.llm.stream_complete(
                     messages=messages,
                     system=action.system_prompt,
                 )
-                
+
                 async for chunk in stream:
                     full_content += chunk.content
                     stream_input_tokens = chunk.input_tokens
                     stream_output_tokens = chunk.output_tokens
                     # Handle progress updates via runtime eventually
-                
+
                 from framework.llm.provider import LLMResponse
                 response = LLMResponse(
                     content=full_content,

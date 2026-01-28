@@ -198,26 +198,26 @@ class LiteLLMProvider(LLMProvider):
         # Track usage locally (streaming responses often don't include final usage)
         input_tokens = 0
         output_tokens = 0
-        
-        # Estimate input tokens 
+
+        # Estimate input tokens
         # (This is rough; ideally we'd use a tokenizer, but we start with 0 or estimate)
         # For now we'll rely on what the provider sends if any, or 0.
-        
+
         # Make the call
         response_stream = await litellm.acompletion(**kwargs)
-        
+
         async for chunk in response_stream:
             # Extract content delta
             delta = chunk.choices[0].delta
             content = delta.content or ""
             stop_reason = chunk.choices[0].finish_reason or ""
-            
+
             # Simple token estimation for output (1 chunk ~ 1 token usually, but not always)
             # litellm/providers often stream usage in the last chunk or not at all.
             # We'll just auto-increment for now if usage info is missing.
             if content:
-                output_tokens += 1 
-            
+                output_tokens += 1
+
             stream_chunk = StreamChunk(
                 content=content,
                 is_complete=bool(stop_reason),
@@ -226,10 +226,10 @@ class LiteLLMProvider(LLMProvider):
                 model=chunk.model or self.model,
                 stop_reason=stop_reason,
             )
-            
+
             if callback:
                 callback(stream_chunk)
-            
+
             yield stream_chunk
 
     def complete_with_tools(

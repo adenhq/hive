@@ -1,17 +1,16 @@
 import cmd
 import json
-import logging
 import sys
-from typing import Any, Dict
 
 from .session import DebugSession
+
 
 class DebugCLI(cmd.Cmd):
     """
     Interactive CLI for the Agent Debugger.
     """
-    intro = '\n🐞 Agent Debugger. Type help or ? to list commands.\n'
-    prompt = '(debug) '
+    intro = "\n🐞 Agent Debugger. Type help or ? to list commands.\n"
+    prompt = "(debug) "
 
     def __init__(self, session: DebugSession):
         super().__init__()
@@ -35,7 +34,7 @@ class DebugCLI(cmd.Cmd):
 
     def do_break(self, arg):
         """
-        Set a breakpoint at a node ID. 
+        Set a breakpoint at a node ID.
         Usage: break <node_id>
         """
         if not arg:
@@ -56,7 +55,7 @@ class DebugCLI(cmd.Cmd):
     def do_memory(self, arg):
         """
         Inspect shared memory.
-        Usage: 
+        Usage:
           memory             - Show all keys
           memory <key>       - Show specific value
         """
@@ -74,7 +73,7 @@ class DebugCLI(cmd.Cmd):
                 print(f"\n{key}:")
                 try:
                     print(json.dumps(mem[key], indent=2, default=str))
-                except:
+                except Exception:
                     print(mem[key])
             else:
                 print(f"Key '{key}' not found in memory.")
@@ -85,7 +84,7 @@ class DebugCLI(cmd.Cmd):
         print("\nCurrent Node Inputs:")
         try:
             print(json.dumps(ctx, indent=2, default=str))
-        except:
+        except Exception:
             print(ctx)
 
     def do_info(self, arg):
@@ -118,4 +117,4 @@ class DebugCLI(cmd.Cmd):
     do_b = do_break
     do_m = do_memory
     do_q = do_quit
-    do_l = do_info # list/look? 
+    do_l = do_info # list/look?

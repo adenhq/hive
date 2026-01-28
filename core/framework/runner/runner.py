@@ -481,7 +481,7 @@ class AgentRunner:
     def set_debug_hook(self, hook: Callable) -> None:
         """
         Set a debug hook for execution.
-        
+
         Args:
             hook: Function to call before step execution
         """
@@ -501,7 +501,7 @@ class AgentRunner:
             tools=tools,
             tool_executor=tool_executor,
             approval_callback=self._approval_callback,
-            debug_hook=getattr(self, '_debug_hook', None),
+            debug_hook=getattr(self, "_debug_hook", None),
         )
 
     def _setup_agent_runtime(self, tools: list, tool_executor: Callable | None) -> None:

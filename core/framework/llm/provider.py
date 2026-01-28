@@ -48,7 +48,7 @@ class ToolResult:
 @dataclass
 class StreamChunk:
     """A chunk of streaming response."""
-    
+
     content: str
     is_complete: bool = False
     input_tokens: int = 0
