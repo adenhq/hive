@@ -171,11 +171,17 @@ class NodeSpec(BaseModel):
     # Optional schemas for validation and cleansing
     input_schema: dict[str, dict] = Field(
         default_factory=dict,
-        description="Optional schema for input validation. Format: {key: {type: 'string', required: True, description: '...'}}",
+        description=(
+            "Optional schema for input validation. "
+            "Format: {key: {type: 'string', required: True, description: '...'}}"
+        ),
     )
     output_schema: dict[str, dict] = Field(
         default_factory=dict,
-        description="Optional schema for output validation. Format: {key: {type: 'dict', required: True, description: '...'}}",
+        description=(
+            "Optional schema for input validation. "
+            "Format: {key: {type: 'string', required: True, description: '...'}}"
+        ),
     )
 
     # For LLM nodes
@@ -712,9 +718,8 @@ Keep the same JSON structure but with shorter content values.
                 from framework.llm.provider import ToolResult, ToolUse
 
                 def executor(tool_use: ToolUse) -> ToolResult:
-                    logger.info(
-                        f"         🔧 Tool call: {tool_use.name}({', '.join(f'{k}={v}' for k, v in tool_use.input.items())})"
-                    )
+                    args_str = ", ".join(f"{k}={v}" for k, v in tool_use.input.items())
+                    logger.info(f"         🔧 Tool call: {tool_use.name}({args_str})")
                     result = self.tool_executor(tool_use)
                     # Truncate long results
                     result_str = str(result.content)[:150]
@@ -969,7 +974,8 @@ Keep the same JSON structure but with shorter content values.
         api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError(
-                "Cannot parse JSON and no API key for LLM cleanup (set CEREBRAS_API_KEY or ANTHROPIC_API_KEY)"
+                "Cannot parse JSON and no API key for LLM cleanup "
+                "(set CEREBRAS_API_KEY or ANTHROPIC_API_KEY)"
             )
 
         from framework.llm.litellm import LiteLLMProvider
@@ -1110,7 +1116,8 @@ Required fields: {", ".join(ctx.node_spec.input_keys)}
 Memory context (may contain nested data, JSON strings, or extra information):
 {memory_json}
 
-Extract ONLY the clean values for the required fields. Ignore nested structures, JSON wrappers, and irrelevant data.
+Extract ONLY the clean values for the required fields.
+Ignore nested structures, JSON wrappers, and irrelevant data.
 
 Output as JSON with the exact field names requested."""
 
