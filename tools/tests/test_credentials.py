@@ -407,9 +407,7 @@ class TestStartupValidation:
 
         custom_specs = {
             "startup_cred": CredentialSpec(
-                env_var="STARTUP_KEY",
-                startup_required=True,
-                required=True
+                env_var="STARTUP_KEY", startup_required=True, required=True
             )
         }
 

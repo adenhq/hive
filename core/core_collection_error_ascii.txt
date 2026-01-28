@@ -1,0 +1,100 @@
+      <Class TestRuntimeMetrics>
+        <Function test_success_rate>
+        <Function test_success_rate_zero_decisions>
+      <Class TestRun>
+        <Function test_duration_ms>
+        <Function test_add_decision>
+        <Function test_record_outcome>
+        <Function test_add_problem>
+        <Function test_complete>
+      <Class TestRunSummary>
+        <Function test_from_run_basic>
+        <Function test_from_run_with_decisions>
+        <Function test_from_run_with_problems>
+    <Module test_runtime.py>
+      <Class TestRuntimeBasics>
+        <Function test_start_and_end_run>
+        <Function test_end_without_start_is_graceful>
+        <Function test_run_saved_on_end>
+      <Class TestDecisionRecording>
+        <Function test_basic_decision>
+        <Function test_decision_without_run_is_graceful>
+        <Function test_decision_with_node_context>
+        <Function test_decision_type>
+      <Class TestOutcomeRecording>
+        <Function test_record_successful_outcome>
+        <Function test_record_failed_outcome>
+        <Function test_metrics_updated_on_outcome>
+      <Class TestProblemReporting>
+        <Function test_report_problem>
+        <Function test_problem_linked_to_decision>
+      <Class TestConvenienceMethods>
+        <Function test_quick_decision>
+        <Function test_decide_and_execute_success>
+        <Function test_decide_and_execute_failure>
+      <Class TestNarrativeGeneration>
+        <Function test_default_narrative_success>
+        <Function test_default_narrative_failure>
+    <Module test_testing_framework.py>
+      <Class TestTestCaseSchema>
+        <Function test_create_test>
+        <Function test_approve_test>
+        <Function test_modify_test>
+        <Function test_reject_test>
+        <Function test_record_result>
+      <Class TestTestResultSchema>
+        <Function test_create_passed_result>
+        <Function test_create_failed_result>
+        <Function test_summary_dict>
+      <Class TestTestSuiteResult>
+        <Function test_suite_result_properties>
+        <Function test_get_results_by_category>
+      <Class TestTestStorage>
+        <Function test_save_and_load_test>
+        <Function test_delete_test>
+        <Function test_get_tests_by_goal>
+        <Function test_get_approved_tests>
+        <Function test_save_and_load_result>
+        <Function test_result_history>
+        <Function test_get_stats>
+      <Class TestErrorCategorizer>
+        <Function test_categorize_passed>
+        <Function test_categorize_logic_error>
+        <Function test_categorize_implementation_error>
+        <Function test_categorize_edge_case>
+        <Function test_categorize_from_stack_trace>
+        <Function test_get_fix_suggestion>
+        <Function test_get_iteration_guidance>
+      <Class TestDebugTool>
+        <Function test_analyze_missing_test>
+        <Function test_analyze_with_result>
+
+=================================== ERRORS ====================================
+______________________ ERROR collecting test_output.txt _______________________
+C:\Python313\Lib\pathlib\_local.py:546: in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python313\Lib\pathlib\_abc.py:633: in read_text
+    return f.read()
+           ^^^^^^^^
+<frozen codecs>:325: in decode
+    ???
+E   UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte
+============================== warnings summary ===============================
+framework\graph\safe_eval.py:79
+  D:\my-dev-knowledge-base\aden-hive\core\framework\graph\safe_eval.py:79: DeprecationWarning: ast.Num is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    def visit_Num(self, node: ast.Num) -> Any:
+
+framework\graph\safe_eval.py:82
+  D:\my-dev-knowledge-base\aden-hive\core\framework\graph\safe_eval.py:82: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    def visit_Str(self, node: ast.Str) -> Any:
+
+framework\graph\safe_eval.py:85
+  D:\my-dev-knowledge-base\aden-hive\core\framework\graph\safe_eval.py:85: DeprecationWarning: ast.NameConstant is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    def visit_NameConstant(self, node: ast.NameConstant) -> Any:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+ERROR test_output.txt - UnicodeDecodeError: 'utf-8' codec can't decode byte 0...
+!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+==================== 282 tests collected, 1 error in 7.14s ====================

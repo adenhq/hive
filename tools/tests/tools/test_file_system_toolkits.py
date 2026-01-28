@@ -619,8 +619,7 @@ class TestExecuteCommandTool:
             mock_run.return_value = MagicMock(stdout="HELLO WORLD", stderr="", returncode=0)
 
             result = execute_command_fn(
-                command="echo 'hello world' | tr 'a-z' 'A-Z'",
-                **mock_workspace
+                command="echo 'hello world' | tr 'a-z' 'A-Z'", **mock_workspace
             )
 
             assert result["success"] is True

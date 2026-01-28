@@ -78,6 +78,7 @@ class TestWebSearchTool:
             assert args[0] == "https://api.search.brave.com/res/v1/web/search"
             assert kwargs["headers"]["X-Subscription-Token"] == "mock-key"
 
+
 class TestBraveProvider:
     """Tests for Brave Search provider."""
 
@@ -98,6 +99,7 @@ class TestBraveProvider:
 
         result = web_search_fn(query="test", provider="brave")
         assert isinstance(result, dict)
+
 
 class TestGoogleProvider:
     """Tests for Google Custom Search provider."""
