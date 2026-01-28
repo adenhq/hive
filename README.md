@@ -39,6 +39,19 @@ Build reliable, self-improving AI agents without hardcoding workflows. Define yo
 
 Visit [adenhq.com](https://adenhq.com) for complete documentation, examples, and guides.
 
+## Hive & Aden — How They Fit Together
+
+**Hive** is the open-source agent framework and runtime that powers the Aden platform.
+
+- **Hive (this repository)**  
+  The core framework developers use to build, run, and evolve goal-driven AI agents. It includes the agent runtime, graph executor, tools, and self-improvement loop.
+
+- **Aden (the platform)**  
+  The broader product ecosystem built on top of Hive, providing hosted services, UI, observability, credential management, and enterprise-grade deployment options.
+
+You can use **Hive independently** to build and self-host agents, or as the foundation for applications running within the Aden platform.
+
+
 ## What is Aden
 
 <p align="center">
