@@ -622,11 +622,13 @@ class LLMNode(NodeProtocol):
                                 ctx.memory.write(key, value)
                                 output[key] = value
                             elif key in ctx.input_data:
-                                # Key not in parsed JSON but exists in input - pass through input value
+                                # Key not in parsed JSON but exists in input -
+                                # pass through input value
                                 ctx.memory.write(key, ctx.input_data[key])
                                 output[key] = ctx.input_data[key]
                             else:
-                                # Key not in parsed JSON or input, write the whole response (stripped)
+                                # Key not in parsed JSON or input,
+                                #  write the whole response (stripped)
                                 stripped_content = self._strip_code_blocks(
                                     response.content
                                 )
@@ -851,7 +853,8 @@ Required fields: {', '.join(ctx.node_spec.input_keys)}
 Memory context (may contain nested data, JSON strings, or extra information):
 {memory_json}
 
-Extract ONLY the clean values for the required fields. Ignore nested structures, JSON wrappers, and irrelevant data.
+Extract ONLY the clean values for the required fields. Ignore nested structures,
+ JSON wrappers, and irrelevant data.
 
 Output as JSON with the exact field names requested."""
 
