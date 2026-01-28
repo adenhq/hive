@@ -199,23 +199,40 @@ def format_error(error: CLIError, verbose: bool = False) -> str:
 
 
 def _resolve_error(exc: Exception) -> CLIError:
-    """Attempt to map a raw exception to a CLIError with actionable guidance."""
+    """Attempt to map a raw exception to a CLIError with actionable guidance.
+
+    Walks the exception chain (__cause__ / __context__) so that wrapped
+    exceptions (e.g. ``RuntimeError`` wrapping ``ModuleNotFoundError``)
+    still produce specific, actionable hints.
+    """
     # 1. Already a CLIError — pass through
     if isinstance(exc, CLIError):
         return exc
 
-    # 2. Try registered mappers (exact type match first, then subclass)
-    for exc_type, mapper in _ERROR_MAP:
-        if isinstance(exc, exc_type):
-            result = mapper(exc)
+    # Collect the chain: [exc, cause, cause-of-cause, ...]
+    chain: list[Exception] = []
+    seen: set[int] = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen and len(chain) < 10:
+        if isinstance(cur, Exception):
+            chain.append(cur)
+        seen.add(id(cur))
+        cur = cur.__cause__ if cur.__cause__ is not None else cur.__context__
+
+    # 2. Try registered mappers across the full chain
+    for candidate in chain:
+        for exc_type, mapper in _ERROR_MAP:
+            if isinstance(candidate, exc_type):
+                result = mapper(candidate)
+                if result is not None:
+                    return result
+
+    # 3. Try heuristic mappers across the full chain
+    for candidate in chain:
+        for heuristic in (_try_map_connection_error, _try_map_auth_error):
+            result = heuristic(candidate)
             if result is not None:
                 return result
-
-    # 3. Try heuristic mappers for network/auth errors
-    for heuristic in (_try_map_connection_error, _try_map_auth_error):
-        result = heuristic(exc)
-        if result is not None:
-            return result
 
     # 4. Fallback — generic error with traceback hint
     return CLIError(

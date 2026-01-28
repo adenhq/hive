@@ -109,6 +109,35 @@ class TestResolveError:
         result = _resolve_error(original)
         assert result is original
 
+    def test_nested_exception_via_cause(self):
+        """Wrapped exceptions should still resolve to specific hints."""
+        inner = ModuleNotFoundError("No module named 'framework'")
+        inner.name = "framework"
+        outer = RuntimeError("agent failed to load")
+        outer.__cause__ = inner
+        result = _resolve_error(outer)
+        assert "PYTHONPATH" in result.hint
+
+    def test_nested_exception_via_context(self):
+        """Implicitly chained exceptions (__context__) are also walked."""
+        inner = KeyError("steps")
+        outer = RuntimeError("processing failed")
+        outer.__context__ = inner
+        result = _resolve_error(outer)
+        assert "nodes" in result.hint
+
+    def test_nested_chain_depth_limit(self):
+        """Circular or excessively deep chains do not loop forever."""
+        exc = RuntimeError("root")
+        cur = exc
+        for i in range(20):
+            nxt = RuntimeError(f"level-{i}")
+            cur.__cause__ = nxt
+            cur = nxt
+        # Should return without hanging
+        result = _resolve_error(exc)
+        assert result.message
+
 
 # ---------------------------------------------------------------------------
 # Decorator
