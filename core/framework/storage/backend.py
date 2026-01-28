@@ -42,6 +42,9 @@ class FileStorage:
             self.base_path / "indexes" / "by_status",
             self.base_path / "indexes" / "by_node",
             self.base_path / "summaries",
+            self.base_path / "state" / "global",
+            self.base_path / "state" / "stream",
+            self.base_path / "state" / "execution",
         ]
         for d in dirs:
             d.mkdir(parents=True, exist_ok=True)
@@ -163,6 +166,55 @@ class FileStorage:
             values.remove(value)
             with open(index_path, "w") as f:
                 json.dump(values, f)
+
+    # === STATE OPERATIONS ===
+
+    def save_state(self, scope: str, id: str, state_data: dict) -> None:
+        """
+        Save state data for a scope.
+
+        Args:
+            scope: State scope ("global", "stream", or "execution")
+            id: Scope identifier (empty string for global)
+            state_data: State data dictionary to save
+        """
+        if scope == "global":
+            state_path = self.base_path / "state" / "global" / "state.json"
+        elif scope == "stream":
+            state_path = self.base_path / "state" / "stream" / f"{id}.json"
+        elif scope == "execution":
+            state_path = self.base_path / "state" / "execution" / f"{id}.json"
+        else:
+            raise ValueError(f"Invalid scope: {scope}")
+
+        with open(state_path, "w") as f:
+            json.dump(state_data, f, indent=2)
+
+    def load_state(self, scope: str, id: str) -> dict | None:
+        """
+        Load state data for a scope.
+
+        Args:
+            scope: State scope ("global", "stream", or "execution")
+            id: Scope identifier (empty string for global)
+
+        Returns:
+            State data dictionary or None if not found
+        """
+        if scope == "global":
+            state_path = self.base_path / "state" / "global" / "state.json"
+        elif scope == "stream":
+            state_path = self.base_path / "state" / "stream" / f"{id}.json"
+        elif scope == "execution":
+            state_path = self.base_path / "state" / "execution" / f"{id}.json"
+        else:
+            raise ValueError(f"Invalid scope: {scope}")
+
+        if not state_path.exists():
+            return None
+
+        with open(state_path) as f:
+            return json.load(f)
 
     # === UTILITY ===
 
