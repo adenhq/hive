@@ -6,7 +6,8 @@
 # for building and running goal-driven agents.
 #
 
-set -e
+set -euo pipefail
+trap 'echo -e "${RED}❌ Setup failed at line $LINENO. Please check the error above.${NC}"' ERR
 
 # Colors for output
 RED='\033[0;31m'
@@ -88,11 +89,11 @@ cd "$PROJECT_ROOT/core"
 
 if [ -f "pyproject.toml" ]; then
     echo "Installing framework from core/ (editable mode)..."
-    $PYTHON_CMD -m pip install -e . > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
+    if $PYTHON_CMD -m pip install -e .; then
         echo -e "${GREEN}✓${NC} Framework package installed"
     else
-        echo -e "${YELLOW}⚠${NC} Framework installation encountered issues (may be OK if already installed)"
+        echo -e "${RED}✗${NC} Framework installation failed"
+        exit 1
     fi
 else
     echo -e "${YELLOW}⚠${NC} No pyproject.toml found in core/, skipping framework installation"
@@ -108,8 +109,7 @@ cd "$PROJECT_ROOT/tools"
 
 if [ -f "pyproject.toml" ]; then
     echo "Installing aden_tools from tools/ (editable mode)..."
-    $PYTHON_CMD -m pip install -e . > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
+    if $PYTHON_CMD -m pip install -e .; then
         echo -e "${GREEN}✓${NC} Tools package installed"
     else
         echo -e "${RED}✗${NC} Tools installation failed"
@@ -132,12 +132,18 @@ OPENAI_VERSION=$($PYTHON_CMD -c "import openai; print(openai.__version__)" 2>/de
 
 if [ "$OPENAI_VERSION" = "not_installed" ]; then
     echo "Installing openai package..."
-    $PYTHON_CMD -m pip install "openai>=1.0.0" > /dev/null 2>&1
+    $PYTHON_CMD -m pip install "openai>=1.0.0" || {
+        echo -e "${RED}✗${NC} Failed to install openai package"
+        exit 1
+    }
     echo -e "${GREEN}✓${NC} openai package installed"
 elif [[ "$OPENAI_VERSION" =~ ^0\. ]]; then
     echo -e "${YELLOW}Found old openai version: $OPENAI_VERSION${NC}"
     echo "Upgrading to openai 1.x+ for litellm compatibility..."
-    $PYTHON_CMD -m pip install --upgrade "openai>=1.0.0" > /dev/null 2>&1
+    $PYTHON_CMD -m pip install --upgrade "openai>=1.0.0" || {
+        echo -e "${RED}✗${NC} Failed to upgrade openai package"
+        exit 1
+    }
     OPENAI_VERSION=$($PYTHON_CMD -c "import openai; print(openai.__version__)" 2>/dev/null)
     echo -e "${GREEN}✓${NC} openai upgraded to $OPENAI_VERSION"
 else
