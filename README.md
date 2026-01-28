@@ -55,10 +55,18 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 
 ## Who Should Use Hive?
 
-Hive is ideal for:
-- Developers building production AI agents
-- Teams who want self-healing, goal-driven agents
-- NOT ideal if you want simple prompt chaining
+Hive is best suited for:
+
+- Developers building **production-grade AI agents**
+- Teams that need **self-healing, goal-driven systems**
+- Engineers who want to avoid hardcoding workflows
+- Organizations that require **observability, cost control, and reliability**
+
+Hive may NOT be ideal if you:
+
+- Only need simple prompt chaining
+- Want a lightweight scripting tool
+- Prefer fully manual agent orchestration
 
 ## Quick Links
 
