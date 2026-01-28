@@ -154,7 +154,7 @@ class NodeSpec(BaseModel):
     )
     max_validation_retries: int = Field(
         default=2,
-        description="Maximum retries when Pydantic validation fails (with feedback to LLM)"
+        description="Maximum retries when Pydantic validation fails (with feedback to LLM)",
     )
 
     model_config = {"extra": "allow", "arbitrary_types_allowed": True}
@@ -623,7 +623,7 @@ class LLMNode(NodeProtocol):
                             "name": ctx.node_spec.output_model.__name__,
                             "schema": json_schema,
                             "strict": True,
-                        }
+                        },
                     }
                     model_name = ctx.node_spec.output_model.__name__
                     logger.info(f"         📐 Using JSON schema from Pydantic model: {model_name}")
@@ -662,10 +662,12 @@ class LLMNode(NodeProtocol):
                     # Try to parse and validate the response
                     try:
                         import json
+
                         parsed = self._extract_json(response.content, ctx.node_spec.output_keys)
 
                         if isinstance(parsed, dict):
                             from framework.graph.validator import OutputValidator
+
                             validator = OutputValidator()
                             validation_result, validated_model = validator.validate_with_pydantic(
                                 parsed, ctx.node_spec.output_model
@@ -693,14 +695,10 @@ class LLMNode(NodeProtocol):
                                     logger.info("      🔄 Retrying with validation feedback...")
 
                                     # Add the assistant's failed response and feedback
-                                    current_messages.append({
-                                        "role": "assistant",
-                                        "content": response.content
-                                    })
-                                    current_messages.append({
-                                        "role": "user",
-                                        "content": feedback
-                                    })
+                                    current_messages.append(
+                                        {"role": "assistant", "content": response.content}
+                                    )
+                                    current_messages.append({"role": "user", "content": feedback})
                                     continue  # Retry the LLM call
                                 else:
                                     # Max retries exceeded
@@ -765,6 +763,7 @@ class LLMNode(NodeProtocol):
                         # If we have output_model, the validation already happened in the retry loop
                         if ctx.node_spec.output_model is not None:
                             from framework.graph.validator import OutputValidator
+
                             validator = OutputValidator()
                             validation_result, validated_model = validator.validate_with_pydantic(
                                 parsed, ctx.node_spec.output_model
