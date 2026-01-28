@@ -162,15 +162,19 @@ class NodeSpec(BaseModel):
     )
     output_keys: list[str] = Field(
         default_factory=list, description="Keys this node writes to shared memory or output"
+<<<<<<< HEAD
     )
     nullable_output_keys: list[str] = Field(
         default_factory=list,
         description="Output keys that can be None without triggering validation errors"
+=======
+>>>>>>> 25c9059 (fixed the lint issues)
     )
 
     # Optional schemas for validation and cleansing
     input_schema: dict[str, dict] = Field(
         default_factory=dict,
+<<<<<<< HEAD
         description=(
             "Optional schema for input validation. "
             "Format: {key: {type: 'string', required: True, description: '...'}}"
@@ -182,6 +186,13 @@ class NodeSpec(BaseModel):
             "Optional schema for output validation. "
             "Format: {key: {type: 'dict', required: True, description: '...'}}"
         ),
+=======
+        description="Optional schema for input validation. Format: {key: {type: 'string', required: True, description: '...'}}",
+    )
+    output_schema: dict[str, dict] = Field(
+        default_factory=dict,
+        description="Optional schema for output validation. Format: {key: {type: 'dict', required: True, description: '...'}}",
+>>>>>>> 25c9059 (fixed the lint issues)
     )
 
     # For LLM nodes
@@ -204,6 +215,7 @@ class NodeSpec(BaseModel):
     # Retry behavior
     max_retries: int = Field(default=3)
     retry_on: list[str] = Field(default_factory=list, description="Error types to retry on")
+<<<<<<< HEAD
 
     # Pydantic model for output validation
     output_model: type[BaseModel] | None = Field(
@@ -217,6 +229,8 @@ class NodeSpec(BaseModel):
         default=2,
         description="Maximum retries when Pydantic validation fails (with feedback to LLM)",
     )
+=======
+>>>>>>> 25c9059 (fixed the lint issues)
 
     model_config = {"extra": "allow", "arbitrary_types_allowed": True}
 
@@ -731,8 +745,14 @@ Keep the same JSON structure but with shorter content values.
                 from framework.llm.provider import ToolResult, ToolUse
 
                 def executor(tool_use: ToolUse) -> ToolResult:
+<<<<<<< HEAD
                     args = ", ".join(f"{k}={v}" for k, v in tool_use.input.items())
                     logger.info(f"         🔧 Tool call: {tool_use.name}({args})")
+=======
+                    logger.info(
+                        f"         🔧 Tool call: {tool_use.name}({', '.join(f'{k}={v}' for k, v in tool_use.input.items())})"
+                    )
+>>>>>>> 25c9059 (fixed the lint issues)
                     result = self.tool_executor(tool_use)
                     # Truncate long results
                     result_str = str(result.content)[:150]
@@ -768,6 +788,7 @@ Keep the same JSON structure but with shorter content values.
                     max_tokens=ctx.max_tokens,
                 )
 
+<<<<<<< HEAD
             # Check for truncation and retry with compaction if needed
             expects_json = (
                 ctx.node_spec.node_type in ("llm_generate", "llm_tool_use")
@@ -932,6 +953,15 @@ Keep the same JSON structure but with shorter content values.
                 except Exception:
                     # JSON extraction failed - break and let downstream handle
                     break
+=======
+            # Log the response
+            response_preview = (
+                response.content[:200] if len(response.content) > 200 else response.content
+            )
+            if len(response.content) > 200:
+                response_preview += "..."
+            logger.info(f"      ← Response: {response_preview}")
+>>>>>>> 25c9059 (fixed the lint issues)
 
             latency_ms = int((time.time() - start) * 1000)
 
@@ -1113,6 +1143,7 @@ Keep the same JSON structure but with shorter content values.
                 logger.info(f"      Newline fix also failed: {e2}")
 
         # Try to extract JSON from markdown code blocks (greedy match to handle nested blocks)
+<<<<<<< HEAD
         # Multiple patterns to handle different LLM formatting styles
         code_block_patterns = [
             # Anchored match from first ``` to last ```
@@ -1137,6 +1168,17 @@ Keep the same JSON structure but with shorter content values.
                             return parsed
                 except json.JSONDecodeError:
                     pass
+=======
+        # Use anchored match to capture from first ``` to last ```
+        code_block_match = re.match(r"^```(?:json|JSON)?\s*\n?(.*)\n?```\s*$", content, re.DOTALL)
+        if code_block_match:
+            try:
+                parsed = json.loads(code_block_match.group(1).strip())
+                if isinstance(parsed, dict):
+                    return parsed
+            except json.JSONDecodeError:
+                pass
+>>>>>>> 25c9059 (fixed the lint issues)
 
         # Try to find JSON object by matching balanced braces (use module-level helper)
         json_str = find_json_object(content)
@@ -1152,6 +1194,7 @@ Keep the same JSON structure but with shorter content values.
             except json.JSONDecodeError:
                 pass
 
+<<<<<<< HEAD
         # Try stripping markdown prefix and finding JSON from there
         # This handles cases like "```json\n{...}" where regex might fail
         if "```" in content:
@@ -1177,9 +1220,21 @@ Keep the same JSON structure but with shorter content values.
 
         # All local extraction failed - use LLM as last resort
         import os
+=======
+        # All local extraction methods failed - use LLM as last resort
+        # Prefer Cerebras (faster/cheaper), fallback to Anthropic Haiku
+        import os
+
+        api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "Cannot parse JSON and no API key for LLM cleanup (set CEREBRAS_API_KEY or ANTHROPIC_API_KEY)"
+            )
+>>>>>>> 25c9059 (fixed the lint issues)
 
         from framework.llm.litellm import LiteLLMProvider
 
+<<<<<<< HEAD
         logger.info(f"      cleanup_llm_model param: {cleanup_llm_model}")
 
         # Use configured cleanup model, or fall back to defaults
@@ -1187,10 +1242,17 @@ Keep the same JSON structure but with shorter content values.
             # Use the configured cleanup model (LiteLLM handles API keys via env vars)
             cleaner_llm = LiteLLMProvider(
                 model=cleanup_llm_model,
+=======
+        if os.environ.get("CEREBRAS_API_KEY"):
+            cleaner_llm = LiteLLMProvider(
+                api_key=os.environ.get("CEREBRAS_API_KEY"),
+                model="cerebras/llama-3.3-70b",
+>>>>>>> 25c9059 (fixed the lint issues)
                 temperature=0.0,
             )
             logger.info(f"      Using configured cleanup LLM: {cleanup_llm_model}")
         else:
+<<<<<<< HEAD
             # Fall back to default logic: Cerebras preferred, then Haiku
             api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
             if not api_key:
@@ -1211,6 +1273,12 @@ Keep the same JSON structure but with shorter content values.
                     model="claude-3-5-haiku-20241022",
                     temperature=0.0,
                 )
+=======
+            # Fallback to Anthropic Haiku via LiteLLM for consistency
+            cleaner_llm = LiteLLMProvider(
+                api_key=api_key, model="claude-3-5-haiku-20241022", temperature=0.0
+            )
+>>>>>>> 25c9059 (fixed the lint issues)
 
         prompt = f"""Extract the JSON object from this LLM response.
 
@@ -1328,6 +1396,7 @@ Output ONLY the JSON object, nothing else."""
         truncated_data = {k: truncate_value(v) for k, v in memory_data.items()}
         memory_json = json.dumps(truncated_data, indent=2, default=str)
 
+<<<<<<< HEAD
         required_fields = ", ".join(ctx.node_spec.input_keys)
         prompt = (
             f"Extract the following information from the memory context:\n\n"
@@ -1338,6 +1407,18 @@ Output ONLY the JSON object, nothing else."""
             "Ignore nested structures, JSON wrappers, and irrelevant data.\n\n"
             "Output as JSON with the exact field names requested."
         )
+=======
+        prompt = f"""Extract the following information from the memory context:
+
+Required fields: {", ".join(ctx.node_spec.input_keys)}
+
+Memory context (may contain nested data, JSON strings, or extra information):
+{memory_json}
+
+Extract ONLY the clean values for the required fields. Ignore nested structures, JSON wrappers, and irrelevant data.
+
+Output as JSON with the exact field names requested."""
+>>>>>>> 25c9059 (fixed the lint issues)
 
         try:
             import anthropic
