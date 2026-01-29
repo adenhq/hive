@@ -148,7 +148,7 @@ hive/                                    # Repository root
 │       ├── testing-agent/               # Skills for testing agents
 │       │   ├── SKILL.md
 │       |   └── examples
-│       └── agent-workflow/              # Complete workflow 
+│       └── agent-workflow/              # Complete workflow
 |           ├── SKILL.md
 │           └── examples
 │
@@ -239,13 +239,11 @@ claude> /testing-agent
    ```
 
 2. **Design the Workflow**
-
    - The skill guides you through defining nodes
    - Each node is a unit of work (LLM call, function, router)
    - Edges define how execution flows
 
 3. **Generate the Agent**
-
    - The skill generates a complete Python package in `exports/`
    - Includes: `agent.json`, `tools.py`, `README.md`
 
@@ -375,7 +373,7 @@ def test_ticket_categorization():
 - **PEP 8** - Follow Python style guide
 - **Type hints** - Use for function signatures and class attributes
 - **Docstrings** - Document classes and public functions
-- **Black** - Code formatter (run with `black .`)
+- **Ruff** - Linter + formatter (run with `make check`)
 
 ```python
 # Good
@@ -520,8 +518,6 @@ chore(deps): update React to 18.2.0
 ---
 
 ## Debugging
-
-
 
 ### Backend Debugging
 
@@ -696,7 +692,6 @@ kill -9 <PID>
 # Or change ports in config.yaml and regenerate
 ```
 
-
 ### Docker Issues
 
 ```bash
@@ -706,8 +701,6 @@ docker system prune -f
 docker compose build --no-cache
 docker compose up
 ```
-
-
 
 ### Environment Variables Not Loading
 
@@ -721,8 +714,6 @@ cat hive/.env
 
 # Restart dev servers after changing env
 ```
-
-
 
 ---
 
