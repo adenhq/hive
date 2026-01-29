@@ -1,0 +1,53 @@
+# Hive Agent Framework - Kubernetes Service
+# Provides internal cluster networking for the Hive tools server
+#
+# Service Types:
+#   - ClusterIP (default): Internal cluster access only
+#   - LoadBalancer: External access (uncomment annotations for cloud providers)
+#   - NodePort: Access via node IP + port
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-tools
+  labels:
+    app: hive
+    component: tools
+  # Uncomment for cloud provider load balancers:
+  # annotations:
+  #   # AWS
+  #   service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+  #   # GCP
+  #   cloud.google.com/load-balancer-type: "Internal"
+  #   # Azure
+  #   service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+spec:
+  type: ClusterIP
+  selector:
+    app: hive
+    component: tools
+  ports:
+    - name: http
+      port: 4001
+      targetPort: http
+      protocol: TCP
+---
+# Headless service for StatefulSet scenarios (if needed)
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-tools-headless
+  labels:
+    app: hive
+    component: tools
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: hive
+    component: tools
+  ports:
+    - name: http
+      port: 4001
+      targetPort: http
+      protocol: TCP

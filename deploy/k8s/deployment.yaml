@@ -1,0 +1,108 @@
+# Hive Agent Framework - Kubernetes Deployment
+# Deploys the MCP tools server and agent runtime
+#
+# Usage:
+#   kubectl apply -f deploy/k8s/
+#
+# Prerequisites:
+#   - Create secrets: kubectl create secret generic hive-secrets --from-literal=ANTHROPIC_API_KEY=<your-key>
+#   - Build and push image: docker build -t your-registry/hive-tools:latest tools/
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hive-tools
+  labels:
+    app: hive
+    component: tools
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hive
+      component: tools
+  template:
+    metadata:
+      labels:
+        app: hive
+        component: tools
+        version: v1
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+      containers:
+        - name: hive-tools
+          image: adenhq/hive-tools:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 4001
+              protocol: TCP
+          env:
+            - name: PYTHONPATH
+              value: "core:exports"
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hive-secrets
+                  key: ANTHROPIC_API_KEY
+            - name: AGENT_STORAGE_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: hive-config
+                  key: AGENT_STORAGE_PATH
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: hive-config
+                  key: LOG_LEVEL
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: workspaces
+              mountPath: /app/workdir/workspaces
+      volumes:
+        - name: workspaces
+          persistentVolumeClaim:
+            claimName: hive-workspaces-pvc
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+---
+# PersistentVolumeClaim for workspace data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hive-workspaces-pvc
+  labels:
+    app: hive
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
