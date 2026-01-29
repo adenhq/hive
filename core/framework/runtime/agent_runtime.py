@@ -133,7 +133,7 @@ class AgentRuntime:
         # Entry points and streams
         self._entry_points: dict[str, EntryPointSpec] = {}
         self._streams: dict[str, ExecutionStream] = {}
-          # State
+        # State
         self._running = False
         self._lock = asyncio.Lock()
 
