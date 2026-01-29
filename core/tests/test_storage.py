@@ -577,6 +577,26 @@ class TestConcurrentStorageCacheManagement:
         assert stats["expired_entries"] == 1
         assert stats["valid_entries"] == 1
 
+    @pytest.mark.asyncio
+    async def test_max_cache_entries_eviction(self, tmp_path: Path):
+        """When max_cache_entries is set, oldest entries are evicted."""
+        storage = ConcurrentStorage(tmp_path, max_cache_entries=3)
+        await storage.start()
+
+        try:
+            # Save and load 4 runs to exceed max_cache_entries
+            for i in range(4):
+                run = create_test_run(run_id=f"run_{i}")
+                await storage.save_run(run, immediate=True)
+                await storage.load_run(run.id)
+
+            # Cache should be capped at 3 (run_1, run_2, run_3; run_0 evicted)
+            assert len(storage._cache) <= 3
+            stats = storage.get_cache_stats()
+            assert stats.get("max_entries") == 3
+        finally:
+            await storage.stop()
+
 
 @pytest.mark.skip(reason="ConcurrentStorage is deprecated - wraps deprecated FileStorage")
 class TestConcurrentStorageSyncAPI:
