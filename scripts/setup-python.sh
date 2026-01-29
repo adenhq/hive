@@ -26,7 +26,7 @@ REQUIRED_PYTHON_VERSION="3.11"
 IFS='.' read -r PYTHON_MAJOR_VERSION PYTHON_MINOR_VERSION <<< "$REQUIRED_PYTHON_VERSION"
 
 # Available python interpreter (follows sequence)
-POSSIBLE_PYTHONS=("python3" "python" "py")
+POSSIBLE_PYTHONS=("python3.11" "python3" "python" "py")
 
 # Default python interpreter (initialized)
 PYTHON_CMD=()
