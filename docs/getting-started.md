@@ -2,6 +2,39 @@
 
 This guide will help you set up the Aden Agent Framework and build your first agent.
 
+## Python-Only Minimal First Run (No Docker, No Node)
+
+This section is for contributors who want to quickly validate the Aden agent framework
+and start contributing to Python agents.
+
+This setup does NOT require:
+- Docker
+- Node.js / npm
+- Frontend or backend services
+- `config.yaml` setup
+
+### Steps
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/adenhq/hive.git
+cd hive
+
+# 2. Run automated Python setup
+./scripts/setup-python.sh
+
+# 3. Verify installation
+python -c "import framework; import aden_tools; print('✓ Setup complete')"
+
+# 4. Validate an example agent
+PYTHONPATH=core:exports python -m support_ticket_agent validate
+
+# 5. Run the agent in mock mode (no API keys required)
+PYTHONPATH=core:exports python -m support_ticket_agent run --mock --input '{...}'
+
+If you want the full platform setup (Docker, frontend, backend, and configuration),
+continue with the sections below.
+
 ## Prerequisites
 
 - **Python 3.11+** ([Download](https://www.python.org/downloads/)) - Python 3.12 or 3.13 recommended
