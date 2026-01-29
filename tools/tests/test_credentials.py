@@ -150,6 +150,45 @@ class TestCredentialManagerToolMapping:
         # Should only appear once even though two tools need it
         assert len(missing) == 1
 
+    def test_get_credentials_for_tool_returns_all(self):
+        """get_credentials_for_tool() returns all credentials for a tool."""
+        creds = CredentialManager()
+
+        # google_search requires both google_search and google_cse credentials
+        cred_names = creds.get_credentials_for_tool("google_search")
+        assert "google_search" in cred_names
+        assert "google_cse" in cred_names
+
+    def test_get_credentials_for_tool_returns_empty_for_unknown(self):
+        """get_credentials_for_tool() returns empty list for unknown tools."""
+        creds = CredentialManager()
+
+        assert creds.get_credentials_for_tool("unknown_tool") == []
+
+    def test_get_missing_returns_all_creds_for_tool(self, monkeypatch, tmp_path):
+        """When a tool needs multiple credentials, all missing ones are reported."""
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+        monkeypatch.delenv("GOOGLE_CSE_ID", raising=False)
+
+        creds = CredentialManager(dotenv_path=tmp_path / ".env")
+        missing = creds.get_missing_for_tools(["google_search"])
+
+        missing_names = [name for name, _ in missing]
+        assert "google_search" in missing_names
+        assert "google_cse" in missing_names
+
+    def test_get_missing_when_one_of_multiple_creds_set(self, monkeypatch, tmp_path):
+        """Only the missing credential is reported when one is already set."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+        monkeypatch.delenv("GOOGLE_CSE_ID", raising=False)
+
+        creds = CredentialManager(dotenv_path=tmp_path / ".env")
+        missing = creds.get_missing_for_tools(["google_search"])
+
+        missing_names = [name for name, _ in missing]
+        assert "google_cse" in missing_names
+        assert "google_search" not in missing_names  # This one is set
+
 
 class TestCredentialManagerValidation:
     """Tests for validate_for_tools() behavior."""
@@ -206,6 +245,27 @@ class TestCredentialManagerValidation:
 
         # Should not raise because credential is optional
         creds.validate_for_tools(["optional_tool"])
+
+    def test_validate_fails_when_one_of_multiple_creds_missing(self, monkeypatch, tmp_path):
+        """Validation fails if only one of multiple required credentials is set."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+        monkeypatch.delenv("GOOGLE_CSE_ID", raising=False)
+
+        creds = CredentialManager(dotenv_path=tmp_path / ".env")
+
+        with pytest.raises(CredentialError) as exc_info:
+            creds.validate_for_tools(["google_search"])
+
+        error_msg = str(exc_info.value)
+        assert "GOOGLE_CSE_ID" in error_msg
+
+    def test_validate_passes_when_all_multiple_creds_present(self, monkeypatch):
+        """Validation passes when all credentials for a tool are set."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+        monkeypatch.setenv("GOOGLE_CSE_ID", "test-cse-id")
+
+        creds = CredentialManager()
+        creds.validate_for_tools(["google_search"])  # Should not raise
 
 
 class TestCredentialManagerForTesting:

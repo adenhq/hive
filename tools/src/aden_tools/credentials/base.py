@@ -92,16 +92,20 @@ class CredentialManager:
         self._specs = specs
         self._overrides = _overrides or {}
         self._dotenv_path = dotenv_path
-        # Build reverse mapping: tool_name -> credential_name
-        self._tool_to_cred: dict[str, str] = {}
+        # Build reverse mapping: tool_name -> list of credential_names
+        self._tool_to_cred: dict[str, list[str]] = {}
         for cred_name, spec in self._specs.items():
             for tool_name in spec.tools:
-                self._tool_to_cred[tool_name] = cred_name
-        # Build reverse mapping: node_type -> credential_name
-        self._node_type_to_cred: dict[str, str] = {}
+                if tool_name not in self._tool_to_cred:
+                    self._tool_to_cred[tool_name] = []
+                self._tool_to_cred[tool_name].append(cred_name)
+        # Build reverse mapping: node_type -> list of credential_names
+        self._node_type_to_cred: dict[str, list[str]] = {}
         for cred_name, spec in self._specs.items():
             for node_type in spec.node_types:
-                self._node_type_to_cred[node_type] = cred_name
+                if node_type not in self._node_type_to_cred:
+                    self._node_type_to_cred[node_type] = []
+                self._node_type_to_cred[node_type].append(cred_name)
 
     @classmethod
     def for_testing(
@@ -202,15 +206,31 @@ class CredentialManager:
 
     def get_credential_for_tool(self, tool_name: str) -> str | None:
         """
-        Get the credential name required by a tool.
+        Get the first credential name required by a tool.
+
+        Note: Some tools require multiple credentials. Use get_credentials_for_tool()
+        to get all of them.
 
         Args:
             tool_name: Name of the tool (e.g., "web_search")
 
         Returns:
-            Credential name if tool requires one, None otherwise
+            First credential name if tool requires one, None otherwise
         """
-        return self._tool_to_cred.get(tool_name)
+        cred_names = self._tool_to_cred.get(tool_name, [])
+        return cred_names[0] if cred_names else None
+
+    def get_credentials_for_tool(self, tool_name: str) -> list[str]:
+        """
+        Get all credential names required by a tool.
+
+        Args:
+            tool_name: Name of the tool (e.g., "google_search")
+
+        Returns:
+            List of credential names, empty if tool needs no credentials
+        """
+        return self._tool_to_cred.get(tool_name, [])
 
     def get_missing_for_tools(self, tool_names: list[str]) -> list[tuple[str, CredentialSpec]]:
         """
@@ -226,18 +246,15 @@ class CredentialManager:
         checked: set[str] = set()
 
         for tool_name in tool_names:
-            cred_name = self._tool_to_cred.get(tool_name)
-            if cred_name is None:
-                # Tool doesn't require credentials
-                continue
-            if cred_name in checked:
-                # Already checked this credential
-                continue
-            checked.add(cred_name)
+            cred_names = self._tool_to_cred.get(tool_name, [])
+            for cred_name in cred_names:
+                if cred_name in checked:
+                    continue
+                checked.add(cred_name)
 
-            spec = self._specs[cred_name]
-            if spec.required and not self.is_available(cred_name):
-                missing.append((cred_name, spec))
+                spec = self._specs[cred_name]
+                if spec.required and not self.is_available(cred_name):
+                    missing.append((cred_name, spec))
 
         return missing
 
@@ -300,18 +317,15 @@ class CredentialManager:
         checked: set[str] = set()
 
         for node_type in node_types:
-            cred_name = self._node_type_to_cred.get(node_type)
-            if cred_name is None:
-                # Node type doesn't require credentials
-                continue
-            if cred_name in checked:
-                # Already checked this credential
-                continue
-            checked.add(cred_name)
+            cred_names = self._node_type_to_cred.get(node_type, [])
+            for cred_name in cred_names:
+                if cred_name in checked:
+                    continue
+                checked.add(cred_name)
 
-            spec = self._specs[cred_name]
-            if spec.required and not self.is_available(cred_name):
-                missing.append((cred_name, spec))
+                spec = self._specs[cred_name]
+                if spec.required and not self.is_available(cred_name):
+                    missing.append((cred_name, spec))
 
         return missing
 
