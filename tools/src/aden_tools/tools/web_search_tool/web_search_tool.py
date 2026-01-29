@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING, Literal
 import httpx
 from fastmcp import FastMCP
 
+from ...utils import error_response
+
 if TYPE_CHECKING:
     from aden_tools.credentials import CredentialManager
 
@@ -213,6 +215,6 @@ def register_tools(
         except httpx.TimeoutException:
             return {"error": "Search request timed out"}
         except httpx.RequestError as e:
-            return {"error": f"Network error: {str(e)}"}
+            return error_response(e, "Network error")
         except Exception as e:
-            return {"error": f"Search failed: {str(e)}"}
+            return error_response(e, "Search failed")
