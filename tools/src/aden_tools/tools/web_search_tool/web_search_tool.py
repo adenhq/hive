@@ -161,8 +161,15 @@ def register_tools(
         Returns:
             Dict with search results, total count, and provider used
         """
+        # Validate query
         if not query or len(query) > 500:
             return {"error": "Query must be 1-500 characters"}
+
+        # Validate num_results (Brave supports 1-20, Google supports 1-10)
+        if num_results < 1:
+            return {"error": "num_results must be at least 1"}
+        if num_results > 20:
+            return {"error": "num_results cannot exceed 20"}
 
         creds = _get_credentials()
         google_available = creds["google_api_key"] and creds["google_cse_id"]
