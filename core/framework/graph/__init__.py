@@ -2,7 +2,7 @@
 
 from framework.graph.code_sandbox import CodeSandbox, safe_eval, safe_exec
 from framework.graph.edge import EdgeCondition, EdgeSpec, GraphSpec
-from framework.graph.executor import GraphExecutor
+from framework.graph.executor import GraphExecutor, MemoryConflictError
 from framework.graph.flexible_executor import ExecutorConfig, FlexibleGraphExecutor
 from framework.graph.goal import Constraint, Goal, GoalStatus, SuccessCriterion
 from framework.graph.judge import HybridJudge, create_default_judge
@@ -45,6 +45,7 @@ __all__ = [
     "GraphSpec",
     # Executor (fixed graph)
     "GraphExecutor",
+    "MemoryConflictError",
     # Plan (flexible execution)
     "Plan",
     "PlanStep",
