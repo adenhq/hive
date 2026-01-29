@@ -85,6 +85,14 @@ This installs:
 - All required dependencies
 - Claude Code skills for building agents
 
+
+### Windows users note
+
+If you are running Hive on Windows, the setup script must be executed using Git Bash. PowerShell and Command Prompt cannot run `.sh` files. First install Git for Windows from https://git-scm.com/downloads, then open Git Bash and clone the repository using `git clone https://github.com/adenhq/hive.git` followed by `cd hive`. Before running the setup, make the script executable with `chmod +x quickstart.sh`, then start the installation using `./quickstart.sh`. If running `./quickstart.sh` opens a “Choose an app” dialog, it means Git Bash is not being used. Once the script completes, all required dependencies should be installed and the environment will be ready.
+
+
+
+
 ### Build Your First Agent
 
 ```bash
