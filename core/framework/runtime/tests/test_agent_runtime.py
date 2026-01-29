@@ -500,6 +500,124 @@ class TestAgentRuntime:
         with pytest.raises(RuntimeError, match="not running"):
             await runtime.trigger("webhook", {"test": "data"})
 
+    @pytest.mark.asyncio
+    async def test_function_node_registration(self, temp_storage):
+        """Test registering and executing function nodes via AgentRuntime."""
+        goal = Goal(
+            id="func-goal",
+            name="Function Goal",
+            description="Test function node execution",
+        )
+
+        nodes = [
+            NodeSpec(
+                id="add",
+                name="Add One",
+                description="Adds one to the input value",
+                node_type="function",
+                input_keys=["value"],
+                output_keys=["sum"],
+                function="add_one",
+            )
+        ]
+
+        graph = GraphSpec(
+            id="func-graph",
+            goal_id=goal.id,
+            entry_node="add",
+            terminal_nodes=["add"],
+            nodes=nodes,
+            edges=[],
+        )
+
+        runtime = AgentRuntime(
+            graph=graph,
+            goal=goal,
+            storage_path=temp_storage,
+        )
+
+        runtime.register_entry_point(
+            EntryPointSpec(
+                id="start",
+                name="Start",
+                entry_node="add",
+                trigger_type="manual",
+            )
+        )
+
+        runtime.register_function("add", lambda value: value + 1)
+
+        await runtime.start()
+        try:
+            result = await runtime.trigger_and_wait("start", {"value": 2})
+        finally:
+            await runtime.stop()
+
+        assert result is not None
+        assert result.success is True
+        assert result.output["sum"] == 3
+
+    @pytest.mark.asyncio
+    async def test_function_node_multiple_outputs(self, temp_storage):
+        """Test function nodes mapping dict results to multiple output keys."""
+        goal = Goal(
+            id="multi-output-goal",
+            name="Multi Output Goal",
+            description="Test function output mapping",
+        )
+
+        nodes = [
+            NodeSpec(
+                id="produce",
+                name="Produce Outputs",
+                description="Returns multiple outputs",
+                node_type="function",
+                input_keys=["value"],
+                output_keys=["a", "b"],
+                function="produce_outputs",
+            )
+        ]
+
+        graph = GraphSpec(
+            id="multi-output-graph",
+            goal_id=goal.id,
+            entry_node="produce",
+            terminal_nodes=["produce"],
+            nodes=nodes,
+            edges=[],
+        )
+
+        runtime = AgentRuntime(
+            graph=graph,
+            goal=goal,
+            storage_path=temp_storage,
+        )
+
+        runtime.register_entry_point(
+            EntryPointSpec(
+                id="start",
+                name="Start",
+                entry_node="produce",
+                trigger_type="manual",
+            )
+        )
+
+        def produce_outputs(value: int) -> dict:
+            return {"a": value, "b": value + 1}
+
+        runtime.register_function("produce", produce_outputs)
+
+        await runtime.start()
+        try:
+            result = await runtime.trigger_and_wait("start", {"value": 5})
+        finally:
+            await runtime.stop()
+
+        assert result is not None
+        assert result.success is True
+        assert result.output["a"] == 5
+        assert result.output["b"] == 6
+
 
 # === GraphSpec Validation Tests ===
 
