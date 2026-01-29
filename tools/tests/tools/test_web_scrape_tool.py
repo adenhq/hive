@@ -68,7 +68,9 @@ class TestWebScrapeToolLinkConversion:
         mock_response.headers = {"content-type": "text/html; charset=utf-8"}
         return mock_response
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Mock object behavior differs on Windows")
+    @pytest.mark.skipif(
+        sys.platform != "win32", reason="Mock object behavior differs on Unix/macOS"
+    )
     @patch("aden_tools.tools.web_scrape_tool.web_scrape_tool.httpx.get")
     def test_relative_links_converted_to_absolute(self, mock_get, web_scrape_fn):
         """Relative URLs like ../page are converted to absolute URLs."""
@@ -97,7 +99,9 @@ class TestWebScrapeToolLinkConversion:
         expected = "https://example.com/blog/page.html"
         assert hrefs["Next Page"] == expected, f"Got {hrefs['Next Page']}"
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Mock object behavior differs on Windows")
+    @pytest.mark.skipif(
+        sys.platform != "win32", reason="Mock object behavior differs on Unix/macOS"
+    )
     @patch("aden_tools.tools.web_scrape_tool.web_scrape_tool.httpx.get")
     def test_root_relative_links_converted(self, mock_get, web_scrape_fn):
         """Root-relative URLs like /about are converted to absolute URLs."""
@@ -122,7 +126,9 @@ class TestWebScrapeToolLinkConversion:
         assert hrefs["About"] == "https://example.com/about"
         assert hrefs["Contact"] == "https://example.com/contact"
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Mock object behavior differs on Windows")
+    @pytest.mark.skipif(
+        sys.platform != "win32", reason="Mock object behavior differs on Unix/macOS"
+    )
     @patch("aden_tools.tools.web_scrape_tool.web_scrape_tool.httpx.get")
     def test_absolute_links_unchanged(self, mock_get, web_scrape_fn):
         """Absolute URLs remain unchanged."""
@@ -147,7 +153,9 @@ class TestWebScrapeToolLinkConversion:
         assert hrefs["Other Site"] == "https://other.com"
         assert hrefs["Internal"] == "https://example.com/page"
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Mock object behavior differs on Windows")
+    @pytest.mark.skipif(
+        sys.platform != "win32", reason="Mock object behavior differs on Unix/macOS"
+    )
     @patch("aden_tools.tools.web_scrape_tool.web_scrape_tool.httpx.get")
     def test_links_after_redirects(self, mock_get, web_scrape_fn):
         """Links are resolved relative to final URL after redirects."""
@@ -178,7 +186,9 @@ class TestWebScrapeToolLinkConversion:
         ), "Links should resolve relative to final URL after redirects"
         assert hrefs["Next"] == "https://example.com/new/next"
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Mock object behavior differs on Windows")
+    @pytest.mark.skipif(
+        sys.platform != "win32", reason="Mock object behavior differs on Unix/macOS"
+    )
     @patch("aden_tools.tools.web_scrape_tool.web_scrape_tool.httpx.get")
     def test_fragment_links_preserved(self, mock_get, web_scrape_fn):
         """Fragment links (anchors) are preserved."""
@@ -203,7 +213,9 @@ class TestWebScrapeToolLinkConversion:
         assert hrefs["Section 1"] == "https://example.com/page#section1"
         assert hrefs["Page Section 2"] == "https://example.com/page#section2"
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Mock object behavior differs on Windows")
+    @pytest.mark.skipif(
+        sys.platform != "win32", reason="Mock object behavior differs on Unix/macOS"
+    )
     @patch("aden_tools.tools.web_scrape_tool.web_scrape_tool.httpx.get")
     def test_query_parameters_preserved(self, mock_get, web_scrape_fn):
         """Query parameters in URLs are preserved."""
@@ -229,7 +241,9 @@ class TestWebScrapeToolLinkConversion:
         assert "q=test" in hrefs["Search"]
         assert "sort=date" in hrefs["Search"]
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Mock object behavior differs on Windows")
+    @pytest.mark.skipif(
+        sys.platform != "win32", reason="Mock object behavior differs on Unix/macOS"
+    )
     @patch("aden_tools.tools.web_scrape_tool.web_scrape_tool.httpx.get")
     def test_empty_href_skipped(self, mock_get, web_scrape_fn):
         """Links with empty or whitespace text are skipped."""
