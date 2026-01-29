@@ -35,6 +35,7 @@ from .file_system_toolkits.replace_file_content import (
 # Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
+from .http_request_tool import register_tools as register_http_request
 from .pdf_read_tool import register_tools as register_pdf_read
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
@@ -59,6 +60,7 @@ def register_all_tools(
     register_example(mcp)
     register_web_scrape(mcp)
     register_pdf_read(mcp)
+    register_http_request(mcp)
 
     # Tools that need credentials (pass credentials if provided)
     # web_search supports multiple providers (Google, Brave) with auto-detection
@@ -80,6 +82,7 @@ def register_all_tools(
         "web_search",
         "web_scrape",
         "pdf_read",
+        "http_request",
         "view_file",
         "write_to_file",
         "list_dir",
