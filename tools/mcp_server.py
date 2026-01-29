@@ -48,24 +48,34 @@ from starlette.responses import PlainTextResponse
 from aden_tools.credentials import CredentialManager, CredentialError
 from aden_tools.tools import register_all_tools
 
+# --- IMPORT LOGGER ---
+from aden_tools.utils.logging import get_logger
+
+#Initialize logger
+logger = get_logger(__name__)
+
 # Create credential manager
 credentials = CredentialManager()
 
 # Tier 1: Validate startup-required credentials (if any)
 try:
     credentials.validate_startup()
-    print("[MCP] Startup credentials validated")
+    logger.info("Startup credentials validated")
 except CredentialError as e:
     # Non-fatal - tools will validate their own credentials when called
-    print(f"[MCP] Warning: {e}", file=sys.stderr)
+    #Using logger.warning with extra context
+    logger.warning("Startup credentials check warning", extra={"error": str(e)})
 
 mcp = FastMCP("tools")
 
 # Register all tools with the MCP server, passing credential manager
 tools = register_all_tools(mcp, credentials=credentials)
-# Only print to stdout in HTTP mode (STDIO mode requires clean stdout for JSON-RPC)
-if "--stdio" not in sys.argv:
-    print(f"[MCP] Registered {len(tools)} tools: {tools}")
+
+# Only log tool count if not strictly in STDIO mode (though logger goes to stderr, so it's safe now)
+logger.info("Tools registered", extra={"count": len(tools), "tool_list": tools})
+
+# if "--stdio" not in sys.argv:
+#     print(f"[MCP] Registered {len(tools)} tools: {tools}")
 
 
 @mcp.custom_route("/health", methods=["GET"])
@@ -103,9 +113,13 @@ def main() -> None:
 
     if args.stdio:
         # STDIO mode: only JSON-RPC messages go to stdout
+        logger.info("Starting MCP server in STDIO mode")
         mcp.run(transport="stdio")
     else:
-        print(f"[MCP] Starting HTTP server on {args.host}:{args.port}")
+        logger.info(
+            "Starting HTTP server", 
+            extra={"host": args.host, "port": args.port}
+        )
         mcp.run(transport="http", host=args.host, port=args.port)
 
 

@@ -15,6 +15,12 @@ import httpx
 from bs4 import BeautifulSoup
 from fastmcp import FastMCP
 
+# -- IMPORT LOGGER --
+from aden_tools.utils.logging import get_logger
+
+#Init logger
+logger = get_logger(__name__)
+
 # Cache for robots.txt parsers (domain -> parser)
 _robots_cache: dict[str, RobotFileParser | None] = {}
 
@@ -116,15 +122,20 @@ def register_tools(mcp: FastMCP) -> None:
         Returns:
             Dict with scraped content (url, title, description, content, length) or error dict
         """
+
+        log_ctx={"target_url":url, "selector": selector}
+
         try:
             # Validate URL
             if not url.startswith(("http://", "https://")):
                 url = "https://" + url
+                log_ctx["target_url"] = url #Update url in log context
 
             # Check robots.txt if enabled
             if respect_robots_txt:
                 allowed, reason = _is_allowed_by_robots(url)
                 if not allowed:
+                    logger.warning("Scraping blocked by robot.txt", extra={**log_ctx, "reason":reason})
                     return {
                         "error": f"Scraping blocked: {reason}",
                         "blocked_by_robots_txt": True,
@@ -150,6 +161,11 @@ def register_tools(mcp: FastMCP) -> None:
             )
 
             if response.status_code != 200:
+                #Log warning cause this is an external issue(error site target)
+                logger.warning(
+                    "HTTP scraped failed", 
+                    extra={**log_ctx, "status_code":response.status_code}
+                )
                 return {"error": f"HTTP {response.status_code}: Failed to fetch URL"}
 
             # Parse HTML
@@ -174,6 +190,7 @@ def register_tools(mcp: FastMCP) -> None:
             if selector:
                 content_elem = soup.select_one(selector)
                 if not content_elem:
+                    logger.warning("Selector not found", extra=log_ctx)
                     return {"error": f"No elements found matching selector: {selector}"}
                 text = content_elem.get_text(separator=" ", strip=True)
             else:
@@ -213,11 +230,26 @@ def register_tools(mcp: FastMCP) -> None:
                         links.append({"text": link_text, "href": href})
                 result["links"] = links
 
+            # Success logging
+            logger.info(
+                "Web scrape success", 
+                extra = {
+                    "target_url":str(response.url), 
+                    "title": title, 
+                    "content_len": len(text)
+                }
+            )
+
             return result
 
         except httpx.TimeoutException:
+            logger.error("Scrape request timed out", extra=log_ctx)
             return {"error": "Request timed out"}
         except httpx.RequestError as e:
+            #Network error(DNS, Connection Refused, etc.)
+            logger.error("Network error during scrape", extra={**log_ctx, "error_msg":str(e)})
             return {"error": f"Network error: {str(e)}"}
         except Exception as e:
+            #General error parsing etc
+            logger.error("Scrape unexpected failure", extra={**log_ctx, "error_msg":str(e)})
             return {"error": f"Scraping failed: {str(e)}"}

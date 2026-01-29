@@ -9,8 +9,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, List
 
+import logging
+
 from fastmcp import FastMCP
 from pypdf import PdfReader
+
+from aden_tools.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def register_tools(mcp: FastMCP) -> None:
@@ -85,18 +91,26 @@ def register_tools(mcp: FastMCP) -> None:
         Returns:
             Dict with extracted text and metadata, or error dict
         """
+
+        log_ctx = {"input": {"file_path": file_path, "pages_req": pages, "max_pages": max_pages}}
         try:
             path = Path(file_path).resolve()
 
+            #Update context with absolute path (more secure)
+            log_ctx["abs_path"] = str(path)
+
             # Validate file exists
             if not path.exists():
+                logger.warning("PDF file not found", extra=log_ctx)
                 return {"error": f"PDF file not found: {file_path}"}
 
             if not path.is_file():
+                logger.warning("Path is not a file", extra=log_ctx)
                 return {"error": f"Not a file: {file_path}"}
 
             # Check extension
             if path.suffix.lower() != ".pdf":
+                logger.warning("Invalid file extension", extra=log_ctx)
                 return {"error": f"Not a PDF file (expected .pdf): {file_path}"}
 
             # Validate max_pages
@@ -105,11 +119,16 @@ def register_tools(mcp: FastMCP) -> None:
             elif max_pages > 1000:
                 max_pages = 1000
 
+            #-- START PROCESSING --#
+
+            logger.info("Opening PDF file", extra=log_ctx)
+
             # Open and read PDF
             reader = PdfReader(path)
 
             # Check for encryption
             if reader.is_encrypted:
+                # logger.warning("Cannot read encrypted PDF. Password required.", extra={"file_path": str(path), "pages": pages})
                 return {"error": "Cannot read encrypted PDF. Password required."}
 
             total_pages = len(reader.pages)
@@ -117,6 +136,9 @@ def register_tools(mcp: FastMCP) -> None:
             # Parse page range
             page_indices = parse_page_range(pages, total_pages, max_pages)
             if isinstance(page_indices, dict):  # Error dict
+                #Log detail error parsing page
+                log_ctx["error_detail"] = page_indices.get("error")
+                logger.warning("Invalid page range requested", extra=log_ctx)
                 return page_indices
 
             # Extract text from pages
@@ -149,9 +171,24 @@ def register_tools(mcp: FastMCP) -> None:
                     "modified": str(meta.get("/ModDate")) if meta.get("/ModDate") else None,
                 }
 
+            # --SUCCESS LOGGING--#
+            logger.info(
+                "PDF read success", 
+                extra={
+                "abs_path": str(path),
+                "total_pages":total_pages, 
+                "extracted_pages": len(page_indices), 
+                "char_count":len(content)
+                }
+            )
+
             return result
 
         except PermissionError:
+            logger.error("Permission denied", extra=log_ctx)
             return {"error": f"Permission denied: {file_path}"}
+        
         except Exception as e:
+            log_ctx["error_msg"]=str(e)
+            logger.error("Unexpected error reading PDF", extra=log_ctx)
             return {"error": f"Failed to read PDF: {str(e)}"}
