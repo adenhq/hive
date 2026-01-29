@@ -2,7 +2,7 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
-from ..security import get_secure_path
+from ..security import get_secure_path, safe_open_in_sandbox
 
 
 def register_tools(mcp: FastMCP) -> None:
@@ -49,7 +49,14 @@ def register_tools(mcp: FastMCP) -> None:
             secure_path = get_secure_path(path, workspace_id, agent_id, session_id)
             os.makedirs(os.path.dirname(secure_path), exist_ok=True)
             mode = "a" if append else "w"
-            with open(secure_path, mode, encoding="utf-8") as f:
+            with safe_open_in_sandbox(
+                path=path,
+                workspace_id=workspace_id,
+                agent_id=agent_id,
+                session_id=session_id,
+                mode=mode,
+                encoding="utf-8",
+            ) as f:
                 f.write(content)
             return {
                 "success": True,

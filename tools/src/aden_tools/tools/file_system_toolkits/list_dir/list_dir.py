@@ -1,8 +1,9 @@
 import os
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from ..security import get_secure_path
+from ..security import get_secure_path, _is_under_session_root
 
 
 def register_tools(mcp: FastMCP) -> None:
@@ -35,11 +36,16 @@ def register_tools(mcp: FastMCP) -> None:
         """
         try:
             secure_path = get_secure_path(path, workspace_id, agent_id, session_id)
+            session_dir = Path(secure_path).parent
+
             if not os.path.exists(secure_path):
-                return {"error": f"Path not found: {path}"}
+                return {"error": "Path not found"}
 
             if not os.path.isdir(secure_path):
-                return {"error": f"Path is not a directory: {path}"}
+                return {"error": "Path is not a directory"}
+
+            if not _is_under_session_root(session_dir, Path(secure_path)):
+                return {"error": "Path escaped session sandbox"}
 
             items = os.listdir(secure_path)
             entries = []

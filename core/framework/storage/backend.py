@@ -6,6 +6,7 @@ Uses Pydantic's built-in serialization.
 """
 
 import json
+import os
 from pathlib import Path
 
 from framework.schemas.run import Run, RunStatus, RunSummary
@@ -33,6 +34,25 @@ class FileStorage:
     def __init__(self, base_path: str | Path):
         self.base_path = Path(base_path)
         self._ensure_dirs()
+
+    def _is_under_base(self, path: Path) -> bool:
+        """
+        Validate that the real path is still under the storage root.
+
+        This mitigates TOCTOU issues where a previously-checked path is
+        swapped for a symlink pointing outside the storage directory.
+        """
+        try:
+            real = path.resolve(strict=True)
+            base = self.base_path.resolve(strict=True)
+        except FileNotFoundError:
+            return False
+
+        try:
+            real.relative_to(base)
+            return True
+        except ValueError:
+            return False
 
     def _ensure_dirs(self) -> None:
         """Create directory structure if it doesn't exist."""
@@ -104,23 +124,30 @@ class FileStorage:
     def load_run(self, run_id: str) -> Run | None:
         """Load a run from storage."""
         run_path = self.base_path / "runs" / f"{run_id}.json"
-        if not run_path.exists():
+        if not self._is_under_base(run_path):
             return None
-        with open(run_path, encoding="utf-8") as f:
-            return Run.model_validate_json(f.read())
+
+        try:
+            with open(run_path, encoding="utf-8") as f:
+                return Run.model_validate_json(f.read())
+        except FileNotFoundError:
+            return None
 
     def load_summary(self, run_id: str) -> RunSummary | None:
         """Load just the summary (faster than full run)."""
         summary_path = self.base_path / "summaries" / f"{run_id}.json"
-        if not summary_path.exists():
-            # Fall back to computing from full run
-            run = self.load_run(run_id)
-            if run:
-                return RunSummary.from_run(run)
-            return None
+        if self._is_under_base(summary_path):
+            try:
+                with open(summary_path, encoding="utf-8") as f:
+                    return RunSummary.model_validate_json(f.read())
+            except FileNotFoundError:
+                pass
 
-        with open(summary_path, encoding="utf-8") as f:
-            return RunSummary.model_validate_json(f.read())
+        # Fall back to computing from full run
+        run = self.load_run(run_id)
+        if run:
+            return RunSummary.from_run(run)
+        return None
 
     def delete_run(self, run_id: str) -> bool:
         """Delete a run from storage."""
@@ -176,10 +203,13 @@ class FileStorage:
         """Get values from an index."""
         self._validate_key(key)  # Prevent path traversal
         index_path = self.base_path / "indexes" / index_type / f"{key}.json"
-        if not index_path.exists():
+        if not self._is_under_base(index_path):
             return []
-        with open(index_path, encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(index_path, encoding="utf-8") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return []
 
     def _add_to_index(self, index_type: str, key: str, value: str) -> None:
         """Add a value to an index."""

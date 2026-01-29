@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+from typing import IO
 
 # Use user home directory for workspaces
 WORKSPACES_DIR = os.path.expanduser("~/.hive/workdir/workspaces")
@@ -27,3 +29,46 @@ def get_secure_path(path: str, workspace_id: str, agent_id: str, session_id: str
         raise ValueError(f"Access denied: Path '{path}' is outside the session sandbox.")
 
     return final_path
+
+
+def _is_under_session_root(session_dir: Path, path: Path) -> bool:
+    """Validate that a real path stays under the session root."""
+    try:
+        real = path.resolve(strict=True)
+        root = session_dir.resolve(strict=True)
+    except FileNotFoundError:
+        return False
+
+    try:
+        real.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def safe_open_in_sandbox(
+    path: str,
+    workspace_id: str,
+    agent_id: str,
+    session_id: str,
+    mode: str = "r",
+    encoding: str = "utf-8",
+) -> IO[str]:
+    """
+    Atomically resolve and open a file within the session sandbox.
+
+    This mitigates TOCTOU issues where a checked path is swapped for a
+    symlink pointing outside the sandbox between validation and open().
+    """
+    # Resolve lexical path and ensure session dir exists
+    secure_path_str = get_secure_path(path, workspace_id, agent_id, session_id)
+    secure_path = Path(secure_path_str)
+    session_dir = Path(WORKSPACES_DIR) / workspace_id / agent_id / session_id
+
+    # Open first, then validate the real path is still under session_dir
+    f = open(secure_path, mode, encoding=encoding)
+    if not _is_under_session_root(session_dir, secure_path):
+        f.close()
+        raise PermissionError("Path escaped session sandbox via TOCTOU/symlink")
+
+    return f

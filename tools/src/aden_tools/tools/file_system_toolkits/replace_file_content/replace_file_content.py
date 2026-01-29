@@ -2,7 +2,7 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
-from ..security import get_secure_path
+from ..security import get_secure_path, safe_open_in_sandbox
 
 
 def register_tools(mcp: FastMCP) -> None:
@@ -40,9 +40,16 @@ def register_tools(mcp: FastMCP) -> None:
         try:
             secure_path = get_secure_path(path, workspace_id, agent_id, session_id)
             if not os.path.exists(secure_path):
-                return {"error": f"File not found at {path}"}
+                return {"error": "File not found"}
 
-            with open(secure_path, encoding="utf-8") as f:
+            with safe_open_in_sandbox(
+                path=path,
+                workspace_id=workspace_id,
+                agent_id=agent_id,
+                session_id=session_id,
+                mode="r",
+                encoding="utf-8",
+            ) as f:
                 content = f.read()
 
             if target not in content:
@@ -50,7 +57,14 @@ def register_tools(mcp: FastMCP) -> None:
 
             occurrences = content.count(target)
             new_content = content.replace(target, replacement)
-            with open(secure_path, "w", encoding="utf-8") as f:
+            with safe_open_in_sandbox(
+                path=path,
+                workspace_id=workspace_id,
+                agent_id=agent_id,
+                session_id=session_id,
+                mode="w",
+                encoding="utf-8",
+            ) as f:
                 f.write(new_content)
 
             return {
