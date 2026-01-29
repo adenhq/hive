@@ -12,6 +12,8 @@ For live tests (requires API keys):
 import os
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from framework.llm.anthropic import AnthropicProvider
 from framework.llm.litellm import LiteLLMProvider
 from framework.llm.provider import LLMProvider, Tool, ToolResult, ToolUse
@@ -476,3 +478,340 @@ class TestJsonMode:
         messages = call_kwargs["messages"]
         assert messages[0]["role"] == "system"
         assert "Please respond with a valid JSON object" in messages[0]["content"]
+
+
+# ===========================================================================
+# Error handling and edge case tests
+# ===========================================================================
+
+
+class TestLiteLLMProviderErrorHandling:
+    """Test error handling in LiteLLMProvider."""
+
+    @patch("litellm.completion")
+    def test_complete_raises_on_api_error(self, mock_completion):
+        """complete() propagates litellm API errors."""
+        mock_completion.side_effect = Exception("APIError: rate limit exceeded")
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        with pytest.raises(Exception, match="rate limit"):
+            provider.complete(messages=[{"role": "user", "content": "test"}])
+
+    @patch("litellm.completion")
+    def test_complete_raises_on_authentication_error(self, mock_completion):
+        """complete() propagates authentication errors."""
+        mock_completion.side_effect = Exception("AuthenticationError: invalid API key")
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="bad-key")
+        with pytest.raises(Exception, match="AuthenticationError"):
+            provider.complete(messages=[{"role": "user", "content": "test"}])
+
+    @patch("litellm.completion")
+    def test_complete_raises_on_timeout(self, mock_completion):
+        """complete() propagates timeout errors."""
+        mock_completion.side_effect = Exception("Timeout: request timed out")
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        with pytest.raises(Exception, match="Timeout"):
+            provider.complete(messages=[{"role": "user", "content": "test"}])
+
+    @patch("litellm.completion")
+    def test_complete_with_none_content(self, mock_completion):
+        """complete() handles None content in response (returns empty string)."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = None
+        mock_response.choices[0].finish_reason = "stop"
+        mock_response.model = "gpt-4o-mini"
+        mock_response.usage.prompt_tokens = 5
+        mock_response.usage.completion_tokens = 0
+        mock_completion.return_value = mock_response
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        result = provider.complete(messages=[{"role": "user", "content": "test"}])
+
+        assert result.content == ""
+
+    @patch("litellm.completion")
+    def test_complete_with_missing_usage(self, mock_completion):
+        """complete() handles missing usage object (token counts default to 0)."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "response"
+        mock_response.choices[0].finish_reason = "stop"
+        mock_response.model = "gpt-4o-mini"
+        mock_response.usage = None
+        mock_completion.return_value = mock_response
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        result = provider.complete(messages=[{"role": "user", "content": "test"}])
+
+        assert result.input_tokens == 0
+        assert result.output_tokens == 0
+
+    @patch("litellm.completion")
+    def test_complete_with_tools_max_iterations_reached(self, mock_completion):
+        """complete_with_tools() returns when max iterations exceeded."""
+        tc = MagicMock()
+        tc.id = "tc1"
+        tc.function.name = "search"
+        tc.function.arguments = '{"query": "test"}'
+
+        response = MagicMock()
+        response.choices = [MagicMock()]
+        response.choices[0].message.content = ""
+        response.choices[0].message.tool_calls = [tc]
+        response.choices[0].finish_reason = "tool_calls"
+        response.model = "gpt-4o-mini"
+        response.usage.prompt_tokens = 10
+        response.usage.completion_tokens = 5
+        mock_completion.return_value = response
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        tool = Tool(name="search", description="Search", parameters={"properties": {}})
+
+        def executor(tool_use: ToolUse) -> ToolResult:
+            return ToolResult(tool_use_id=tool_use.id, content="result")
+
+        result = provider.complete_with_tools(
+            messages=[{"role": "user", "content": "search"}],
+            system="system",
+            tools=[tool],
+            tool_executor=executor,
+            max_iterations=3,
+        )
+
+        assert result.content == "Max tool iterations reached"
+        assert result.stop_reason == "max_iterations"
+        assert result.raw_response is None
+        assert mock_completion.call_count == 3
+
+    @patch("litellm.completion")
+    def test_complete_with_tools_malformed_json_arguments(self, mock_completion):
+        """complete_with_tools() handles malformed JSON in tool call arguments."""
+        tc = MagicMock()
+        tc.id = "tc1"
+        tc.function.name = "search"
+        tc.function.arguments = "NOT VALID JSON{{{"
+
+        tool_call_response = MagicMock()
+        tool_call_response.choices = [MagicMock()]
+        tool_call_response.choices[0].message.content = ""
+        tool_call_response.choices[0].message.tool_calls = [tc]
+        tool_call_response.choices[0].finish_reason = "tool_calls"
+        tool_call_response.model = "gpt-4o-mini"
+        tool_call_response.usage.prompt_tokens = 10
+        tool_call_response.usage.completion_tokens = 5
+
+        final_response = MagicMock()
+        final_response.choices = [MagicMock()]
+        final_response.choices[0].message.content = "Done"
+        final_response.choices[0].message.tool_calls = None
+        final_response.choices[0].finish_reason = "stop"
+        final_response.model = "gpt-4o-mini"
+        final_response.usage.prompt_tokens = 15
+        final_response.usage.completion_tokens = 3
+
+        mock_completion.side_effect = [tool_call_response, final_response]
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        tool = Tool(name="search", description="Search", parameters={"properties": {}})
+
+        received_inputs = []
+
+        def executor(tool_use: ToolUse) -> ToolResult:
+            received_inputs.append(tool_use.input)
+            return ToolResult(tool_use_id=tool_use.id, content="result")
+
+        result = provider.complete_with_tools(
+            messages=[{"role": "user", "content": "search"}],
+            system="system",
+            tools=[tool],
+            tool_executor=executor,
+        )
+
+        assert result.content == "Done"
+        assert received_inputs[0] == {}
+
+    @patch("litellm.completion")
+    def test_complete_with_tools_multiple_tool_calls(self, mock_completion):
+        """complete_with_tools() handles multiple tool calls in single response."""
+        tc1 = MagicMock()
+        tc1.id = "tc1"
+        tc1.function.name = "search"
+        tc1.function.arguments = '{"query": "a"}'
+
+        tc2 = MagicMock()
+        tc2.id = "tc2"
+        tc2.function.name = "calculate"
+        tc2.function.arguments = '{"expr": "1+1"}'
+
+        tool_call_response = MagicMock()
+        tool_call_response.choices = [MagicMock()]
+        tool_call_response.choices[0].message.content = ""
+        tool_call_response.choices[0].message.tool_calls = [tc1, tc2]
+        tool_call_response.choices[0].finish_reason = "tool_calls"
+        tool_call_response.model = "gpt-4o-mini"
+        tool_call_response.usage.prompt_tokens = 20
+        tool_call_response.usage.completion_tokens = 10
+
+        final_response = MagicMock()
+        final_response.choices = [MagicMock()]
+        final_response.choices[0].message.content = "Both done"
+        final_response.choices[0].message.tool_calls = None
+        final_response.choices[0].finish_reason = "stop"
+        final_response.model = "gpt-4o-mini"
+        final_response.usage.prompt_tokens = 40
+        final_response.usage.completion_tokens = 5
+
+        mock_completion.side_effect = [tool_call_response, final_response]
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        tools = [
+            Tool(name="search", description="Search", parameters={"properties": {}}),
+            Tool(name="calculate", description="Calculate", parameters={"properties": {}}),
+        ]
+
+        call_log = []
+
+        def executor(tool_use: ToolUse) -> ToolResult:
+            call_log.append(tool_use.name)
+            return ToolResult(tool_use_id=tool_use.id, content="ok")
+
+        result = provider.complete_with_tools(
+            messages=[{"role": "user", "content": "do both"}],
+            system="sys",
+            tools=tools,
+            tool_executor=executor,
+        )
+
+        assert result.content == "Both done"
+        assert call_log == ["search", "calculate"]
+
+
+class TestLiteLLMProviderEdgeCases:
+    """Test edge cases in LiteLLMProvider."""
+
+    @patch("litellm.completion")
+    def test_complete_with_empty_messages(self, mock_completion):
+        """complete() passes empty messages list through."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "ok"
+        mock_response.choices[0].finish_reason = "stop"
+        mock_response.model = "gpt-4o-mini"
+        mock_response.usage.prompt_tokens = 1
+        mock_response.usage.completion_tokens = 1
+        mock_completion.return_value = mock_response
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        result = provider.complete(messages=[])
+
+        assert result.content == "ok"
+        call_kwargs = mock_completion.call_args[1]
+        assert call_kwargs["messages"] == []
+
+    def test_tool_conversion_no_parameters(self):
+        """_tool_to_openai_format handles tool with empty parameters."""
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        tool = Tool(name="noop", description="Does nothing", parameters={})
+
+        result = provider._tool_to_openai_format(tool)
+
+        assert result["function"]["name"] == "noop"
+        assert result["function"]["parameters"]["properties"] == {}
+        assert result["function"]["parameters"]["required"] == []
+
+    @patch("litellm.completion")
+    def test_complete_with_response_format_schema(self, mock_completion):
+        """complete() passes response_format with JSON schema through."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = '{"name": "test"}'
+        mock_response.choices[0].finish_reason = "stop"
+        mock_response.model = "gpt-4o-mini"
+        mock_response.usage.prompt_tokens = 5
+        mock_response.usage.completion_tokens = 5
+        mock_completion.return_value = mock_response
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        schema = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "output",
+                "schema": {"type": "object", "properties": {"name": {"type": "string"}}},
+            },
+        }
+
+        provider.complete(
+            messages=[{"role": "user", "content": "test"}],
+            response_format=schema,
+        )
+
+        call_kwargs = mock_completion.call_args[1]
+        assert call_kwargs["response_format"] == schema
+
+    @patch("litellm.completion")
+    def test_complete_model_fallback(self, mock_completion):
+        """complete() uses self.model when response.model is None."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "ok"
+        mock_response.choices[0].finish_reason = "stop"
+        mock_response.model = None
+        mock_response.usage.prompt_tokens = 1
+        mock_response.usage.completion_tokens = 1
+        mock_completion.return_value = mock_response
+
+        provider = LiteLLMProvider(model="my-custom-model", api_key="test-key")
+        result = provider.complete(messages=[{"role": "user", "content": "test"}])
+
+        assert result.model == "my-custom-model"
+
+    @patch("litellm.completion")
+    def test_complete_empty_finish_reason(self, mock_completion):
+        """complete() handles empty/None finish_reason."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "ok"
+        mock_response.choices[0].finish_reason = None
+        mock_response.model = "gpt-4o-mini"
+        mock_response.usage.prompt_tokens = 1
+        mock_response.usage.completion_tokens = 1
+        mock_completion.return_value = mock_response
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        result = provider.complete(messages=[{"role": "user", "content": "test"}])
+
+        assert result.stop_reason == ""
+
+    def test_extra_kwargs_stored(self):
+        """Extra kwargs are stored for passing to litellm.completion."""
+        provider = LiteLLMProvider(
+            model="gpt-4o-mini",
+            api_key="test-key",
+            temperature=0.5,
+            top_p=0.9,
+        )
+
+        assert provider.extra_kwargs == {"temperature": 0.5, "top_p": 0.9}
+
+    @patch("litellm.completion")
+    def test_extra_kwargs_passed_to_completion(self, mock_completion):
+        """Extra kwargs are included in litellm.completion call."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "ok"
+        mock_response.choices[0].finish_reason = "stop"
+        mock_response.model = "gpt-4o-mini"
+        mock_response.usage.prompt_tokens = 1
+        mock_response.usage.completion_tokens = 1
+        mock_completion.return_value = mock_response
+
+        provider = LiteLLMProvider(
+            model="gpt-4o-mini", api_key="test-key", temperature=0.7
+        )
+        provider.complete(messages=[{"role": "user", "content": "test"}])
+
+        call_kwargs = mock_completion.call_args[1]
+        assert call_kwargs["temperature"] == 0.7
