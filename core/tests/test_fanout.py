@@ -488,3 +488,68 @@ async def test_parallel_disabled_uses_sequential(runtime, goal):
     # Only one branch should have executed (sequential follows first edge)
     executed_count = sum([b1_impl.executed, b2_impl.executed])
     assert executed_count == 1
+
+
+# === 12. Error handling when target node is missing ===
+
+
+@pytest.mark.asyncio
+async def test_fail_all_handles_missing_node_gracefully(runtime, goal):
+    """
+    Test that when a branch targets a non-existent node, error reporting
+    doesn't crash with AttributeError but provides a clear error message.
+
+    Regression test for issue #2310: GraphExecutor parallel branch error
+    handling crashes with AttributeError when trying to access .name on None.
+    """
+    b1 = NodeSpec(
+        id="b1", name="B1", description="ok branch", node_type="function", output_keys=["b1_out"]
+    )
+    # Create a graph with b1, but we'll create an edge to a non-existent "b2"
+    # This simulates a misconfigured graph
+    source_node = NodeSpec(
+        id="source",
+        name="Source",
+        description="entry",
+        node_type="function",
+        output_keys=["data"],
+    )
+
+    # Manually construct graph with a broken edge
+    graph = GraphSpec(
+        id="broken_fanout_graph",
+        goal_id="g1",
+        name="Broken Fanout Graph",
+        entry_node="source",
+        nodes=[source_node, b1],
+        edges=[
+            EdgeSpec(
+                id="source_to_b1",
+                source="source",
+                target="b1",
+                condition=EdgeCondition.ON_SUCCESS,
+            ),
+            EdgeSpec(
+                id="source_to_missing",
+                source="source",
+                target="missing_node",  # This node doesn't exist
+                condition=EdgeCondition.ON_SUCCESS,
+            ),
+        ],
+        terminal_nodes=["b1"],
+    )
+
+    config = ParallelExecutionConfig(on_branch_failure="fail_all")
+    executor = GraphExecutor(
+        runtime=runtime, enable_parallel_execution=True, parallel_config=config
+    )
+    executor.register_node("source", SuccessNode({"data": "x"}))
+    executor.register_node("b1", SuccessNode({"b1_out": "ok"}))
+    # Note: missing_node is not registered
+
+    result = await executor.execute(graph, goal, {})
+
+    # Should fail gracefully, not crash with AttributeError
+    assert not result.success
+    # Error message should mention the failure
+    assert "failed" in result.error.lower() or "missing_node" in result.error.lower()
