@@ -28,6 +28,7 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
@@ -278,7 +279,12 @@ class AdenCredentialClient:
                     )
 
                 if response.status_code == 400:
-                    data = response.json()
+                    try:
+                        data = response.json()
+                    except json.JSONDecodeError:
+                        raise AdenClientError(
+                            f"Server returned non-JSON 400 response: {response.text[:200]}"
+                        ) from None
                     if data.get("error") == "refresh_failed":
                         raise AdenRefreshError(
                             data.get("message", "Token refresh failed"),
@@ -334,7 +340,10 @@ class AdenCredentialClient:
         """
         try:
             response = self._request_with_retry("GET", f"/v1/credentials/{integration_id}")
-            data = response.json()
+            try:
+                data = response.json()
+            except json.JSONDecodeError as e:
+                raise AdenClientError(f"Invalid JSON response from server: {e}") from e
             return AdenCredentialResponse.from_dict(data)
         except AdenNotFoundError:
             return None
@@ -359,7 +368,10 @@ class AdenCredentialClient:
             AdenRateLimitError: If rate limited.
         """
         response = self._request_with_retry("POST", f"/v1/credentials/{integration_id}/refresh")
-        data = response.json()
+        try:
+            data = response.json()
+        except json.JSONDecodeError as e:
+            raise AdenClientError(f"Invalid JSON response from server: {e}") from e
         return AdenCredentialResponse.from_dict(data)
 
     def list_integrations(self) -> list[AdenIntegrationInfo]:
@@ -374,7 +386,10 @@ class AdenCredentialClient:
             AdenClientError: For connection failures.
         """
         response = self._request_with_retry("GET", "/v1/credentials")
-        data = response.json()
+        try:
+            data = response.json()
+        except json.JSONDecodeError as e:
+            raise AdenClientError(f"Invalid JSON response from server: {e}") from e
         return [AdenIntegrationInfo.from_dict(item) for item in data.get("integrations", [])]
 
     def validate_token(self, integration_id: str) -> dict[str, Any]:
@@ -393,7 +408,10 @@ class AdenCredentialClient:
             AdenAuthenticationError: If API key is invalid.
         """
         response = self._request_with_retry("GET", f"/v1/credentials/{integration_id}/validate")
-        return response.json()
+        try:
+            return response.json()
+        except json.JSONDecodeError as e:
+            raise AdenClientError(f"Invalid JSON response from server: {e}") from e
 
     def report_usage(
         self,
