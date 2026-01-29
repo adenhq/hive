@@ -93,11 +93,55 @@ echo -e "${GREEN}✓${NC} Python version check passed"
 echo ""
 
 # Upgrade pip, setuptools, and wheel
+# --------------------------------------------------
+# PEP 668 / Homebrew handling: auto-create venv if needed
+# --------------------------------------------------
+
+is_in_venv() {
+  $PYTHON_CMD -c 'import sys; print(int(sys.prefix != getattr(sys, "base_prefix", sys.prefix)))' 2>/dev/null
+}
+
+ensure_venv() {
+  local venv_dir="$PROJECT_ROOT/.venv"
+  local venv_python="$venv_dir/bin/python"
+
+  if [ "$(is_in_venv)" = "1" ]; then
+    return 0
+  fi
+
+  if [ ! -x "$venv_python" ]; then
+    echo -e "${YELLOW}PEP 668 detected. Creating virtual environment at .venv...${NC}"
+    $PYTHON_CMD -m venv "$venv_dir"
+  fi
+
+  PYTHON_CMD="$venv_python"
+  echo -e "${GREEN}✓${NC} Using venv interpreter: $PYTHON_CMD"
+  echo -e "${BLUE}To activate manually later:${NC} source .venv/bin/activate"
+  echo ""
+}
+
 echo "Upgrading pip, setuptools, and wheel..."
-if ! "${PYTHON_CMD[@]}" -m pip install --upgrade pip setuptools wheel; then
-  echo "Error: Failed to upgrade pip. Please check your python/venv configuration."
-  exit 1
+set +e
+UPGRADE_OUT="$($PYTHON_CMD -m pip install --upgrade pip setuptools wheel 2>&1)"
+UPGRADE_CODE=$?
+set -e
+
+if [ $UPGRADE_CODE -ne 0 ]; then
+  if echo "$UPGRADE_OUT" | grep -qi "externally-managed-environment"; then
+    echo -e "${YELLOW}externally-managed-environment detected (PEP 668). Retrying inside venv...${NC}"
+    ensure_venv
+
+    if ! $PYTHON_CMD -m pip install --upgrade pip setuptools wheel > /dev/null 2>&1; then
+      echo -e "${RED}Error: Failed to upgrade pip inside venv.${NC}"
+      exit 1
+    fi
+  else
+    echo -e "${RED}Error: Failed to upgrade pip. Output:${NC}"
+    echo "$UPGRADE_OUT"
+    exit 1
+  fi
 fi
+
 echo -e "${GREEN}✓${NC} Core packages upgraded"
 echo ""
 
