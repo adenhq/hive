@@ -8,7 +8,9 @@ Usage:
 """
 
 import json
+import logging  # Added
 import os
+import re  # Added
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
@@ -25,6 +27,10 @@ from framework.testing.prompts import (
 
 # Initialize MCP server
 mcp = FastMCP("agent-builder")
+logger = logging.getLogger("agent-builder")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
 
 # Session persistence directory
@@ -32,12 +38,21 @@ SESSIONS_DIR = Path(".agent-builder-sessions")
 ACTIVE_SESSION_FILE = SESSIONS_DIR / ".active"
 
 
+def safe_path(identifier: str) -> str:
+    """
+    Sanitizes identifiers to prevent path traversal attacks.
+    Ensures that a session_id cannot be used to escape the sessions directory.
+    """
+    return re.sub(r"[^a-zA-Z0-9_\-]", "_", identifier)
+
+
 # Session storage
 class BuildSession:
     """Build session with persistence support."""
 
     def __init__(self, name: str, session_id: str | None = None):
-        self.id = session_id or f"build_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        raw_id = session_id or f"build_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.id = safe_path(raw_id)  # Security Fix: Sanitize ID
         self.name = name
         self.goal: Goal | None = None
         self.nodes: list[NodeSpec] = []
@@ -122,12 +137,19 @@ def _save_session(session: BuildSession):
 
     # Save session file
     session_file = SESSIONS_DIR / f"{session.id}.json"
-    with open(session_file, "w") as f:
-        json.dump(session.to_dict(), f, indent=2, default=str)
 
-    # Update active session pointer
-    with open(ACTIVE_SESSION_FILE, "w") as f:
-        f.write(session.id)
+    try:
+        # FIX: Force UTF-8 for Windows compatibility
+        with open(session_file, "w", encoding="utf-8") as f:
+            json.dump(session.to_dict(), f, indent=2, default=str)
+
+        # Update active session pointer
+        with open(ACTIVE_SESSION_FILE, "w", encoding="utf-8") as f:
+            f.write(session.id)
+    except Exception as e:
+        # FIX: Add logging to prevent silent failures
+        logger.error(f"Failed to save session {session.id}: {e}")
+        raise
 
 
 def _load_session(session_id: str) -> BuildSession:
@@ -136,10 +158,15 @@ def _load_session(session_id: str) -> BuildSession:
     if not session_file.exists():
         raise ValueError(f"Session '{session_id}' not found")
 
-    with open(session_file) as f:
-        data = json.load(f)
-
-    return BuildSession.from_dict(data)
+    try:
+        # FIX: Force UTF-8 and add error logging
+        with open(session_file, encoding="utf-8") as f:
+            data = json.load(f)
+        return BuildSession.from_dict(data)
+    except Exception as e:
+        logger.error(f"Failed to parse session file {session_file}: {e}")
+        # FIX: Add 'from e' to satisfy rule B904 (exception chaining)
+        raise ValueError(f"Corrupted session file: {e}") from e
 
 
 def _load_active_session() -> BuildSession | None:
@@ -148,13 +175,15 @@ def _load_active_session() -> BuildSession | None:
         return None
 
     try:
-        with open(ACTIVE_SESSION_FILE) as f:
+        # FIX: Force UTF-8 and log warnings instead of swallowing
+        with open(ACTIVE_SESSION_FILE, encoding="utf-8") as f:
             session_id = f.read().strip()
 
         if session_id:
             return _load_session(session_id)
-    except Exception:
-        pass
+    except Exception as e:
+        # BUG FIX: Stop silent swallowing of active session errors
+        logger.warning(f"Could not load active session: {e}. Falling back to None.")
 
     return None
 
@@ -202,7 +231,8 @@ def list_sessions() -> str:
     if SESSIONS_DIR.exists():
         for session_file in SESSIONS_DIR.glob("*.json"):
             try:
-                with open(session_file) as f:
+                # FIX: Force UTF-8 and log skipped files
+                with open(session_file, encoding="utf-8") as f:
                     data = json.load(f)
                     sessions.append(
                         {
@@ -215,17 +245,19 @@ def list_sessions() -> str:
                             "has_goal": data.get("goal") is not None,
                         }
                     )
-            except Exception:
-                pass  # Skip corrupted files
+            except Exception as e:
+                # BUG FIX: Log skip reason for corrupted files
+                logger.error(f"Skipping corrupted session file {session_file.name}: {e}")
 
     # Check which session is currently active
     active_id = None
     if ACTIVE_SESSION_FILE.exists():
         try:
-            with open(ACTIVE_SESSION_FILE) as f:
+            # FIX: Force UTF-8 for reading the active pointer
+            with open(ACTIVE_SESSION_FILE, encoding="utf-8") as f:
                 active_id = f.read().strip()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Failed to read active session file: {e}")
 
     return json.dumps(
         {
@@ -246,7 +278,8 @@ def load_session_by_id(session_id: Annotated[str, "ID of the session to load"]) 
         _session = _load_session(session_id)
 
         # Update active session pointer
-        with open(ACTIVE_SESSION_FILE, "w") as f:
+        # FIX: Force UTF-8 for Windows compatibility
+        with open(ACTIVE_SESSION_FILE, "w", encoding="utf-8") as f:
             f.write(session_id)
 
         return json.dumps(
@@ -263,6 +296,8 @@ def load_session_by_id(session_id: Annotated[str, "ID of the session to load"]) 
             }
         )
     except Exception as e:
+        # FIX: Add logging so we know why loading failed
+        logger.error(f"Error loading session {session_id}: {e}")
         return json.dumps({"success": False, "error": str(e)})
 
 
@@ -284,7 +319,8 @@ def delete_session(session_id: Annotated[str, "ID of the session to delete"]) ->
             _session = None
 
         if ACTIVE_SESSION_FILE.exists():
-            with open(ACTIVE_SESSION_FILE) as f:
+            # FIX: Force UTF-8 reading
+            with open(ACTIVE_SESSION_FILE, encoding="utf-8") as f:
                 active_id = f.read().strip()
                 if active_id == session_id:
                     ACTIVE_SESSION_FILE.unlink()
@@ -297,6 +333,8 @@ def delete_session(session_id: Annotated[str, "ID of the session to delete"]) ->
             }
         )
     except Exception as e:
+        # FIX: Add logging
+        logger.error(f"Error deleting session {session_id}: {e}")
         return json.dumps({"success": False, "error": str(e)})
 
 
@@ -966,9 +1004,20 @@ def validate_graph() -> str:
     # === CONTEXT FLOW VALIDATION ===
     # Build dependency map (node_id -> list of nodes it depends on)
     dependencies: dict[str, list[str]] = {node.id: [] for node in session.nodes}
+
+    # 1. Dependencies from Explicit Edges
     for edge in session.edges:
         if edge.target in dependencies:
             dependencies[edge.target].append(edge.source)
+
+    # 2. Dependencies from Implicit Router Routes (THE FIX)
+    # Router nodes pass context to their targets, but have no explicit edges.
+    # We must register these dependencies so targets can "see" the router's outputs.
+    for node in session.nodes:
+        if node.node_type == "router" and node.routes:
+            for target_id in node.routes.values():
+                if target_id in dependencies:
+                    dependencies[target_id].append(node.id)
 
     # Build output map (node_id -> keys it produces)
     node_outputs: dict[str, set[str]] = {node.id: set(node.output_keys) for node in session.nodes}
@@ -1474,13 +1523,15 @@ def export_graph() -> str:
 
     # Write agent.json
     agent_json_path = exports_dir / "agent.json"
-    with open(agent_json_path, "w") as f:
+    # FIX: Force UTF-8 to handle special characters (e.g., Unicode validation marks)
+    with open(agent_json_path, "w", encoding="utf-8") as f:
         json.dump(export_data, f, indent=2, default=str)
 
     # Generate README.md
     readme_content = _generate_readme(session, export_data, all_tools)
     readme_path = exports_dir / "README.md"
-    with open(readme_path, "w") as f:
+    # FIX: Force UTF-8 for README generation
+    with open(readme_path, "w", encoding="utf-8") as f:
         f.write(readme_content)
 
     # Write mcp_servers.json if MCP servers are configured
@@ -1489,7 +1540,8 @@ def export_graph() -> str:
     if session.mcp_servers:
         mcp_config = {"servers": session.mcp_servers}
         mcp_servers_path = exports_dir / "mcp_servers.json"
-        with open(mcp_servers_path, "w") as f:
+        # FIX: Force UTF-8 for MCP config
+        with open(mcp_servers_path, "w", encoding="utf-8") as f:
             json.dump(mcp_config, f, indent=2)
         mcp_servers_size = mcp_servers_path.stat().st_size
 
