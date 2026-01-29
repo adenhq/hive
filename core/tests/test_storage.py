@@ -60,7 +60,7 @@ class TestFileStorageBasics:
     def test_init_with_string_path(self, tmp_path: Path):
         """FileStorage should accept string paths."""
         storage = FileStorage(str(tmp_path))
-        assert storage.base_path == tmp_path
+        assert storage.base_path.resolve() == tmp_path.resolve()
 
 
 @pytest.mark.skip(reason="FileStorage is deprecated - use unified session storage")
@@ -308,7 +308,7 @@ class TestFileStorageListOperations:
 
         assert stats["total_runs"] == 2
         assert stats["total_goals"] == 2
-        assert stats["storage_path"] == str(tmp_path)
+        assert Path(stats["storage_path"]).resolve() == tmp_path.resolve()
 
 
 # === CACHE ENTRY TESTS ===
@@ -340,7 +340,7 @@ class TestConcurrentStorageBasics:
         """Test ConcurrentStorage initialization."""
         storage = ConcurrentStorage(tmp_path)
 
-        assert storage.base_path == tmp_path
+        assert storage.base_path.resolve() == tmp_path.resolve()
         assert storage._running is False
 
     @pytest.mark.asyncio
