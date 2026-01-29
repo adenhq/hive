@@ -172,10 +172,18 @@ class Decision(BaseModel):
 
     def summary_for_builder(self) -> str:
         """Generate a one-line summary for Builder to quickly understand."""
-        status = "✓" if self.was_successful else "✗"
+        # Use ASCII for Windows to avoid UnicodeEncodeError if encoding not set
+        import sys
+
+        is_windows = sys.platform == "win32"
+        success_mark = "[v]" if is_windows else "✓"
+        failure_mark = "[x]" if is_windows else "✗"
+
+        status = success_mark if self.was_successful else failure_mark
+        arrow = "->" if is_windows else "→"
         quality = ""
         if self.evaluation:
             quality = f" [quality: {self.evaluation.outcome_quality:.1f}]"
         chosen = self.chosen_option
         action = chosen.description if chosen else "unknown action"
-        return f"{status} [{self.node_id}] {self.intent} → {action}{quality}"
+        return f"{status} [{self.node_id}] {self.intent} {arrow} {action}{quality}"
