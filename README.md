@@ -84,6 +84,14 @@ This installs:
 - **aden_tools** - 19 MCP tools for agent capabilities
 - All required dependencies
 
+### Verify Installation
+
+Before building your own agent, run the included manual example to confirm your environment is set up correctly:
+
+```bash
+PYTHONPATH=core python core/examples/manual_agent.py
+```
+
 ### Build Your First Agent
 
 ```bash
