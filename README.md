@@ -1,3 +1,9 @@
+---
+noteId: "2aecbda0fd0411f088eb375fc53985b6"
+tags: []
+
+---
+
 <p align="center">
   <img width="100%" alt="Hive Banner" src="https://storage.googleapis.com/aden-prod-assets/website/aden-title-card.png" />
 </p>
@@ -417,4 +423,5 @@ For enterprise inquiries, contact the Aden team through [adenhq.com](https://ade
 <p align="center">
   Made with 🔥 Passion in San Francisco
 </p>
+
 
