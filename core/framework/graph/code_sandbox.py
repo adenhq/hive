@@ -145,16 +145,20 @@ class CodeValidator:
     def __init__(self, blocked_nodes: set[type] | None = None):
         self.blocked_nodes = blocked_nodes or BLOCKED_AST_NODES
 
-    def validate(self, code: str) -> list[str]:
+    def validate(self, code: str, mode: str = "exec") -> list[str]:
         """
         Validate code and return list of issues.
+
+        Args:
+            code: The code or expression to validate
+            mode: "exec" for statements, "eval" for expressions
 
         Returns empty list if code is safe.
         """
         issues = []
 
         try:
-            tree = ast.parse(code)
+            tree = ast.parse(code, mode=mode)
         except SyntaxError as e:
             return [f"Syntax error: {e}"]
 
@@ -165,11 +169,11 @@ class CodeValidator:
                     f"Blocked operation: {type(node).__name__} at line {getattr(node, 'lineno', '?')}"
                 )
 
-            # Check for dangerous attribute access
+            # Check for dangerous attribute access (dunder attributes)
             if isinstance(node, ast.Attribute):
                 if node.attr.startswith("_"):
                     issues.append(
-                        f"Access to private attribute '{node.attr}' at line {node.lineno}"
+                        f"Access to private attribute '{node.attr}' at line {getattr(node, 'lineno', '?')}"
                     )
 
             # Check for exec/eval calls
@@ -177,10 +181,18 @@ class CodeValidator:
                 if isinstance(node.func, ast.Name):
                     if node.func.id in ("exec", "eval", "compile", "__import__"):
                         issues.append(
-                            f"Blocked function call: {node.func.id} at line {node.lineno}"
+                            f"Blocked function call: {node.func.id} at line {getattr(node, 'lineno', '?')}"
                         )
 
         return issues
+
+    def validate_expression(self, expression: str) -> list[str]:
+        """
+        Validate an expression for safety.
+
+        This is a convenience method that validates in 'eval' mode.
+        """
+        return self.validate(expression, mode="eval")
 
 
 class CodeSandbox:
@@ -344,15 +356,20 @@ class CodeSandbox:
         """
         Execute a single expression and return its value.
 
-        Simpler than execute() - just evaluates one expression.
+        Uses the same security validation as execute() to prevent:
+        - Access to private/dunder attributes (__class__, __globals__, etc.)
+        - Dangerous function calls (exec, eval, compile, __import__)
+        - Import statements
         """
         inputs = inputs or {}
 
-        # Validate
-        try:
-            ast.parse(expression, mode="eval")
-        except SyntaxError as e:
-            return SandboxResult(success=False, error=f"Syntax error: {e}")
+        # Validate expression for security issues
+        issues = self.validator.validate_expression(expression)
+        if issues:
+            return SandboxResult(
+                success=False,
+                error=f"Expression validation failed: {'; '.join(issues)}",
+            )
 
         namespace = self._create_namespace(inputs)
 

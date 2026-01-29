@@ -154,7 +154,15 @@ class EdgeSpec(BaseModel):
         output: dict[str, Any],
         memory: dict[str, Any],
     ) -> bool:
-        """Evaluate a conditional expression."""
+        """
+        Evaluate a conditional expression safely.
+
+        Uses the CodeSandbox's safe_eval to prevent code injection attacks.
+        The expression is validated via AST parsing to block:
+        - Access to private attributes (__class__, __bases__, etc.)
+        - Dangerous function calls (exec, eval, compile, __import__)
+        - Import statements
+        """
         if not self.condition_expr:
             return True
 
@@ -170,8 +178,22 @@ class EdgeSpec(BaseModel):
         }
 
         try:
-            # Safe evaluation (in production, use a proper expression evaluator)
-            return bool(eval(self.condition_expr, {"__builtins__": {}}, context))
+            # Use safe_eval from code_sandbox for secure expression evaluation
+            from framework.graph.code_sandbox import safe_eval
+            result = safe_eval(
+                expression=self.condition_expr,
+                inputs=context,
+                timeout_seconds=5,
+            )
+            if not result.success:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"      ⚠ Condition evaluation failed: {self.condition_expr}")
+                logger.warning(f"         Error: {result.error}")
+                logger.warning(f"         Available context keys: {list(context.keys())}")
+                return False
+            return bool(result.result)
+
         except Exception as e:
             # Log the error for debugging
             import logging
