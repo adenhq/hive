@@ -55,6 +55,7 @@ __pycache__/
 .eggs/
 *.egg
 uv.lock
+venv/
 
 # Generated runtime data
 core/data/

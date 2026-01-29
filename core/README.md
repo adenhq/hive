@@ -4,7 +4,7 @@ A goal-driven agent runtime with Builder-friendly observability.
 
 ## Overview
 
-Framework provides a runtime framework that captures **decisions**, not just actions. This enables a "Builder" LLM to analyze and improve agent behavior by understanding:
+Framework provides a runtime that captures **decisions**, not just actions. This enables a "Builder" LLM to analyze and improve agent behavior by understanding:
 
 - What the agent was trying to accomplish
 - What options it considered
@@ -132,7 +132,7 @@ runtime.end_run(success=True, narrative="Successfully processed all data")
 
 The framework includes a goal-based testing framework for validating agent behavior.
 
-Tests are generated using MCP tools (`generate_constraint_tests`, `generate_success_tests`) which return guidelines. Claude writes tests directly using the Write tool based on these guidelines.
+Tests are generated using MCP tools (`generate_constraint_tests`, `generate_success_tests`), which return guidelines. Claude writes tests directly using the Write tool based on these guidelines.
 
 ```bash
 # Run tests against an agent

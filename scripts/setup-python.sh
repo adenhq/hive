@@ -19,87 +19,91 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Python Version
-REQUIRED_PYTHON_VERSION="3.11"
-
-# Python version split into Major and Minor
-IFS='.' read -r PYTHON_MAJOR_VERSION PYTHON_MINOR_VERSION <<< "$REQUIRED_PYTHON_VERSION"
-
-# Available python interpreter (follows sequence)
-POSSIBLE_PYTHONS=("python3" "python" "py")
-
-# Default python interpreter (initialized)
-PYTHON_CMD=()
-
-
 echo ""
 echo "=================================================="
 echo "  Aden Agent Framework - Python Setup"
 echo "=================================================="
 echo ""
 
-# Available Python interpreter
-for cmd in "${POSSIBLE_PYTHONS[@]}"; do
-    # Check for python interpreter
-    if command -v "$cmd" >/dev/null 2>&1; then
+# Check for Python
+if ! command -v python &> /dev/null && ! command -v python3 &> /dev/null; then
+    echo -e "${RED}Error: Python is not installed.${NC}"
+    echo "Please install Python 3.11+ from https://python.org"
+    exit 1
+fi
 
-        # Specific check for Windows 'py' launcher
-        if [ "$cmd" = "py" ]; then
-            CURRENT_CMD=(py -3)
-        else
-            CURRENT_CMD=("$cmd")
-        fi
+# Use python if available, otherwise python3
+# (On Windows, 'python' is more reliable and properly associated with pip)
+# Test which one actually has pip available
+PYTHON_CMD=""
 
-        # Check Python version
-        if "${CURRENT_CMD[@]}" -c "import sys; sys.exit(0 if sys.version_info >= ($PYTHON_MAJOR_VERSION, $PYTHON_MINOR_VERSION) else 1)" >/dev/null 2>&1; then
-            echo -e "${GREEN}✓${NC} interpreter detected: ${CURRENT_CMD[@]}"
-            # Check for pip
-            if "${CURRENT_CMD[@]}" -m pip --version >/dev/null 2>&1; then
-                PYTHON_CMD=("${CURRENT_CMD[@]}")
-                echo -e "${GREEN}✓${NC} pip detected"
-                echo ""
-                break
-            else
-                echo -e "${RED}✗${NC} pip not found"
-                echo ""
-            fi
-        else
-            echo -e "${RED}✗${NC} ${CURRENT_CMD[@]} not found"
-            echo ""
-        fi
+# Try to find venv in common locations (even if VIRTUAL_ENV is not set in bash)
+# Look for venv folder next to this script or in parent directories
+for venv_dir in "$PROJECT_ROOT/venv" "$(cd "$PROJECT_ROOT/.." 2>/dev/null && pwd)/venv" "./venv" "../venv"; do
+    if [ -f "$venv_dir/Scripts/python.exe" ]; then
+        echo "DEBUG: Found venv python.exe at: $venv_dir/Scripts/python.exe"
+        PYTHON_CMD="$venv_dir/Scripts/python.exe"
+        break
     fi
 done
 
-# Display error message if python not found
-if [ "${#PYTHON_CMD[@]}" -eq 0 ]; then
-    echo -e "${RED}Error:${NC} No suitable Python interpreter found with pip installed."
-    echo ""
-    echo "Requirements:"
-    echo "  • Python $PYTHON_MAJOR_VERSION.$PYTHON_MINOR_VERSION+"
-    echo "  • pip installed"
-    echo ""
-    echo "Tried the following commands:"
-    echo "  ${POSSIBLE_PYTHONS[*]}"
-    echo ""
-    echo "Please install Python from:"
-    echo "  https://www.python.org/downloads/"
+# If not found in venv, try direct commands with full path
+if [ -z "$PYTHON_CMD" ]; then
+    echo "DEBUG: Trying to find python in PATH"
+    # On Windows bash, try to find python.exe directly
+    if python.exe -m pip --version > /dev/null 2>&1; then
+        PYTHON_CMD="python.exe"
+    elif python -m pip --version > /dev/null 2>&1; then
+        PYTHON_CMD="python"
+    elif python3 -m pip --version > /dev/null 2>&1; then
+        PYTHON_CMD="python3"
+    fi
+fi
+
+if [ -z "$PYTHON_CMD" ]; then
+    echo -e "${RED}Error: Python/pip is not installed or not accessible.${NC}"
+    echo "Please install Python 3.11+ from https://python.org"
+    echo "DEBUG: Tried paths: $PROJECT_ROOT/venv, ./venv, ../venv"
     exit 1
 fi
 
-# Display Python version
-PYTHON_VERSION=$("${PYTHON_CMD[@]}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+echo "DEBUG: Using PYTHON_CMD: $PYTHON_CMD"
+
+# Check Python version
+PYTHON_VERSION=$($PYTHON_CMD -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+PYTHON_MAJOR=$($PYTHON_CMD -c 'import sys; print(sys.version_info.major)')
+PYTHON_MINOR=$($PYTHON_CMD -c 'import sys; print(sys.version_info.minor)')
+
 echo -e "${BLUE}Detected Python:${NC} $PYTHON_VERSION"
+
+if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 11 ]); then
+    echo -e "${RED}Error: Python 3.11+ is required (found $PYTHON_VERSION)${NC}"
+    echo "Please upgrade your Python installation"
+    exit 1
+fi
+
+if [ "$PYTHON_MINOR" -lt 11 ]; then
+    echo -e "${YELLOW}Warning: Python 3.11+ is recommended for best compatibility${NC}"
+    echo -e "${YELLOW}You have Python $PYTHON_VERSION which may work but is not officially supported${NC}"
+    echo ""
+fi
+
 echo -e "${GREEN}✓${NC} Python version check passed"
 echo ""
 
-# Check for uv
-if ! command -v uv &> /dev/null; then
-    echo -e "${RED}Error: uv is not installed${NC}"
-    echo "Please install uv from https://github.com/astral-sh/uv"
-    exit 1
-fi
+# Set up pip command
+PIP_CMD="$PYTHON_CMD -m pip"
 
-echo -e "${GREEN}✓${NC} uv detected"
+echo -e "${GREEN}✓${NC} pip detected"
+echo ""
+
+# Upgrade pip, setuptools, and wheel
+echo "Upgrading pip, setuptools, and wheel..."
+if ! $PIP_CMD install --upgrade pip setuptools wheel; then
+  echo "Error: Failed to upgrade pip. Please check your python/venv configuration."
+  exit 1
+fi
+echo -e "${GREEN}✓${NC} Core packages upgraded"
 echo ""
 
 # Install core framework package
@@ -109,20 +113,10 @@ echo "=================================================="
 echo ""
 cd "$PROJECT_ROOT/core"
 
-# Create venv if it doesn't exist
-if [ ! -d ".venv" ]; then
-    echo "Creating virtual environment in core/.venv..."
-    uv venv
-    echo -e "${GREEN}✓${NC} Virtual environment created"
-else
-    echo -e "${GREEN}✓${NC} Virtual environment already exists"
-fi
-echo ""
-
 if [ -f "pyproject.toml" ]; then
     echo "Installing framework from core/ (editable mode)..."
-    CORE_PYTHON=".venv/bin/python"
-    if uv pip install --python "$CORE_PYTHON" -e .; then
+    $PIP_CMD install -e . > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
         echo -e "${GREEN}✓${NC} Framework package installed"
     else
         echo -e "${YELLOW}⚠${NC} Framework installation encountered issues (may be OK if already installed)"
@@ -139,20 +133,10 @@ echo "=================================================="
 echo ""
 cd "$PROJECT_ROOT/tools"
 
-# Create venv if it doesn't exist
-if [ ! -d ".venv" ]; then
-    echo "Creating virtual environment in tools/.venv..."
-    uv venv
-    echo -e "${GREEN}✓${NC} Virtual environment created"
-else
-    echo -e "${GREEN}✓${NC} Virtual environment already exists"
-fi
-echo ""
-
 if [ -f "pyproject.toml" ]; then
     echo "Installing aden_tools from tools/ (editable mode)..."
-    TOOLS_PYTHON=".venv/bin/python"
-    if uv pip install --python "$TOOLS_PYTHON" -e .; then
+    $PIP_CMD install -e . > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
         echo -e "${GREEN}✓${NC} Tools package installed"
     else
         echo -e "${RED}✗${NC} Tools installation failed"
@@ -170,20 +154,18 @@ echo "Fixing Package Compatibility"
 echo "=================================================="
 echo ""
 
-TOOLS_PYTHON="$PROJECT_ROOT/tools/.venv/bin/python"
-
-# Check openai version in tools venv
-OPENAI_VERSION=$($TOOLS_PYTHON -c "import openai; print(openai.__version__)" 2>/dev/null || echo "not_installed")
+# Check openai version
+OPENAI_VERSION=$($PYTHON_CMD -c "import openai; print(openai.__version__)" 2>/dev/null || echo "not_installed")
 
 if [ "$OPENAI_VERSION" = "not_installed" ]; then
     echo "Installing openai package..."
-    uv pip install --python "$TOOLS_PYTHON" "openai>=1.0.0"
+    $PIP_CMD install "openai>=1.0.0" > /dev/null 2>&1
     echo -e "${GREEN}✓${NC} openai package installed"
 elif [[ "$OPENAI_VERSION" =~ ^0\. ]]; then
     echo -e "${YELLOW}Found old openai version: $OPENAI_VERSION${NC}"
     echo "Upgrading to openai 1.x+ for litellm compatibility..."
-    uv pip install --python "$TOOLS_PYTHON" --upgrade "openai>=1.0.0"
-    OPENAI_VERSION=$($TOOLS_PYTHON -c "import openai; print(openai.__version__)" 2>/dev/null)
+    $PIP_CMD install --upgrade "openai>=1.0.0" > /dev/null 2>&1
+    OPENAI_VERSION=$($PYTHON_CMD -c "import openai; print(openai.__version__)" 2>/dev/null)
     echo -e "${GREEN}✓${NC} openai upgraded to $OPENAI_VERSION"
 else
     echo -e "${GREEN}✓${NC} openai $OPENAI_VERSION is compatible"
@@ -198,36 +180,24 @@ echo ""
 
 cd "$PROJECT_ROOT"
 
-# Test framework import using core venv
-CORE_PYTHON="$PROJECT_ROOT/core/.venv/bin/python"
-if [ -f "$CORE_PYTHON" ]; then
-    if $CORE_PYTHON -c "import framework; print('framework OK')" > /dev/null 2>&1; then
-        echo -e "${GREEN}✓${NC} framework package imports successfully"
-    else
-        echo -e "${RED}✗${NC} framework package import failed"
-        echo -e "${YELLOW}  Note: This may be OK if you don't need the framework${NC}"
-    fi
+# Test framework import
+if $PYTHON_CMD -c "import framework; print('framework OK')" > /dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC} framework package imports successfully"
 else
-    echo -e "${RED}✗${NC} core/.venv not found - venv creation may have failed${NC}"
+    echo -e "${RED}✗${NC} framework package import failed"
+    echo -e "${YELLOW}  Note: This may be OK if you don't need the framework${NC}"
+fi
+
+# Test aden_tools import
+if $PYTHON_CMD -c "import aden_tools; print('aden_tools OK')" > /dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC} aden_tools package imports successfully"
+else
+    echo -e "${RED}✗${NC} aden_tools package import failed"
     exit 1
 fi
 
-# Test aden_tools import using tools venv
-TOOLS_PYTHON="$PROJECT_ROOT/tools/.venv/bin/python"
-if [ -f "$TOOLS_PYTHON" ]; then
-    if $TOOLS_PYTHON -c "import aden_tools; print('aden_tools OK')" > /dev/null 2>&1; then
-        echo -e "${GREEN}✓${NC} aden_tools package imports successfully"
-    else
-        echo -e "${RED}✗${NC} aden_tools package import failed"
-        exit 1
-    fi
-else
-    echo -e "${RED}✗${NC} tools/.venv not found - venv creation may have failed${NC}"
-    exit 1
-fi
-
-# Test litellm + openai compatibility using tools venv
-if $TOOLS_PYTHON -c "import litellm; print('litellm OK')" > /dev/null 2>&1; then
+# Test litellm + openai compatibility
+if $PYTHON_CMD -c "import litellm; print('litellm OK')" > /dev/null 2>&1; then
     echo -e "${GREEN}✓${NC} litellm package imports successfully"
 else
     echo -e "${YELLOW}⚠${NC} litellm import had issues (may be OK if not using LLM features)"
@@ -248,14 +218,14 @@ echo ""
 echo "To run agents, use:"
 echo ""
 echo "  ${BLUE}# From project root:${NC}"
-echo "  PYTHONPATH=core:exports ${PYTHON_CMD} -m agent_name validate"
-echo "  PYTHONPATH=core:exports ${PYTHON_CMD} -m agent_name info"
-echo "  PYTHONPATH=core:exports ${PYTHON_CMD} -m agent_name run --input '{...}'"
+echo "  PYTHONPATH=core:exports python -m agent_name validate"
+echo "  PYTHONPATH=core:exports python -m agent_name info"
+echo "  PYTHONPATH=core:exports python -m agent_name run --input '{...}'"
 echo ""
 echo "Available commands for your new agent:"
-echo "  PYTHONPATH=core:exports ${PYTHON_CMD} -m support_ticket_agent validate"
-echo "  PYTHONPATH=core:exports ${PYTHON_CMD} -m support_ticket_agent info"
-echo "  PYTHONPATH=core:exports ${PYTHON_CMD} -m support_ticket_agent run --input '{\"ticket_content\":\"...\",\"customer_id\":\"...\",\"ticket_id\":\"...\"}'"
+echo "  PYTHONPATH=core:exports python -m support_ticket_agent validate"
+echo "  PYTHONPATH=core:exports python -m support_ticket_agent info"
+echo "  PYTHONPATH=core:exports python -m support_ticket_agent run --input '{\"ticket_content\":\"...\",\"customer_id\":\"...\",\"ticket_id\":\"...\"}'"
 echo ""
 echo "To build new agents, use Claude Code skills:"
 echo "  • /building-agents - Build a new agent"
