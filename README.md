@@ -261,6 +261,7 @@ See [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) for complete setup instructions
 
 ## Documentation
 
+- **[Glossary](docs/glossary.md)** - Quick reference for core Hive concepts
 - **[Developer Guide](DEVELOPER.md)** - Comprehensive guide for developers
 - [Getting Started](docs/getting-started.md) - Quick setup instructions
 - [Configuration Guide](docs/configuration.md) - All configuration options
