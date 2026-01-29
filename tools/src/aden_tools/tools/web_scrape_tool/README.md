@@ -14,6 +14,7 @@ Use when you need to read the content of a specific URL, extract data from a web
 | `selector` | str | No | `None` | CSS selector to target specific content (e.g., 'article', '.main-content') |
 | `include_links` | bool | No | `False` | Include extracted links in the response |
 | `max_length` | int | No | `50000` | Maximum length of extracted text (1000-500000) |
+| `respect_robots_txt` | bool | No | `True` | Whether to respect robots.txt rules (ethical scraping; default True) |
 
 ## Environment Variables
 
@@ -34,3 +35,4 @@ Returns error dicts for common issues:
 - Follows redirects automatically
 - Removes script, style, nav, footer, header, aside, noscript, and iframe elements
 - Auto-detects main content using article, main, or common content class selectors
+- By default, the tool respects robots.txt for ethical scraping. Set `respect_robots_txt` to `False` to override (not recommended).
