@@ -12,6 +12,7 @@ import argparse
 import ast
 import os
 import subprocess
+import textwrap
 from pathlib import Path
 
 
@@ -22,6 +23,13 @@ def register_testing_commands(subparsers: argparse._SubParsersAction) -> None:
     run_parser = subparsers.add_parser(
         "test-run",
         help="Run tests for an agent",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""\
+            examples:
+              %(prog)s exports/my_agent --goal main
+              %(prog)s exports/my_agent --goal main --type constraint --fail-fast
+              %(prog)s exports/my_agent --goal main --parallel 4
+        """),
     )
     run_parser.add_argument(
         "agent_path",
@@ -57,6 +65,12 @@ def register_testing_commands(subparsers: argparse._SubParsersAction) -> None:
     debug_parser = subparsers.add_parser(
         "test-debug",
         help="Debug a failed test by re-running with verbose output",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""\
+            examples:
+              %(prog)s exports/my_agent test_constraint_max_tokens
+              %(prog)s exports/my_agent test_success_responds --goal main
+        """),
     )
     debug_parser.add_argument(
         "agent_path",
@@ -78,6 +92,12 @@ def register_testing_commands(subparsers: argparse._SubParsersAction) -> None:
     list_parser = subparsers.add_parser(
         "test-list",
         help="List tests for an agent by scanning test files",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""\
+            examples:
+              %(prog)s exports/my_agent
+              %(prog)s exports/my_agent --type constraint
+        """),
     )
     list_parser.add_argument(
         "agent_path",
@@ -95,6 +115,11 @@ def register_testing_commands(subparsers: argparse._SubParsersAction) -> None:
     stats_parser = subparsers.add_parser(
         "test-stats",
         help="Show test statistics for an agent",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""\
+            examples:
+              %(prog)s exports/my_agent
+        """),
     )
     stats_parser.add_argument(
         "agent_path",
