@@ -93,7 +93,27 @@ This will:
 - Fix package compatibility issues (openai + litellm)
 - Verify all installations
 
-### Manual Setup (Alternative)
+### Alpine Linux (Docker / Minimal Distros)
+
+If you are using Alpine Linux (e.g., inside a Docker container), you must install system dependencies and use a virtual environment before running the setup script:
+
+1. Install System Dependencies:
+```bash
+apk update
+apk add bash git python3 py3-pip nodejs npm curl build-base python3-dev linux-headers libffi-dev
+```
+2. Set up Virtual Environment (Required for Python 3.12+):
+```
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip setuptools wheel
+```
+3. Run the Quickstart Script:
+```
+./quickstart.sh
+```
+
+## Manual Setup (Alternative)
 
 If you prefer to set up manually or the script fails:
 
@@ -317,43 +337,97 @@ python -m outbound_sales_agent validate
 python -m personal_assistant_agent run --input '{...}'
 ```
 
----
+## Building New Agents and Run Flow
 
-## Building New Agents
+Build and run an agent using Claude Code CLI with the agent building skills:
 
-Use Claude Code CLI with the agent building skills:
-
-### 1. Install Skills (One-time)
+### 1. Install Claude Skills (One-time)
 
 ```bash
 ./quickstart.sh
 ```
 
-This installs:
+This installs agent-related Claude Code skills:
 
-- `/building-agents` - Build new agents
-- `/testing-agent` - Test agents
+- `/building-agents-construction` - Step-by-step build guide
+- `/building-agents-core` - Fundamental concepts
+- `/building-agents-patterns` - Best practices
+- `/testing-agent` - Test and validate agents
+- `/agent-workflow` - Complete workflow
 
 ### 2. Build an Agent
 
 ```
-claude> /building-agents
+claude> /building-agents-construction
 ```
 
 Follow the prompts to:
 
 1. Define your agent's goal
 2. Design the workflow nodes
-3. Connect edges
-4. Generate the agent package
+3. Connect nodes with edges
+4. Generate the agent package under `exports/`
 
-### 3. Test Your Agent
+This step creates the initial agent structure required for further development.
+
+### 3. Define Agent Logic
+
+```
+claude> /building-agents-core
+```
+
+Follow the prompts to:
+
+1. Understand the agent architecture and file structure
+2. Define the agent's goal, success criteria, and constraints
+3. Learn node types (LLM, tool-use, router, function)
+4. Discover and validate available tools before use
+
+This step establishes the core concepts and rules needed before building an agent.
+
+### 4. Apply Agent Patterns
+
+```
+claude> /building-agents-patterns
+```
+
+Follow the prompts to:
+
+1. Apply best-practice agent design patterns
+2. Add pause/resume flows for multi-turn interactions
+3. Improve robustness with routing, fallbacks, and retries
+4. Avoid common anti-patterns during agent construction
+
+This step helps optimize agent design before final testing.
+
+### 5. Test Your Agent
 
 ```
 claude> /testing-agent
 ```
+Follow the prompts to:
 
-Creates comprehensive test suites for your agent.
+1. Generate test guidelines for constraints and success criteria
+2. Write agent tests directly under `exports/{agent}/tests/`
+3. Run goal-based evaluation tests
+4. Debug failing tests and iterate on agent improvements
+
+This step verifies that the agent meets its goals before production use.
+
+### 6. Agent Development Workflow (End-to-End)
+
+```
+claude> /agent-workflow
+```
+
+Follow the guided flow to:
+
+1. Understand core agent concepts (optional)
+2. Build the agent structure step by step
+3. Apply best-practice design patterns (optional)
+4. Test and validate the agent against its goals
+
+This workflow orchestrates all agent-building skills to take you from idea → production-ready agent.
 
 ---
 
@@ -473,14 +547,14 @@ The Hive framework consists of three Python packages:
 hive/
 ├── core/                    # Core framework (runtime, graph executor, LLM providers)
 │   ├── framework/
-│   ├── pyproject.toml
-│   └── requirements.txt
+│   ├── .venv/              # Isolated virtual environment for core
+│   └── pyproject.toml
 │
 ├── tools/                   # Tools and MCP servers
 │   ├── src/
 │   │   └── aden_tools/     # Actual package location
-│   ├── pyproject.toml
-│   └── README.md
+│   ├── .venv/              # Isolated virtual environment for tools
+│   └── pyproject.toml
 │
 └── exports/                 # Agent packages (your agents go here)
     ├── support_ticket_agent/
@@ -488,6 +562,62 @@ hive/
     ├── outbound_sales_agent/
     └── personal_assistant_agent/
 ```
+
+## Separate Virtual Environments
+
+The project uses **separate virtual environments** for `core` and `tools` packages to:
+
+- Isolate dependencies and avoid conflicts
+- Allow independent development and testing of each package
+- Enable MCP servers to run with their specific dependencies
+
+### How It Works
+
+When you run `./quickstart.sh` or `uv sync` in each directory:
+
+1. **core/.venv/** - Contains the `framework` package and its dependencies (anthropic, litellm, mcp, etc.)
+2. **tools/.venv/** - Contains the `aden_tools` package and its dependencies (beautifulsoup4, pandas, etc.)
+
+### Cross-Package Imports
+
+The `core` and `tools` packages are **intentionally independent**:
+
+- **No cross-imports**: `framework` does not import `aden_tools` directly, and vice versa
+- **Communication via MCP**: Tools are exposed to agents through MCP servers, not direct Python imports
+- **Runtime integration**: The agent runner loads tools via the MCP protocol at runtime
+
+If you need to use both packages in a single script (e.g., for testing), you have two options:
+
+```bash
+# Option 1: Install both in a shared environment
+python -m venv .venv
+source .venv/bin/activate
+pip install -e core/ -e tools/
+
+# Option 2: Use PYTHONPATH (for quick testing)
+PYTHONPATH=core:tools/src python your_script.py
+```
+
+### MCP Server Configuration
+
+The `.mcp.json` at project root configures MCP servers to use their respective virtual environments:
+
+```json
+{
+  "mcpServers": {
+    "agent-builder": {
+      "command": "core/.venv/bin/python",
+      "args": ["-m", "framework.mcp.agent_builder_server"]
+    },
+    "tools": {
+      "command": "tools/.venv/bin/python",
+      "args": ["-m", "aden_tools.mcp_server", "--stdio"]
+    }
+  }
+}
+```
+
+This ensures each MCP server runs with its correct dependencies.
 
 ### Why PYTHONPATH is Required
 
@@ -517,7 +647,7 @@ This design allows agents in `exports/` to be:
 ### 2. Build Agent (Claude Code)
 
 ```
-claude> /building-agents
+claude> /building-agents-construction
 Enter goal: "Build an agent that processes customer support tickets"
 ```
 
