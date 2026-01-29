@@ -32,18 +32,25 @@ if ! command -v python &> /dev/null && ! command -v python3 &> /dev/null && ! co
     exit 1
 fi
 
-# Prefer python3.11 on systems (e.g., Ubuntu), fall back to python3 or python
-PYTHON_CMD="python3.11"
-if ! command -v python3.11 &> /dev/null; then
-    if command -v python3 &> /dev/null; then
-        PYTHON_CMD="python3"
-    elif command -v python &> /dev/null; then
-        PYTHON_CMD="python"
-    else
-        echo -e "${RED}Error: Python is not installed.${NC}"
-        echo "Please install Python 3.11+ from https://python.org"
-        exit 1
+# Prefer python3.11 on systems (e.g., Ubuntu), but ensure version is >= 3.11.
+# Fall back to python3 or python only if they meet the minimum version.
+PYTHON_CMD=""
+
+for candidate in python3.11 python3 python; do
+    if command -v "$candidate" &> /dev/null; then
+        CANDIDATE_MAJOR=$("$candidate" -c 'import sys; print(sys.version_info.major)')
+        CANDIDATE_MINOR=$("$candidate" -c 'import sys; print(sys.version_info.minor)')
+        if [ "$CANDIDATE_MAJOR" -gt 3 ] || { [ "$CANDIDATE_MAJOR" -eq 3 ] && [ "$CANDIDATE_MINOR" -ge 11 ]; }; then
+            PYTHON_CMD="$candidate"
+            break
+        fi
     fi
+done
+
+if [ -z "$PYTHON_CMD" ]; then
+    echo -e "${RED}Error: Python 3.11+ is required but not found.${NC}"
+    echo "Please install Python 3.11+ from https://python.org"
+    exit 1
 fi
 
 # Check Python version
