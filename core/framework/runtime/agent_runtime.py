@@ -16,6 +16,7 @@ from framework.graph.executor import ExecutionResult
 from framework.runtime.event_bus import EventBus
 from framework.runtime.execution_stream import EntryPointSpec, ExecutionStream
 from framework.runtime.outcome_aggregator import OutcomeAggregator
+from framework.runtime.orchestration_memory import OrchestrationMemory
 from framework.runtime.shared_state import SharedStateManager
 from framework.storage.concurrent import ConcurrentStorage
 
@@ -129,6 +130,14 @@ class AgentRuntime:
         self._event_bus = EventBus(max_history=self._config.max_history)
         self._outcome_aggregator = OutcomeAggregator(goal, self._event_bus)
 
+        # Initialize orchestration memory for cross-agent coordination
+        import uuid
+        self._workflow_id = str(uuid.uuid4())
+        self._orchestration_memory = OrchestrationMemory(
+            workflow_id=self._workflow_id,
+            state_manager=self._state_manager,
+        )
+
         # LLM and tools
         self._llm = llm
         self._tools = tools or []
@@ -233,6 +242,9 @@ class AgentRuntime:
 
             # Stop storage
             await self._storage.stop()
+
+            # Cleanup orchestration memory
+            await self._orchestration_memory.cleanup()
 
             self._running = False
             logger.info("AgentRuntime stopped")
@@ -410,6 +422,16 @@ class AgentRuntime:
     def outcome_aggregator(self) -> OutcomeAggregator:
         """Access the outcome aggregator."""
         return self._outcome_aggregator
+
+    @property
+    def orchestration_memory(self) -> OrchestrationMemory:
+        """Access orchestration memory for cross-agent coordination."""
+        return self._orchestration_memory
+
+    @property
+    def workflow_id(self) -> str:
+        """Get the current workflow ID."""
+        return self._workflow_id
 
     @property
     def is_running(self) -> bool:
