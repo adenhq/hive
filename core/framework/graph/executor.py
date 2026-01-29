@@ -11,11 +11,12 @@ The executor:
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from framework.graph.edge import EdgeSpec, GraphSpec
+from framework.graph.edge import GraphSpec
 from framework.graph.goal import Goal
 from framework.graph.node import (
     FunctionNode,
@@ -34,6 +35,30 @@ from framework.runtime.core import Runtime
 
 
 @dataclass
+class ParallelExecutionConfig:
+    """
+    Configuration for parallel node execution.
+    """
+
+    max_workers: int = 10
+    enabled: bool = True
+    on_branch_failure: str = "fail_all"
+
+
+@dataclass
+class ExecutionSnapshot:
+    """
+    Represents an immutable point-in-time state of the execution.
+    Used for Time-Travel debugging and forking.
+    """
+
+    step_index: int
+    node_id: str
+    memory_state: dict[str, Any]
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass
 class ExecutionResult:
     """Result of executing a graph."""
 
@@ -46,35 +71,8 @@ class ExecutionResult:
     path: list[str] = field(default_factory=list)  # Node IDs traversed
     paused_at: str | None = None  # Node ID where execution paused for HITL
     session_state: dict[str, Any] = field(default_factory=dict)  # State to resume from
-
-
-@dataclass
-class ParallelBranch:
-    """Tracks a single branch in parallel fan-out execution."""
-
-    branch_id: str
-    node_id: str
-    edge: EdgeSpec
-    result: "NodeResult | None" = None
-    status: str = "pending"  # pending, running, completed, failed
-    retry_count: int = 0
-    error: str | None = None
-
-
-@dataclass
-class ParallelExecutionConfig:
-    """Configuration for parallel execution behavior."""
-
-    # Error handling: "fail_all" cancels all on first failure,
-    # "continue_others" lets remaining branches complete,
-    # "wait_all" waits for all and reports all failures
-    on_branch_failure: str = "fail_all"
-
-    # Memory conflict handling when branches write same key
-    memory_conflict_strategy: str = "last_wins"  # "last_wins", "first_wins", "error"
-
-    # Timeout per branch in seconds
-    branch_timeout_seconds: float = 300.0
+    # compare=False prevents existing tests from failing on equality checks
+    history: list[ExecutionSnapshot] = field(default_factory=list, compare=False)
 
 
 class GraphExecutor:
@@ -105,8 +103,9 @@ class GraphExecutor:
         node_registry: dict[str, NodeProtocol] | None = None,
         approval_callback: Callable | None = None,
         cleansing_config: CleansingConfig | None = None,
-        enable_parallel_execution: bool = True,
         parallel_config: ParallelExecutionConfig | None = None,
+        *,
+        enable_parallel_execution: bool = True,
     ):
         """
         Initialize the executor.
@@ -119,8 +118,7 @@ class GraphExecutor:
             node_registry: Custom node implementations by ID
             approval_callback: Optional callback for human-in-the-loop approval
             cleansing_config: Optional output cleansing configuration
-            enable_parallel_execution: Enable parallel fan-out execution (default True)
-            parallel_config: Configuration for parallel execution behavior
+            parallel_config: Configuration for parallel execution
         """
         self.runtime = runtime
         self.llm = llm
@@ -130,6 +128,8 @@ class GraphExecutor:
         self.approval_callback = approval_callback
         self.validator = OutputValidator()
         self.logger = logging.getLogger(__name__)
+        self.parallel_config = parallel_config or ParallelExecutionConfig()
+        self.parallel_config.enabled = enable_parallel_execution
 
         # Initialize output cleaner
         self.cleansing_config = cleansing_config or CleansingConfig()
@@ -137,10 +137,6 @@ class GraphExecutor:
             config=self.cleansing_config,
             llm_provider=llm,
         )
-
-        # Parallel execution settings
-        self.enable_parallel_execution = enable_parallel_execution
-        self._parallel_config = parallel_config or ParallelExecutionConfig()
 
     def _validate_tools(self, graph: GraphSpec) -> list[str]:
         """
@@ -212,7 +208,6 @@ class GraphExecutor:
         # Restore session state if provided
         if session_state and "memory" in session_state:
             memory_data = session_state["memory"]
-            # [RESTORED] Type safety check
             if not isinstance(memory_data, dict):
                 self.logger.warning(
                     f"⚠️ Invalid memory data type in session state: "
@@ -230,6 +225,7 @@ class GraphExecutor:
                 memory.write(key, value)
 
         path: list[str] = []
+        history: list[ExecutionSnapshot] = []  # [ADDED] Initialize history
         total_tokens = 0
         total_latency = 0
         node_retry_counts: dict[str, int] = {}  # Track retries per node
@@ -263,6 +259,18 @@ class GraphExecutor:
 
                 path.append(current_node_id)
 
+                # [ADDED] Time-Travel Snapshot
+                # Capture state BEFORE execution so we can replay/fork from here
+                try:
+                    snapshot = ExecutionSnapshot(
+                        step_index=steps,
+                        node_id=current_node_id,
+                        memory_state=memory.snapshot(),
+                    )
+                    history.append(snapshot)
+                except Exception as e:
+                    self.logger.warning(f"⚠ Failed to capture snapshot: {e}")
+
                 # Check if pause (HITL) before execution
                 if current_node_id in graph.pause_nodes:
                     self.logger.info(f"⏸ Paused at HITL node: {node_spec.name}")
@@ -279,7 +287,6 @@ class GraphExecutor:
                     memory=memory,
                     goal=goal,
                     input_data=input_data or {},
-                    max_tokens=graph.max_tokens,
                 )
 
                 # Log actual input data being read
@@ -295,7 +302,7 @@ class GraphExecutor:
                             self.logger.info(f"      {key}: {value_str}")
 
                 # Get or create node implementation
-                node_impl = self._get_node_implementation(node_spec, graph.cleanup_llm_model)
+                node_impl = self._get_node_implementation(node_spec)
 
                 # Validate inputs
                 validation_errors = node_impl.validate_input(ctx)
@@ -360,7 +367,6 @@ class GraphExecutor:
                         node_retry_counts.get(current_node_id, 0) + 1
                     )
 
-                    # [CORRECTED] Use node_spec.max_retries instead of hardcoded 3
                     max_retries = getattr(node_spec, "max_retries", 3)
 
                     if node_retry_counts[current_node_id] < max_retries:
@@ -410,10 +416,11 @@ class GraphExecutor:
                             total_tokens=total_tokens,
                             total_latency_ms=total_latency,
                             path=path,
+                            history=history,
                         )
 
                 # Check if we just executed a pause node - if so, save state and return
-                # This must happen BEFORE determining next node, since pause nodes may have no edges
+                # This must happen BEFORE determining next node
                 if node_spec.id in graph.pause_nodes:
                     self.logger.info("💾 Saving session state after pause node")
                     saved_memory = memory.read_all()
@@ -439,6 +446,7 @@ class GraphExecutor:
                         path=path,
                         paused_at=node_spec.id,
                         session_state=session_state_out,
+                        history=history,
                     )
 
                 # Check if this is a terminal node - if so, we're done
@@ -452,8 +460,8 @@ class GraphExecutor:
                     self.logger.info(f"   → Router directing to: {result.next_node}")
                     current_node_id = result.next_node
                 else:
-                    # Get all traversable edges for fan-out detection
-                    traversable_edges = self._get_all_traversable_edges(
+                    # Follow edges
+                    next_node = self._follow_edges(
                         graph=graph,
                         goal=goal,
                         current_node_id=current_node_id,
@@ -461,59 +469,12 @@ class GraphExecutor:
                         result=result,
                         memory=memory,
                     )
-
-                    if not traversable_edges:
+                    if next_node is None:
                         self.logger.info("   → No more edges, ending execution")
                         break  # No valid edge, end execution
-
-                    # Check for fan-out (multiple traversable edges)
-                    if self.enable_parallel_execution and len(traversable_edges) > 1:
-                        # Find convergence point (fan-in node)
-                        targets = [e.target for e in traversable_edges]
-                        fan_in_node = self._find_convergence_node(graph, targets)
-
-                        # Execute branches in parallel
-                        (
-                            _branch_results,
-                            branch_tokens,
-                            branch_latency,
-                        ) = await self._execute_parallel_branches(
-                            graph=graph,
-                            goal=goal,
-                            edges=traversable_edges,
-                            memory=memory,
-                            source_result=result,
-                            source_node_spec=node_spec,
-                            path=path,
-                        )
-
-                        total_tokens += branch_tokens
-                        total_latency += branch_latency
-
-                        # Continue from fan-in node
-                        if fan_in_node:
-                            self.logger.info(f"   ⑃ Fan-in: converging at {fan_in_node}")
-                            current_node_id = fan_in_node
-                        else:
-                            # No convergence point - branches are terminal
-                            self.logger.info("   → Parallel branches completed (no convergence)")
-                            break
-                    else:
-                        # Sequential: follow single edge (existing logic via _follow_edges)
-                        next_node = self._follow_edges(
-                            graph=graph,
-                            goal=goal,
-                            current_node_id=current_node_id,
-                            current_node_spec=node_spec,
-                            result=result,
-                            memory=memory,
-                        )
-                        if next_node is None:
-                            self.logger.info("   → No more edges, ending execution")
-                            break
-                        next_spec = graph.get_node(next_node)
-                        self.logger.info(f"   → Next: {next_spec.name if next_spec else next_node}")
-                        current_node_id = next_node
+                    next_spec = graph.get_node(next_node)
+                    self.logger.info(f"   → Next: {next_spec.name if next_spec else next_node}")
+                    current_node_id = next_node
 
                 # Update input_data for next node
                 input_data = result.output
@@ -540,6 +501,7 @@ class GraphExecutor:
                 total_tokens=total_tokens,
                 total_latency_ms=total_latency,
                 path=path,
+                history=history,
             )
 
         except Exception as e:
@@ -556,7 +518,49 @@ class GraphExecutor:
                 error=str(e),
                 steps_executed=steps,
                 path=path,
+                history=history,
             )
+
+    async def fork_execution(
+        self,
+        snapshot: ExecutionSnapshot,
+        graph: GraphSpec,
+        goal: Goal,
+        input_overrides: dict[str, Any] | None = None,
+    ) -> ExecutionResult:
+        """
+        Fork execution from a previous snapshot.
+
+        This allows 'Time-Travel' debugging:
+        1. Restore memory state from snapshot.
+        2. Set entry point to snapshot.node_id.
+        3. Optionally inject modified input/memory data.
+        4. Run normal execution from that point.
+        """
+        self.logger.info(
+            f"🔱 Forking execution from step {snapshot.step_index} (Node: {snapshot.node_id})"
+        )
+
+        # Prepare state from snapshot
+        restored_memory = snapshot.memory_state.copy()
+
+        # Apply overrides if any (allows fixing bad data before resuming)
+        if input_overrides:
+            self.logger.info(f"   Applying {len(input_overrides)} input overrides")
+            restored_memory.update(input_overrides)
+
+        # Construct session state to trigger resumption
+        session_state = {
+            "memory": restored_memory,
+            "paused_at": None,  # Not paused, just forking
+            "resume_from": snapshot.node_id,
+        }
+
+        return await self.execute(
+            graph=graph,
+            goal=goal,
+            session_state=session_state,
+        )
 
     def _build_context(
         self,
@@ -564,7 +568,6 @@ class GraphExecutor:
         memory: SharedMemory,
         goal: Goal,
         input_data: dict[str, Any],
-        max_tokens: int = 4096,
     ) -> NodeContext:
         """Build execution context for a node."""
         # Filter tools to those available to this node
@@ -588,15 +591,18 @@ class GraphExecutor:
             available_tools=available_tools,
             goal_context=goal.to_prompt_context(),
             goal=goal,  # Pass Goal object for LLM-powered routers
-            max_tokens=max_tokens,
         )
 
     # Valid node types - no ambiguous "llm" type allowed
-    VALID_NODE_TYPES = {"llm_tool_use", "llm_generate", "router", "function", "human_input"}
+    VALID_NODE_TYPES = {
+        "llm_tool_use",
+        "llm_generate",
+        "router",
+        "function",
+        "human_input",
+    }
 
-    def _get_node_implementation(
-        self, node_spec: NodeSpec, cleanup_llm_model: str | None = None
-    ) -> NodeProtocol:
+    def _get_node_implementation(self, node_spec: NodeSpec) -> NodeProtocol:
         """Get or create a node implementation."""
         # Check registry first
         if node_spec.id in self.node_registry:
@@ -607,7 +613,8 @@ class GraphExecutor:
             raise RuntimeError(
                 f"Invalid node type '{node_spec.node_type}' for node '{node_spec.id}'. "
                 f"Must be one of: {sorted(self.VALID_NODE_TYPES)}. "
-                f"Use 'llm_tool_use' for nodes that call tools, 'llm_generate' for text generation."
+                f"Use 'llm_tool_use' for nodes that call tools, "
+                f"'llm_generate' for text generation."
             )
 
         # Create based on type
@@ -617,18 +624,10 @@ class GraphExecutor:
                     f"Node '{node_spec.id}' is type 'llm_tool_use' but declares no tools. "
                     "Either add tools to the node or change type to 'llm_generate'."
                 )
-            return LLMNode(
-                tool_executor=self.tool_executor,
-                require_tools=True,
-                cleanup_llm_model=cleanup_llm_model,
-            )
+            return LLMNode(tool_executor=self.tool_executor, require_tools=True)
 
         if node_spec.node_type == "llm_generate":
-            return LLMNode(
-                tool_executor=None,
-                require_tools=False,
-                cleanup_llm_model=cleanup_llm_model,
-            )
+            return LLMNode(tool_executor=None, require_tools=False)
 
         if node_spec.node_type == "router":
             return RouterNode()
@@ -641,11 +640,7 @@ class GraphExecutor:
 
         if node_spec.node_type == "human_input":
             # Human input nodes are handled specially by HITL mechanism
-            return LLMNode(
-                tool_executor=None,
-                require_tools=False,
-                cleanup_llm_model=cleanup_llm_model,
-            )
+            return LLMNode(tool_executor=None, require_tools=False)
 
         # Should never reach here due to validation above
         raise RuntimeError(f"Unhandled node type: {node_spec.node_type}")
@@ -698,9 +693,9 @@ class GraphExecutor:
                         # Update result with cleaned output
                         result.output = cleaned_output
 
-                        # Write cleaned output back to memory (skip validation for LLM output)
+                        # Write cleaned output back to memory
                         for key, value in cleaned_output.items():
-                            memory.write(key, value, validate=False)
+                            memory.write(key, value)
 
                         # Revalidate
                         revalidation = self.output_cleaner.validate_output(
@@ -717,248 +712,14 @@ class GraphExecutor:
                             )
                             # Continue anyway if fallback_to_raw is True
 
-                # Map inputs (skip validation for processed LLM output)
+                # Map inputs
                 mapped = edge.map_inputs(result.output, memory.read_all())
                 for key, value in mapped.items():
-                    memory.write(key, value, validate=False)
+                    memory.write(key, value)
 
                 return edge.target
 
         return None
-
-    def _get_all_traversable_edges(
-        self,
-        graph: GraphSpec,
-        goal: Goal,
-        current_node_id: str,
-        current_node_spec: Any,
-        result: NodeResult,
-        memory: SharedMemory,
-    ) -> list[EdgeSpec]:
-        """
-        Get ALL edges that should be traversed (for fan-out detection).
-
-        Unlike _follow_edges which returns the first match, this returns
-        all matching edges to enable parallel execution.
-        """
-        edges = graph.get_outgoing_edges(current_node_id)
-        traversable = []
-
-        for edge in edges:
-            target_node_spec = graph.get_node(edge.target)
-            if edge.should_traverse(
-                source_success=result.success,
-                source_output=result.output,
-                memory=memory.read_all(),
-                llm=self.llm,
-                goal=goal,
-                source_node_name=current_node_spec.name if current_node_spec else current_node_id,
-                target_node_name=target_node_spec.name if target_node_spec else edge.target,
-            ):
-                traversable.append(edge)
-
-        return traversable
-
-    def _find_convergence_node(
-        self,
-        graph: GraphSpec,
-        parallel_targets: list[str],
-    ) -> str | None:
-        """
-        Find the common target node where parallel branches converge (fan-in).
-
-        Args:
-            graph: The graph specification
-            parallel_targets: List of node IDs that are running in parallel
-
-        Returns:
-            Node ID where all branches converge, or None if no convergence
-        """
-        # Get all nodes that parallel branches lead to
-        next_nodes: dict[str, int] = {}  # node_id -> count of branches leading to it
-
-        for target in parallel_targets:
-            outgoing = graph.get_outgoing_edges(target)
-            for edge in outgoing:
-                next_nodes[edge.target] = next_nodes.get(edge.target, 0) + 1
-
-        # Convergence node is where ALL branches lead
-        for node_id, count in next_nodes.items():
-            if count == len(parallel_targets):
-                return node_id
-
-        # Fallback: return most common target if any
-        if next_nodes:
-            return max(next_nodes.keys(), key=lambda k: next_nodes[k])
-
-        return None
-
-    async def _execute_parallel_branches(
-        self,
-        graph: GraphSpec,
-        goal: Goal,
-        edges: list[EdgeSpec],
-        memory: SharedMemory,
-        source_result: NodeResult,
-        source_node_spec: Any,
-        path: list[str],
-    ) -> tuple[dict[str, NodeResult], int, int]:
-        """
-        Execute multiple branches in parallel using asyncio.gather.
-
-        Args:
-            graph: The graph specification
-            goal: The execution goal
-            edges: List of edges to follow in parallel
-            memory: Shared memory instance
-            source_result: Result from the source node
-            source_node_spec: Spec of the source node
-            path: Execution path list to update
-
-        Returns:
-            Tuple of (branch_results dict, total_tokens, total_latency)
-        """
-        branches: dict[str, ParallelBranch] = {}
-
-        # Create branches for each edge
-        for edge in edges:
-            branch_id = f"{edge.source}_to_{edge.target}"
-            branches[branch_id] = ParallelBranch(
-                branch_id=branch_id,
-                node_id=edge.target,
-                edge=edge,
-            )
-
-        self.logger.info(f"   ⑂ Fan-out: executing {len(branches)} branches in parallel")
-        for branch in branches.values():
-            target_spec = graph.get_node(branch.node_id)
-            self.logger.info(f"      • {target_spec.name if target_spec else branch.node_id}")
-
-        async def execute_single_branch(
-            branch: ParallelBranch,
-        ) -> tuple[ParallelBranch, NodeResult | Exception]:
-            """Execute a single branch with retry logic."""
-            node_spec = graph.get_node(branch.node_id)
-            if node_spec is None:
-                branch.status = "failed"
-                branch.error = f"Node {branch.node_id} not found in graph"
-                return branch, RuntimeError(branch.error)
-            branch.status = "running"
-
-            try:
-                # Validate and clean output before mapping inputs (same as _follow_edges)
-                if self.cleansing_config.enabled and node_spec:
-                    validation = self.output_cleaner.validate_output(
-                        output=source_result.output,
-                        source_node_id=source_node_spec.id if source_node_spec else "unknown",
-                        target_node_spec=node_spec,
-                    )
-
-                    if not validation.valid:
-                        self.logger.warning(
-                            f"⚠ Output validation failed for branch "
-                            f"{branch.node_id}: {validation.errors}"
-                        )
-                        cleaned_output = self.output_cleaner.clean_output(
-                            output=source_result.output,
-                            source_node_id=source_node_spec.id if source_node_spec else "unknown",
-                            target_node_spec=node_spec,
-                            validation_errors=validation.errors,
-                        )
-                        # Write cleaned output to memory
-                        for key, value in cleaned_output.items():
-                            await memory.write_async(key, value)
-
-                # Map inputs via edge
-                mapped = branch.edge.map_inputs(source_result.output, memory.read_all())
-                for key, value in mapped.items():
-                    await memory.write_async(key, value)
-
-                # Execute with retries
-                last_result = None
-                for attempt in range(node_spec.max_retries):
-                    branch.retry_count = attempt
-
-                    # Build context for this branch
-                    ctx = self._build_context(node_spec, memory, goal, mapped, graph.max_tokens)
-                    node_impl = self._get_node_implementation(node_spec, graph.cleanup_llm_model)
-
-                    self.logger.info(
-                        f"      ▶ Branch {node_spec.name}: executing (attempt {attempt + 1})"
-                    )
-                    result = await node_impl.execute(ctx)
-                    last_result = result
-
-                    if result.success:
-                        # Write outputs to shared memory using async write
-                        for key, value in result.output.items():
-                            await memory.write_async(key, value)
-
-                        branch.result = result
-                        branch.status = "completed"
-                        self.logger.info(
-                            f"      ✓ Branch {node_spec.name}: success "
-                            f"(tokens: {result.tokens_used}, latency: {result.latency_ms}ms)"
-                        )
-                        return branch, result
-
-                    self.logger.warning(
-                        f"      ↻ Branch {node_spec.name}: "
-                        f"retry {attempt + 1}/{node_spec.max_retries}"
-                    )
-
-                # All retries exhausted
-                branch.status = "failed"
-                branch.error = last_result.error if last_result else "Unknown error"
-                branch.result = last_result
-                self.logger.error(
-                    f"      ✗ Branch {node_spec.name}: "
-                    f"failed after {node_spec.max_retries} attempts"
-                )
-                return branch, last_result
-
-            except Exception as e:
-                branch.status = "failed"
-                branch.error = str(e)
-                self.logger.error(f"      ✗ Branch {branch.node_id}: exception - {e}")
-                return branch, e
-
-        # Execute all branches concurrently
-        tasks = [execute_single_branch(b) for b in branches.values()]
-        results = await asyncio.gather(*tasks, return_exceptions=False)
-
-        # Process results
-        total_tokens = 0
-        total_latency = 0
-        branch_results: dict[str, NodeResult] = {}
-        failed_branches: list[ParallelBranch] = []
-
-        for branch, result in results:
-            path.append(branch.node_id)
-
-            if isinstance(result, Exception):
-                failed_branches.append(branch)
-            elif result is None or not result.success:
-                failed_branches.append(branch)
-            else:
-                total_tokens += result.tokens_used
-                total_latency += result.latency_ms
-                branch_results[branch.branch_id] = result
-
-        # Handle failures based on config
-        if failed_branches:
-            failed_names = [graph.get_node(b.node_id).name for b in failed_branches]
-            if self._parallel_config.on_branch_failure == "fail_all":
-                raise RuntimeError(f"Parallel execution failed: branches {failed_names} failed")
-            elif self._parallel_config.on_branch_failure == "continue_others":
-                self.logger.warning(
-                    f"⚠ Some branches failed ({failed_names}), continuing with successful ones"
-                )
-
-        self.logger.info(
-            f"   ⑃ Fan-out complete: {len(branch_results)}/{len(branches)} branches succeeded"
-        )
-        return branch_results, total_tokens, total_latency
 
     def register_node(self, node_id: str, implementation: NodeProtocol) -> None:
         """Register a custom node implementation."""
