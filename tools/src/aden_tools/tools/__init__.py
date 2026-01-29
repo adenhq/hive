@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 # Import register_tools from each tool module
 from .csv_tool import register_tools as register_csv
+from .datetime_tool import register_tools as register_datetime
 from .example_tool import register_tools as register_example
 from .file_system_toolkits.apply_diff import register_tools as register_apply_diff
 from .file_system_toolkits.apply_patch import register_tools as register_apply_patch
@@ -57,6 +58,7 @@ def register_all_tools(
     """
     # Tools that don't need credentials
     register_example(mcp)
+    register_datetime(mcp)
     register_web_scrape(mcp)
     register_pdf_read(mcp)
 
@@ -77,6 +79,13 @@ def register_all_tools(
 
     return [
         "example_tool",
+        "get_current_datetime",
+        "parse_date",
+        "format_date",
+        "date_diff",
+        "add_time",
+        "compare_dates",
+        "get_day_of_week",
         "web_search",
         "web_scrape",
         "pdf_read",
