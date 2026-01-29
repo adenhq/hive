@@ -7,15 +7,16 @@ while preserving the goal-driven approach.
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from framework.graph.executor import ExecutionResult
-from framework.runtime.shared_state import SharedStateManager
-from framework.runtime.outcome_aggregator import OutcomeAggregator
 from framework.runtime.event_bus import EventBus
-from framework.runtime.execution_stream import ExecutionStream, EntryPointSpec
+from framework.runtime.execution_stream import EntryPointSpec, ExecutionStream
+from framework.runtime.outcome_aggregator import OutcomeAggregator
+from framework.runtime.shared_state import SharedStateManager
 from framework.storage.concurrent import ConcurrentStorage
 
 if TYPE_CHECKING:
@@ -29,11 +30,13 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AgentRuntimeConfig:
     """Configuration for AgentRuntime."""
+
     max_concurrent_executions: int = 100
     cache_ttl: float = 60.0
     batch_interval: float = 0.1
     max_history: int = 1000
-    state_cleanup_interval: float = 300.0  # Runs cleanup every 5 minutes
+    execution_result_max: int = 1000
+    execution_result_ttl_seconds: float | None = None
 
 
 class AgentRuntime:
@@ -46,6 +49,46 @@ class AgentRuntime:
     - Manage shared state across streams
     - Aggregate decisions/outcomes for goal evaluation
     - Handle lifecycle events (start, pause, shutdown)
+
+    Example:
+        # Create runtime
+        runtime = AgentRuntime(
+            graph=support_agent_graph,
+            goal=support_agent_goal,
+            storage_path=Path("./storage"),
+            llm=llm_provider,
+        )
+
+        # Register entry points
+        runtime.register_entry_point(EntryPointSpec(
+            id="webhook",
+            name="Zendesk Webhook",
+            entry_node="process-webhook",
+            trigger_type="webhook",
+            isolation_level="shared",
+        ))
+
+        runtime.register_entry_point(EntryPointSpec(
+            id="api",
+            name="API Handler",
+            entry_node="process-request",
+            trigger_type="api",
+            isolation_level="shared",
+        ))
+
+        # Start runtime
+        await runtime.start()
+
+        # Trigger executions (non-blocking)
+        exec_1 = await runtime.trigger("webhook", {"ticket_id": "123"})
+        exec_2 = await runtime.trigger("api", {"query": "help"})
+
+        # Check goal progress
+        progress = await runtime.get_goal_progress()
+        print(f"Progress: {progress['overall_progress']:.1%}")
+
+        # Stop runtime
+        await runtime.stop()
     """
 
     def __init__(
@@ -82,7 +125,7 @@ class AgentRuntime:
         )
 
         # Initialize shared components
-        self._state_manager = SharedStateManager(max_history=self._config.max_history)
+        self._state_manager = SharedStateManager()
         self._event_bus = EventBus(max_history=self._config.max_history)
         self._outcome_aggregator = OutcomeAggregator(goal, self._event_bus)
 
@@ -98,7 +141,6 @@ class AgentRuntime:
         # State
         self._running = False
         self._lock = asyncio.Lock()
-        self._cleanup_task: asyncio.Task | None = None
 
     def register_entry_point(self, spec: EntryPointSpec) -> None:
         """
@@ -145,27 +187,6 @@ class AgentRuntime:
             return True
         return False
 
-    async def _cleanup_loop(self) -> None:
-        """Periodic background task to clean up stale state."""
-        logger.info("🧹 State cleanup task started")
-        while self._running:
-            try:
-                await asyncio.sleep(self._config.state_cleanup_interval)
-                
-                # Use 10x cache_ttl as the timeout for stale state to be safe
-                ttl = self._config.cache_ttl * 10
-                cleaned = self._state_manager.cleanup_stale_executions(ttl)
-                
-                if cleaned > 0:
-                    logger.info(f"🧹 Cleaned up {cleaned} stale execution states")
-                    
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Error in cleanup loop: {e}")
-                # Wait a bit before retrying if there was an error
-                await asyncio.sleep(60)
-
     async def start(self) -> None:
         """Start the agent runtime and all registered entry points."""
         if self._running:
@@ -189,15 +210,13 @@ class AgentRuntime:
                     llm=self._llm,
                     tools=self._tools,
                     tool_executor=self._tool_executor,
+                    result_retention_max=self._config.execution_result_max,
+                    result_retention_ttl_seconds=self._config.execution_result_ttl_seconds,
                 )
                 await stream.start()
                 self._streams[ep_id] = stream
 
             self._running = True
-            
-            # Start background cleanup task
-            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
-            
             logger.info(f"AgentRuntime started with {len(self._streams)} streams")
 
     async def stop(self) -> None:
@@ -206,17 +225,6 @@ class AgentRuntime:
             return
 
         async with self._lock:
-            self._running = False
-            
-            # Stop cleanup task
-            if self._cleanup_task:
-                self._cleanup_task.cancel()
-                try:
-                    await self._cleanup_task
-                except asyncio.CancelledError:
-                    pass
-                self._cleanup_task = None
-
             # Stop all streams
             for stream in self._streams.values():
                 await stream.stop()
@@ -226,6 +234,7 @@ class AgentRuntime:
             # Stop storage
             await self._storage.stop()
 
+            self._running = False
             logger.info("AgentRuntime stopped")
 
     async def trigger(
@@ -282,7 +291,9 @@ class AgentRuntime:
             ExecutionResult or None if timeout
         """
         exec_id = await self.trigger(entry_point_id, input_data, session_state=session_state)
-        stream = self._streams[entry_point_id]
+        stream = self._streams.get(entry_point_id)
+        if stream is None:
+            raise ValueError(f"Entry point '{entry_point_id}' not found")
         return await stream.wait_for_completion(exec_id, timeout)
 
     async def get_goal_progress(self) -> dict[str, Any]:
@@ -407,6 +418,7 @@ class AgentRuntime:
 
 
 # === CONVENIENCE FACTORY ===
+
 
 def create_agent_runtime(
     graph: "GraphSpec",
