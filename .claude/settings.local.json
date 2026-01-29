@@ -24,7 +24,13 @@
       "Bash(done)",
       "Bash(xargs cat:*)",
       "mcp__agent-builder__list_mcp_tools",
-      "mcp__agent-builder__add_mcp_server"
+      "mcp__agent-builder__add_mcp_server",
+      "Bash(PYTHONPATH=core:exports python3:*)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "agent-builder",
+    "tools"
+  ]
 }
