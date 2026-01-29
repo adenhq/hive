@@ -239,13 +239,11 @@ claude> /testing-agent
    ```
 
 2. **Design the Workflow**
-
    - The skill guides you through defining nodes
    - Each node is a unit of work (LLM call, function, router)
    - Edges define how execution flows
 
 3. **Generate the Agent**
-
    - The skill generates a complete Python package in `exports/`
    - Includes: `agent.json`, `tools.py`, `README.md`
 
@@ -375,7 +373,7 @@ def test_ticket_categorization():
 - **PEP 8** - Follow Python style guide
 - **Type hints** - Use for function signatures and class attributes
 - **Docstrings** - Document classes and public functions
-- **Ruff** - Linter + formatter (run with `make format`)
+- **Ruff** - Linter + formatter (run with `make check`)
 
 ```python
 # Good
