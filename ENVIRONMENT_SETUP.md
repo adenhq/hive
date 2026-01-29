@@ -8,6 +8,12 @@ Complete setup guide for building and running goal-driven agents with the Aden A
 # Run the automated setup script
 ./scripts/setup-python.sh
 ```
+<img width="58" height="17" alt="wsl" src="https://github.com/user-attachments/assets/62388ede-b35b-4463-accc-f966a556f6a8" />
+
+This is the wsl equivalent of cd and to ensure your directory matches your project one. Make sure to use virtual enviroment
+to prevent any unnecessary troubleshooting
+
+If the above script doesn't work, please use PYTHON=$(which python) on the same line as the setup script to catch the version
 
 > **Note for Windows Users:**  
 > Running the setup script on native Windows shells (PowerShell / Git Bash) may sometimes fail due to Python App Execution Aliases.  
