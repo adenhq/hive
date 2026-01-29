@@ -210,6 +210,137 @@ class TestLiteLLMProviderToolUse:
         assert mock_completion.call_count == 2
 
 
+class TestMalformedToolArguments:
+    """Test handling of malformed JSON in tool call arguments."""
+
+    @patch("litellm.completion")
+    def test_malformed_args_sends_error_not_empty_dict(self, mock_completion):
+        """Malformed tool args should send a parse error to the LLM, not call tool with {}."""
+        # First call: LLM returns a tool call with invalid JSON arguments
+        tool_call_response = MagicMock()
+        tool_call_response.choices = [MagicMock()]
+        tool_call_response.choices[0].message.content = None
+        tool_call_response.choices[0].message.tool_calls = [MagicMock()]
+        tool_call_response.choices[0].message.tool_calls[0].id = "call_bad"
+        tool_call_response.choices[0].message.tool_calls[0].function.name = "search"
+        tool_call_response.choices[0].message.tool_calls[
+            0
+        ].function.arguments = '{"query": invalid json}'
+        tool_call_response.choices[0].finish_reason = "tool_calls"
+        tool_call_response.model = "gpt-4o-mini"
+        tool_call_response.usage.prompt_tokens = 20
+        tool_call_response.usage.completion_tokens = 15
+
+        # Second call: LLM sees the error and responds normally
+        final_response = MagicMock()
+        final_response.choices = [MagicMock()]
+        final_response.choices[0].message.content = "I had a parsing issue."
+        final_response.choices[0].message.tool_calls = None
+        final_response.choices[0].finish_reason = "stop"
+        final_response.model = "gpt-4o-mini"
+        final_response.usage.prompt_tokens = 30
+        final_response.usage.completion_tokens = 10
+
+        mock_completion.side_effect = [tool_call_response, final_response]
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        tools = [
+            Tool(
+                name="search",
+                description="Search the web",
+                parameters={
+                    "properties": {"query": {"type": "string"}},
+                    "required": ["query"],
+                },
+            )
+        ]
+
+        executor_called = False
+
+        def tool_executor(tool_use: ToolUse) -> ToolResult:
+            nonlocal executor_called
+            executor_called = True
+            return ToolResult(tool_use_id=tool_use.id, content="result", is_error=False)
+
+        result = provider.complete_with_tools(
+            messages=[{"role": "user", "content": "Search for something"}],
+            system="You are helpful.",
+            tools=tools,
+            tool_executor=tool_executor,
+        )
+
+        # Tool executor must NOT be called with empty args
+        assert not executor_called
+
+        # The LLM's second call should have received the error as a tool result
+        second_call_messages = mock_completion.call_args_list[1][1]["messages"]
+        tool_result_msgs = [m for m in second_call_messages if m["role"] == "tool"]
+        assert len(tool_result_msgs) == 1
+        assert "Invalid JSON" in tool_result_msgs[0]["content"]
+        assert tool_result_msgs[0]["tool_call_id"] == "call_bad"
+
+        # Final response should come from LLM's self-correction
+        assert result.content == "I had a parsing issue."
+        assert result.stop_reason == "stop"
+
+    @patch("litellm.completion")
+    def test_valid_args_still_execute_normally(self, mock_completion):
+        """Valid JSON tool args should still be parsed and tool should execute."""
+        tool_call_response = MagicMock()
+        tool_call_response.choices = [MagicMock()]
+        tool_call_response.choices[0].message.content = None
+        tool_call_response.choices[0].message.tool_calls = [MagicMock()]
+        tool_call_response.choices[0].message.tool_calls[0].id = "call_ok"
+        tool_call_response.choices[0].message.tool_calls[0].function.name = "search"
+        tool_call_response.choices[0].message.tool_calls[
+            0
+        ].function.arguments = '{"query": "hello world"}'
+        tool_call_response.choices[0].finish_reason = "tool_calls"
+        tool_call_response.model = "gpt-4o-mini"
+        tool_call_response.usage.prompt_tokens = 20
+        tool_call_response.usage.completion_tokens = 15
+
+        final_response = MagicMock()
+        final_response.choices = [MagicMock()]
+        final_response.choices[0].message.content = "Found results for hello world."
+        final_response.choices[0].message.tool_calls = None
+        final_response.choices[0].finish_reason = "stop"
+        final_response.model = "gpt-4o-mini"
+        final_response.usage.prompt_tokens = 30
+        final_response.usage.completion_tokens = 10
+
+        mock_completion.side_effect = [tool_call_response, final_response]
+
+        provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
+        tools = [
+            Tool(
+                name="search",
+                description="Search",
+                parameters={
+                    "properties": {"query": {"type": "string"}},
+                    "required": ["query"],
+                },
+            )
+        ]
+
+        received_args = {}
+
+        def tool_executor(tool_use: ToolUse) -> ToolResult:
+            received_args.update(tool_use.input)
+            return ToolResult(tool_use_id=tool_use.id, content="search results", is_error=False)
+
+        result = provider.complete_with_tools(
+            messages=[{"role": "user", "content": "Search"}],
+            system="",
+            tools=tools,
+            tool_executor=tool_executor,
+        )
+
+        # Tool executor should have been called with correct args
+        assert received_args == {"query": "hello world"}
+        assert result.content == "Found results for hello world."
+
+
 class TestToolConversion:
     """Test tool format conversion."""
 
