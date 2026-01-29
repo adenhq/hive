@@ -37,7 +37,10 @@ from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
 from .pdf_read_tool import register_tools as register_pdf_read
 from .web_scrape_tool import register_tools as register_web_scrape
+
+# Web and PDF tools
 from .web_search_tool import register_tools as register_web_search
+from .wikipedia_tool import register_tools as register_wikipedia
 
 
 def register_all_tools(
@@ -59,6 +62,7 @@ def register_all_tools(
     register_example(mcp)
     register_web_scrape(mcp)
     register_pdf_read(mcp)
+    register_wikipedia(mcp)
 
     # Tools that need credentials (pass credentials if provided)
     # web_search supports multiple providers (Google, Brave) with auto-detection
@@ -80,6 +84,7 @@ def register_all_tools(
         "web_search",
         "web_scrape",
         "pdf_read",
+        "search_wikipedia",
         "view_file",
         "write_to_file",
         "list_dir",
