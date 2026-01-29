@@ -202,7 +202,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 f"Invalid JSON in --input: {e}",
                 hint=(
                     "Ensure the input is valid JSON. Example:\n"
-                    "    hive run <agent> --input '{\"key\": \"value\"}'"
+                    '    hive run <agent> --input \'{"key": "value"}\''
                 ),
             ) from e
     elif args.input_file:
@@ -484,7 +484,7 @@ def cmd_dispatch(args: argparse.Namespace) -> int:
             f"Invalid JSON in --input: {e}",
             hint=(
                 "Ensure the input is valid JSON. Example:\n"
-                "    hive dispatch --input '{\"key\": \"value\"}'"
+                '    hive dispatch --input \'{"key": "value"}\''
             ),
         ) from e
 
@@ -508,8 +508,7 @@ def cmd_dispatch(args: argparse.Namespace) -> int:
                 raise CLIError(
                     f"Agent not found: {agent_path}",
                     hint=(
-                        f"No agent.json in '{agent_path}'.\n"
-                        "  List available agents with: hive list"
+                        f"No agent.json in '{agent_path}'.\n  List available agents with: hive list"
                     ),
                 )
             agent_paths.append((agent_name, agent_path))
