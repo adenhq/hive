@@ -93,14 +93,50 @@ echo -e "${GREEN}✓${NC} Python version check passed"
 echo ""
 
 # Check for uv
-if ! command -v uv &> /dev/null; then
-    echo -e "${RED}Error: uv is not installed${NC}"
-    echo "Please install uv from https://github.com/astral-sh/uv"
-    exit 1
+HAS_UV=false
+if command -v uv &> /dev/null; then
+    HAS_UV=true
+    echo -e "${GREEN}✓${NC} uv detected"
+else
+    echo -e "${YELLOW}⚠${NC} uv not found. Falling back to standard pip/venv."
+    echo "Note: Installation might be slower."
 fi
-
-echo -e "${GREEN}✓${NC} uv detected"
 echo ""
+
+# Helper function to get python path in venv (cross-platform)
+get_venv_python() {
+    local venv_dir="$1"
+    if [ -f "$venv_dir/bin/python" ]; then
+        echo "$venv_dir/bin/python"
+    elif [ -f "$venv_dir/Scripts/python" ]; then
+        echo "$venv_dir/Scripts/python"
+    elif [ -f "$venv_dir/Scripts/python.exe" ]; then
+        echo "$venv_dir/Scripts/python.exe"
+    else
+        echo ""
+    fi
+}
+
+# Helper function to create venv
+create_venv() {
+    local venv_dir="$1"
+    if [ "$HAS_UV" = "true" ]; then
+        uv venv "$venv_dir"
+    else
+        "${PYTHON_CMD[@]}" -m venv "$venv_dir"
+    fi
+}
+
+# Helper function to install package
+install_package() {
+    local python_exe="$1"
+    local args="${@:2}"
+    if [ "$HAS_UV" = "true" ]; then
+        uv pip install --python "$python_exe" $args
+    else
+        "$python_exe" -m pip install $args
+    fi
+}
 
 # Install core framework package
 echo "=================================================="
@@ -112,7 +148,7 @@ cd "$PROJECT_ROOT/core"
 # Create venv if it doesn't exist
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment in core/.venv..."
-    uv venv
+    create_venv ".venv"
     echo -e "${GREEN}✓${NC} Virtual environment created"
 else
     echo -e "${GREEN}✓${NC} Virtual environment already exists"
@@ -121,8 +157,13 @@ echo ""
 
 if [ -f "pyproject.toml" ]; then
     echo "Installing framework from core/ (editable mode)..."
-    CORE_PYTHON=".venv/bin/python"
-    if uv pip install --python "$CORE_PYTHON" -e .; then
+    CORE_PYTHON=$(get_venv_python ".venv")
+    if [ -z "$CORE_PYTHON" ]; then
+        echo -e "${RED}Error: Could not find python in core/.venv${NC}"
+        exit 1
+    fi
+    
+    if install_package "$CORE_PYTHON" -e .; then
         echo -e "${GREEN}✓${NC} Framework package installed"
     else
         echo -e "${YELLOW}⚠${NC} Framework installation encountered issues (may be OK if already installed)"
@@ -142,7 +183,7 @@ cd "$PROJECT_ROOT/tools"
 # Create venv if it doesn't exist
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment in tools/.venv..."
-    uv venv
+    create_venv ".venv"
     echo -e "${GREEN}✓${NC} Virtual environment created"
 else
     echo -e "${GREEN}✓${NC} Virtual environment already exists"
@@ -151,8 +192,13 @@ echo ""
 
 if [ -f "pyproject.toml" ]; then
     echo "Installing aden_tools from tools/ (editable mode)..."
-    TOOLS_PYTHON=".venv/bin/python"
-    if uv pip install --python "$TOOLS_PYTHON" -e .; then
+    TOOLS_PYTHON=$(get_venv_python ".venv")
+    if [ -z "$TOOLS_PYTHON" ]; then
+        echo -e "${RED}Error: Could not find python in tools/.venv${NC}"
+        exit 1
+    fi
+
+    if install_package "$TOOLS_PYTHON" -e .; then
         echo -e "${GREEN}✓${NC} Tools package installed"
     else
         echo -e "${RED}✗${NC} Tools installation failed"
@@ -170,19 +216,23 @@ echo "Fixing Package Compatibility"
 echo "=================================================="
 echo ""
 
-TOOLS_PYTHON="$PROJECT_ROOT/tools/.venv/bin/python"
+TOOLS_PYTHON=$(get_venv_python "$PROJECT_ROOT/tools/.venv")
+if [ -z "$TOOLS_PYTHON" ]; then
+    echo -e "${RED}Error: Could not find python in tools/.venv${NC}"
+    exit 1
+fi
 
 # Check openai version in tools venv
 OPENAI_VERSION=$($TOOLS_PYTHON -c "import openai; print(openai.__version__)" 2>/dev/null || echo "not_installed")
 
 if [ "$OPENAI_VERSION" = "not_installed" ]; then
     echo "Installing openai package..."
-    uv pip install --python "$TOOLS_PYTHON" "openai>=1.0.0"
+    install_package "$TOOLS_PYTHON" "openai>=1.0.0"
     echo -e "${GREEN}✓${NC} openai package installed"
 elif [[ "$OPENAI_VERSION" =~ ^0\. ]]; then
     echo -e "${YELLOW}Found old openai version: $OPENAI_VERSION${NC}"
     echo "Upgrading to openai 1.x+ for litellm compatibility..."
-    uv pip install --python "$TOOLS_PYTHON" --upgrade "openai>=1.0.0"
+    install_package "$TOOLS_PYTHON" --upgrade "openai>=1.0.0"
     OPENAI_VERSION=$($TOOLS_PYTHON -c "import openai; print(openai.__version__)" 2>/dev/null)
     echo -e "${GREEN}✓${NC} openai upgraded to $OPENAI_VERSION"
 else
@@ -199,7 +249,7 @@ echo ""
 cd "$PROJECT_ROOT"
 
 # Test framework import using core venv
-CORE_PYTHON="$PROJECT_ROOT/core/.venv/bin/python"
+CORE_PYTHON=$(get_venv_python "$PROJECT_ROOT/core/.venv")
 if [ -f "$CORE_PYTHON" ]; then
     if $CORE_PYTHON -c "import framework; print('framework OK')" > /dev/null 2>&1; then
         echo -e "${GREEN}✓${NC} framework package imports successfully"
@@ -208,12 +258,12 @@ if [ -f "$CORE_PYTHON" ]; then
         echo -e "${YELLOW}  Note: This may be OK if you don't need the framework${NC}"
     fi
 else
-    echo -e "${RED}✗${NC} core/.venv not found - venv creation may have failed${NC}"
+    echo -e "${RED}✗${NC} core/.venv python not found${NC}"
     exit 1
 fi
 
 # Test aden_tools import using tools venv
-TOOLS_PYTHON="$PROJECT_ROOT/tools/.venv/bin/python"
+TOOLS_PYTHON=$(get_venv_python "$PROJECT_ROOT/tools/.venv")
 if [ -f "$TOOLS_PYTHON" ]; then
     if $TOOLS_PYTHON -c "import aden_tools; print('aden_tools OK')" > /dev/null 2>&1; then
         echo -e "${GREEN}✓${NC} aden_tools package imports successfully"
@@ -222,7 +272,7 @@ if [ -f "$TOOLS_PYTHON" ]; then
         exit 1
     fi
 else
-    echo -e "${RED}✗${NC} tools/.venv not found - venv creation may have failed${NC}"
+    echo -e "${RED}✗${NC} tools/.venv python not found${NC}"
     exit 1
 fi
 

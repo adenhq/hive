@@ -119,5 +119,6 @@ async def main():
 
 if __name__ == "__main__":
     # Optional: Enable logging to see internal decision flow
-    # logging.basicConfig(level=logging.INFO)
+    import logging
+    logging.basicConfig(level=logging.INFO)
     asyncio.run(main())
