@@ -159,6 +159,7 @@ hive/                                    # Repository root
 │   │   ├── protocols/                   # Standard protocols (hooks, tracing, etc.)
 │   │   ├── llm/                         # LLM provider integrations (Anthropic, OpenAI, etc.)
 │   │   ├── memory/                      # Memory systems (STM, LTM/RLM)
+|   |   ├── observability/               # Structured logging - human-readable and machine-parseable tracing
 │   │   ├── tools/                       # Tool registry and management
 │   │   └── __init__.py
 │   ├── pyproject.toml                   # Package metadata and dependencies
