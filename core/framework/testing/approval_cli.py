@@ -10,6 +10,7 @@ import os
 import subprocess
 import tempfile
 from collections.abc import Callable
+from core.framework.utils.safety import LoopGuard
 
 from framework.testing.approval_types import (
     ApprovalAction,
@@ -184,8 +185,10 @@ def _display_test(test: Test, index: int, total: int) -> None:
 
 def _get_user_action() -> ApprovalAction:
     """Get user's choice for action."""
+    guard = LoopGuard(max_iters=20, label="Test Approval Menu")
     while True:
         choice = input("Your choice: ").strip().lower()
+        guard.check()
 
         if choice == "a":
             return ApprovalAction.APPROVE
