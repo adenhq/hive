@@ -8,7 +8,6 @@ handles all the structured logging.
 
 import logging
 import uuid
-from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any

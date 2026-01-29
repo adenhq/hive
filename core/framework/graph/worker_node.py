@@ -27,8 +27,6 @@ from framework.graph.plan import (
 from framework.llm.provider import LLMProvider, Tool
 from framework.runtime.core import Runtime
 
-logger = logging.getLogger(__name__)
-
 
 def parse_llm_json_response(text: str) -> tuple[Any | None, str]:
     """

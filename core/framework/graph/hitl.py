@@ -178,9 +178,10 @@ class HITLProtocol:
 
             import anthropic
 
-            questions_str = "\n".join(
-                [f"{i + 1}. {q.question} (id: {q.id})" for i, q in enumerate(request.questions)]
-            )
+            questions_str = "\n".join([
+                f"{i+1}. {q.question} (id: {q.id})"
+                for i, q in enumerate(request.questions)
+            ])
 
             prompt = f"""Parse the user's response and extract answers for each question.
 

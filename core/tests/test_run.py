@@ -101,13 +101,13 @@ class TestRun:
             started_at=datetime.now(),
             completed_at=datetime.now(),
         )
-        problem_id = run.add_problem(
+        problem_id =  run.add_problem(
             "Test problem",
             "Test problem description",
             "test_decision",
             "Test root cause",
             "Test suggested fix",
-        )
+            )
 
         assert problem_id == f"prob_{len(run.problems) - 1}"
 

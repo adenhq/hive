@@ -1173,9 +1173,7 @@ def _generate_readme(session: BuildSession, export_data: dict, all_tools: set) -
     # Build success criteria section
     criteria_section = []
     for criterion in goal.success_criteria:
-        crit_dict = (
-            criterion.model_dump() if hasattr(criterion, "model_dump") else criterion.__dict__
-        )
+        crit_dict = criterion.model_dump() if hasattr(criterion, "model_dump") else criterion.__dict__
         criteria_section.append(
             f"**{crit_dict.get('description', 'N/A')}** (weight {crit_dict.get('weight', 1.0)})\n"
             f"- Metric: {crit_dict.get('metric', 'N/A')}\n"
@@ -1185,8 +1183,10 @@ def _generate_readme(session: BuildSession, export_data: dict, all_tools: set) -
     # Build constraints section
     constraints_section = []
     for constraint in goal.constraints:
-        const_dict = (
-            constraint.model_dump() if hasattr(constraint, "model_dump") else constraint.__dict__
+        const_dict = constraint.model_dump() if hasattr(constraint, "model_dump") else constraint.__dict__
+        constraints_section.append(
+            f"**{const_dict.get('description', 'N/A')}** ({const_dict.get('constraint_type', 'hard')})\n"
+            f"- Category: {const_dict.get('category', 'N/A')}"
         )
         desc = const_dict.get("description", "N/A")
         ctype = const_dict.get("constraint_type", "hard")

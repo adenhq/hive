@@ -949,7 +949,6 @@ Respond with JSON only:
 
             # Parse response
             import re
-
             json_match = re.search(r"\{[^{}]*\}", response.content, re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group())

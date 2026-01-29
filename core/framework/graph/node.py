@@ -713,16 +713,8 @@ Keep the same JSON structure but with shorter content values.
 
             # Log the LLM call details
             logger.info("      🤖 LLM Call:")
-            logger.info(
-                f"         System: {system[:150]}..."
-                if len(system) > 150
-                else f"         System: {system}"
-            )
-            logger.info(
-                f"         User message: {messages[-1]['content'][:150]}..."
-                if len(messages[-1]["content"]) > 150
-                else f"         User message: {messages[-1]['content']}"
-            )
+            logger.info(f"         System: {system[:150]}..." if len(system) > 150 else f"         System: {system}")
+            logger.info(f"         User message: {messages[-1]['content'][:150]}..." if len(messages[-1]["content"]) > 150 else f"         User message: {messages[-1]['content']}")
             if ctx.available_tools:
                 logger.info(f"         Tools available: {[t.name for t in ctx.available_tools]}")
 

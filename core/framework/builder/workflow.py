@@ -666,14 +666,12 @@ class GraphBuilder:
         else:
             lines.append("GOAL = None")
 
-        lines.extend(
-            [
-                "",
-                "",
-                "# Nodes",
-                "NODES = [",
-            ]
-        )
+        lines.extend([
+            "",
+            "",
+            "# Nodes",
+            "NODES = [",
+        ])
 
         for node in self.session.nodes:
             node_json = node.model_dump_json(indent=4)
@@ -681,15 +679,13 @@ class GraphBuilder:
             lines.append(node_json)
             lines.append("    '''),")
 
-        lines.extend(
-            [
-                "]",
-                "",
-                "",
-                "# Edges",
-                "EDGES = [",
-            ]
-        )
+        lines.extend([
+            "]",
+            "",
+            "",
+            "# Edges",
+            "EDGES = [",
+        ])
 
         for edge in self.session.edges:
             edge_json = edge.model_dump_json(indent=4)
@@ -697,14 +693,12 @@ class GraphBuilder:
             lines.append(edge_json)
             lines.append("    '''),")
 
-        lines.extend(
-            [
-                "]",
-                "",
-                "",
-                "# Graph",
-            ]
-        )
+        lines.extend([
+            "]",
+            "",
+            "",
+            "# Graph",
+        ])
 
         graph_json = graph.model_dump_json(indent=4)
         lines.append("GRAPH = GraphSpec.model_validate_json('''")

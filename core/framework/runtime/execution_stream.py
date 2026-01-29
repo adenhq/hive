@@ -11,7 +11,6 @@ import asyncio
 import logging
 import time
 import uuid
-from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -175,35 +174,11 @@ class ExecutionStream:
         # Emit stream started event
         if self._event_bus:
             from framework.runtime.event_bus import AgentEvent, EventType
-
-            await self._event_bus.publish(
-                AgentEvent(
-                    type=EventType.STREAM_STARTED,
-                    stream_id=self.stream_id,
-                    data={"entry_point": self.entry_spec.id},
-                )
-            )
-
-    def _record_execution_result(self, execution_id: str, result: ExecutionResult) -> None:
-        """Record a completed execution result with retention pruning."""
-        self._execution_results[execution_id] = result
-        self._execution_results.move_to_end(execution_id)
-        self._execution_result_times[execution_id] = time.time()
-        self._prune_execution_results()
-
-    def _prune_execution_results(self) -> None:
-        """Prune completed results based on TTL and max retention."""
-        if self._result_retention_ttl_seconds is not None:
-            cutoff = time.time() - self._result_retention_ttl_seconds
-            for exec_id, recorded_at in list(self._execution_result_times.items()):
-                if recorded_at < cutoff:
-                    self._execution_result_times.pop(exec_id, None)
-                    self._execution_results.pop(exec_id, None)
-
-        if self._result_retention_max is not None:
-            while len(self._execution_results) > self._result_retention_max:
-                old_exec_id, _ = self._execution_results.popitem(last=False)
-                self._execution_result_times.pop(old_exec_id, None)
+            await self._event_bus.publish(AgentEvent(
+                type=EventType.STREAM_STARTED,
+                stream_id=self.stream_id,
+                data={"entry_point": self.entry_spec.id},
+            ))
 
     async def stop(self) -> None:
         """Stop the execution stream and cancel active executions."""
@@ -229,13 +204,10 @@ class ExecutionStream:
         # Emit stream stopped event
         if self._event_bus:
             from framework.runtime.event_bus import AgentEvent, EventType
-
-            await self._event_bus.publish(
-                AgentEvent(
-                    type=EventType.STREAM_STOPPED,
-                    stream_id=self.stream_id,
-                )
-            )
+            await self._event_bus.publish(AgentEvent(
+                type=EventType.STREAM_STOPPED,
+                stream_id=self.stream_id,
+            ))
 
     async def execute(
         self,
