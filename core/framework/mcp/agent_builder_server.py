@@ -2524,29 +2524,7 @@ async def test_success_{criteria_id}_{scenario}(mock_mode):
 '''
 
 
-@mcp.tool()
-def generate_constraint_tests(
-    goal_id: Annotated[str, "ID of the goal to generate tests for"],
-    goal_json: Annotated[
-        str,
-        """JSON string of the Goal object. Constraint fields:
-- id: string (required)
-- description: string (required)
-- constraint_type: "hard" or "soft" (required)
-- category: string (optional, default: "general")
-- check: string (optional, how to validate: "llm_judge", expression, or function name)""",
-    ],
-    agent_path: Annotated[str, "Path to agent export folder (e.g., 'exports/my_agent')"] = "",
-) -> str:
-    """
-    Get constraint test guidelines for a goal.
 
-    Returns formatted guidelines and goal data. The calling LLM should use these
-    to write tests directly using the Write tool.
-
-    NOTE: This tool no longer generates tests via LLM. Instead, it returns
-    guidelines and templates for the calling agent (Claude) to write tests directly.
-    """
     try:
         goal = Goal.model_validate_json(goal_json)
     except Exception as e:
@@ -2610,23 +2588,7 @@ def generate_constraint_tests(
     )
 
 
-@mcp.tool()
-def generate_success_tests(
-    goal_id: Annotated[str, "ID of the goal to generate tests for"],
-    goal_json: Annotated[str, "JSON string of the Goal object"],
-    node_names: Annotated[str, "Comma-separated list of agent node names"] = "",
-    tool_names: Annotated[str, "Comma-separated list of available tool names"] = "",
-    agent_path: Annotated[str, "Path to agent export folder (e.g., 'exports/my_agent')"] = "",
-) -> str:
-    """
-    Get success criteria test guidelines for a goal.
 
-    Returns formatted guidelines and goal data. The calling LLM should use these
-    to write tests directly using the Write tool.
-
-    NOTE: This tool no longer generates tests via LLM. Instead, it returns
-    guidelines and templates for the calling agent (Claude) to write tests directly.
-    """
     try:
         goal = Goal.model_validate_json(goal_json)
     except Exception as e:
