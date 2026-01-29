@@ -195,7 +195,8 @@ class ToolRegistry:
                                                     input=inputs,
                                                 )
                                                 logger.debug(
-                                                    f"Executing tool '{tool_name}' with inputs: {inputs}"
+                                                    f"Executing tool '{tool_name}' with inputs: "
+                                                    f"{inputs}"
                                                 )
                                                 result = executor_func(tool_use)
 
