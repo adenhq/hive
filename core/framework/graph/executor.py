@@ -7,6 +7,11 @@ The executor:
 3. Executes nodes following edges
 4. Records all decisions to Runtime
 5. Returns the final result
+
+Observability:
+    The executor integrates with OpenTelemetry for distributed tracing.
+    Enable via HIVE_TRACING_ENABLED=true environment variable.
+    See framework.observability for configuration details.
 """
 
 import asyncio
@@ -30,6 +35,7 @@ from framework.graph.node import (
 from framework.graph.output_cleaner import CleansingConfig, OutputCleaner
 from framework.graph.validator import OutputValidator
 from framework.llm.provider import LLMProvider, Tool
+from framework.observability import HiveTracer, get_tracer
 from framework.runtime.core import Runtime
 
 
@@ -76,6 +82,7 @@ class GraphExecutor:
         node_registry: dict[str, NodeProtocol] | None = None,
         approval_callback: Callable | None = None,
         cleansing_config: CleansingConfig | None = None,
+        tracer: HiveTracer | None = None,
     ):
         """
         Initialize the executor.
@@ -88,6 +95,7 @@ class GraphExecutor:
             node_registry: Custom node implementations by ID
             approval_callback: Optional callback for human-in-the-loop approval
             cleansing_config: Optional output cleansing configuration
+            tracer: Optional HiveTracer for distributed tracing (uses global if not provided)
         """
         self.runtime = runtime
         self.llm = llm
@@ -97,6 +105,7 @@ class GraphExecutor:
         self.approval_callback = approval_callback
         self.validator = OutputValidator()
         self.logger = logging.getLogger(__name__)
+        self.tracer = tracer or get_tracer()
 
         # Initialize output cleaner
         self.cleansing_config = cleansing_config or CleansingConfig()
@@ -219,6 +228,44 @@ class GraphExecutor:
         self.logger.info(f"   Goal: {goal.description}")
         self.logger.info(f"   Entry node: {graph.entry_node}")
 
+        # Create root trace span for entire execution
+        with self.tracer.trace_run(
+            run_id=_run_id,
+            graph_id=graph.id if hasattr(graph, 'id') else "unknown",
+            goal_id=goal.id,
+            goal_description=goal.description,
+        ) as run_span:
+            return await self._execute_graph_traced(
+                graph=graph,
+                goal=goal,
+                input_data=input_data,
+                memory=memory,
+                current_node_id=current_node_id,
+                path=path,
+                total_tokens=total_tokens,
+                total_latency=total_latency,
+                node_retry_counts=node_retry_counts,
+                steps=steps,
+                _run_id=_run_id,
+                run_span=run_span,
+            )
+
+    async def _execute_graph_traced(
+        self,
+        graph: GraphSpec,
+        goal: Goal,
+        input_data: dict[str, Any] | None,
+        memory: SharedMemory,
+        current_node_id: str,
+        path: list[str],
+        total_tokens: int,
+        total_latency: int,
+        node_retry_counts: dict[str, int],
+        steps: int,
+        _run_id: str,
+        run_span: Any,
+    ) -> ExecutionResult:
+        """Execute the graph with tracing enabled."""
         try:
             while steps < graph.max_steps:
                 steps += 1
@@ -272,9 +319,25 @@ class GraphExecutor:
                         description=f"Validation errors for {current_node_id}: {validation_errors}",
                     )
 
-                # Execute node
+                # Execute node with tracing
                 self.logger.info("   Executing...")
-                result = await node_impl.execute(ctx)
+                with self.tracer.trace_node(
+                    node_id=node_spec.id,
+                    node_name=node_spec.name,
+                    node_type=node_spec.node_type,
+                    input_keys=node_spec.input_keys,
+                    output_keys=node_spec.output_keys,
+                ) as node_span:
+                    result = await node_impl.execute(ctx)
+
+                    # Record node result on span
+                    self.tracer.record_node_result(
+                        span=node_span,
+                        success=result.success,
+                        tokens_used=result.tokens_used,
+                        latency_ms=result.latency_ms,
+                        error=result.error,
+                    )
 
                 if result.success:
                     # Validate output before accepting it
@@ -447,6 +510,14 @@ class GraphExecutor:
             self.logger.info(f"   Total tokens: {total_tokens}")
             self.logger.info(f"   Total latency: {total_latency}ms")
 
+            # Record run metrics on trace span
+            if run_span is not None:
+                run_span.set_attribute("hive.success", True)
+                run_span.set_attribute("hive.steps_executed", steps)
+                run_span.set_attribute("hive.total_tokens", total_tokens)
+                run_span.set_attribute("hive.total_latency_ms", total_latency)
+                run_span.set_attribute("hive.path", " -> ".join(path))
+
             self.runtime.end_run(
                 success=True,
                 output_data=output,
@@ -463,6 +534,9 @@ class GraphExecutor:
             )
 
         except Exception as e:
+            # Record error on trace span
+            self.tracer.record_exception(run_span, e)
+
             self.runtime.report_problem(
                 severity="critical",
                 description=str(e),

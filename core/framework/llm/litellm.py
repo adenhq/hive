@@ -4,6 +4,11 @@ LiteLLM provides a unified, OpenAI-compatible interface that supports
 multiple LLM providers including OpenAI, Anthropic, Gemini, Mistral,
 Groq, and local models.
 
+Observability:
+    This provider integrates with OpenTelemetry for distributed tracing.
+    All LLM calls create spans with token counts, latency, and model info.
+    Enable via HIVE_TRACING_ENABLED=true environment variable.
+
 See: https://docs.litellm.ai/docs/providers
 """
 
@@ -17,6 +22,7 @@ except ImportError:
     litellm = None
 
 from framework.llm.provider import LLMProvider, LLMResponse, Tool, ToolResult, ToolUse
+from framework.observability import get_tracer
 
 
 class LiteLLMProvider(LLMProvider):
@@ -95,6 +101,8 @@ class LiteLLMProvider(LLMProvider):
         json_mode: bool = False,
     ) -> LLMResponse:
         """Generate a completion using LiteLLM."""
+        tracer = get_tracer()
+
         # Prepare messages with system prompt
         full_messages = []
         if system:
@@ -132,25 +140,41 @@ class LiteLLMProvider(LLMProvider):
         if response_format:
             kwargs["response_format"] = response_format
 
-        # Make the call
-        response = litellm.completion(**kwargs)
+        # Make the call with tracing
+        with tracer.trace_llm_call(
+            model=self.model,
+            operation="complete",
+            system_prompt_length=len(system) if system else None,
+            message_count=len(messages),
+            tools_count=len(tools) if tools else None,
+        ) as llm_span:
+            response = litellm.completion(**kwargs)
 
-        # Extract content
-        content = response.choices[0].message.content or ""
+            # Extract content
+            content = response.choices[0].message.content or ""
 
-        # Get usage info
-        usage = response.usage
-        input_tokens = usage.prompt_tokens if usage else 0
-        output_tokens = usage.completion_tokens if usage else 0
+            # Get usage info
+            usage = response.usage
+            input_tokens = usage.prompt_tokens if usage else 0
+            output_tokens = usage.completion_tokens if usage else 0
 
-        return LLMResponse(
-            content=content,
-            model=response.model or self.model,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            stop_reason=response.choices[0].finish_reason or "",
-            raw_response=response,
-        )
+            # Record LLM metrics on span
+            tracer.record_llm_result(
+                span=llm_span,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                model=response.model,
+                stop_reason=response.choices[0].finish_reason,
+            )
+
+            return LLMResponse(
+                content=content,
+                model=response.model or self.model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                stop_reason=response.choices[0].finish_reason or "",
+                raw_response=response,
+            )
 
     def complete_with_tools(
         self,
@@ -161,6 +185,8 @@ class LiteLLMProvider(LLMProvider):
         max_iterations: int = 10,
     ) -> LLMResponse:
         """Run a tool-use loop until the LLM produces a final response."""
+        tracer = get_tracer()
+
         # Prepare messages with system prompt
         current_messages = []
         if system:
@@ -169,101 +195,147 @@ class LiteLLMProvider(LLMProvider):
 
         total_input_tokens = 0
         total_output_tokens = 0
+        tool_calls_count = 0
 
         # Convert tools to OpenAI format
         openai_tools = [self._tool_to_openai_format(t) for t in tools]
 
-        for _ in range(max_iterations):
-            # Build kwargs
-            kwargs: dict[str, Any] = {
-                "model": self.model,
-                "messages": current_messages,
-                "max_tokens": 1024,
-                "tools": openai_tools,
-                **self.extra_kwargs,
-            }
-
-            if self.api_key:
-                kwargs["api_key"] = self.api_key
-            if self.api_base:
-                kwargs["api_base"] = self.api_base
-
-            response = litellm.completion(**kwargs)
-
-            # Track tokens
-            usage = response.usage
-            if usage:
-                total_input_tokens += usage.prompt_tokens
-                total_output_tokens += usage.completion_tokens
-
-            choice = response.choices[0]
-            message = choice.message
-
-            # Check if we're done (no tool calls)
-            if choice.finish_reason == "stop" or not message.tool_calls:
-                return LLMResponse(
-                    content=message.content or "",
-                    model=response.model or self.model,
-                    input_tokens=total_input_tokens,
-                    output_tokens=total_output_tokens,
-                    stop_reason=choice.finish_reason or "stop",
-                    raw_response=response,
-                )
-
-            # Process tool calls.
-            # Add assistant message with tool calls.
-            current_messages.append(
-                {
-                    "role": "assistant",
-                    "content": message.content,
-                    "tool_calls": [
-                        {
-                            "id": tc.id,
-                            "type": "function",
-                            "function": {
-                                "name": tc.function.name,
-                                "arguments": tc.function.arguments,
-                            },
-                        }
-                        for tc in message.tool_calls
-                    ],
+        # Create parent span for the entire tool-use loop
+        with tracer.trace_llm_call(
+            model=self.model,
+            operation="complete_with_tools",
+            system_prompt_length=len(system) if system else None,
+            message_count=len(messages),
+            tools_count=len(tools),
+        ) as loop_span:
+            for iteration in range(max_iterations):
+                # Build kwargs
+                kwargs: dict[str, Any] = {
+                    "model": self.model,
+                    "messages": current_messages,
+                    "max_tokens": 1024,
+                    "tools": openai_tools,
+                    **self.extra_kwargs,
                 }
-            )
 
-            # Execute tools and add results.
-            for tool_call in message.tool_calls:
-                # Parse arguments
-                try:
-                    args = json.loads(tool_call.function.arguments)
-                except json.JSONDecodeError:
-                    args = {}
+                if self.api_key:
+                    kwargs["api_key"] = self.api_key
+                if self.api_base:
+                    kwargs["api_base"] = self.api_base
 
-                tool_use = ToolUse(
-                    id=tool_call.id,
-                    name=tool_call.function.name,
-                    input=args,
-                )
+                response = litellm.completion(**kwargs)
 
-                result = tool_executor(tool_use)
+                # Track tokens
+                usage = response.usage
+                if usage:
+                    total_input_tokens += usage.prompt_tokens
+                    total_output_tokens += usage.completion_tokens
 
-                # Add tool result message
+                choice = response.choices[0]
+                message = choice.message
+
+                # Check if we're done (no tool calls)
+                if choice.finish_reason == "stop" or not message.tool_calls:
+                    # Record final metrics
+                    tracer.record_llm_result(
+                        span=loop_span,
+                        input_tokens=total_input_tokens,
+                        output_tokens=total_output_tokens,
+                        model=response.model,
+                        stop_reason=choice.finish_reason,
+                    )
+                    if loop_span is not None:
+                        loop_span.set_attribute("hive.llm.iterations", iteration + 1)
+                        loop_span.set_attribute("hive.llm.tool_calls", tool_calls_count)
+
+                    return LLMResponse(
+                        content=message.content or "",
+                        model=response.model or self.model,
+                        input_tokens=total_input_tokens,
+                        output_tokens=total_output_tokens,
+                        stop_reason=choice.finish_reason or "stop",
+                        raw_response=response,
+                    )
+
+                # Process tool calls.
+                # Add assistant message with tool calls.
                 current_messages.append(
                     {
-                        "role": "tool",
-                        "tool_call_id": result.tool_use_id,
-                        "content": result.content,
+                        "role": "assistant",
+                        "content": message.content,
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments,
+                                },
+                            }
+                            for tc in message.tool_calls
+                        ],
                     }
                 )
 
-        # Max iterations reached
-        return LLMResponse(
-            content="Max tool iterations reached",
-            model=self.model,
-            input_tokens=total_input_tokens,
-            output_tokens=total_output_tokens,
-            stop_reason="max_iterations",
-            raw_response=None,
-        )
+                # Execute tools and add results.
+                for tool_call in message.tool_calls:
+                    tool_calls_count += 1
+
+                    # Parse arguments
+                    try:
+                        args = json.loads(tool_call.function.arguments)
+                    except json.JSONDecodeError:
+                        args = {}
+
+                    tool_use = ToolUse(
+                        id=tool_call.id,
+                        name=tool_call.function.name,
+                        input=args,
+                    )
+
+                    # Trace individual tool calls
+                    with tracer.trace_tool_call(
+                        tool_name=tool_call.function.name,
+                        tool_input=args,
+                    ) as tool_span:
+                        result = tool_executor(tool_use)
+
+                        # Record tool result
+                        if tool_span is not None:
+                            tool_span.set_attribute("hive.tool.success", not result.is_error)
+                            if result.is_error:
+                                tool_span.set_attribute("hive.tool.error", result.content[:500])
+
+                    # Add tool result message
+                    current_messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": result.tool_use_id,
+                            "content": result.content,
+                        }
+                    )
+
+            # Max iterations reached
+            tracer.record_llm_result(
+                span=loop_span,
+                input_tokens=total_input_tokens,
+                output_tokens=total_output_tokens,
+                model=self.model,
+                stop_reason="max_iterations",
+            )
+            if loop_span is not None:
+                loop_span.set_attribute("hive.llm.iterations", max_iterations)
+                loop_span.set_attribute("hive.llm.tool_calls", tool_calls_count)
+                loop_span.set_attribute("hive.llm.max_iterations_reached", True)
+
+            return LLMResponse(
+                content="Max tool iterations reached",
+                model=self.model,
+                input_tokens=total_input_tokens,
+                output_tokens=total_output_tokens,
+                stop_reason="max_iterations",
+                raw_response=None,
+            )
 
     def _tool_to_openai_format(self, tool: Tool) -> dict[str, Any]:
         """Convert Tool to OpenAI function calling format."""
