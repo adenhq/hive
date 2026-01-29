@@ -1,3 +1,18 @@
+Thank you for your interest in contributing to Hive.
+
+Guidelines
+- Fork the repository and create feature branches from `main`.
+- Keep changes small and focused. One logical change per PR.
+- Add tests for any new behavior and run `pytest` where applicable.
+- Follow the repo's existing code style.
+
+Submitting a Pull Request
+1. Push your branch to your fork.
+2. Open a PR against `adenhq/hive:main` and provide a clear description and tests/steps to reproduce.
+3. Tag maintainers or open an issue for larger changes before implementation.
+
+Code of Conduct
+Please follow the project's Code of Conduct.
 # Contributing to Aden Agent Framework
 
 Thank you for your interest in contributing to the Aden Agent Framework! This document provides guidelines and information for contributors.
