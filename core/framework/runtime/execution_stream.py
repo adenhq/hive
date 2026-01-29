@@ -110,6 +110,7 @@ class ExecutionStream:
         llm: "LLMProvider | None" = None,
         tools: list["Tool"] | None = None,
         tool_executor: Callable | None = None,
+        node_registry: dict[str, Any] | None = None,
         result_retention_max: int | None = 1000,
         result_retention_ttl_seconds: float | None = None,
     ):
@@ -128,6 +129,7 @@ class ExecutionStream:
             llm: LLM provider for nodes
             tools: Available tools
             tool_executor: Function to execute tools
+            node_registry: Optional custom node implementations by ID
         """
         self.stream_id = stream_id
         self.entry_spec = entry_spec
@@ -140,6 +142,7 @@ class ExecutionStream:
         self._llm = llm
         self._tools = tools or []
         self._tool_executor = tool_executor
+        self._node_registry: dict[str, Any] = dict(node_registry or {})
         self._result_retention_max = result_retention_max
         self._result_retention_ttl_seconds = result_retention_ttl_seconds
 
@@ -320,6 +323,7 @@ class ExecutionStream:
                     llm=self._llm,
                     tools=self._tools,
                     tool_executor=self._tool_executor,
+                    node_registry=self._node_registry,
                 )
 
                 # Create modified graph with entry point

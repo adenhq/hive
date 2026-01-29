@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from framework.graph.edge import GraphSpec
     from framework.graph.goal import Goal
     from framework.llm.provider import LLMProvider, Tool
+    from framework.graph.node import NodeProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,7 @@ class AgentRuntime:
         llm: "LLMProvider | None" = None,
         tools: list["Tool"] | None = None,
         tool_executor: Callable | None = None,
+        node_registry: dict[str, "NodeProtocol"] | None = None,
         config: AgentRuntimeConfig | None = None,
     ):
         """
@@ -111,6 +113,7 @@ class AgentRuntime:
             llm: LLM provider for nodes
             tools: Available tools
             tool_executor: Function to execute tools
+            node_registry: Optional custom node implementations by ID
             config: Optional runtime configuration
         """
         self.graph = graph
@@ -133,6 +136,7 @@ class AgentRuntime:
         self._llm = llm
         self._tools = tools or []
         self._tool_executor = tool_executor
+        self._node_registry: dict[str, Any] = dict(node_registry or {})
 
         # Entry points and streams
         self._entry_points: dict[str, EntryPointSpec] = {}
@@ -165,6 +169,16 @@ class AgentRuntime:
 
         self._entry_points[spec.id] = spec
         logger.info(f"Registered entry point: {spec.id} -> {spec.entry_node}")
+
+    def register_node(self, node_id: str, implementation: Any) -> None:
+        """Register a custom node implementation by ID."""
+        self._node_registry[node_id] = implementation
+
+    def register_function(self, node_id: str, func: Callable) -> None:
+        """Register a function node implementation by ID."""
+        from framework.graph.node import FunctionNode
+
+        self.register_node(node_id, FunctionNode(func))
 
     def unregister_entry_point(self, entry_point_id: str) -> bool:
         """
@@ -210,6 +224,7 @@ class AgentRuntime:
                     llm=self._llm,
                     tools=self._tools,
                     tool_executor=self._tool_executor,
+                    node_registry=self._node_registry,
                     result_retention_max=self._config.execution_result_max,
                     result_retention_ttl_seconds=self._config.execution_result_ttl_seconds,
                 )
@@ -428,6 +443,7 @@ def create_agent_runtime(
     llm: "LLMProvider | None" = None,
     tools: list["Tool"] | None = None,
     tool_executor: Callable | None = None,
+    node_registry: dict[str, Any] | None = None,
     config: AgentRuntimeConfig | None = None,
 ) -> AgentRuntime:
     """
@@ -443,6 +459,7 @@ def create_agent_runtime(
         llm: LLM provider
         tools: Available tools
         tool_executor: Tool executor function
+        node_registry: Optional custom node implementations by ID
         config: Runtime configuration
 
     Returns:
@@ -455,6 +472,7 @@ def create_agent_runtime(
         llm=llm,
         tools=tools,
         tool_executor=tool_executor,
+        node_registry=node_registry,
         config=config,
     )
 
