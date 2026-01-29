@@ -154,8 +154,16 @@ def register_tools(mcp: FastMCP) -> None:
             if response.status_code != 200:
                 return {"error": f"HTTP {response.status_code}: Failed to fetch URL"}
 
-            # Check content type
-            content_type = response.headers.get("content-type", "").lower()
+            # Check content type safely
+            raw_content_type = response.headers.get("content-type")
+
+            # Defensive: mocks or malformed headers may return non-string or empty values.
+            # If header is missing or invalid, default to HTML (safe assumption).
+            if isinstance(raw_content_type, str) and raw_content_type.strip():
+                content_type = raw_content_type.lower()
+            else:
+                content_type = "text/html"
+
             if not any(t in content_type for t in ["text/html", "application/xhtml+xml"]):
                 return {
                     "error": f"Skipping non-HTML content (Content-Type: {content_type})",
@@ -218,12 +226,23 @@ def register_tools(mcp: FastMCP) -> None:
                 links: list[dict[str, str]] = []
                 base_url = str(response.url)  # Use final URL after redirects
                 for a in soup.find_all("a", href=True)[:50]:
-                    href = a["href"]
+                    raw_href = a.get("href")
+
+                    # Ensure href is a valid string
+                    if not isinstance(raw_href, str):
+                        continue
+
+                    href = raw_href.strip()
+                    if not href:
+                        continue
+
                     # Convert relative URLs to absolute URLs
                     absolute_href = urljoin(base_url, href)
+
                     link_text = a.get_text(strip=True)
                     if link_text and absolute_href:
                         links.append({"text": link_text, "href": absolute_href})
+
                 result["links"] = links
 
             return result
