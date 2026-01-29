@@ -134,16 +134,16 @@ class ToolRegistry:
             }
         """
         result = {
-            'success': False,
-            'tools_registered': 0,
-            'module': str(module_path),
-            'errors': []
+            "success": False,
+            "tools_registered": 0,
+            "module": str(module_path),
+            "errors": []
         }
         
         if not module_path.exists():
             error_msg = f"Module file not found: {module_path}"
             logger.error(error_msg)
-            result['errors'].append(error_msg)
+            result["errors"].append(error_msg)
             return result
 
         try:
@@ -152,7 +152,7 @@ class ToolRegistry:
             if spec is None or spec.loader is None:
                 error_msg = f"Failed to create module spec for {module_path}"
                 logger.error(error_msg)
-                result['errors'].append(error_msg)
+                result["errors"].append(error_msg)
                 return result
 
             module = importlib.util.module_from_spec(spec)
@@ -184,7 +184,10 @@ class ToolRegistry:
                                     continue
                                     
                                 if not isinstance(tool, Tool):
-                                    error_msg = f"Tool {name} is not an instance of Tool, got {type(tool).__name__}"
+                                    error_msg = (
+                        f"Tool {name} is not an instance of Tool, "
+                        f"got {type(tool).__name__}"
+                    )
                                     errors.append(error_msg)
                                     continue
                                     
@@ -198,24 +201,37 @@ class ToolRegistry:
                                                     name=tool_name,
                                                     input=inputs,
                                                 )
-                                                logger.debug(f"Executing tool '{tool_name}' with inputs: {inputs}")
+                                                logger.debug(
+                        f"Executing tool '{tool_name}' with inputs: {inputs}"
+                    )
                                                 result = executor_func(tool_use)
                                                 
                                                 if isinstance(result, ToolResult):
-                                                    return json.loads(result.content) if result.content else {}
+                                                    return (
+                                json.loads(result.content) 
+                                if result.content 
+                                else {}
+                            )
                                                 return result
                                             except Exception as e:
                                                 import traceback
                                                 error_msg = f"Error in unified executor for tool '{tool_name}': {str(e)}"
                                                 logger.error(f"{error_msg}\n{traceback.format_exc()}")
-                                                return {"error": error_msg, "traceback": traceback.format_exc()}
+                                                return {
+                                "error": error_msg, 
+                                "traceback": traceback.format_exc()
+                            }
 
                                         return executor
 
                                     self.register(name, tool, make_executor(name))
                                 else:
                                     # Register tool without executor (will use mock)
-                                    self.register(name, tool, lambda inputs: {"mock": True, "inputs": inputs})
+                                    self.register(
+                            name, 
+                            tool, 
+                            lambda inputs: {"mock": True, "inputs": inputs}
+                        )
                                     
                                 count += 1
                                 logger.debug(f"Registered tool: {name}")
@@ -395,30 +411,30 @@ class ToolRegistry:
         from framework.runner.mcp_client import MCPClient, MCPServerConfig
         
         result = {
-            'success': False,
-            'tools_registered': 0,
-            'server_name': server_config.get('name', 'unknown'),
-            'error': None
+            "success": False,
+            "tools_registered": 0,
+            "server_name": server_config.get("name", "unknown"),
+            "error": None
         }
         
         try:
             # Validate required fields
-            if 'name' not in server_config:
+            if "name" not in server_config:
                 raise ValueError("Missing required field 'name' in server config")
-            if 'transport' not in server_config:
+            if "transport" not in server_config:
                 raise ValueError("Missing required field 'transport' in server config")
                 
             # Create MCP client config
             config = MCPServerConfig(
-                name=server_config['name'],
-                transport=server_config['transport'],
-                command=server_config.get('command'),
-                args=server_config.get('args', []),
-                env=server_config.get('env', {}),
-                cwd=server_config.get('cwd'),
-                url=server_config.get('url'),
-                headers=server_config.get('headers', {}),
-                description=server_config.get('description', '')
+                name=server_config["name"],
+                transport=server_config["transport"],
+                command=server_config.get("command"),
+                args=server_config.get("args", []),
+                env=server_config.get("env", {}),
+                cwd=server_config.get("cwd"),
+                url=server_config.get("url"),
+                headers=server_config.get("headers", {}),
+                description=server_config.get("description", "")
             )
             
             # Create and connect client
