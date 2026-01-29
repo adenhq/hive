@@ -1,559 +1,707 @@
-"""Tests for CredentialManager."""
+"""
+Comprehensive tests for the credential store module.
+
+Tests cover:
+- Core models (CredentialObject, CredentialKey, CredentialUsageSpec)
+- Template resolution
+- Storage backends (InMemoryStorage, EnvVarStorage, EncryptedFileStorage)
+- Providers (StaticProvider, BearerTokenProvider)
+- Main CredentialStore
+- OAuth2 module
+"""
+
+import os
+import tempfile
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
-
-from aden_tools.credentials import (
-    CredentialManager,
-    CredentialSpec,
-    CredentialError,
-    CREDENTIAL_SPECS,
+from framework.credentials import (
+    CompositeStorage,
+    CredentialKey,
+    CredentialKeyNotFoundError,
+    CredentialNotFoundError,
+    CredentialObject,
+    CredentialStore,
+    CredentialType,
+    CredentialUsageSpec,
+    EncryptedFileStorage,
+    EnvVarStorage,
+    InMemoryStorage,
+    StaticProvider,
+    TemplateResolver,
 )
+from pydantic import SecretStr
 
 
-class TestCredentialManager:
-    """Tests for CredentialManager class."""
+class TestCredentialKey:
+    """Tests for CredentialKey model."""
 
-    def test_get_returns_env_value(self, monkeypatch):
-        """get() returns environment variable value."""
-        monkeypatch.setenv("BRAVE_SEARCH_API_KEY", "test-api-key")
+    def test_create_basic_key(self):
+        """Test creating a basic credential key."""
+        key = CredentialKey(name="api_key", value=SecretStr("test-value"))
+        assert key.name == "api_key"
+        assert key.get_secret_value() == "test-value"
+        assert key.expires_at is None
+        assert not key.is_expired
 
-        creds = CredentialManager()
+    def test_key_with_expiration(self):
+        """Test key with expiration time."""
+        future = datetime.now(UTC) + timedelta(hours=1)
+        key = CredentialKey(name="token", value=SecretStr("xxx"), expires_at=future)
+        assert not key.is_expired
 
-        assert creds.get("brave_search") == "test-api-key"
+    def test_expired_key(self):
+        """Test that expired key is detected."""
+        past = datetime.now(UTC) - timedelta(hours=1)
+        key = CredentialKey(name="token", value=SecretStr("xxx"), expires_at=past)
+        assert key.is_expired
 
-    def test_get_returns_none_when_not_set(self, monkeypatch, tmp_path):
-        """get() returns None when env var is not set."""
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
-
-        creds = CredentialManager(dotenv_path=tmp_path / ".env")
-
-        assert creds.get("brave_search") is None
-
-    def test_get_raises_for_unknown_credential(self):
-        """get() raises KeyError for unknown credential name."""
-        creds = CredentialManager()
-
-        with pytest.raises(KeyError) as exc_info:
-            creds.get("unknown_credential")
-
-        assert "unknown_credential" in str(exc_info.value)
-        assert "Available" in str(exc_info.value)
-
-    def test_get_reads_fresh_for_hot_reload(self, monkeypatch):
-        """get() reads fresh each time to support hot-reload."""
-        monkeypatch.setenv("BRAVE_SEARCH_API_KEY", "original-key")
-        creds = CredentialManager()
-
-        # First call
-        assert creds.get("brave_search") == "original-key"
-
-        # Change env var
-        monkeypatch.setenv("BRAVE_SEARCH_API_KEY", "new-key")
-
-        # Should return the new value (no caching)
-        assert creds.get("brave_search") == "new-key"
-
-    def test_is_available_true_when_set(self, monkeypatch):
-        """is_available() returns True when credential is set."""
-        monkeypatch.setenv("BRAVE_SEARCH_API_KEY", "test-key")
-
-        creds = CredentialManager()
-
-        assert creds.is_available("brave_search") is True
-
-    def test_is_available_false_when_not_set(self, monkeypatch, tmp_path):
-        """is_available() returns False when credential is not set."""
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
-
-        creds = CredentialManager(dotenv_path=tmp_path / ".env")
-
-        assert creds.is_available("brave_search") is False
-
-    def test_is_available_false_for_empty_string(self, monkeypatch, tmp_path):
-        """is_available() returns False for empty string."""
-        monkeypatch.setenv("BRAVE_SEARCH_API_KEY", "")
-
-        creds = CredentialManager(dotenv_path=tmp_path / ".env")
-
-        assert creds.is_available("brave_search") is False
-
-    def test_get_spec_returns_spec(self):
-        """get_spec() returns the credential spec."""
-        creds = CredentialManager()
-
-        spec = creds.get_spec("brave_search")
-
-        assert spec.env_var == "BRAVE_SEARCH_API_KEY"
-        assert "web_search" in spec.tools
-
-    def test_get_spec_raises_for_unknown(self):
-        """get_spec() raises KeyError for unknown credential."""
-        creds = CredentialManager()
-
-        with pytest.raises(KeyError):
-            creds.get_spec("unknown")
+    def test_key_with_metadata(self):
+        """Test key with metadata."""
+        key = CredentialKey(
+            name="token",
+            value=SecretStr("xxx"),
+            metadata={"client_id": "abc", "scope": "read"},
+        )
+        assert key.metadata["client_id"] == "abc"
 
 
-class TestCredentialManagerToolMapping:
-    """Tests for tool-to-credential mapping."""
+class TestCredentialObject:
+    """Tests for CredentialObject model."""
 
-    def test_get_credential_for_tool(self):
-        """get_credential_for_tool() returns correct credential name."""
-        creds = CredentialManager()
+    def test_create_simple_credential(self):
+        """Test creating a simple API key credential."""
+        cred = CredentialObject(
+            id="brave_search",
+            credential_type=CredentialType.API_KEY,
+            keys={"api_key": CredentialKey(name="api_key", value=SecretStr("test-key"))},
+        )
+        assert cred.id == "brave_search"
+        assert cred.credential_type == CredentialType.API_KEY
+        assert cred.get_key("api_key") == "test-key"
 
-        assert creds.get_credential_for_tool("web_search") == "brave_search"
+    def test_create_multi_key_credential(self):
+        """Test creating a credential with multiple keys."""
+        cred = CredentialObject(
+            id="github_oauth",
+            credential_type=CredentialType.OAUTH2,
+            keys={
+                "access_token": CredentialKey(name="access_token", value=SecretStr("ghp_xxx")),
+                "refresh_token": CredentialKey(name="refresh_token", value=SecretStr("ghr_xxx")),
+            },
+        )
+        assert cred.get_key("access_token") == "ghp_xxx"
+        assert cred.get_key("refresh_token") == "ghr_xxx"
+        assert cred.get_key("nonexistent") is None
 
-    def test_get_credential_for_tool_returns_none_for_unknown(self):
-        """get_credential_for_tool() returns None for tools without credentials."""
-        creds = CredentialManager()
+    def test_set_key(self):
+        """Test setting a key on a credential."""
+        cred = CredentialObject(id="test", keys={})
+        cred.set_key("new_key", "new_value")
+        assert cred.get_key("new_key") == "new_value"
 
-        assert creds.get_credential_for_tool("file_read") is None
-        assert creds.get_credential_for_tool("unknown_tool") is None
+    def test_set_key_with_expiration(self):
+        """Test setting a key with expiration."""
+        cred = CredentialObject(id="test", keys={})
+        expires = datetime.now(UTC) + timedelta(hours=1)
+        cred.set_key("token", "xxx", expires_at=expires)
+        assert cred.keys["token"].expires_at == expires
 
-    def test_get_missing_for_tools_returns_missing(self, monkeypatch, tmp_path):
-        """get_missing_for_tools() returns missing required credentials."""
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
+    def test_needs_refresh(self):
+        """Test needs_refresh property."""
+        past = datetime.now(UTC) - timedelta(hours=1)
+        cred = CredentialObject(
+            id="test",
+            keys={"token": CredentialKey(name="token", value=SecretStr("xxx"), expires_at=past)},
+        )
+        assert cred.needs_refresh
 
-        creds = CredentialManager(dotenv_path=tmp_path / ".env")
-        missing = creds.get_missing_for_tools(["web_search", "file_read"])
+    def test_get_default_key(self):
+        """Test get_default_key returns appropriate default."""
+        # With api_key
+        cred = CredentialObject(
+            id="test",
+            keys={"api_key": CredentialKey(name="api_key", value=SecretStr("key-value"))},
+        )
+        assert cred.get_default_key() == "key-value"
 
-        assert len(missing) == 1
-        cred_name, spec = missing[0]
-        assert cred_name == "brave_search"
-        assert spec.env_var == "BRAVE_SEARCH_API_KEY"
+        # With access_token
+        cred2 = CredentialObject(
+            id="test",
+            keys={
+                "access_token": CredentialKey(name="access_token", value=SecretStr("token-value"))
+            },
+        )
+        assert cred2.get_default_key() == "token-value"
 
-    def test_get_missing_for_tools_returns_empty_when_all_present(self, monkeypatch):
-        """get_missing_for_tools() returns empty list when all credentials present."""
-        monkeypatch.setenv("BRAVE_SEARCH_API_KEY", "test-key")
+    def test_record_usage(self):
+        """Test recording credential usage."""
+        cred = CredentialObject(id="test", keys={})
+        assert cred.use_count == 0
+        assert cred.last_used is None
 
-        creds = CredentialManager()
-        missing = creds.get_missing_for_tools(["web_search", "file_read"])
+        cred.record_usage()
+        assert cred.use_count == 1
+        assert cred.last_used is not None
 
-        assert missing == []
 
-    def test_get_missing_for_tools_no_duplicates(self, monkeypatch):
-        """get_missing_for_tools() doesn't return duplicates for same credential."""
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
+class TestCredentialUsageSpec:
+    """Tests for CredentialUsageSpec model."""
 
-        # Create spec where multiple tools share a credential
-        custom_specs = {
-            "shared_cred": CredentialSpec(
-                env_var="SHARED_KEY",
-                tools=["tool_a", "tool_b"],
-                required=True,
+    def test_create_usage_spec(self):
+        """Test creating a usage spec."""
+        spec = CredentialUsageSpec(
+            credential_id="brave_search",
+            required_keys=["api_key"],
+            headers={"X-Subscription-Token": "{{api_key}}"},
+        )
+        assert spec.credential_id == "brave_search"
+        assert "api_key" in spec.required_keys
+        assert "{{api_key}}" in spec.headers.values()
+
+
+class TestInMemoryStorage:
+    """Tests for InMemoryStorage."""
+
+    def test_save_and_load(self):
+        """Test saving and loading a credential."""
+        storage = InMemoryStorage()
+        cred = CredentialObject(
+            id="test",
+            keys={"key": CredentialKey(name="key", value=SecretStr("value"))},
+        )
+
+        storage.save(cred)
+        loaded = storage.load("test")
+
+        assert loaded is not None
+        assert loaded.id == "test"
+        assert loaded.get_key("key") == "value"
+
+    def test_load_nonexistent(self):
+        """Test loading a nonexistent credential."""
+        storage = InMemoryStorage()
+        assert storage.load("nonexistent") is None
+
+    def test_delete(self):
+        """Test deleting a credential."""
+        storage = InMemoryStorage()
+        cred = CredentialObject(id="test", keys={})
+        storage.save(cred)
+
+        assert storage.delete("test")
+        assert storage.load("test") is None
+        assert not storage.delete("test")
+
+    def test_list_all(self):
+        """Test listing all credentials."""
+        storage = InMemoryStorage()
+        storage.save(CredentialObject(id="a", keys={}))
+        storage.save(CredentialObject(id="b", keys={}))
+
+        ids = storage.list_all()
+        assert "a" in ids
+        assert "b" in ids
+
+    def test_exists(self):
+        """Test checking if credential exists."""
+        storage = InMemoryStorage()
+        storage.save(CredentialObject(id="test", keys={}))
+
+        assert storage.exists("test")
+        assert not storage.exists("nonexistent")
+
+    def test_clear(self):
+        """Test clearing all credentials."""
+        storage = InMemoryStorage()
+        storage.save(CredentialObject(id="test", keys={}))
+        storage.clear()
+
+        assert storage.list_all() == []
+
+
+class TestEnvVarStorage:
+    """Tests for EnvVarStorage."""
+
+    def test_load_from_env(self):
+        """Test loading credential from environment variable."""
+        with patch.dict(os.environ, {"TEST_API_KEY": "test-value"}):
+            storage = EnvVarStorage(env_mapping={"test": "TEST_API_KEY"})
+            cred = storage.load("test")
+
+            assert cred is not None
+            assert cred.get_key("api_key") == "test-value"
+
+    def test_load_nonexistent(self):
+        """Test loading when env var is not set."""
+        storage = EnvVarStorage(env_mapping={"test": "NONEXISTENT_VAR"})
+        assert storage.load("test") is None
+
+    def test_default_env_var_pattern(self):
+        """Test default env var naming pattern."""
+        with patch.dict(os.environ, {"MY_SERVICE_API_KEY": "value"}):
+            storage = EnvVarStorage()
+            cred = storage.load("my_service")
+
+            assert cred is not None
+            assert cred.get_key("api_key") == "value"
+
+    def test_save_raises(self):
+        """Test that save raises NotImplementedError."""
+        storage = EnvVarStorage()
+        with pytest.raises(NotImplementedError):
+            storage.save(CredentialObject(id="test", keys={}))
+
+    def test_delete_raises(self):
+        """Test that delete raises NotImplementedError."""
+        storage = EnvVarStorage()
+        with pytest.raises(NotImplementedError):
+            storage.delete("test")
+
+
+class TestEncryptedFileStorage:
+    """Tests for EncryptedFileStorage."""
+
+    @pytest.fixture
+    def temp_dir(self):
+        """Create a temporary directory for tests."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield Path(tmpdir)
+
+    @pytest.fixture
+    def storage(self, temp_dir):
+        """Create EncryptedFileStorage for tests."""
+        return EncryptedFileStorage(temp_dir)
+
+    def test_save_and_load(self, storage):
+        """Test saving and loading encrypted credential."""
+        cred = CredentialObject(
+            id="test",
+            credential_type=CredentialType.API_KEY,
+            keys={"api_key": CredentialKey(name="api_key", value=SecretStr("secret-value"))},
+        )
+
+        storage.save(cred)
+        loaded = storage.load("test")
+
+        assert loaded is not None
+        assert loaded.id == "test"
+        assert loaded.get_key("api_key") == "secret-value"
+
+    def test_encryption_key_from_env(self, temp_dir):
+        """Test using encryption key from environment variable."""
+        from cryptography.fernet import Fernet
+
+        key = Fernet.generate_key().decode()
+        with patch.dict(os.environ, {"HIVE_CREDENTIAL_KEY": key}):
+            storage = EncryptedFileStorage(temp_dir)
+            cred = CredentialObject(
+                id="test", keys={"k": CredentialKey(name="k", value=SecretStr("v"))}
             )
+            storage.save(cred)
+
+            # Create new storage instance with same key
+            storage2 = EncryptedFileStorage(temp_dir)
+            loaded = storage2.load("test")
+            assert loaded is not None
+            assert loaded.get_key("k") == "v"
+
+    def test_list_all(self, storage):
+        """Test listing all credentials."""
+        storage.save(CredentialObject(id="cred1", keys={}))
+        storage.save(CredentialObject(id="cred2", keys={}))
+
+        ids = storage.list_all()
+        assert "cred1" in ids
+        assert "cred2" in ids
+
+    def test_delete(self, storage):
+        """Test deleting a credential."""
+        storage.save(CredentialObject(id="test", keys={}))
+        assert storage.delete("test")
+        assert storage.load("test") is None
+
+
+class TestCompositeStorage:
+    """Tests for CompositeStorage."""
+
+    def test_read_from_primary(self):
+        """Test reading from primary storage."""
+        primary = InMemoryStorage()
+        primary.save(
+            CredentialObject(
+                id="test", keys={"k": CredentialKey(name="k", value=SecretStr("primary"))}
+            )
+        )
+
+        fallback = InMemoryStorage()
+        fallback.save(
+            CredentialObject(
+                id="test", keys={"k": CredentialKey(name="k", value=SecretStr("fallback"))}
+            )
+        )
+
+        storage = CompositeStorage(primary, [fallback])
+        cred = storage.load("test")
+
+        # Should get from primary
+        assert cred.get_key("k") == "primary"
+
+    def test_fallback_when_not_in_primary(self):
+        """Test fallback when credential not in primary."""
+        primary = InMemoryStorage()
+        fallback = InMemoryStorage()
+        fallback.save(
+            CredentialObject(
+                id="test", keys={"k": CredentialKey(name="k", value=SecretStr("fallback"))}
+            )
+        )
+
+        storage = CompositeStorage(primary, [fallback])
+        cred = storage.load("test")
+
+        assert cred.get_key("k") == "fallback"
+
+    def test_write_to_primary_only(self):
+        """Test that writes go to primary only."""
+        primary = InMemoryStorage()
+        fallback = InMemoryStorage()
+
+        storage = CompositeStorage(primary, [fallback])
+        storage.save(CredentialObject(id="test", keys={}))
+
+        assert primary.exists("test")
+        assert not fallback.exists("test")
+
+
+class TestStaticProvider:
+    """Tests for StaticProvider."""
+
+    def test_provider_id(self):
+        """Test provider ID."""
+        provider = StaticProvider()
+        assert provider.provider_id == "static"
+
+    def test_supported_types(self):
+        """Test supported credential types."""
+        provider = StaticProvider()
+        assert CredentialType.API_KEY in provider.supported_types
+        assert CredentialType.CUSTOM in provider.supported_types
+
+    def test_refresh_returns_unchanged(self):
+        """Test that refresh returns credential unchanged."""
+        provider = StaticProvider()
+        cred = CredentialObject(
+            id="test", keys={"k": CredentialKey(name="k", value=SecretStr("v"))}
+        )
+
+        refreshed = provider.refresh(cred)
+        assert refreshed.get_key("k") == "v"
+
+    def test_validate_with_keys(self):
+        """Test validation with keys present."""
+        provider = StaticProvider()
+        cred = CredentialObject(
+            id="test", keys={"k": CredentialKey(name="k", value=SecretStr("v"))}
+        )
+
+        assert provider.validate(cred)
+
+    def test_validate_without_keys(self):
+        """Test validation without keys."""
+        provider = StaticProvider()
+        cred = CredentialObject(id="test", keys={})
+
+        assert not provider.validate(cred)
+
+    def test_should_refresh(self):
+        """Test that static provider never needs refresh."""
+        provider = StaticProvider()
+        cred = CredentialObject(id="test", keys={})
+
+        assert not provider.should_refresh(cred)
+
+
+class TestTemplateResolver:
+    """Tests for TemplateResolver."""
+
+    @pytest.fixture
+    def store(self):
+        """Create a test store with credentials."""
+        return CredentialStore.for_testing(
+            {
+                "brave_search": {"api_key": "test-brave-key"},
+                "github_oauth": {"access_token": "ghp_xxx", "refresh_token": "ghr_xxx"},
+            }
+        )
+
+    @pytest.fixture
+    def resolver(self, store):
+        """Create a resolver with the test store."""
+        return TemplateResolver(store)
+
+    def test_resolve_simple(self, resolver):
+        """Test resolving a simple template."""
+        result = resolver.resolve("Bearer {{github_oauth.access_token}}")
+        assert result == "Bearer ghp_xxx"
+
+    def test_resolve_multiple(self, resolver):
+        """Test resolving multiple templates."""
+        result = resolver.resolve("{{github_oauth.access_token}} and {{brave_search.api_key}}")
+        assert "ghp_xxx" in result
+        assert "test-brave-key" in result
+
+    def test_resolve_default_key(self, resolver):
+        """Test resolving credential without key specified."""
+        result = resolver.resolve("Key: {{brave_search}}")
+        assert "test-brave-key" in result
+
+    def test_resolve_headers(self, resolver):
+        """Test resolving headers dict."""
+        headers = resolver.resolve_headers(
+            {
+                "Authorization": "Bearer {{github_oauth.access_token}}",
+                "X-API-Key": "{{brave_search.api_key}}",
+            }
+        )
+        assert headers["Authorization"] == "Bearer ghp_xxx"
+        assert headers["X-API-Key"] == "test-brave-key"
+
+    def test_resolve_missing_credential(self, resolver):
+        """Test error on missing credential."""
+        with pytest.raises(CredentialNotFoundError):
+            resolver.resolve("{{nonexistent.key}}")
+
+    def test_resolve_missing_key(self, resolver):
+        """Test error on missing key."""
+        with pytest.raises(CredentialKeyNotFoundError):
+            resolver.resolve("{{github_oauth.nonexistent}}")
+
+    def test_has_templates(self, resolver):
+        """Test detecting templates in text."""
+        assert resolver.has_templates("{{cred.key}}")
+        assert resolver.has_templates("Bearer {{token}}")
+        assert not resolver.has_templates("no templates here")
+
+    def test_extract_references(self, resolver):
+        """Test extracting credential references."""
+        refs = resolver.extract_references("{{github.token}} and {{brave.key}}")
+        assert ("github", "token") in refs
+        assert ("brave", "key") in refs
+
+
+class TestCredentialStore:
+    """Tests for CredentialStore."""
+
+    def test_for_testing_factory(self):
+        """Test creating store for testing."""
+        store = CredentialStore.for_testing({"test": {"api_key": "value"}})
+
+        assert store.get("test") == "value"
+        assert store.get_key("test", "api_key") == "value"
+
+    def test_get_credential(self):
+        """Test getting a credential."""
+        store = CredentialStore.for_testing({"test": {"key": "value"}})
+
+        cred = store.get_credential("test")
+        assert cred is not None
+        assert cred.get_key("key") == "value"
+
+    def test_get_nonexistent(self):
+        """Test getting nonexistent credential."""
+        store = CredentialStore.for_testing({})
+        assert store.get_credential("nonexistent") is None
+        assert store.get("nonexistent") is None
+
+    def test_save_and_load(self):
+        """Test saving and loading a credential."""
+        store = CredentialStore.for_testing({})
+
+        cred = CredentialObject(id="new", keys={"k": CredentialKey(name="k", value=SecretStr("v"))})
+        store.save_credential(cred)
+
+        loaded = store.get_credential("new")
+        assert loaded is not None
+        assert loaded.get_key("k") == "v"
+
+    def test_delete_credential(self):
+        """Test deleting a credential."""
+        store = CredentialStore.for_testing({"test": {"k": "v"}})
+
+        assert store.delete_credential("test")
+        assert store.get_credential("test") is None
+
+    def test_list_credentials(self):
+        """Test listing all credentials."""
+        store = CredentialStore.for_testing({"a": {"k": "v"}, "b": {"k": "v"}})
+
+        ids = store.list_credentials()
+        assert "a" in ids
+        assert "b" in ids
+
+    def test_is_available(self):
+        """Test checking credential availability."""
+        store = CredentialStore.for_testing({"test": {"k": "v"}})
+
+        assert store.is_available("test")
+        assert not store.is_available("nonexistent")
+
+    def test_resolve_templates(self):
+        """Test template resolution through store."""
+        store = CredentialStore.for_testing({"test": {"api_key": "value"}})
+
+        result = store.resolve("Key: {{test.api_key}}")
+        assert result == "Key: value"
+
+    def test_resolve_headers(self):
+        """Test resolving headers through store."""
+        store = CredentialStore.for_testing({"test": {"token": "xxx"}})
+
+        headers = store.resolve_headers({"Authorization": "Bearer {{test.token}}"})
+        assert headers["Authorization"] == "Bearer xxx"
+
+    def test_register_provider(self):
+        """Test registering a provider."""
+        store = CredentialStore.for_testing({})
+        provider = StaticProvider()
+
+        store.register_provider(provider)
+        assert store.get_provider("static") is provider
+
+    def test_register_usage_spec(self):
+        """Test registering a usage spec."""
+        store = CredentialStore.for_testing({})
+        spec = CredentialUsageSpec(
+            credential_id="test",
+            required_keys=["api_key"],
+            headers={"X-Key": "{{api_key}}"},
+        )
+
+        store.register_usage(spec)
+        assert store.get_usage_spec("test") is spec
+
+    def test_validate_for_usage(self):
+        """Test validating credential for usage spec."""
+        store = CredentialStore.for_testing({"test": {"api_key": "value"}})
+        spec = CredentialUsageSpec(credential_id="test", required_keys=["api_key"])
+        store.register_usage(spec)
+
+        errors = store.validate_for_usage("test")
+        assert errors == []
+
+    def test_validate_for_usage_missing_key(self):
+        """Test validation with missing required key."""
+        store = CredentialStore.for_testing({"test": {"other_key": "value"}})
+        spec = CredentialUsageSpec(credential_id="test", required_keys=["api_key"])
+        store.register_usage(spec)
+
+        errors = store.validate_for_usage("test")
+        assert "api_key" in errors[0]
+
+    def test_caching(self):
+        """Test that credentials are cached."""
+        storage = InMemoryStorage()
+        store = CredentialStore(storage=storage, cache_ttl_seconds=60)
+
+        storage.save(
+            CredentialObject(id="test", keys={"k": CredentialKey(name="k", value=SecretStr("v"))})
+        )
+
+        # First load
+        store.get_credential("test")
+
+        # Delete from storage
+        storage.delete("test")
+
+        # Should still get from cache
+        cred2 = store.get_credential("test")
+        assert cred2 is not None
+
+    def test_clear_cache(self):
+        """Test clearing the cache."""
+        storage = InMemoryStorage()
+        store = CredentialStore(storage=storage)
+
+        storage.save(CredentialObject(id="test", keys={}))
+        store.get_credential("test")  # Cache it
+
+        storage.delete("test")
+        store.clear_cache()
+
+        # Should not find in cache now
+        assert store.get_credential("test") is None
+
+
+class TestOAuth2Module:
+    """Tests for OAuth2 module."""
+
+    def test_oauth2_token_from_response(self):
+        """Test creating OAuth2Token from token response."""
+        from framework.credentials.oauth2 import OAuth2Token
+
+        response = {
+            "access_token": "xxx",
+            "token_type": "Bearer",
+            "expires_in": 3600,
+            "refresh_token": "yyy",
+            "scope": "read write",
         }
 
-        creds = CredentialManager(specs=custom_specs)
-        missing = creds.get_missing_for_tools(["tool_a", "tool_b"])
+        token = OAuth2Token.from_token_response(response)
+        assert token.access_token == "xxx"
+        assert token.token_type == "Bearer"
+        assert token.refresh_token == "yyy"
+        assert token.scope == "read write"
+        assert token.expires_at is not None
 
-        # Should only appear once even though two tools need it
-        assert len(missing) == 1
+    def test_token_is_expired(self):
+        """Test token expiration check."""
+        from framework.credentials.oauth2 import OAuth2Token
 
+        # Not expired
+        future = datetime.now(UTC) + timedelta(hours=1)
+        token = OAuth2Token(access_token="xxx", expires_at=future)
+        assert not token.is_expired
 
-class TestCredentialManagerValidation:
-    """Tests for validate_for_tools() behavior."""
+        # Expired
+        past = datetime.now(UTC) - timedelta(hours=1)
+        expired_token = OAuth2Token(access_token="xxx", expires_at=past)
+        assert expired_token.is_expired
 
-    def test_validate_for_tools_raises_for_missing(self, monkeypatch, tmp_path):
-        """validate_for_tools() raises CredentialError when required creds missing."""
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
+    def test_token_can_refresh(self):
+        """Test token refresh capability check."""
+        from framework.credentials.oauth2 import OAuth2Token
 
-        creds = CredentialManager(dotenv_path=tmp_path / ".env")
+        with_refresh = OAuth2Token(access_token="xxx", refresh_token="yyy")
+        assert with_refresh.can_refresh
 
-        with pytest.raises(CredentialError) as exc_info:
-            creds.validate_for_tools(["web_search"])
+        without_refresh = OAuth2Token(access_token="xxx")
+        assert not without_refresh.can_refresh
 
-        error_msg = str(exc_info.value)
-        assert "BRAVE_SEARCH_API_KEY" in error_msg
-        assert "web_search" in error_msg
-        assert "brave.com" in error_msg  # help URL
+    def test_oauth2_config_validation(self):
+        """Test OAuth2Config validation."""
+        from framework.credentials.oauth2 import OAuth2Config, TokenPlacement
 
-    def test_validate_for_tools_passes_when_present(self, monkeypatch):
-        """validate_for_tools() succeeds when all required credentials are set."""
-        monkeypatch.setenv("BRAVE_SEARCH_API_KEY", "test-key")
+        # Valid config
+        config = OAuth2Config(
+            token_url="https://example.com/token", client_id="id", client_secret="secret"
+        )
+        assert config.token_url == "https://example.com/token"
 
-        creds = CredentialManager()
+        # Missing token_url
+        with pytest.raises(ValueError):
+            OAuth2Config(token_url="")
 
-        # Should not raise
-        creds.validate_for_tools(["web_search", "file_read"])
-
-    def test_validate_for_tools_passes_for_tools_without_credentials(self):
-        """validate_for_tools() succeeds for tools that don't need credentials."""
-        creds = CredentialManager()
-
-        # Should not raise - file_read doesn't need credentials
-        creds.validate_for_tools(["file_read"])
-
-    def test_validate_for_tools_passes_for_empty_list(self):
-        """validate_for_tools() succeeds for empty tool list."""
-        creds = CredentialManager()
-
-        # Should not raise
-        creds.validate_for_tools([])
-
-    def test_validate_for_tools_skips_optional_credentials(self, monkeypatch):
-        """validate_for_tools() doesn't fail for missing optional credentials."""
-        custom_specs = {
-            "optional_cred": CredentialSpec(
-                env_var="OPTIONAL_KEY",
-                tools=["optional_tool"],
-                required=False,  # Optional
+        # HEADER_CUSTOM without custom_header_name
+        with pytest.raises(ValueError):
+            OAuth2Config(
+                token_url="https://example.com/token",
+                token_placement=TokenPlacement.HEADER_CUSTOM,
             )
-        }
-        monkeypatch.delenv("OPTIONAL_KEY", raising=False)
 
-        creds = CredentialManager(specs=custom_specs)
 
-        # Should not raise because credential is optional
-        creds.validate_for_tools(["optional_tool"])
-
-
-class TestCredentialManagerForTesting:
-    """Tests for test factory method."""
-
-    def test_for_testing_uses_overrides(self):
-        """for_testing() uses provided override values."""
-        creds = CredentialManager.for_testing({"brave_search": "mock-key"})
-
-        assert creds.get("brave_search") == "mock-key"
-
-    def test_for_testing_ignores_env(self, monkeypatch):
-        """for_testing() ignores actual environment variables."""
-        monkeypatch.setenv("BRAVE_SEARCH_API_KEY", "real-key")
-
-        creds = CredentialManager.for_testing({"brave_search": "mock-key"})
-
-        assert creds.get("brave_search") == "mock-key"
-
-    def test_for_testing_validation_passes_with_overrides(self):
-        """for_testing() credentials pass validation."""
-        creds = CredentialManager.for_testing({"brave_search": "mock-key"})
-
-        # Should not raise
-        creds.validate_for_tools(["web_search"])
-
-    def test_for_testing_validation_fails_without_override(self, monkeypatch, tmp_path):
-        """for_testing() without override still fails validation."""
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
-
-        creds = CredentialManager.for_testing({}, dotenv_path=tmp_path / ".env")  # No overrides
-
-        with pytest.raises(CredentialError):
-            creds.validate_for_tools(["web_search"])
-
-    def test_for_testing_with_custom_specs(self):
-        """for_testing() works with custom specs."""
-        custom_specs = {
-            "custom_cred": CredentialSpec(
-                env_var="CUSTOM_VAR",
-                tools=["custom_tool"],
-                required=True,
-            )
-        }
-
-        creds = CredentialManager.for_testing(
-            {"custom_cred": "test-value"},
-            specs=custom_specs,
-        )
-
-        assert creds.get("custom_cred") == "test-value"
-
-
-class TestCredentialSpec:
-    """Tests for CredentialSpec dataclass."""
-
-    def test_default_values(self):
-        """CredentialSpec has sensible defaults."""
-        spec = CredentialSpec(env_var="TEST_VAR")
-
-        assert spec.env_var == "TEST_VAR"
-        assert spec.tools == []
-        assert spec.node_types == []
-        assert spec.required is True
-        assert spec.startup_required is False
-        assert spec.help_url == ""
-        assert spec.description == ""
-
-    def test_all_values(self):
-        """CredentialSpec accepts all values."""
-        spec = CredentialSpec(
-            env_var="API_KEY",
-            tools=["tool_a", "tool_b"],
-            node_types=["llm_generate"],
-            required=False,
-            startup_required=True,
-            help_url="https://example.com",
-            description="Test API key",
-        )
-
-        assert spec.env_var == "API_KEY"
-        assert spec.tools == ["tool_a", "tool_b"]
-        assert spec.node_types == ["llm_generate"]
-        assert spec.required is False
-        assert spec.startup_required is True
-        assert spec.help_url == "https://example.com"
-        assert spec.description == "Test API key"
-
-
-class TestCredentialSpecs:
-    """Tests for the CREDENTIAL_SPECS constant."""
-
-    def test_brave_search_spec_exists(self):
-        """CREDENTIAL_SPECS includes brave_search."""
-        assert "brave_search" in CREDENTIAL_SPECS
-
-        spec = CREDENTIAL_SPECS["brave_search"]
-        assert spec.env_var == "BRAVE_SEARCH_API_KEY"
-        assert "web_search" in spec.tools
-        assert spec.required is True
-        assert spec.startup_required is False
-        assert "brave.com" in spec.help_url
-
-    def test_anthropic_spec_exists(self):
-        """CREDENTIAL_SPECS includes anthropic with startup_required=True."""
-        assert "anthropic" in CREDENTIAL_SPECS
-
-        spec = CREDENTIAL_SPECS["anthropic"]
-        assert spec.env_var == "ANTHROPIC_API_KEY"
-        assert spec.tools == []
-        assert "llm_generate" in spec.node_types
-        assert "llm_tool_use" in spec.node_types
-        assert spec.required is False
-        assert spec.startup_required is False
-        assert "anthropic.com" in spec.help_url
-
-
-class TestNodeTypeValidation:
-    """Tests for node type credential validation."""
-
-    def test_get_missing_for_node_types_returns_empty_when_optional(self, monkeypatch, tmp_path):
-        """Anthropic is optional under LiteLLM, so missing credentials should be empty."""
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-
-        creds = CredentialManager(dotenv_path=tmp_path / ".env")
-        missing = creds.get_missing_for_node_types(["llm_generate", "llm_tool_use"])
-        assert missing == []
-
-
-    def test_get_missing_for_node_types_returns_empty_when_present(self, monkeypatch):
-        """get_missing_for_node_types() returns empty when credentials present."""
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-
-        creds = CredentialManager()
-        missing = creds.get_missing_for_node_types(["llm_generate", "llm_tool_use"])
-
-        assert missing == []
-
-    def test_get_missing_for_node_types_ignores_unknown_types(self, monkeypatch):
-        """get_missing_for_node_types() ignores node types without credentials."""
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-
-        creds = CredentialManager()
-        missing = creds.get_missing_for_node_types(["unknown_type", "another_type"])
-
-        assert missing == []
-
-    def test_validate_for_node_types_does_not_raise_when_optional(self, monkeypatch, tmp_path):
-        """validate_for_node_types() should not fail since LLM provider keys are optional under LiteLLM."""
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-
-        creds = CredentialManager(dotenv_path=tmp_path / ".env")
-
-         # Should NOT raise CredentialError anymore
-        creds.validate_for_node_types(["llm_generate"])
-
-
-    def test_validate_for_node_types_passes_when_present(self, monkeypatch):
-        """validate_for_node_types() passes when credentials present."""
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-
-        creds = CredentialManager()
-
-        # Should not raise
-        creds.validate_for_node_types(["llm_generate", "llm_tool_use"])
-    def test_validate_for_tools_still_raises_for_required_credentials(self, monkeypatch, tmp_path):
-        """Non-LLM credentials like Brave should still raise when missing."""
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
-
-        creds = CredentialManager(dotenv_path=tmp_path / ".env")
-
-        with pytest.raises(CredentialError):
-            creds.validate_for_tools(["web_search"])
-
-
-class TestStartupValidation:
-    """Tests for startup credential validation."""
-
-    def test_validate_startup_does_not_raise_when_llm_optional(self, monkeypatch, tmp_path):
-        """validate_startup() should not fail because LLM provider keys are optional under LiteLLM."""
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-
-        creds = CredentialManager(dotenv_path=tmp_path / ".env")
-
-        # Should NOT raise anymore
-        creds.validate_startup()
-
-
-    def test_validate_startup_passes_when_present(self, monkeypatch):
-        """validate_startup() passes when all startup creds are set."""
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-
-        creds = CredentialManager()
-
-        # Should not raise
-        creds.validate_startup()
-
-    def test_validate_startup_ignores_non_startup_creds(self, monkeypatch):
-        """validate_startup() ignores credentials without startup_required=True."""
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
-
-        creds = CredentialManager()
-
-        # Should not raise - BRAVE_SEARCH_API_KEY is not startup_required
-        creds.validate_startup()
-
-    def test_validate_startup_with_test_overrides(self):
-        """validate_startup() works with for_testing() overrides."""
-        creds = CredentialManager.for_testing({"anthropic": "test-key"})
-
-        # Should not raise
-        creds.validate_startup()
-
-
-class TestDotenvReading:
-    """Tests for .env file reading (hot-reload support)."""
-
-    def test_reads_from_dotenv_file(self, tmp_path, monkeypatch):
-        """CredentialManager reads credentials from .env file."""
-        # Ensure env var is not set
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
-
-        # Create a .env file
-        dotenv_file = tmp_path / ".env"
-        dotenv_file.write_text("BRAVE_SEARCH_API_KEY=dotenv-key\n")
-
-        creds = CredentialManager(dotenv_path=dotenv_file)
-
-        assert creds.get("brave_search") == "dotenv-key"
-
-    def test_env_var_takes_precedence_over_dotenv(self, tmp_path, monkeypatch):
-        """os.environ takes precedence over .env file."""
-        # Set both env var and .env file
-        monkeypatch.setenv("BRAVE_SEARCH_API_KEY", "env-key")
-
-        dotenv_file = tmp_path / ".env"
-        dotenv_file.write_text("BRAVE_SEARCH_API_KEY=dotenv-key\n")
-
-        creds = CredentialManager(dotenv_path=dotenv_file)
-
-        # Should return env var value, not dotenv value
-        assert creds.get("brave_search") == "env-key"
-
-    def test_missing_dotenv_file_returns_none(self, tmp_path, monkeypatch):
-        """Missing .env file doesn't crash, returns None."""
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
-
-        # Point to non-existent file
-        dotenv_file = tmp_path / ".env"  # Not created
-
-        creds = CredentialManager(dotenv_path=dotenv_file)
-
-        assert creds.get("brave_search") is None
-
-    def test_hot_reload_from_dotenv(self, tmp_path, monkeypatch):
-        """CredentialManager picks up changes to .env file without restart."""
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
-
-        dotenv_file = tmp_path / ".env"
-        dotenv_file.write_text("BRAVE_SEARCH_API_KEY=original-key\n")
-
-        creds = CredentialManager(dotenv_path=dotenv_file)
-
-        # First read
-        assert creds.get("brave_search") == "original-key"
-
-        # Update the .env file (simulating user adding credential)
-        dotenv_file.write_text("BRAVE_SEARCH_API_KEY=updated-key\n")
-
-        # Should read the new value (hot-reload)
-        assert creds.get("brave_search") == "updated-key"
-
-    def test_is_available_works_with_dotenv(self, tmp_path, monkeypatch):
-        """is_available() works correctly with .env file credentials."""
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
-
-        dotenv_file = tmp_path / ".env"
-        dotenv_file.write_text("BRAVE_SEARCH_API_KEY=dotenv-key\n")
-
-        creds = CredentialManager(dotenv_path=dotenv_file)
-
-        assert creds.is_available("brave_search") is True
-
-    def test_validation_works_with_dotenv(self, tmp_path, monkeypatch):
-        """validate_for_tools() works with .env file credentials."""
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
-
-        dotenv_file = tmp_path / ".env"
-        dotenv_file.write_text("BRAVE_SEARCH_API_KEY=dotenv-key\n")
-
-        creds = CredentialManager(dotenv_path=dotenv_file)
-
-        # Should not raise because credential is available in .env
-        creds.validate_for_tools(["web_search"])
-
-    def test_dotenv_with_multiple_credentials(self, tmp_path, monkeypatch):
-        """CredentialManager reads multiple credentials from .env file."""
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
-
-        dotenv_file = tmp_path / ".env"
-        dotenv_file.write_text(
-            "ANTHROPIC_API_KEY=anthropic-key\n"
-            "BRAVE_SEARCH_API_KEY=brave-key\n"
-        )
-
-        creds = CredentialManager(dotenv_path=dotenv_file)
-
-        assert creds.get("anthropic") == "anthropic-key"
-        assert creds.get("brave_search") == "brave-key"
-
-    def test_dotenv_with_quoted_values(self, tmp_path, monkeypatch):
-        """CredentialManager handles quoted values in .env file."""
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
-
-        dotenv_file = tmp_path / ".env"
-        dotenv_file.write_text('BRAVE_SEARCH_API_KEY="quoted-key"\n')
-
-        creds = CredentialManager(dotenv_path=dotenv_file)
-
-        assert creds.get("brave_search") == "quoted-key"
-
-    def test_dotenv_with_comments(self, tmp_path, monkeypatch):
-        """CredentialManager ignores comments in .env file."""
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
-
-        dotenv_file = tmp_path / ".env"
-        dotenv_file.write_text(
-            "# This is a comment\n"
-            "BRAVE_SEARCH_API_KEY=key-after-comment\n"
-        )
-
-        creds = CredentialManager(dotenv_path=dotenv_file)
-
-        assert creds.get("brave_search") == "key-after-comment"
-
-    def test_overrides_take_precedence_over_dotenv(self, tmp_path, monkeypatch):
-        """Test override values take precedence over .env file."""
-        monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
-
-        dotenv_file = tmp_path / ".env"
-        dotenv_file.write_text("BRAVE_SEARCH_API_KEY=dotenv-key\n")
-
-        creds = CredentialManager.for_testing(
-            {"brave_search": "override-key"},
-        )
-        # Note: for_testing doesn't use dotenv_path, but we test the principle
-        # that _overrides always win
-
-        assert creds.get("brave_search") == "override-key"
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
