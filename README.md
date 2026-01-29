@@ -276,6 +276,12 @@ See [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) for complete setup instructions
 - [Configuration Guide](docs/configuration.md) - All configuration options
 - [Architecture Overview](docs/architecture/README.md) - System design and structure
 - [Glossary](docs/glossary.md)
+The following documentation is available to help users and contributors understand Hive:
+
+- **Glossary** – Definitions of core Hive concepts and terminology
+- **Core Docs** – Detailed documentation available in the `docs/` directory
+
+This documentation is intended to improve onboarding and make it easier to navigate Hive’s core concepts.
 
 
 ## Roadmap
