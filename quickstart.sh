@@ -19,6 +19,7 @@ NC='\033[0m' # No Color
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SKILLS="building-agents-core building-agents-construction building-agents-patterns testing-agent agent-workflow"
 
 # Claude Code skills directory
 CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
@@ -203,23 +204,116 @@ echo ""
 echo -e "${BLUE}Step 4: Installing Claude Code skills...${NC}"
 echo ""
 
+get_skills_dir() {
+    case "$1" in
+        claude)   echo "$HOME/.claude/skills" ;;
+        opencode) echo "$HOME/.opencode/skills" ;;
+        codex)    echo "$HOME/.codex/skills" ;;
+        cursor)    echo "$HOME/.cursor/skills" ;;
+        gemini)    echo "$HOME/.gemini/skills" ;;
+        github)   echo "$HOME/.github/skills" ;;
+        *)        echo "" ;;
+    esac
+}
+
+# Get app display name (bash 3.x compatible)
+get_app_name() {
+    case "$1" in
+        claude)   echo "Claude Code" ;;
+        opencode) echo "OpenCode" ;;
+        codex)    echo "Codex CLI" ;;
+        cursor)   echo "Cursor" ;;
+        gemini)   echo "Gemini CLI" ;;
+        github)   echo "GitHub Copilot" ;;
+        *)        echo "$1" ;;
+    esac
+}
+
+# Parse arguments
+APP=""
+
+show_usage() {
+    echo "Usage: $0 [--app <app>]"
+    echo ""
+    echo "Options:"
+    echo "  --app <app>      Target app: claude, opencode, codex, cursor, gemini, github copilot"
+    echo ""
+    echo "Examples:"
+    echo "  $0 --app claude"
+    exit 1
+}
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --app)
+            APP="$2"
+            shift 2
+            ;;
+        *)
+            print_error "Unknown option: $1"
+            ;;
+    esac
+done
+
+# Validate app parameter
+if [ -z "$APP" ]; then
+    # Check if we have a terminal for interactive prompts
+    if [ -t 0 ] || [ -e /dev/tty ]; then
+        echo -e "${BLUE}Select your AI coding assistant:${NC}"
+        echo ""
+        echo -e "  ${BLUE}1)${NC} Claude Code"
+        echo -e "  ${BLUE}2)${NC} OpenCode"
+        echo -e "  ${BLUE}3)${NC} Codex CLI"
+        echo -e "  ${BLUE}4)${NC} Cursor"
+        echo -e "  ${BLUE}5)${NC} Gemini CLI"
+        echo -e "  ${BLUE}6)${NC} GitHub Copilot"
+        echo ""
+        # Use /dev/tty for input if stdin is piped
+        if [ -t 0 ]; then
+            read -p "Enter choice [1]: " app_choice
+        else
+            read -p "Enter choice [1]: " app_choice </dev/tty
+        fi
+        app_choice=${app_choice:-1}
+
+        case $app_choice in
+            1) APP="claude" ;;
+            2) APP="opencode" ;;
+            3) APP="codex" ;;
+            4) APP="cursor" ;;
+            5) APP="gemini" ;;
+            6) APP="github" ;;
+            *) APP="claude" ;;
+        esac
+        echo ""
+    else
+        # Non-interactive (CI) - default to claude
+        APP="claude"
+        print_info "Non-interactive mode detected, defaulting to Claude Code"
+    fi
+fi
+
+# Get skills directory for selected app
+SKILLS_DIR=$(get_skills_dir "$APP")
+APP_NAME=$(get_app_name "$APP")
+
 # Check if .claude/skills exists in this repo
 if [ ! -d "$SCRIPT_DIR/.claude/skills" ]; then
     echo -e "${RED}Error: Skills directory not found at $SCRIPT_DIR/.claude/skills${NC}"
     exit 1
 fi
 
-# Create Claude skills directory if it doesn't exist
-if [ ! -d "$CLAUDE_SKILLS_DIR" ]; then
-    echo "  Creating Claude skills directory: $CLAUDE_SKILLS_DIR"
-    mkdir -p "$CLAUDE_SKILLS_DIR"
+# Create skills directory if it doesn't exist
+if [ ! -d "$HOME/.$APP/skills" ]; then
+    echo "  Creating $APP skills directory: $HOME/.$APP/skills"
+    mkdir -p "$HOME/.$APP/skills"
 fi
 
 # Function to install a skill
 install_skill() {
     local skill_name=$1
     local source_dir="$SCRIPT_DIR/.claude/skills/$skill_name"
-    local target_dir="$CLAUDE_SKILLS_DIR/$skill_name"
+    local target_dir="$HOME/.$APP/skills/$skill_name"
 
     if [ ! -d "$source_dir" ]; then
         echo -e "${RED}  ✗ Skill not found: $skill_name${NC}"
@@ -237,11 +331,9 @@ install_skill() {
 }
 
 # Install all 5 agent-related skills
-install_skill "building-agents-core"
-install_skill "building-agents-construction"
-install_skill "building-agents-patterns"
-install_skill "testing-agent"
-install_skill "agent-workflow"
+for SKILL_SLUG in $SKILLS; do
+    install_skill "$SKILL_SLUG"
+done
 
 echo ""
 
