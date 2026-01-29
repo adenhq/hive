@@ -148,7 +148,7 @@ class NodeSpec(BaseModel):
 
     id: str
     name: str
-    description: str
+    description: str | None = None
 
     # Node behavior type
     node_type: str = Field(
@@ -521,7 +521,8 @@ class NodeResult:
 
             node_context = ""
             if node_spec:
-                node_context = f"\nNode: {node_spec.name}\nPurpose: {node_spec.description}"
+                purpose = node_spec.description or node_spec.name
+                node_context = f"\nNode: {node_spec.name}\nPurpose: {purpose}"
 
             output_json = json.dumps(self.output, indent=2, default=str)[:2000]
             prompt = (
@@ -693,7 +694,7 @@ Keep the same JSON structure but with shorter content values.
             options=[
                 {
                     "id": "llm_execute",
-                    "description": f"Use LLM to {ctx.node_spec.description}",
+                    "description": f"Use LLM to {ctx.node_spec.description or ctx.node_spec.name}",
                     "action_type": "llm_call",
                 }
             ],
