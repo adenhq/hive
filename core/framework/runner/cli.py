@@ -174,6 +174,14 @@ def register_commands(subparsers: argparse._SubParsersAction) -> None:
     )
     shell_parser.set_defaults(func=cmd_shell)
 
+    # doctor command (environment health check)
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="Check environment health",
+        description="Diagnose common setup and environment issues.",
+    )
+    doctor_parser.set_defaults(func=cmd_doctor)
+
 
 def cmd_run(args: argparse.Namespace) -> int:
     """Run an exported agent."""
@@ -1068,3 +1076,159 @@ def _interactive_multi(agents_dir: Path) -> int:
 
     orchestrator.cleanup()
     return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Run environment health checks to diagnose setup issues."""
+    import os
+    import platform
+
+    print("Hive Environment Health Check")
+    print("=" * 60)
+    print()
+
+    errors = 0
+    warnings = 0
+
+    # 1. Python Environment
+    print("Python:")
+    python_exe = sys.executable
+    python_version = platform.python_version()
+    version_parts = python_version.split(".")
+    major, minor = int(version_parts[0]), int(version_parts[1])
+
+    # Use tuple comparison to handle version checks correctly
+    if (major, minor) >= (3, 11):
+        print(f"✓ Python {python_version} ({python_exe})")
+    else:
+        print(f"⚠ Python {python_version} ({python_exe})")
+        print(f"  Warning: Python 3.11+ recommended (found {python_version})")
+        warnings += 1
+    print()
+
+    # 2. Package Availability
+    print("Packages:")
+
+    # Check framework
+    try:
+        import framework
+
+        print("✓ framework importable")
+    except ImportError:
+        print("✗ framework not found")
+        print("  Fix: cd core && pip install -e .")
+        errors += 1
+
+    # Check aden_tools
+    try:
+        import aden_tools
+
+        print("✓ aden_tools importable")
+    except ImportError:
+        print("✗ aden_tools not found")
+        print("  Fix: cd tools && pip install -e .")
+        errors += 1
+
+    # Check litellm (optional but recommended)
+    try:
+        import litellm
+
+        print("✓ litellm importable")
+    except ImportError:
+        print("⚠ litellm not found (optional)")
+        print("  Note: Required by some LLM providers")
+        print("  Fix: pip install litellm")
+        warnings += 1
+
+    # Check openai version
+    try:
+        import openai
+
+        version = openai.__version__
+        # Check if version is 1.0.0+ (versions starting with 0. are old)
+        if version.startswith("0."):
+            print(f"⚠ openai {version} detected (outdated)")
+            print("  Note: Required by litellm for some providers")
+            print('  Fix: pip install --upgrade "openai>=1.0.0"')
+            warnings += 1
+        else:
+            print(f"✓ openai {version}")
+    except ImportError:
+        print("⚠ openai not found (optional)")
+        print("  Note: Required by litellm for some providers")
+        print("  Fix: pip install openai")
+        warnings += 1
+
+    print()
+
+    # 3. API Keys (check presence only, don't print values)
+    print("API Keys:")
+
+    # ANTHROPIC_API_KEY (required for most examples)
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        print("✓ ANTHROPIC_API_KEY set")
+    else:
+        print("✗ ANTHROPIC_API_KEY not set")
+        print("  Note: Required for most example agents")
+        print("  Fix (Unix): export ANTHROPIC_API_KEY='your-key'")
+        print('  Fix (PowerShell): $env:ANTHROPIC_API_KEY="your-key"')
+        print("  Get key: https://console.anthropic.com/")
+        errors += 1
+
+    # BRAVE_SEARCH_API_KEY (optional)
+    if os.environ.get("BRAVE_SEARCH_API_KEY"):
+        print("✓ BRAVE_SEARCH_API_KEY set")
+    else:
+        print("⚠ BRAVE_SEARCH_API_KEY not set (optional)")
+        print("  Note: Required for web_search tool")
+        warnings += 1
+
+    print()
+
+    # 4. PYTHONPATH (privacy-safe output)
+    print("Environment:")
+    pythonpath = os.environ.get("PYTHONPATH", "")
+
+    if pythonpath:
+        # Count entries and show summary (privacy-safe)
+        separator = ";" if sys.platform == "win32" else ":"
+        entries = [e for e in pythonpath.split(separator) if e]
+        entry_count = len(entries)
+
+        print(f"✓ PYTHONPATH set ({entry_count} {'entry' if entry_count == 1 else 'entries'})")
+
+        # Show first 1-2 entries with ellipsis if there are more
+        if entry_count > 0:
+            preview = entries[0]
+            if entry_count > 1:
+                preview += f" {separator} {entries[1]}"
+            if entry_count > 2:
+                preview += " ..."
+            print(f"  Preview: {preview}")
+    else:
+        print("⚠ PYTHONPATH not set")
+        print("  Note: Required when running agents from exports/")
+        print("  Fix (Unix): export PYTHONPATH=core:exports")
+        print('  Fix (PowerShell): $env:PYTHONPATH="core;exports"')
+        warnings += 1
+
+    print()
+
+    # Summary
+    print("=" * 60)
+    if errors == 0 and warnings == 0:
+        print("✓ All checks passed!")
+        return 0
+    else:
+        status_parts = []
+        if errors > 0:
+            status_parts.append(f"{errors} error{'s' if errors != 1 else ''}")
+        if warnings > 0:
+            status_parts.append(f"{warnings} warning{'s' if warnings != 1 else ''}")
+        print(f"Overall: {', '.join(status_parts)}")
+
+        if errors > 0:
+            print("\nRun suggested fixes and try 'hive doctor' again.")
+            return 1
+        else:
+            return 0
