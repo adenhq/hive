@@ -2,6 +2,7 @@
 """
 Hive CLI - Main entry point
 """
+
 import click
 from rich.console import Console
 
@@ -21,18 +22,23 @@ def cli():
 def init(name, path):
     """Initialize a new Hive workspace"""
     from hive_cli.commands.init import init_workspace
+
     init_workspace(name, path)
 
 
 @cli.command()
 @click.argument("name")
-@click.option("--type", "agent_type", 
-              type=click.Choice(["function", "llm", "multi-node"]),
-              default="function",
-              help="Type of agent to create")
+@click.option(
+    "--type",
+    "agent_type",
+    type=click.Choice(["function", "llm", "multi-node"]),
+    default="function",
+    help="Type of agent to create",
+)
 def create(name, agent_type):
     """Create a new agent from template"""
     from hive_cli.commands.create import create_agent
+
     create_agent(name, agent_type)
 
 
@@ -43,6 +49,7 @@ def create(name, agent_type):
 def test(name, mock, test_all):
     """Run agent tests"""
     from hive_cli.commands.test import test_agent
+
     test_agent(name, mock, test_all)
 
 
@@ -53,6 +60,7 @@ def test(name, mock, test_all):
 def run(name, input_data, interactive):
     """Execute an agent"""
     from hive_cli.commands.run import run_agent
+
     run_agent(name, input_data, interactive)
 
 
@@ -61,6 +69,7 @@ def run(name, input_data, interactive):
 def list(status):
     """List all agents in workspace"""
     from hive_cli.commands.list import list_agents
+
     list_agents(status)
 
 
