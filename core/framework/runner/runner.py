@@ -506,6 +506,37 @@ class AgentRunner:
             tool_executor=tool_executor,
         )
 
+        if self._uses_async_entry_points:
+            # Multi-entry-point mode: use AgentRuntime
+            return await self._run_with_agent_runtime(
+                input_data=input_data or {},
+                entry_point_id=entry_point_id,
+            )
+        else:
+            # Legacy single-entry-point mode
+            return await self._run_with_executor(
+                input_data=input_data or {},
+                session_state=session_state,
+            )
+
+    def _validate_input(self, input_data: dict | None, entry_node_id: str | None) -> None:
+        """Validate input data against payload limits and entry node requirements."""
+        data = input_data or {}
+        
+        # 1. Check payload size (prevention of resource exhaustion)
+        import sys
+        # Rough estimate using string representation to account for nested structures
+        if sys.getsizeof(str(data)) > 5 * 1024 * 1024:  # 5MB limit
+            raise ValueError("Input data exceeds maximum allowed size (5MB)")
+
+        # 2. Check required keys for entry node
+        if entry_node_id:
+            node = self.graph.get_node(entry_node_id)
+            if node and hasattr(node, "input_keys"):
+                missing = [key for key in node.input_keys if key not in data]
+                if missing:
+                    raise ValueError(f"Missing required input keys for entry node '{entry_node_id}': {missing}")
+
     async def run(
         self,
         input_data: dict | None = None,
@@ -527,6 +558,32 @@ class AgentRunner:
         Returns:
             ExecutionResult with output, path, and metrics
         """
+        # Validate input before execution
+        target_entry_node = None
+        
+        if self._uses_async_entry_points:
+            # Resolve entry node for multi-entry-point
+            if entry_point_id:
+                ep = self.graph.get_async_entry_point(entry_point_id)
+                if ep:
+                    target_entry_node = ep.entry_node
+            else:
+                 # Default to first entry point
+                 entry_points = self.get_entry_points()
+                 if entry_points:
+                     target_entry_node = entry_points[0].entry_node
+        else:
+            # Resolve entry node for single-entry-point
+            target_entry_node = self.graph.get_entry_point(session_state)
+            
+        try:
+            self._validate_input(input_data, target_entry_node)
+        except ValueError as e:
+            return ExecutionResult(
+                success=False,
+                error=f"Input validation failed: {str(e)}"
+            )
+
         if self._uses_async_entry_points:
             # Multi-entry-point mode: use AgentRuntime
             return await self._run_with_agent_runtime(
