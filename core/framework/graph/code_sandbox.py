@@ -14,7 +14,6 @@ Security measures:
 
 import ast
 import signal
-import sys
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
@@ -276,19 +275,20 @@ class CodeSandbox:
         # Create isolated namespace
         namespace = self._create_namespace(inputs)
 
-        # Capture stdout
+        # Capture stdout using thread-safe redirect_stdout context manager
         import io
+        from contextlib import redirect_stdout
 
-        old_stdout = sys.stdout
-        sys.stdout = captured_stdout = io.StringIO()
+        captured_stdout = io.StringIO()
 
         start_time = time.time()
 
         try:
-            with self._timeout_context(self.timeout_seconds):
-                # Compile and execute
-                compiled = compile(code, "<sandbox>", "exec")
-                exec(compiled, namespace)
+            with redirect_stdout(captured_stdout):
+                with self._timeout_context(self.timeout_seconds):
+                    # Compile and execute
+                    compiled = compile(code, "<sandbox>", "exec")
+                    exec(compiled, namespace)
 
             execution_time_ms = int((time.time() - start_time) * 1000)
 
@@ -315,6 +315,7 @@ class CodeSandbox:
             return SandboxResult(
                 success=False,
                 error=str(e),
+                stdout=captured_stdout.getvalue(),
                 execution_time_ms=self.timeout_seconds * 1000,
             )
 
@@ -322,6 +323,7 @@ class CodeSandbox:
             return SandboxResult(
                 success=False,
                 error=f"Security violation: {e}",
+                stdout=captured_stdout.getvalue(),
                 execution_time_ms=int((time.time() - start_time) * 1000),
             )
 
@@ -332,9 +334,6 @@ class CodeSandbox:
                 stdout=captured_stdout.getvalue(),
                 execution_time_ms=int((time.time() - start_time) * 1000),
             )
-
-        finally:
-            sys.stdout = old_stdout
 
     def execute_expression(
         self,
