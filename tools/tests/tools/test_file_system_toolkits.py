@@ -1,6 +1,7 @@
 """Tests for file_system_toolkits tools (FastMCP)."""
 
 import os
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -568,6 +569,7 @@ class TestExecuteCommandTool:
         assert result["success"] is True
         assert "error message" in result.get("stderr", "")
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix commands not available on Windows")
     def test_execute_command_list_files(
         self, execute_command_fn, mock_workspace, mock_secure_path, tmp_path
     ):
@@ -581,6 +583,7 @@ class TestExecuteCommandTool:
         assert result["return_code"] == 0
         assert "testfile.txt" in result["stdout"]
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix commands not available on Windows")
     def test_execute_command_with_pipe(self, execute_command_fn, mock_workspace, mock_secure_path):
         """Executing a command with pipe works correctly."""
         result = execute_command_fn(command="echo 'hello world' | tr 'a-z' 'A-Z'", **mock_workspace)
