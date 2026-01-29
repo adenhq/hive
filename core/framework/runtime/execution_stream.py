@@ -60,6 +60,7 @@ class ExecutionContext:
     entry_point: str
     input_data: dict[str, Any]
     isolation_level: IsolationLevel
+    run_id: str | None = None
     session_state: dict[str, Any] | None = None  # For resuming from pause
     started_at: datetime = field(default_factory=datetime.now)
     completed_at: datetime | None = None
@@ -333,6 +334,14 @@ class ExecutionStream:
                     input_data=ctx.input_data,
                     session_state=ctx.session_state,
                 )
+                
+                # Capture run_id from StreamRuntime
+                run = self._runtime.get_run(execution_id)
+                if run:
+                    ctx.run_id = run.id
+                    logger.debug(
+                        f"Linked execution {execution_id} to run {run.id}"
+                    )
 
                 # Store result with retention
                 self._record_execution_result(execution_id, result)
