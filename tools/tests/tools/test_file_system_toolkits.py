@@ -93,7 +93,7 @@ class TestViewFileTool:
         assert result["success"] is True
         assert result["content"] == "Hello, World!"
         assert result["size_bytes"] == len(b"Hello, World!")
-        assert result["lines"] == 1
+        assert result["lines"] == "1: Hello, World!"
 
     def test_view_nonexistent_file(self, view_file_fn, mock_workspace, mock_secure_path):
         """Viewing a non-existent file returns an error."""
@@ -112,7 +112,7 @@ class TestViewFileTool:
 
         assert result["success"] is True
         assert result["content"] == content
-        assert result["lines"] == 4
+        assert result["lines"] == "1: Line 1\n2: Line 2\n3: Line 3\n4: Line 4\n"
 
     def test_view_empty_file(self, view_file_fn, mock_workspace, mock_secure_path, tmp_path):
         """Viewing an empty file returns empty content."""
@@ -124,7 +124,7 @@ class TestViewFileTool:
         assert result["success"] is True
         assert result["content"] == ""
         assert result["size_bytes"] == 0
-        assert result["lines"] == 0
+        assert result["lines"] == ""
 
     def test_view_file_with_unicode(self, view_file_fn, mock_workspace, mock_secure_path, tmp_path):
         """Viewing a file with unicode characters works correctly."""
