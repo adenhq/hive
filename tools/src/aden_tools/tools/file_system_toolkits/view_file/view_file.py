@@ -2,6 +2,7 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
+from ....utils import error_response
 from ..security import get_secure_path
 
 
@@ -51,10 +52,10 @@ def register_tools(mcp: FastMCP) -> None:
 
             secure_path = get_secure_path(path, workspace_id, agent_id, session_id)
             if not os.path.exists(secure_path):
-                return {"error": f"File not found at {path}"}
+                return {"error": "File not found"}
 
             if not os.path.isfile(secure_path):
-                return {"error": f"Path is not a file: {path}"}
+                return {"error": "Path is not a file"}
 
             with open(secure_path, encoding=encoding) as f:
                 content = f.read()
@@ -71,4 +72,4 @@ def register_tools(mcp: FastMCP) -> None:
                 "lines": len(content.splitlines()),
             }
         except Exception as e:
-            return {"error": f"Failed to read file: {str(e)}"}
+            return error_response(e, "Failed to read file", path=path)

@@ -3,6 +3,7 @@ import os
 import diff_match_patch as dmp_module
 from mcp.server.fastmcp import FastMCP
 
+from ....utils import error_response
 from ..security import get_secure_path
 
 
@@ -40,7 +41,7 @@ def register_tools(mcp: FastMCP) -> None:
         try:
             secure_path = get_secure_path(path, workspace_id, agent_id, session_id)
             if not os.path.exists(secure_path):
-                return {"error": f"File not found at {path}"}
+                return {"error": "File not found"}
 
             dmp = dmp_module.diff_match_patch()
             patches = dmp.patch_fromText(diff_text)
@@ -69,4 +70,4 @@ def register_tools(mcp: FastMCP) -> None:
                     "error": f"Failed to apply {failed_count} of {len(patches)} patches",
                 }
         except Exception as e:
-            return {"error": f"Failed to apply diff: {str(e)}"}
+            return error_response(e, "Failed to apply diff", path=path)

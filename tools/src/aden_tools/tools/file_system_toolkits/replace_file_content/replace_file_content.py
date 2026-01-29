@@ -2,6 +2,7 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
+from ....utils import error_response
 from ..security import get_secure_path
 
 
@@ -40,13 +41,13 @@ def register_tools(mcp: FastMCP) -> None:
         try:
             secure_path = get_secure_path(path, workspace_id, agent_id, session_id)
             if not os.path.exists(secure_path):
-                return {"error": f"File not found at {path}"}
+                return {"error": "File not found"}
 
             with open(secure_path, encoding="utf-8") as f:
                 content = f.read()
 
             if target not in content:
-                return {"error": f"Target string not found in {path}"}
+                return {"error": "Target string not found"}
 
             occurrences = content.count(target)
             new_content = content.replace(target, replacement)
@@ -61,4 +62,4 @@ def register_tools(mcp: FastMCP) -> None:
                 "replacement_length": len(replacement),
             }
         except Exception as e:
-            return {"error": f"Failed to replace content: {str(e)}"}
+            return error_response(e, "Failed to replace content", path=path)

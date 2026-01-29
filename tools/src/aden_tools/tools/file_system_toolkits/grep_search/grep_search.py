@@ -3,6 +3,7 @@ import re
 
 from mcp.server.fastmcp import FastMCP
 
+from ....utils import error_response
 from ..security import WORKSPACES_DIR, get_secure_path
 
 
@@ -39,8 +40,8 @@ def register_tools(mcp: FastMCP) -> None:
         # Using .msg for a cleaner, less noisy error response
         try:
             regex = re.compile(pattern)
-        except re.error as e:
-            return {"error": f"Invalid regex pattern: {e.msg}"}
+        except re.error:
+            return {"error": "Invalid regex pattern"}
 
         try:
             secure_path = get_secure_path(path, workspace_id, agent_id, session_id)
@@ -92,9 +93,9 @@ def register_tools(mcp: FastMCP) -> None:
 
         # 2. Specific Exception Handling (Issue #55 Requirements)
         except FileNotFoundError:
-            return {"error": f"Directory or file not found: {path}"}
+            return {"error": "Directory or file not found"}
         except PermissionError:
-            return {"error": f"Permission denied accessing: {path}"}
+            return {"error": "Permission denied"}
         except Exception as e:
             # 3. Generic Fallback
-            return {"error": f"Failed to perform grep search: {str(e)}"}
+            return error_response(e, "Failed to perform grep search", path=path)
