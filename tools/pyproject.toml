@@ -45,11 +45,17 @@ ocr = [
 sql = [
     "duckdb>=1.0.0",
 ]
+messaging = [
+    # Optional: Official Slack SDK for advanced features
+    # Core implementation uses httpx which is already a dependency
+    "slack-sdk>=3.27.0",
+]
 all = [
     "RestrictedPython>=7.0",
     "pytesseract>=0.3.10",
     "pillow>=10.0.0",
     "duckdb>=1.0.0",
+    "slack-sdk>=3.27.0",
 ]
 
 [build-system]

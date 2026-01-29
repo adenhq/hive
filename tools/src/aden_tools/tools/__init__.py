@@ -21,6 +21,10 @@ if TYPE_CHECKING:
 # Import register_tools from each tool module
 from .csv_tool import register_tools as register_csv
 from .example_tool import register_tools as register_example
+from .messaging_tool import register_tools as register_messaging
+from .web_search_tool import register_tools as register_web_search
+from .web_scrape_tool import register_tools as register_web_scrape
+from .pdf_read_tool import register_tools as register_pdf_read
 from .file_system_toolkits.apply_diff import register_tools as register_apply_diff
 from .file_system_toolkits.apply_patch import register_tools as register_apply_patch
 from .file_system_toolkits.execute_command_tool import (
@@ -64,6 +68,9 @@ def register_all_tools(
     # web_search supports multiple providers (Google, Brave) with auto-detection
     register_web_search(mcp, credentials=credentials)
 
+    # Messaging tools (Slack, Discord) - credentials are optional per-platform
+    register_messaging(mcp, credentials=credentials)
+
     # Register file system toolkits
     register_view_file(mcp)
     register_write_to_file(mcp)
@@ -77,6 +84,12 @@ def register_all_tools(
 
     return [
         "example_tool",
+        "messaging_send",
+        "messaging_read",
+        "messaging_react",
+        "messaging_upload",
+        "messaging_list_channels",
+        "messaging_validate",
         "web_search",
         "web_scrape",
         "pdf_read",
