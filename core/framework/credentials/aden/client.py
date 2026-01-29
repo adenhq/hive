@@ -4,30 +4,11 @@ Aden Credential Client.
 HTTP client for communicating with the Aden authentication server.
 The Aden server handles OAuth2 authorization flows and token management.
 This client fetches tokens and delegates refresh operations to Aden.
-
-Usage:
-    # API key loaded from ADEN_API_KEY environment variable by default
-    client = AdenCredentialClient(AdenClientConfig(
-        base_url="https://hive.adenhq.com",
-    ))
-
-    # Or explicitly provide the API key
-    client = AdenCredentialClient(AdenClientConfig(
-        base_url="https://hive.adenhq.com",
-        api_key="your-api-key",
-    ))
-
-    # Fetch a credential
-    response = client.get_credential("hubspot")
-    if response:
-        print(f"Token expires at: {response.expires_at}")
-
-    # Request a refresh
-    refreshed = client.request_refresh("hubspot")
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
@@ -40,21 +21,20 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
+# --- Exception Hierarchy ---
+
 class AdenClientError(Exception):
     """Base exception for Aden client errors."""
-
     pass
 
 
 class AdenAuthenticationError(AdenClientError):
     """Raised when API key is invalid or revoked."""
-
     pass
 
 
 class AdenNotFoundError(AdenClientError):
     """Raised when integration is not found."""
-
     pass
 
 
@@ -80,28 +60,18 @@ class AdenRateLimitError(AdenClientError):
         self.retry_after = retry_after
 
 
+# --- Configuration and Response Models ---
+
 @dataclass
 class AdenClientConfig:
     """Configuration for Aden API client."""
 
     base_url: str
-    """Base URL of the Aden server (e.g., 'https://hive.adenhq.com')."""
-
     api_key: str | None = None
-    """Agent's API key for authenticating with Aden.
-    If not provided, loaded from ADEN_API_KEY environment variable."""
-
     tenant_id: str | None = None
-    """Optional tenant ID for multi-tenant deployments."""
-
     timeout: float = 30.0
-    """Request timeout in seconds."""
-
     retry_attempts: int = 3
-    """Number of retry attempts for transient failures."""
-
     retry_delay: float = 1.0
-    """Base delay between retries in seconds (exponential backoff)."""
 
     def __post_init__(self) -> None:
         """Load API key from environment if not provided."""
@@ -109,7 +79,7 @@ class AdenClientConfig:
             self.api_key = os.environ.get("ADEN_API_KEY")
             if not self.api_key:
                 raise ValueError(
-                    "Aden API key not provided. Either pass api_key to AdenClientConfig "
+                    "Aden API key not provided. Pass api_key to AdenClientConfig "
                     "or set the ADEN_API_KEY environment variable."
                 )
 
@@ -119,25 +89,12 @@ class AdenCredentialResponse:
     """Response from Aden server containing credential data."""
 
     integration_id: str
-    """Unique identifier for the integration (e.g., 'hubspot')."""
-
     integration_type: str
-    """Type of integration (e.g., 'hubspot', 'github', 'slack')."""
-
     access_token: str
-    """The access token for API calls."""
-
     token_type: str = "Bearer"
-    """Token type (usually 'Bearer')."""
-
     expires_at: datetime | None = None
-    """When the access token expires (UTC)."""
-
     scopes: list[str] = field(default_factory=list)
-    """OAuth2 scopes granted to this token."""
-
     metadata: dict[str, Any] = field(default_factory=dict)
-    """Additional integration-specific metadata."""
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AdenCredentialResponse:
@@ -163,7 +120,7 @@ class AdenIntegrationInfo:
 
     integration_id: str
     integration_type: str
-    status: str  # "active", "requires_reauth", "expired"
+    status: str
     expires_at: datetime | None = None
 
     @classmethod
@@ -181,60 +138,23 @@ class AdenIntegrationInfo:
         )
 
 
+# --- Core Client Logic ---
+
 class AdenCredentialClient:
-    """
-    HTTP client for Aden credential server.
-
-    Handles communication with the Aden authentication server,
-    including fetching credentials, requesting refreshes, and
-    reporting usage statistics.
-
-    The client automatically handles:
-    - Retries with exponential backoff for transient failures
-    - Proper error classification (auth, not found, rate limit, etc.)
-    - Request headers for authentication and tenant isolation
-
-    Usage:
-        # API key loaded from ADEN_API_KEY environment variable
-        config = AdenClientConfig(
-            base_url="https://hive.adenhq.com",
-        )
-
-        client = AdenCredentialClient(config)
-
-        # Fetch a credential
-        cred = client.get_credential("hubspot")
-        if cred:
-            headers = {"Authorization": f"Bearer {cred.access_token}"}
-
-        # List all integrations
-        integrations = client.list_integrations()
-        for info in integrations:
-            print(f"{info.integration_id}: {info.status}")
-
-        # Clean up
-        client.close()
-    """
+    """HTTP client for Aden credential server."""
 
     def __init__(self, config: AdenClientConfig):
-        """
-        Initialize the Aden client.
-
-        Args:
-            config: Client configuration including base URL and API key.
-        """
         self.config = config
         self._client: httpx.Client | None = None
 
     def _get_client(self) -> httpx.Client:
-        """Get or create the HTTP client."""
+        """Get or create the HTTP client with default headers."""
         if self._client is None:
             headers = {
                 "Authorization": f"Bearer {self.config.api_key}",
                 "Content-Type": "application/json",
                 "User-Agent": "hive-credential-store/1.0",
             }
-
             if self.config.tenant_id:
                 headers["X-Tenant-ID"] = self.config.tenant_id
 
@@ -243,8 +163,29 @@ class AdenCredentialClient:
                 timeout=self.config.timeout,
                 headers=headers,
             )
-
         return self._client
+
+    def _safe_json_parse(self, response: httpx.Response) -> Any:
+        """
+        Safely parse JSON response and raise AdenClientError on failure.
+        
+        ENHANCEMENT: This method prevents crashes (JSONDecodeError) when proxies 
+        (Nginx/Cloudflare) return HTML error pages instead of JSON.
+        """
+        # Guard against empty bodies (e.g., 204 No Content)
+        if not response.content:
+            return {}
+
+        try:
+            return response.json()
+        except (json.JSONDecodeError, ValueError) as e:
+            # ENHANCEMENT: Provide a body preview to help developers see the non-JSON content
+            body_preview = response.text[:200] if response.text else "Empty Body"
+            raise AdenClientError(
+                f"Failed to parse Aden server response as JSON. "
+                f"Status: {response.status_code}. "
+                f"Preview: {body_preview}"
+            ) from e
 
     def _request_with_retry(
         self,
@@ -252,18 +193,15 @@ class AdenCredentialClient:
         path: str,
         **kwargs: Any,
     ) -> httpx.Response:
-        """Make a request with retry logic."""
+        """Make a request with exponential backoff retry logic."""
         client = self._get_client()
-        print(client.base_url)
-        print(client.headers)
-        print(method, path, kwargs)
         last_error: Exception | None = None
 
         for attempt in range(self.config.retry_attempts):
             try:
                 response = client.request(method, path, **kwargs)
 
-                # Handle specific error codes
+                # Classification of HTTP Errors
                 if response.status_code == 401:
                     raise AdenAuthenticationError("Agent API key is invalid or revoked")
 
@@ -278,7 +216,8 @@ class AdenCredentialClient:
                     )
 
                 if response.status_code == 400:
-                    data = response.json()
+                    # FIX: Use safe parser to handle potential HTML 400 pages
+                    data = self._safe_json_parse(response)
                     if data.get("error") == "refresh_failed":
                         raise AdenRefreshError(
                             data.get("message", "Token refresh failed"),
@@ -286,7 +225,7 @@ class AdenCredentialClient:
                             reauthorization_url=data.get("reauthorization_url"),
                         )
 
-                # Success or other error
+                # Ensure we catch other 4xx/5xx status codes
                 response.raise_for_status()
                 return response
 
@@ -307,93 +246,39 @@ class AdenCredentialClient:
                 AdenRefreshError,
                 AdenRateLimitError,
             ):
-                # Don't retry these errors
+                # Don't retry client-side or specific business logic errors
                 raise
 
-        # Should not reach here, but just in case
         raise AdenClientError(
             f"Request failed after {self.config.retry_attempts} attempts"
         ) from last_error
 
     def get_credential(self, integration_id: str) -> AdenCredentialResponse | None:
-        """
-        Fetch the current credential for an integration.
-
-        The Aden server may refresh the token internally if it's expired
-        before returning it.
-
-        Args:
-            integration_id: The integration identifier (e.g., 'hubspot').
-
-        Returns:
-            Credential response with access token, or None if not found.
-
-        Raises:
-            AdenAuthenticationError: If API key is invalid.
-            AdenClientError: For connection failures.
-        """
+        """Fetch the current access token for a specific integration."""
         try:
             response = self._request_with_retry("GET", f"/v1/credentials/{integration_id}")
-            data = response.json()
+            # FIX: Robust parsing prevents unhandled crashes here
+            data = self._safe_json_parse(response)
             return AdenCredentialResponse.from_dict(data)
         except AdenNotFoundError:
             return None
 
     def request_refresh(self, integration_id: str) -> AdenCredentialResponse:
-        """
-        Request the Aden server to refresh the token.
-
-        Use this when the local store detects an expired or near-expiry token.
-        The Aden server handles the actual OAuth2 refresh token flow.
-
-        Args:
-            integration_id: The integration identifier.
-
-        Returns:
-            Credential response with new access token.
-
-        Raises:
-            AdenRefreshError: If refresh fails (may require re-authorization).
-            AdenNotFoundError: If integration not found.
-            AdenAuthenticationError: If API key is invalid.
-            AdenRateLimitError: If rate limited.
-        """
+        """Force the Aden server to refresh the integration token."""
         response = self._request_with_retry("POST", f"/v1/credentials/{integration_id}/refresh")
-        data = response.json()
+        data = self._safe_json_parse(response)
         return AdenCredentialResponse.from_dict(data)
 
     def list_integrations(self) -> list[AdenIntegrationInfo]:
-        """
-        List all integrations available for this agent/tenant.
-
-        Returns:
-            List of integration info objects.
-
-        Raises:
-            AdenAuthenticationError: If API key is invalid.
-            AdenClientError: For connection failures.
-        """
+        """Fetch all connected integrations for the current tenant."""
         response = self._request_with_retry("GET", "/v1/credentials")
-        data = response.json()
+        data = self._safe_json_parse(response)
         return [AdenIntegrationInfo.from_dict(item) for item in data.get("integrations", [])]
 
     def validate_token(self, integration_id: str) -> dict[str, Any]:
-        """
-        Check if a token is still valid without fetching it.
-
-        Args:
-            integration_id: The integration identifier.
-
-        Returns:
-            Dict with 'valid' bool and optional 'expires_at', 'reason',
-            'requires_reauthorization', 'reauthorization_url'.
-
-        Raises:
-            AdenNotFoundError: If integration not found.
-            AdenAuthenticationError: If API key is invalid.
-        """
+        """Check if a token is valid without full credential fetching."""
         response = self._request_with_retry("GET", f"/v1/credentials/{integration_id}/validate")
-        return response.json()
+        return self._safe_json_parse(response)
 
     def report_usage(
         self,
@@ -402,17 +287,7 @@ class AdenCredentialClient:
         status: str = "success",
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        """
-        Report credential usage statistics to Aden.
-
-        This is optional and used for analytics/billing.
-
-        Args:
-            integration_id: The integration identifier.
-            operation: Operation name (e.g., 'api_call').
-            status: Operation status ('success', 'error').
-            metadata: Additional operation metadata.
-        """
+        """Optional telemetry reporting for analytics."""
         try:
             self._request_with_retry(
                 "POST",
@@ -425,21 +300,16 @@ class AdenCredentialClient:
                 },
             )
         except Exception as e:
-            # Usage reporting is best-effort, don't fail on errors
+            # Usage reporting should never crash the main thread
             logger.warning(f"Failed to report usage for '{integration_id}': {e}")
 
     def health_check(self) -> dict[str, Any]:
-        """
-        Check Aden server health and connectivity.
-
-        Returns:
-            Dict with 'status', 'version', 'timestamp', and optionally 'error'.
-        """
+        """Check server availability and return latency metrics."""
         try:
             client = self._get_client()
             response = client.get("/health")
             if response.status_code == 200:
-                data = response.json()
+                data = self._safe_json_parse(response)
                 data["latency_ms"] = response.elapsed.total_seconds() * 1000
                 return data
             return {
@@ -459,9 +329,7 @@ class AdenCredentialClient:
             self._client = None
 
     def __enter__(self) -> AdenCredentialClient:
-        """Context manager entry."""
         return self
 
     def __exit__(self, *args: Any) -> None:
-        """Context manager exit."""
         self.close()
