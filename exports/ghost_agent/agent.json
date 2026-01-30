@@ -1,0 +1,46 @@
+{
+  "goal": {
+    "goal_id": "template_goal",
+    "name": "Basic Template Agent",
+    "description": "A minimal working example to verify the installation.",
+    "success_criteria": [
+      {
+        "id": "sc_1",
+        "description": "Agent boots and executes successfully",
+        "verification_type": "manual"
+      }
+    ]
+  },
+  "graph": {
+    "id": "template_graph",
+    "entry_node": "start",
+    "terminal_nodes": ["end"],
+    "nodes": [
+      {
+        "id": "start",
+        "name": "Start Node",
+        "node_type": "router",
+        "description": "Entry point",
+        "system_prompt": "You are a helpful assistant.",
+        "input_keys": [],
+        "output_keys": []
+      },
+      {
+        "id": "end",
+        "name": "End Node",
+        "node_type": "router",
+        "description": "Process Complete",
+        "input_keys": [],
+        "output_keys": []
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge_1",
+        "source": "start",
+        "target": "end",
+        "condition": "always"
+      }
+    ]
+  }
+}
