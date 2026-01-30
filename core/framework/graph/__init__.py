@@ -2,7 +2,7 @@
 
 from framework.graph.goal import Goal, SuccessCriterion, Constraint, GoalStatus
 from framework.graph.node import NodeSpec, NodeContext, NodeResult, NodeProtocol
-from framework.graph.edge import EdgeSpec, EdgeCondition
+from framework.graph.edge import EdgeSpec, EdgeCondition, GraphSpec
 from framework.graph.executor import GraphExecutor
 
 # Flexible execution (Worker-Judge pattern)
@@ -48,6 +48,7 @@ __all__ = [
     # Edge
     "EdgeSpec",
     "EdgeCondition",
+    "GraphSpec",
     # Executor (fixed graph)
     "GraphExecutor",
     # Parallel Executor (high-performance)
