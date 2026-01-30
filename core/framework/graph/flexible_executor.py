@@ -138,7 +138,8 @@ class FlexibleGraphExecutor:
         Returns:
             PlanExecutionResult with status and feedback
         """
-        context = context or {}
+        # Create a copy of the context to avoid mutating the caller's dictionary
+        context = dict(context) if context else {}
         context.update(plan.context)  # Merge plan's accumulated context
 
         # Start run
