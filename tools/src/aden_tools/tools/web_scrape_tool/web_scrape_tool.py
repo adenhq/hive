@@ -153,7 +153,7 @@ def register_tools(mcp: FastMCP) -> None:
 
             if response.status_code != 200:
                 return {"error": f"HTTP {response.status_code}: Failed to fetch URL"}
-
+            """
             # Check content type
             content_type = response.headers.get("content-type", "").lower()
             if not any(t in content_type for t in ["text/html", "application/xhtml+xml"]):
@@ -161,6 +161,22 @@ def register_tools(mcp: FastMCP) -> None:
                     "error": f"Skipping non-HTML content (Content-Type: {content_type})",
                     "url": url,
                     "skipped": True,
+                }
+"""
+            content_type = response.headers.get("content-type")
+
+            # Normalize safely
+            if isinstance(content_type, str):
+                content_type = content_type.lower()
+            else:
+                content_type = None
+
+            # Only skip if header exists AND explicitly non-HTML
+            if content_type and "text/html" not in content_type:
+                return {
+                    "error": f"Skipping non-HTML content (Content-Type: {content_type})",
+                    "skipped": True,
+                    "url": url,
                 }
 
             # Parse HTML
