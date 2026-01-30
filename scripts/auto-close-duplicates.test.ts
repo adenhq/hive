@@ -14,6 +14,47 @@ import {
   type GitHubComment,
   type GitHubIssue,
   type GitHubReaction,
+  import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+async function runBusinessAgent(userPrompt: string) {
+  // 1. Setup Transport to the Python Server
+  const transport = new StdioClientTransport({
+    command: "python",
+    args: ["servers/search_service.py"],
+  });
+
+  const client = new Client({
+    name: "OrchestratorAgent",
+    version: "1.0.0",
+  }, { capabilities: {} });
+
+  try {
+    await client.connect(transport);
+    console.log("🚀 MCP Agent System Online");
+
+    // 2. Dynamic Memory/Search Execution
+    // This tool call simulates the agent 'deciding' it needs web data
+    const response = await client.callTool({
+      name: "research_and_remember",
+      arguments: {
+        query: userPrompt,
+        session_id: "biz_user_123"
+      }
+    });
+
+    console.log("\n--- AGENT INSIGHTS ---\n");
+    console.log(response.content[0].text);
+
+  } catch (error) {
+    console.error("Agent Error:", error);
+  }
+}
+
+runBusinessAgent("What are the top 3 AI trends in supply chain for 2026?");
 } from "./auto-close-duplicates";
 
 describe("extractDuplicateIssueNumber", () => {
