@@ -26,7 +26,12 @@ REQUIRED_PYTHON_VERSION="3.11"
 IFS='.' read -r PYTHON_MAJOR_VERSION PYTHON_MINOR_VERSION <<< "$REQUIRED_PYTHON_VERSION"
 
 # Available python interpreter (follows sequence)
-POSSIBLE_PYTHONS=("python3" "python" "py")
+# Respect active environments (conda, venv, pyenv) by checking 'python' first when active
+if [ -n "$VIRTUAL_ENV" ] || [ -n "$CONDA_PREFIX" ] || [ -n "$PYENV_ROOT" ]; then
+    POSSIBLE_PYTHONS=("python" "python3" "py")
+else
+    POSSIBLE_PYTHONS=("python3" "python" "py")
+fi
 
 # Default python interpreter (initialized)
 PYTHON_CMD=()

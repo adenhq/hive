@@ -44,8 +44,15 @@ if ! command -v python &> /dev/null && ! command -v python3 &> /dev/null; then
 fi
 
 # Prefer a Python >= 3.11 if multiple are installed (common on macOS).
+# Respect active environments (conda, venv, pyenv) by checking 'python' first when active
+if [ -n "$VIRTUAL_ENV" ] || [ -n "$CONDA_PREFIX" ] || [ -n "$PYENV_ROOT" ]; then
+    CANDIDATES=(python python3 python3.13 python3.12 python3.11)
+else
+    CANDIDATES=(python3.13 python3.12 python3.11 python3 python)
+fi
+
 PYTHON_CMD=""
-for CANDIDATE in python3.13 python3.12 python3.11 python3 python; do
+for CANDIDATE in "${CANDIDATES[@]}"; do
     if command -v "$CANDIDATE" &> /dev/null; then
         PYTHON_MAJOR=$("$CANDIDATE" -c 'import sys; print(sys.version_info.major)')
         PYTHON_MINOR=$("$CANDIDATE" -c 'import sys; print(sys.version_info.minor)')

@@ -18,8 +18,28 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
+# Detect Python respecting active environments
+if [ -n "$VIRTUAL_ENV" ] || [ -n "$CONDA_PREFIX" ] || [ -n "$PYENV_ROOT" ]; then
+    PYTHON_CANDIDATES=("python" "python3")
+else
+    PYTHON_CANDIDATES=("python3" "python")
+fi
+
+PYTHON_CMD=""
+for cmd in "${PYTHON_CANDIDATES[@]}"; do
+    if command -v "$cmd" &> /dev/null; then
+        PYTHON_CMD="$cmd"
+        break
+    fi
+done
+
+if [ -z "$PYTHON_CMD" ]; then
+    echo -e "${RED}Error: Python not found${NC}"
+    exit 1
+fi
+
 echo -e "${YELLOW}Step 1: Installing framework package...${NC}"
-pip install -e . || {
+"$PYTHON_CMD" -m pip install -e . || {
     echo -e "${RED}Failed to install framework package${NC}"
     exit 1
 }
@@ -27,7 +47,7 @@ echo -e "${GREEN}✓ Framework package installed${NC}"
 echo ""
 
 echo -e "${YELLOW}Step 2: Installing MCP dependencies...${NC}"
-pip install mcp fastmcp || {
+"$PYTHON_CMD" -m pip install mcp fastmcp || {
     echo -e "${RED}Failed to install MCP dependencies${NC}"
     exit 1
 }
@@ -59,7 +79,7 @@ fi
 echo ""
 
 echo -e "${YELLOW}Step 4: Testing MCP server...${NC}"
-python -c "from framework.mcp import agent_builder_server; print('✓ MCP server module loads successfully')" || {
+"$PYTHON_CMD" -c "from framework.mcp import agent_builder_server; print('✓ MCP server module loads successfully')" || {
     echo -e "${RED}Failed to import MCP server module${NC}"
     exit 1
 }
