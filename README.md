@@ -85,6 +85,13 @@ This sets up:
 - **aden_tools** - MCP tools for agent capabilities (in `tools/.venv`)
 - All required Python dependencies
 
+> [!IMPORTANT]
+> **PYTHONPATH Required:** All agent commands must include `PYTHONPATH=core:exports`:
+> ```bash
+> PYTHONPATH=core:exports python -m agent_name run --input '{...}'
+> ```
+> Without this, you'll get `ModuleNotFoundError: No module named 'agent_name'`.
+
 ### Build Your First Agent
 
 ```bash
