@@ -32,6 +32,15 @@ SESSIONS_DIR = Path(".agent-builder-sessions")
 ACTIVE_SESSION_FILE = SESSIONS_DIR / ".active"
 
 
+def atomic_write_text(path: Path, write_fn) -> None:
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        write_fn(f)
+        f.flush()
+        os.fsync(f.fileno())
+    tmp_path.replace(path)
+
+
 # Session storage
 class BuildSession:
     """Build session with persistence support."""
@@ -122,12 +131,12 @@ def _save_session(session: BuildSession):
 
     # Save session file
     session_file = SESSIONS_DIR / f"{session.id}.json"
-    with open(session_file, "w") as f:
-        json.dump(session.to_dict(), f, indent=2, default=str)
+    atomic_write_text(
+        session_file, lambda f: json.dump(session.to_dict(), f, indent=2, default=str)
+    )
 
     # Update active session pointer
-    with open(ACTIVE_SESSION_FILE, "w") as f:
-        f.write(session.id)
+    atomic_write_text(ACTIVE_SESSION_FILE, lambda f: f.write(session.id))
 
 
 def _load_session(session_id: str) -> BuildSession:
@@ -246,8 +255,7 @@ def load_session_by_id(session_id: Annotated[str, "ID of the session to load"]) 
         _session = _load_session(session_id)
 
         # Update active session pointer
-        with open(ACTIVE_SESSION_FILE, "w") as f:
-            f.write(session_id)
+        atomic_write_text(ACTIVE_SESSION_FILE, lambda f: f.write(session_id))
 
         return json.dumps(
             {
@@ -1474,14 +1482,12 @@ def export_graph() -> str:
 
     # Write agent.json
     agent_json_path = exports_dir / "agent.json"
-    with open(agent_json_path, "w") as f:
-        json.dump(export_data, f, indent=2, default=str)
+    atomic_write_text(agent_json_path, lambda f: json.dump(export_data, f, indent=2, default=str))
 
     # Generate README.md
     readme_content = _generate_readme(session, export_data, all_tools)
     readme_path = exports_dir / "README.md"
-    with open(readme_path, "w") as f:
-        f.write(readme_content)
+    atomic_write_text(readme_path, lambda f: f.write(readme_content))
 
     # Write mcp_servers.json if MCP servers are configured
     mcp_servers_path = None
@@ -1489,8 +1495,8 @@ def export_graph() -> str:
     if session.mcp_servers:
         mcp_config = {"servers": session.mcp_servers}
         mcp_servers_path = exports_dir / "mcp_servers.json"
-        with open(mcp_servers_path, "w") as f:
-            json.dump(mcp_config, f, indent=2)
+        atomic_write_text(mcp_servers_path, lambda f: json.dump(mcp_config, f, indent=2))
+
         mcp_servers_size = mcp_servers_path.stat().st_size
 
     # Get file sizes
