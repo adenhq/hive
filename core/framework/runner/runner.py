@@ -1,6 +1,7 @@
 """Agent Runner - loads and runs exported agents."""
 
 import json
+import logging
 import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -12,6 +13,7 @@ from framework.graph.edge import AsyncEntryPointSpec, EdgeCondition, EdgeSpec, G
 from framework.graph.executor import ExecutionResult, GraphExecutor
 from framework.graph.node import NodeSpec
 from framework.llm.provider import LLMProvider, Tool
+from framework.policies.engine import PolicyEngine
 from framework.runner.tool_registry import ToolRegistry
 
 # Multi-entry-point runtime imports
@@ -21,6 +23,56 @@ from framework.runtime.execution_stream import EntryPointSpec
 
 if TYPE_CHECKING:
     from framework.runner.protocol import AgentMessage, CapabilityResponse
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PolicyConfig:
+    """Configuration for policy enforcement on an agent.
+
+    Controls which built-in policies are enabled and their settings.
+    Pass to AgentRunner via the ``policy_config`` parameter.
+
+    Example::
+
+        config = PolicyConfig(
+            enable_tool_gating=True,
+            enable_domain_allowlist=True,
+            allowed_domains=["api.example.com"],
+            enable_budget_limits=True,
+            token_limit=100_000,
+            cost_limit_usd=1.00,
+        )
+        runner = AgentRunner.load("exports/my-agent", policy_config=config)
+    """
+
+    # Master switch
+    enabled: bool = True
+
+    # Tool gating policy
+    enable_tool_gating: bool = False
+    tool_gating_mode: str = "balanced"  # "permissive", "balanced", "strict"
+
+    # Domain allowlist policy
+    enable_domain_allowlist: bool = False
+    domain_allowlist_mode: str = "permissive"
+    allowed_domains: list[str] = field(default_factory=list)
+
+    # Budget limits policy
+    enable_budget_limits: bool = False
+    budget_mode: str = "balanced"
+    token_limit: int | None = None
+    cost_limit_usd: float | None = None
+    time_limit_seconds: float | None = None
+
+    # Injection guard policy
+    enable_injection_guard: bool = False
+    injection_mode: str = "permissive"
+
+    # Engine behavior
+    raise_on_block: bool = True
+    raise_on_confirm: bool = False
 
 
 @dataclass
@@ -204,6 +256,7 @@ class AgentRunner:
         mock_mode: bool = False,
         storage_path: Path | None = None,
         model: str = "cerebras/zai-glm-4.7",
+        policy_config: PolicyConfig | None = None,
     ):
         """
         Initialize the runner (use AgentRunner.load() instead).
@@ -216,12 +269,14 @@ class AgentRunner:
             storage_path: Path for runtime storage (defaults to temp)
             model: Model to use - any LiteLLM-compatible model name
                    (e.g., "claude-sonnet-4-20250514", "gpt-4o-mini", "gemini/gemini-pro")
+            policy_config: Optional policy configuration for guardrails enforcement
         """
         self.agent_path = agent_path
         self.graph = graph
         self.goal = goal
         self.mock_mode = mock_mode
         self.model = model
+        self.policy_config = policy_config
 
         # Set up storage
         if storage_path:
@@ -263,6 +318,7 @@ class AgentRunner:
         mock_mode: bool = False,
         storage_path: Path | None = None,
         model: str = "cerebras/zai-glm-4.7",
+        policy_config: PolicyConfig | None = None,
     ) -> "AgentRunner":
         """
         Load an agent from an export folder.
@@ -272,6 +328,7 @@ class AgentRunner:
             mock_mode: If True, use mock LLM responses
             storage_path: Path for runtime storage (defaults to temp)
             model: LLM model to use (any LiteLLM-compatible model name)
+            policy_config: Optional policy configuration for guardrails enforcement
 
         Returns:
             AgentRunner instance ready to run
@@ -293,6 +350,7 @@ class AgentRunner:
             mock_mode=mock_mode,
             storage_path=storage_path,
             model=model,
+            policy_config=policy_config,
         )
 
     def register_tool(
@@ -478,10 +536,121 @@ class AgentRunner:
             # Default: assume OpenAI-compatible
             return "OPENAI_API_KEY"
 
+    def _build_policy_engine(self) -> PolicyEngine | None:
+        """Build and configure a PolicyEngine from the current PolicyConfig.
+
+        Returns:
+            A configured PolicyEngine, or None if policies are disabled.
+        """
+        cfg = self.policy_config
+        if cfg is None or not cfg.enabled:
+            return None
+
+        engine = PolicyEngine(
+            raise_on_block=cfg.raise_on_block,
+            raise_on_confirm=cfg.raise_on_confirm,
+        )
+
+        if cfg.enable_tool_gating:
+            from framework.policies.builtin.tool_gating import HighRiskToolGatingPolicy
+
+            # Map mode to default_action: permissive=allow, balanced=confirm, strict=block
+            action_map = {"permissive": "allow", "balanced": "confirm", "strict": "block"}
+            engine.register_policy(
+                HighRiskToolGatingPolicy(
+                    default_action=action_map.get(cfg.tool_gating_mode, "confirm")
+                )
+            )
+            logger.info("Policy registered: HighRiskToolGatingPolicy (%s)", cfg.tool_gating_mode)
+
+        if cfg.enable_domain_allowlist:
+            from framework.policies.builtin.domain_allowlist import (
+                AllowlistMode,
+                DomainAllowlistPolicy,
+            )
+
+            mode_map_al = {
+                "permissive": AllowlistMode.PERMISSIVE,
+                "balanced": AllowlistMode.BALANCED,
+                "strict": AllowlistMode.STRICT,
+            }
+            engine.register_policy(
+                DomainAllowlistPolicy(
+                    allowed_domains=cfg.allowed_domains,
+                    mode=mode_map_al.get(cfg.domain_allowlist_mode, AllowlistMode.PERMISSIVE),
+                )
+            )
+            logger.info(
+                "Policy registered: DomainAllowlistPolicy (%s, %d domains)",
+                cfg.domain_allowlist_mode,
+                len(cfg.allowed_domains),
+            )
+
+        if cfg.enable_budget_limits:
+            from framework.policies.builtin.budget_limits import (
+                BudgetConfig,
+                BudgetLimitPolicy,
+                BudgetMode,
+            )
+
+            mode_map_bl = {
+                "permissive": BudgetMode.PERMISSIVE,
+                "balanced": BudgetMode.BALANCED,
+                "strict": BudgetMode.STRICT,
+            }
+            kwargs: dict[str, Any] = {
+                "mode": mode_map_bl.get(cfg.budget_mode, BudgetMode.BALANCED),
+            }
+            if cfg.token_limit is not None:
+                soft = int(cfg.token_limit * 0.8)
+                kwargs["token_budget"] = BudgetConfig(
+                    soft_limit=soft, hard_limit=cfg.token_limit, unit="tokens"
+                )
+            if cfg.cost_limit_usd is not None:
+                soft = cfg.cost_limit_usd * 0.8
+                kwargs["cost_budget"] = BudgetConfig(
+                    soft_limit=soft, hard_limit=cfg.cost_limit_usd, unit="USD"
+                )
+            if cfg.time_limit_seconds is not None:
+                soft = cfg.time_limit_seconds * 0.8
+                kwargs["time_budget"] = BudgetConfig(
+                    soft_limit=soft, hard_limit=cfg.time_limit_seconds, unit="seconds"
+                )
+            engine.register_policy(BudgetLimitPolicy(**kwargs))
+            logger.info("Policy registered: BudgetLimitPolicy (%s)", cfg.budget_mode)
+
+        if cfg.enable_injection_guard:
+            from framework.policies.builtin.injection_guard import (
+                InjectionGuardPolicy,
+                InjectionMode,
+            )
+
+            mode_map_ig = {
+                "permissive": InjectionMode.PERMISSIVE,
+                "balanced": InjectionMode.BALANCED,
+                "strict": InjectionMode.STRICT,
+            }
+            engine.register_policy(
+                InjectionGuardPolicy(
+                    mode=mode_map_ig.get(cfg.injection_mode, InjectionMode.PERMISSIVE)
+                )
+            )
+            logger.info("Policy registered: InjectionGuardPolicy (%s)", cfg.injection_mode)
+
+        if not engine.policies:
+            logger.info("PolicyConfig enabled but no policies configured — skipping engine")
+            return None
+
+        logger.info("PolicyEngine configured with %d policies", len(engine.policies))
+        return engine
+
     def _setup_legacy_executor(self, tools: list, tool_executor: Callable | None) -> None:
         """Set up legacy single-entry-point execution using GraphExecutor."""
         # Create runtime
         self._runtime = Runtime(storage_path=self._storage_path)
+
+        # Build policy engine from config
+        policy_engine = self._build_policy_engine()
 
         # Create executor
         self._executor = GraphExecutor(
@@ -490,6 +659,7 @@ class AgentRunner:
             tools=tools,
             tool_executor=tool_executor,
             approval_callback=self._approval_callback,
+            policy_engine=policy_engine,
         )
 
     def _setup_agent_runtime(self, tools: list, tool_executor: Callable | None) -> None:
@@ -509,6 +679,9 @@ class AgentRunner:
             )
             entry_points.append(ep)
 
+        # Build policy engine from config
+        policy_engine = self._build_policy_engine()
+
         # Create AgentRuntime with all entry points
         self._agent_runtime = create_agent_runtime(
             graph=self.graph,
@@ -518,6 +691,7 @@ class AgentRunner:
             llm=self._llm,
             tools=tools,
             tool_executor=tool_executor,
+            policy_engine=policy_engine,
         )
 
     async def run(

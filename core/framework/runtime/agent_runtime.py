@@ -100,6 +100,7 @@ class AgentRuntime:
         tools: list["Tool"] | None = None,
         tool_executor: Callable | None = None,
         config: AgentRuntimeConfig | None = None,
+        policy_engine: Any | None = None,
     ):
         """
         Initialize agent runtime.
@@ -112,6 +113,7 @@ class AgentRuntime:
             tools: Available tools
             tool_executor: Function to execute tools
             config: Optional runtime configuration
+            policy_engine: Optional PolicyEngine for tool call policy evaluation
         """
         self.graph = graph
         self.goal = goal
@@ -133,6 +135,7 @@ class AgentRuntime:
         self._llm = llm
         self._tools = tools or []
         self._tool_executor = tool_executor
+        self._policy_engine = policy_engine
 
         # Entry points and streams
         self._entry_points: dict[str, EntryPointSpec] = {}
@@ -212,6 +215,7 @@ class AgentRuntime:
                     tool_executor=self._tool_executor,
                     result_retention_max=self._config.execution_result_max,
                     result_retention_ttl_seconds=self._config.execution_result_ttl_seconds,
+                    policy_engine=self._policy_engine,
                 )
                 await stream.start()
                 self._streams[ep_id] = stream
@@ -429,6 +433,7 @@ def create_agent_runtime(
     tools: list["Tool"] | None = None,
     tool_executor: Callable | None = None,
     config: AgentRuntimeConfig | None = None,
+    policy_engine: Any | None = None,
 ) -> AgentRuntime:
     """
     Create and configure an AgentRuntime with entry points.
@@ -444,6 +449,7 @@ def create_agent_runtime(
         tools: Available tools
         tool_executor: Tool executor function
         config: Runtime configuration
+        policy_engine: Optional PolicyEngine for tool call policy evaluation
 
     Returns:
         Configured AgentRuntime (not yet started)
@@ -456,6 +462,7 @@ def create_agent_runtime(
         tools=tools,
         tool_executor=tool_executor,
         config=config,
+        policy_engine=policy_engine,
     )
 
     for spec in entry_points:

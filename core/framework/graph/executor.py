@@ -6,10 +6,13 @@ The executor:
 2. Initializes shared memory
 3. Executes nodes following edges
 4. Records all decisions to Runtime
-5. Returns the final result
+5. Evaluates policies on tool calls (if PolicyEngine configured)
+6. Returns the final result
 """
 
 import asyncio
+import concurrent.futures
+import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -29,7 +32,7 @@ from framework.graph.node import (
 )
 from framework.graph.output_cleaner import CleansingConfig, OutputCleaner
 from framework.graph.validator import OutputValidator
-from framework.llm.provider import LLMProvider, Tool
+from framework.llm.provider import LLMProvider, Tool, ToolResult, ToolUse
 from framework.runtime.core import Runtime
 
 
@@ -107,6 +110,7 @@ class GraphExecutor:
         cleansing_config: CleansingConfig | None = None,
         enable_parallel_execution: bool = True,
         parallel_config: ParallelExecutionConfig | None = None,
+        policy_engine: Any | None = None,
     ):
         """
         Initialize the executor.
@@ -121,15 +125,25 @@ class GraphExecutor:
             cleansing_config: Optional output cleansing configuration
             enable_parallel_execution: Enable parallel fan-out execution (default True)
             parallel_config: Configuration for parallel execution behavior
+            policy_engine: Optional PolicyEngine for evaluating tool call policies
         """
         self.runtime = runtime
         self.llm = llm
         self.tools = tools or []
-        self.tool_executor = tool_executor
         self.node_registry = node_registry or {}
         self.approval_callback = approval_callback
         self.validator = OutputValidator()
         self.logger = logging.getLogger(__name__)
+
+        # Policy engine for tool call interception
+        self.policy_engine = policy_engine
+
+        # Wrap tool executor with policy interception if engine is configured
+        if policy_engine is not None and tool_executor is not None:
+            self.tool_executor = self._wrap_with_policy(tool_executor)
+            self.logger.info("PolicyEngine active: tool calls will be evaluated against policies")
+        else:
+            self.tool_executor = tool_executor
 
         # Initialize output cleaner
         self.cleansing_config = cleansing_config or CleansingConfig()
@@ -141,6 +155,175 @@ class GraphExecutor:
         # Parallel execution settings
         self.enable_parallel_execution = enable_parallel_execution
         self._parallel_config = parallel_config or ParallelExecutionConfig()
+
+    def _wrap_with_policy(self, original_executor: Callable) -> Callable:
+        """Wrap a tool executor with policy evaluation.
+
+        Creates a new executor that evaluates PolicyEngine policies before
+        and after each tool call. Blocked calls return a ToolResult with
+        is_error=True. REQUIRE_CONFIRM decisions route through the
+        approval_callback if one is set, otherwise block.
+
+        The async PolicyEngine.evaluate() is bridged to sync via a
+        single-thread executor since the LLM provider calls tool executors
+        synchronously.
+        """
+        from framework.policies.decisions import PolicyAction
+        from framework.policies.events import PolicyEvent, PolicyEventType
+
+        engine = self.policy_engine
+        approval_cb = self.approval_callback
+
+        def _run_async(coro):
+            """Run an async coroutine from sync context within a running event loop."""
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                return pool.submit(asyncio.run, coro).result()
+
+        def policy_executor(tool_use: ToolUse) -> ToolResult:
+            run_id = ""
+            if self.runtime and self.runtime.current_run:
+                run_id = self.runtime.current_run.id
+
+            # --- PRE-CALL EVALUATION ---
+            pre_event = PolicyEvent.create(
+                event_type=PolicyEventType.TOOL_CALL,
+                payload={
+                    "tool_name": tool_use.name,
+                    "args": tool_use.input,
+                },
+                execution_id=run_id,
+            )
+
+            try:
+                pre_decision = _run_async(engine.evaluate(pre_event))
+            except Exception as exc:
+                # PolicyViolationError is raised when raise_on_block=True
+                from framework.policies.exceptions import PolicyViolationError
+
+                if isinstance(exc, PolicyViolationError):
+                    self.logger.warning(
+                        f"Policy BLOCKED tool call '{tool_use.name}': {exc.decision.reason}"
+                    )
+                    self.runtime.report_problem(
+                        severity="warning",
+                        description=f"Policy blocked tool '{tool_use.name}': {exc.decision.reason}",
+                    )
+                    return ToolResult(
+                        tool_use_id=tool_use.id,
+                        content=json.dumps({
+                            "error": f"Policy blocked: {exc.decision.reason}",
+                            "policy_id": exc.decision.policy_id,
+                        }),
+                        is_error=True,
+                    )
+                raise
+
+            # Handle BLOCK (when raise_on_block=False)
+            if pre_decision.is_blocked:
+                reason = pre_decision.blocking_decision.reason
+                policy_id = pre_decision.blocking_decision.policy_id
+                self.logger.warning(f"Policy BLOCKED tool call '{tool_use.name}': {reason}")
+                self.runtime.report_problem(
+                    severity="warning",
+                    description=f"Policy blocked tool '{tool_use.name}': {reason}",
+                )
+                return ToolResult(
+                    tool_use_id=tool_use.id,
+                    content=json.dumps({
+                        "error": f"Policy blocked: {reason}",
+                        "policy_id": policy_id,
+                    }),
+                    is_error=True,
+                )
+
+            # Handle REQUIRE_CONFIRM
+            if pre_decision.requires_confirmation:
+                confirm_decision = pre_decision.confirmation_decision
+                self.logger.info(
+                    f"Policy REQUIRE_CONFIRM for tool '{tool_use.name}': "
+                    f"{confirm_decision.reason}"
+                )
+                approved = False
+                if approval_cb is not None:
+                    try:
+                        approved = approval_cb({
+                            "type": "policy_confirmation",
+                            "tool_name": tool_use.name,
+                            "args": tool_use.input,
+                            "reason": confirm_decision.reason,
+                            "policy_id": confirm_decision.policy_id,
+                            "severity": confirm_decision.severity.value
+                            if confirm_decision.severity
+                            else "medium",
+                        })
+                    except Exception as cb_err:
+                        self.logger.error(f"Approval callback failed: {cb_err}")
+                        approved = False
+
+                if not approved:
+                    self.logger.info(
+                        f"Tool '{tool_use.name}' denied by confirmation policy"
+                    )
+                    return ToolResult(
+                        tool_use_id=tool_use.id,
+                        content=json.dumps({
+                            "error": f"Confirmation denied: {confirm_decision.reason}",
+                            "policy_id": confirm_decision.policy_id,
+                        }),
+                        is_error=True,
+                    )
+
+            # Log suggestions if any
+            if pre_decision.suggestions:
+                for suggestion in pre_decision.suggestions:
+                    self.logger.info(
+                        f"Policy suggestion for '{tool_use.name}': {suggestion.reason}"
+                    )
+
+            # --- EXECUTE THE TOOL ---
+            result = original_executor(tool_use)
+
+            # --- POST-CALL EVALUATION ---
+            post_event = PolicyEvent.create(
+                event_type=PolicyEventType.TOOL_RESULT,
+                payload={
+                    "tool_name": tool_use.name,
+                    "result": result.content if result else None,
+                    "success": not result.is_error if result else False,
+                },
+                execution_id=run_id,
+            )
+
+            try:
+                _run_async(engine.evaluate(post_event))
+            except Exception as post_exc:
+                from framework.policies.exceptions import PolicyViolationError
+
+                if isinstance(post_exc, PolicyViolationError):
+                    self.logger.warning(
+                        f"Policy flagged result from '{tool_use.name}': "
+                        f"{post_exc.decision.reason}"
+                    )
+                    self.runtime.report_problem(
+                        severity="warning",
+                        description=(
+                            f"Policy flagged result from tool '{tool_use.name}': "
+                            f"{post_exc.decision.reason}"
+                        ),
+                    )
+                    return ToolResult(
+                        tool_use_id=tool_use.id,
+                        content=json.dumps({
+                            "error": f"Policy flagged result: {post_exc.decision.reason}",
+                            "policy_id": post_exc.decision.policy_id,
+                        }),
+                        is_error=True,
+                    )
+                raise
+
+            return result
+
+        return policy_executor
 
     def _validate_tools(self, graph: GraphSpec) -> list[str]:
         """

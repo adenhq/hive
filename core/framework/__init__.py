@@ -25,6 +25,7 @@ See `framework.testing` for details.
 from framework.builder.query import BuilderQuery
 from framework.llm import AnthropicProvider, LLMProvider
 from framework.runner import AgentOrchestrator, AgentRunner
+from framework.runner.runner import PolicyConfig
 from framework.runtime.core import Runtime
 from framework.schemas.decision import Decision, DecisionEvaluation, Option, Outcome
 from framework.schemas.run import Problem, Run, RunSummary
@@ -38,6 +39,33 @@ from framework.testing import (
     TestResult,
     TestStorage,
     TestSuiteResult,
+)
+
+# Policy framework (guardrails)
+from framework.policies import (
+    AggregatedDecision,
+    AllowlistMode,
+    BasePolicy,
+    BudgetConfig,
+    BudgetLimitPolicy,
+    BudgetMode,
+    ConfirmationRequiredError,
+    DomainAllowlistPolicy,
+    GuardrailsError,
+    HighRiskToolGatingPolicy,
+    InjectionGuardPolicy,
+    InjectionMode,
+    Policy,
+    PolicyAction,
+    PolicyConfigurationError,
+    PolicyDecision,
+    PolicyEngine,
+    PolicyEvent,
+    PolicyEventType,
+    PolicyRegistrationError,
+    PolicyViolationError,
+    Severity,
+    ToolInterceptor,
 )
 
 __all__ = [
@@ -59,6 +87,7 @@ __all__ = [
     # Runner
     "AgentRunner",
     "AgentOrchestrator",
+    "PolicyConfig",
     # Testing
     "Test",
     "TestResult",
@@ -67,4 +96,28 @@ __all__ = [
     "ApprovalStatus",
     "ErrorCategory",
     "DebugTool",
+    # Policy Framework (Guardrails)
+    "PolicyEngine",
+    "AggregatedDecision",
+    "PolicyEvent",
+    "PolicyEventType",
+    "PolicyDecision",
+    "PolicyAction",
+    "Severity",
+    "Policy",
+    "BasePolicy",
+    "HighRiskToolGatingPolicy",
+    "DomainAllowlistPolicy",
+    "AllowlistMode",
+    "BudgetLimitPolicy",
+    "BudgetConfig",
+    "BudgetMode",
+    "InjectionGuardPolicy",
+    "InjectionMode",
+    "ToolInterceptor",
+    "GuardrailsError",
+    "PolicyViolationError",
+    "PolicyConfigurationError",
+    "PolicyRegistrationError",
+    "ConfirmationRequiredError",
 ]

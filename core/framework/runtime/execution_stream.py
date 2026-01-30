@@ -112,6 +112,7 @@ class ExecutionStream:
         tool_executor: Callable | None = None,
         result_retention_max: int | None = 1000,
         result_retention_ttl_seconds: float | None = None,
+        policy_engine: Any | None = None,
     ):
         """
         Initialize execution stream.
@@ -128,6 +129,7 @@ class ExecutionStream:
             llm: LLM provider for nodes
             tools: Available tools
             tool_executor: Function to execute tools
+            policy_engine: Optional PolicyEngine for tool call policy evaluation
         """
         self.stream_id = stream_id
         self.entry_spec = entry_spec
@@ -142,6 +144,7 @@ class ExecutionStream:
         self._tool_executor = tool_executor
         self._result_retention_max = result_retention_max
         self._result_retention_ttl_seconds = result_retention_ttl_seconds
+        self._policy_engine = policy_engine
 
         # Create stream-scoped runtime
         self._runtime = StreamRuntime(
@@ -320,6 +323,7 @@ class ExecutionStream:
                     llm=self._llm,
                     tools=self._tools,
                     tool_executor=self._tool_executor,
+                    policy_engine=self._policy_engine,
                 )
 
                 # Create modified graph with entry point
