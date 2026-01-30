@@ -1,3 +1,4 @@
+
 """
 Code Sandbox for Safe Execution of Dynamic Code.
 
@@ -11,7 +12,6 @@ Security measures:
 3. Memory limits (via resource module on Unix)
 4. Namespace isolation
 """
-
 import ast
 import signal
 import sys
@@ -22,6 +22,7 @@ from typing import Any
 # Safe builtins whitelist
 SAFE_BUILTINS = {
     # Basic types
+    "__builtins__": {},
     "True": True,
     "False": False,
     "None": None,
@@ -56,7 +57,7 @@ SAFE_BUILTINS = {
     "next": next,
     "oct": oct,
     "ord": ord,
-    "pow": pow,
+    # "pow": pow,
     "range": range,
     "repr": repr,
     "reversed": reversed,
