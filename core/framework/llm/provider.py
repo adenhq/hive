@@ -16,6 +16,7 @@ class LLMResponse:
     output_tokens: int = 0
     stop_reason: str = ""
     raw_response: Any = None
+    is_error: bool = False
 
 
 @dataclass

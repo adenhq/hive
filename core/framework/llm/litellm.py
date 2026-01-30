@@ -263,6 +263,7 @@ class LiteLLMProvider(LLMProvider):
             input_tokens=total_input_tokens,
             output_tokens=total_output_tokens,
             stop_reason="max_iterations",
+            is_error=True,
             raw_response=None,
         )
 

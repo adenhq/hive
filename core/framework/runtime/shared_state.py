@@ -323,8 +323,10 @@ class SharedStateManager:
         scope: StateScope = StateScope.EXECUTION,
     ) -> None:
         """Write multiple values atomically."""
-        for key, value in updates.items():
-            await self.write(key, value, execution_id, stream_id, isolation, scope)
+        # Use global lock to ensure atomicity of the batch
+        async with self._global_lock:
+            for key, value in updates.items():
+                await self.write(key, value, execution_id, stream_id, isolation, scope)
 
     # === UTILITY ===
 

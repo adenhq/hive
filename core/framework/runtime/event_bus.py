@@ -9,6 +9,7 @@ Allows streams to:
 
 import asyncio
 import logging
+import threading
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -132,6 +133,7 @@ class EventBus:
         self._semaphore = asyncio.Semaphore(max_concurrent_handlers)
         self._subscription_counter = 0
         self._lock = asyncio.Lock()
+        self._sub_lock = threading.Lock()
 
     def subscribe(
         self,
@@ -152,18 +154,20 @@ class EventBus:
         Returns:
             Subscription ID (use to unsubscribe)
         """
-        self._subscription_counter += 1
-        sub_id = f"sub_{self._subscription_counter}"
+        """
+        with self._sub_lock:
+            self._subscription_counter += 1
+            sub_id = f"sub_{self._subscription_counter}"
 
-        subscription = Subscription(
-            id=sub_id,
-            event_types=set(event_types),
-            handler=handler,
-            filter_stream=filter_stream,
-            filter_execution=filter_execution,
-        )
+            subscription = Subscription(
+                id=sub_id,
+                event_types=set(event_types),
+                handler=handler,
+                filter_stream=filter_stream,
+                filter_execution=filter_execution,
+            )
 
-        self._subscriptions[sub_id] = subscription
+            self._subscriptions[sub_id] = subscription
         logger.debug(f"Subscription {sub_id} registered for {event_types}")
 
         return sub_id
@@ -178,10 +182,11 @@ class EventBus:
         Returns:
             True if subscription was found and removed
         """
-        if subscription_id in self._subscriptions:
-            del self._subscriptions[subscription_id]
-            logger.debug(f"Subscription {subscription_id} removed")
-            return True
+        with self._sub_lock:
+            if subscription_id in self._subscriptions:
+                del self._subscriptions[subscription_id]
+                logger.debug(f"Subscription {subscription_id} removed")
+                return True
         return False
 
     async def publish(self, event: AgentEvent) -> None:
@@ -200,7 +205,11 @@ class EventBus:
         # Find matching subscriptions
         matching_handlers: list[EventHandler] = []
 
-        for subscription in self._subscriptions.values():
+        # Snapshot subscriptions under lock to prevent iteration errors during concurrent modification
+        with self._sub_lock:
+            subscriptions = list(self._subscriptions.values())
+
+        for subscription in subscriptions:
             if self._matches(subscription, event):
                 matching_handlers.append(subscription.handler)
 
