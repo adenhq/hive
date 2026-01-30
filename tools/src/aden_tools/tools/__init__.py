@@ -23,6 +23,16 @@ from .web_search_tool import register_tools as register_web_search
 from .web_scrape_tool import register_tools as register_web_scrape
 from .pdf_read_tool import register_tools as register_pdf_read
 
+# Import Action/Command tools (MCP Integration)
+from .notification_tool import register_tools as register_notification
+from .crm_tool import register_tools as register_crm
+from .ticket_tool import register_tools as register_ticket
+
+# Import External Service Integrations
+from .jira_tool import register_tools as register_jira
+from .slack_tool import register_tools as register_slack
+from .salesforce_tool import register_tools as register_salesforce
+
 # Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
@@ -70,6 +80,16 @@ def register_all_tools(
     register_grep_search(mcp)
     register_execute_command(mcp)
 
+    # Register Action/Command tools (MCP Integration)
+    register_notification(mcp, credentials=credentials)
+    register_crm(mcp, credentials=credentials)
+    register_ticket(mcp, credentials=credentials)
+
+    # Register External Service Integrations
+    register_jira(mcp, credentials=credentials)
+    register_slack(mcp, credentials=credentials)
+    register_salesforce(mcp, credentials=credentials)
+
     return [
         "example_tool",
         "web_search",
@@ -83,6 +103,41 @@ def register_all_tools(
         "apply_patch",
         "grep_search",
         "execute_command_tool",
+        # Action/Command tools
+        "send_notification",
+        "send_bulk_notification",
+        "crm_create_contact",
+        "crm_update_contact",
+        "crm_get_contact",
+        "crm_search_contacts",
+        "crm_delete_contact",
+        "crm_log_activity",
+        "create_ticket",
+        "update_ticket",
+        "get_ticket",
+        "search_tickets",
+        "add_ticket_comment",
+        "get_ticket_summary",
+        # Jira Integration
+        "jira_test_connection",
+        "jira_list_projects",
+        "jira_get_issues",
+        "jira_get_issue",
+        "jira_create_issue",
+        "jira_update_issue",
+        "jira_sync_to_local",
+        # Slack Integration
+        "slack_test_connection",
+        "slack_list_channels",
+        "slack_send_message",
+        "slack_send_rich_message",
+        # Salesforce Integration
+        "salesforce_test_connection",
+        "salesforce_query",
+        "salesforce_get_contacts",
+        "salesforce_get_opportunities",
+        "salesforce_create_contact",
+        "salesforce_sync_to_local",
     ]
 
 
