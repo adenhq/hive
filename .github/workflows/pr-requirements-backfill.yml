@@ -32,11 +32,37 @@ jobs:
 
               console.log(`\nChecking PR #${prNumber}: ${prTitle}`);
 
-              // Extract issue numbers from body and title
-              const issuePattern = /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)?\s*#(\d+)/gi;
               const allText = `${prTitle} ${prBody}`;
-              const matches = [...allText.matchAll(issuePattern)];
-              const issueNumbers = [...new Set(matches.map(m => parseInt(m[1], 10)))];
+              const issueNumbers = (() => {
+                const repoOwner = context.repo.owner;
+                const repoName = context.repo.repo;
+                const numbers = new Set();
+
+                // Match full GitHub issue/PR URLs
+                const urlPattern = /https?:\/\/github\.com\/([^/]+)\/([^/]+)\/(issues|pull)\/(\d+)/gi;
+                for (const match of allText.matchAll(urlPattern)) {
+                  const [, owner, repo, , num] = match;
+                  if (owner === repoOwner && repo === repoName) {
+                    numbers.add(parseInt(num, 10));
+                  }
+                }
+
+                const textWithoutUrls = allText.replace(urlPattern, "");
+                // Match #123 or owner/repo#123 references
+                const shorthandPattern = /(?:([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+))?#(\d+)/gi;
+                for (const match of textWithoutUrls.matchAll(shorthandPattern)) {
+                  const [, owner, repo, num] = match;
+                  if (owner && repo) {
+                    if (owner === repoOwner && repo === repoName) {
+                      numbers.add(parseInt(num, 10));
+                    }
+                  } else {
+                    numbers.add(parseInt(num, 10));
+                  }
+                }
+
+                return [...numbers];
+              })();
 
               console.log(`  Found issue references: ${issueNumbers.length > 0 ? issueNumbers.join(', ') : 'none'}`);
 
