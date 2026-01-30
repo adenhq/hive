@@ -96,6 +96,57 @@ class TestAgentState:
         assert isinstance(AgentState.READY, str)
         assert AgentState.READY == "ready"
 
+    def test_valid_transitions_defined(self):
+        """Verify valid_transitions returns dict for all states."""
+        transitions = AgentState.valid_transitions()
+        assert isinstance(transitions, dict)
+        for state in AgentState:
+            assert state in transitions
+
+    def test_initializing_can_transition_to_ready(self):
+        """INITIALIZING can transition to READY."""
+        assert AgentState.INITIALIZING.can_transition_to(AgentState.READY)
+
+    def test_initializing_can_transition_to_error(self):
+        """INITIALIZING can transition to ERROR."""
+        assert AgentState.INITIALIZING.can_transition_to(AgentState.ERROR)
+
+    def test_initializing_cannot_transition_to_running(self):
+        """INITIALIZING cannot directly transition to RUNNING."""
+        assert not AgentState.INITIALIZING.can_transition_to(AgentState.RUNNING)
+
+    def test_ready_can_transition_to_running(self):
+        """READY can transition to RUNNING."""
+        assert AgentState.READY.can_transition_to(AgentState.RUNNING)
+
+    def test_ready_can_transition_to_paused(self):
+        """READY can transition to PAUSED."""
+        assert AgentState.READY.can_transition_to(AgentState.PAUSED)
+
+    def test_running_can_transition_to_paused(self):
+        """RUNNING can transition to PAUSED."""
+        assert AgentState.RUNNING.can_transition_to(AgentState.PAUSED)
+
+    def test_paused_can_transition_to_ready(self):
+        """PAUSED can transition back to READY."""
+        assert AgentState.PAUSED.can_transition_to(AgentState.READY)
+
+    def test_draining_can_only_transition_to_stopped_or_error(self):
+        """DRAINING can only go to STOPPED or ERROR."""
+        assert AgentState.DRAINING.can_transition_to(AgentState.STOPPED)
+        assert AgentState.DRAINING.can_transition_to(AgentState.ERROR)
+        assert not AgentState.DRAINING.can_transition_to(AgentState.READY)
+        assert not AgentState.DRAINING.can_transition_to(AgentState.RUNNING)
+
+    def test_stopped_can_restart(self):
+        """STOPPED can transition to INITIALIZING (restart)."""
+        assert AgentState.STOPPED.can_transition_to(AgentState.INITIALIZING)
+
+    def test_error_can_recover(self):
+        """ERROR can transition to STOPPED or INITIALIZING."""
+        assert AgentState.ERROR.can_transition_to(AgentState.STOPPED)
+        assert AgentState.ERROR.can_transition_to(AgentState.INITIALIZING)
+
 
 # === EVENT TYPE TESTS ===
 

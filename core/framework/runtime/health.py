@@ -260,7 +260,42 @@ class HealthChecker:
                 )
             )
 
+        # Check LLM provider if configured
+        llm_health = self._check_llm_provider()
+        if llm_health:
+            dependencies.append(llm_health)
+
         return dependencies
+
+    def _check_llm_provider(self) -> DependencyHealth | None:
+        """
+        Check health of the LLM provider.
+
+        Returns:
+            DependencyHealth for LLM, or None if no LLM configured
+        """
+        # Access the private _llm attribute safely
+        llm = getattr(self._runtime, "_llm", None)
+
+        if llm is None:
+            return None
+
+        try:
+            # Check if LLM provider has a model attribute (basic sanity check)
+            model = getattr(llm, "model", None) or getattr(llm, "_model", None)
+            model_name = model if isinstance(model, str) else "configured"
+
+            return DependencyHealth(
+                name="llm_provider",
+                healthy=True,
+                message=f"LLM provider ready ({model_name})",
+            )
+        except Exception as e:
+            return DependencyHealth(
+                name="llm_provider",
+                healthy=False,
+                message=f"LLM provider error: {e}",
+            )
 
 
 def create_health_checker(runtime: AgentRuntime) -> HealthChecker:

@@ -53,6 +53,36 @@ class AgentState(str, Enum):
     STOPPED = "stopped"  # Fully stopped
     ERROR = "error"  # Unrecoverable error state
 
+    @classmethod
+    def valid_transitions(cls) -> dict["AgentState", set["AgentState"]]:
+        """
+        Define valid state transitions.
+
+        Returns:
+            Dict mapping each state to the set of states it can transition to.
+        """
+        return {
+            cls.INITIALIZING: {cls.READY, cls.ERROR},
+            cls.READY: {cls.RUNNING, cls.PAUSED, cls.DRAINING, cls.STOPPED, cls.ERROR},
+            cls.RUNNING: {cls.READY, cls.PAUSED, cls.DRAINING, cls.ERROR},
+            cls.PAUSED: {cls.READY, cls.RUNNING, cls.DRAINING, cls.STOPPED, cls.ERROR},
+            cls.DRAINING: {cls.STOPPED, cls.ERROR},
+            cls.STOPPED: {cls.INITIALIZING},  # Can restart
+            cls.ERROR: {cls.STOPPED, cls.INITIALIZING},  # Can recover
+        }
+
+    def can_transition_to(self, target: "AgentState") -> bool:
+        """
+        Check if transition to target state is valid.
+
+        Args:
+            target: The state to transition to
+
+        Returns:
+            True if the transition is valid
+        """
+        return target in self.valid_transitions().get(self, set())
+
 
 @dataclass
 class AgentRuntimeConfig:
