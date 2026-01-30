@@ -51,7 +51,17 @@ class ToolRegistry:
             name: Tool name (must match tool.name)
             tool: Tool definition
             executor: Function that takes tool input dict and returns result
+
+        Note:
+            If a tool with the same name is already registered, a warning is logged
+            and the new tool is skipped to prevent silent overwrites.
         """
+        if name in self._tools:
+            existing_desc = self._tools[name].tool.description
+            logger.warning(
+                f"Tool '{name}' already registered, skipping duplicate. Existing: {existing_desc}"
+            )
+            return
         self._tools[name] = RegisteredTool(tool=tool, executor=executor)
 
     def register_function(
