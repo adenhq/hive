@@ -316,7 +316,7 @@ class WorkerNode:
 
             response = self.llm.complete(
                 messages=messages,
-                system=action.system_prompt if action.system_prompt else "",
+                system=action.system_prompt,
             )
 
             # Try to parse JSON from LLM response

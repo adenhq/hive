@@ -202,7 +202,7 @@ class NodeSpec(BaseModel):
     )
 
     # Retry behavior
-    max_retries: int = Field(default=3, ge=0)
+    max_retries: int = Field(default=3)
     retry_on: list[str] = Field(default_factory=list, description="Error types to retry on")
 
     # Pydantic model for output validation
@@ -518,10 +518,8 @@ class NodeResult:
             import json
 
             import anthropic
-            from anthropic.types import TextBlock, ThinkingBlock
 
             node_context = ""
-            summary = ""
             if node_spec:
                 node_context = f"\nNode: {node_spec.name}\nPurpose: {node_spec.description}"
 
@@ -541,13 +539,7 @@ class NodeResult:
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            block = message.content[0]
-
-            if isinstance(block, TextBlock):
-                summary = block.text.strip()  # text field not in other types like ThinkingBlock, etc.
-            elif isinstance(block, ThinkingBlock):
-                summary = block.thinking
-
+            summary = message.content[0].text.strip()
             return f"✓ {summary}"
 
         except Exception:
@@ -734,17 +726,6 @@ Keep the same JSON structure but with shorter content values.
             if ctx.available_tools:
                 logger.info(f"         Tools available: {[t.name for t in ctx.available_tools]}")
 
-            # Use JSON mode for llm_generate nodes with output_keys (when not using tools)
-            # Note: Explicit bool() cast needed because Python's `and` returns the
-            # actual value (not True/False), so `output_keys` could leak through
-            # as list[str], causing type mismatch with json_mode: bool parameter
-            # Defined here (before if/else) to ensure it's always in scope for retry loops
-            use_json_mode = bool(
-                ctx.node_spec.node_type == "llm_generate"
-                and ctx.node_spec.output_keys
-                and len(ctx.node_spec.output_keys) >= 1
-            )
-
             # Call LLM
             if ctx.available_tools and self.tool_executor:
                 from framework.llm.provider import ToolResult, ToolUse
@@ -768,7 +749,13 @@ Keep the same JSON structure but with shorter content values.
                     max_tokens=ctx.max_tokens,
                 )
             else:
+                # Use JSON mode for llm_generate nodes with output_keys
                 # Skip strict schema validation - just validate keys after parsing
+                use_json_mode = (
+                    ctx.node_spec.node_type == "llm_generate"
+                    and ctx.node_spec.output_keys
+                    and len(ctx.node_spec.output_keys) >= 1
+                )
                 if use_json_mode:
                     logger.info(
                         f"         📋 Expecting JSON output with keys: {ctx.node_spec.output_keys}"
@@ -1354,7 +1341,6 @@ Output ONLY the JSON object, nothing else."""
 
         try:
             import anthropic
-            from anthropic.types import TextBlock, ThinkingBlock
 
             client = anthropic.Anthropic(api_key=api_key)
             message = client.messages.create(
@@ -1364,13 +1350,7 @@ Output ONLY the JSON object, nothing else."""
             )
 
             # Parse Haiku's response
-            response_text = ""
-            block = message.content[0]
-
-            if isinstance(block, TextBlock):
-                response_text = block.text.strip()  # text field not in other types like ThinkingBlock, etc.
-            elif isinstance(block, ThinkingBlock):
-                response_text = block.thinking.strip()
+            response_text = message.content[0].text.strip()
 
             # Try to extract JSON using balanced brace matching
             json_str = find_json_object(response_text)
@@ -1532,9 +1512,6 @@ Respond with ONLY a JSON object:
 {{"chosen": "route_id", "reasoning": "brief explanation"}}"""
 
         logger.info("      🤔 Router using LLM to choose path...")
-
-        if ctx.llm is None:
-            raise ValueError("LLM provider not configured for router node")
 
         try:
             response = ctx.llm.complete(
