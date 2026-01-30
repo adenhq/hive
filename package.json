@@ -24,3 +24,25 @@
   },
   "packageManager": "npm@10.2.0"
 }
+{
+  "name": "ai-agent-orchestrator",
+  "version": "1.1.0",
+  "type": "module",
+  "description": "Scalable AI Agent Orchestrator with Runtime Validation",
+  "main": "dist/index.js",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.1",
+    "dotenv": "^16.4.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "tsx": "^4.0.0"
+  },
+  "scripts": {
+    "start": "tsx orchestrator/index.ts",
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
