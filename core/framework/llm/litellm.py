@@ -8,6 +8,7 @@ See: https://docs.litellm.ai/docs/providers
 """
 
 import json
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -17,6 +18,8 @@ except ImportError:
     litellm = None  # type: ignore[assignment]
 
 from framework.llm.provider import LLMProvider, LLMResponse, Tool, ToolResult, ToolUse
+
+logger = logging.getLogger(__name__)
 
 
 class LiteLLMProvider(LLMProvider):
@@ -236,8 +239,27 @@ class LiteLLMProvider(LLMProvider):
                 # Parse arguments
                 try:
                     args = json.loads(tool_call.function.arguments)
-                except json.JSONDecodeError:
-                    args = {}
+                except json.JSONDecodeError as e:
+                    logger.warning(
+                        "Failed to parse tool arguments for '%s': %s | Raw: %s",
+                        tool_call.function.name,
+                        e,
+                        tool_call.function.arguments[:200],
+                    )
+                    # Return parse error to LLM so it can self-correct
+                    current_messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": json.dumps(
+                                {
+                                    "error": f"Invalid JSON in tool arguments: {e}. "
+                                    "Please retry with valid JSON."
+                                }
+                            ),
+                        }
+                    )
+                    continue
 
                 tool_use = ToolUse(
                     id=tool_call.id,
