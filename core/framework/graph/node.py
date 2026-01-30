@@ -150,6 +150,12 @@ class NodeSpec(BaseModel):
         description="Error types to retry on"
     )
 
+    # Validation behavior
+    validate_output: bool = Field(
+        default=True, 
+        description="If False, disables 5000-char limit and hallucination checks."
+    )
+
     model_config = {"extra": "allow"}
 
 
@@ -608,22 +614,22 @@ class LLMNode(NodeProtocol):
                                 # Strip code block wrappers from string values
                                 if isinstance(value, str):
                                     value = self._strip_code_blocks(value)
-                                ctx.memory.write(key, value)
+                                ctx.memory.write(key, value, validate=ctx.node_spec.validate_output)
                                 output[key] = value
                             elif key in ctx.input_data:
                                 # Key not in parsed JSON but exists in input - pass through input value
-                                ctx.memory.write(key, ctx.input_data[key])
+                                ctx.memory.write(key, ctx.input_data[key], validate=ctx.node_spec.validate_output)
                                 output[key] = ctx.input_data[key]
                             else:
                                 # Key not in parsed JSON or input, write the whole response (stripped)
                                 stripped_content = self._strip_code_blocks(response.content)
-                                ctx.memory.write(key, stripped_content)
+                                ctx.memory.write(key, stripped_content, validate=ctx.node_spec.validate_output)
                                 output[key] = stripped_content
                     else:
                         # Not a dict, fall back to writing entire response to all keys (stripped)
                         stripped_content = self._strip_code_blocks(response.content)
                         for key in ctx.node_spec.output_keys:
-                            ctx.memory.write(key, stripped_content)
+                            ctx.memory.write(key, stripped_content, validate=ctx.node_spec.validate_output)
                             output[key] = stripped_content
 
                 except (json.JSONDecodeError, Exception) as e:
@@ -649,7 +655,7 @@ class LLMNode(NodeProtocol):
                 # For non-llm_generate or single output nodes, write entire response (stripped)
                 stripped_content = self._strip_code_blocks(response.content)
                 for key in ctx.node_spec.output_keys:
-                    ctx.memory.write(key, stripped_content)
+                    ctx.memory.write(key, stripped_content, validate=ctx.node_spec.validate_output)
                     output[key] = stripped_content
 
             return NodeResult(
@@ -1127,7 +1133,7 @@ class FunctionNode(NodeProtocol):
             if ctx.node_spec.output_keys:
                 key = ctx.node_spec.output_keys[0]
                 output[key] = result
-                ctx.memory.write(key, result)
+                ctx.memory.write(key, result, validate=ctx.node_spec.validate_output)
             else:
                 output = {"result": result}
 

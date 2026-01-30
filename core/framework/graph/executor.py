@@ -263,7 +263,7 @@ class GraphExecutor:
                         validation = self.validator.validate_all(
                             output=result.output,
                             expected_keys=node_spec.output_keys,
-                            check_hallucination=True,
+                            check_hallucination=node_spec.validate_output,
                         )
                         if not validation.success:
                             self.logger.error(f"   ✗ Output validation failed: {validation.error}")
