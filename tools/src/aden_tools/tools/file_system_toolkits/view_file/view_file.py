@@ -59,9 +59,11 @@ def register_tools(mcp: FastMCP) -> None:
             with open(secure_path, encoding=encoding) as f:
                 content = f.read()
 
+            TRUNCATION_MSG = "\n\n[... Content truncated due to size limit ...]"
+            truncation_msg_size = len(TRUNCATION_MSG.encode(encoding))
             if len(content.encode(encoding)) > max_size:
-                content = content[:max_size]
-                content += "\n\n[... Content truncated due to size limit ...]"
+                truncate_at = max(0, max_size - truncation_msg_size)
+                content = content[:truncate_at] + TRUNCATION_MSG
 
             return {
                 "success": True,
