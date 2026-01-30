@@ -82,8 +82,18 @@ echo ""
 
 # Check for pip
 if ! $PYTHON_CMD -m pip --version &> /dev/null; then
-    echo -e "${RED}Error: pip is not installed${NC}"
-    echo "Please install pip for Python $PYTHON_VERSION"
+    echo -e "${RED}Error: pip is not available for this Python installation ($PYTHON_CMD).${NC}"
+    echo "The script tried to run '$PYTHON_CMD -m pip' and failed."
+    echo ""
+    echo "To fix this, you can try one of the following:"
+    echo "  1. Use Python's built-in tool to install pip (recommended):"
+    echo "     ${BLUE}$PYTHON_CMD -m ensurepip --upgrade${NC}"
+    echo "     ${YELLOW}If this fails with 'No module named ensurepip', your Python is incomplete.${NC}"
+    echo "     ${YELLOW}In that case, install the venv package for your system, e.g.:${NC}"
+    echo "     ${BLUE}sudo apt install python${PYTHON_VERSION}-venv${NC} (for Debian/Ubuntu)"
+    echo ""
+    echo "  2. Or, install pip directly using your system's package manager:"
+    echo "     ${BLUE}sudo apt install python3-pip${NC} (for Debian/Ubuntu)"
     exit 1
 fi
 
@@ -114,6 +124,21 @@ UV_VERSION=$(uv --version)
 echo -e "${GREEN}  ✓ uv detected: $UV_VERSION${NC}"
 echo ""
 
+# Check for Docker (Optional)
+if command -v docker &> /dev/null; then
+    DOCKER_VERSION=$(docker --version)
+    echo -e "${GREEN}  ✓ Docker detected: $DOCKER_VERSION${NC}"
+    # Check if daemon is running
+    if docker info &> /dev/null; then
+        echo -e "${GREEN}  ✓ Docker daemon is running${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ Docker daemon is not running (required for containerized tools)${NC}"
+    fi
+else
+    echo -e "${YELLOW}  ⚠ Docker not found (optional, but recommended for containerized tools)${NC}"
+fi
+echo ""
+
 # ============================================================
 # Step 2: Install Python Packages
 # ============================================================
@@ -126,7 +151,7 @@ echo "  Installing framework package from core/..."
 cd "$SCRIPT_DIR/core"
 
 if [ -f "pyproject.toml" ]; then
-    uv sync > /dev/null 2>&1
+    uv sync
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}  ✓ framework package installed${NC}"
     else
@@ -142,7 +167,7 @@ echo "  Installing aden_tools package from tools/..."
 cd "$SCRIPT_DIR/tools"
 
 if [ -f "pyproject.toml" ]; then
-    uv sync > /dev/null 2>&1
+    uv sync
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}  ✓ aden_tools package installed${NC}"
     else
@@ -157,7 +182,7 @@ fi
 # Install MCP dependencies (in tools venv)
 echo "  Installing MCP dependencies..."
 TOOLS_PYTHON="$SCRIPT_DIR/tools/.venv/bin/python"
-uv pip install --python "$TOOLS_PYTHON" mcp fastmcp > /dev/null 2>&1
+uv pip install --python "$TOOLS_PYTHON" mcp fastmcp
 echo -e "${GREEN}  ✓ MCP dependencies installed${NC}"
 
 # Fix openai version compatibility (in tools venv)
@@ -165,11 +190,11 @@ TOOLS_PYTHON="$SCRIPT_DIR/tools/.venv/bin/python"
 OPENAI_VERSION=$($TOOLS_PYTHON -c "import openai; print(openai.__version__)" 2>/dev/null || echo "not_installed")
 if [ "$OPENAI_VERSION" = "not_installed" ]; then
     echo "  Installing openai package..."
-    uv pip install --python "$TOOLS_PYTHON" "openai>=1.0.0" > /dev/null 2>&1
+    uv pip install --python "$TOOLS_PYTHON" "openai>=1.0.0"
     echo -e "${GREEN}  ✓ openai installed${NC}"
 elif [[ "$OPENAI_VERSION" =~ ^0\. ]]; then
     echo "  Upgrading openai to 1.x+ for litellm compatibility..."
-    uv pip install --python "$TOOLS_PYTHON" --upgrade "openai>=1.0.0" > /dev/null 2>&1
+    uv pip install --python "$TOOLS_PYTHON" --upgrade "openai>=1.0.0"
     echo -e "${GREEN}  ✓ openai upgraded${NC}"
 else
     echo -e "${GREEN}  ✓ openai $OPENAI_VERSION is compatible${NC}"
@@ -177,7 +202,7 @@ fi
 
 # Install click for CLI (in tools venv)
 TOOLS_PYTHON="$SCRIPT_DIR/tools/.venv/bin/python"
-uv pip install --python "$TOOLS_PYTHON" click > /dev/null 2>&1
+uv pip install --python "$TOOLS_PYTHON" click
 echo -e "${GREEN}  ✓ click installed${NC}"
 
 cd "$SCRIPT_DIR"
