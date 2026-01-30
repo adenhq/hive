@@ -38,6 +38,7 @@ from .file_system_toolkits.replace_file_content import (
 from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
 from .hubspot_tool import register_tools as register_hubspot
+from .jira_tool import register_tools as register_jira
 from .pdf_read_tool import register_tools as register_pdf_read
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
@@ -67,6 +68,7 @@ def register_all_tools(
     # web_search supports multiple providers (Google, Brave) with auto-detection
     register_web_search(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
+    register_jira(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -109,6 +111,14 @@ def register_all_tools(
         "hubspot_get_deal",
         "hubspot_create_deal",
         "hubspot_update_deal",
+        "jira_search_issues",
+        "jira_get_issue",
+        "jira_create_issue",
+        "jira_update_issue",
+        "jira_add_comment",
+        "jira_transition_issue",
+        "jira_get_transitions",
+        "jira_list_projects",
     ]
 
 
