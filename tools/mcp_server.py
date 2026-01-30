@@ -30,6 +30,9 @@ import argparse
 import logging
 import os
 import sys
+from mcp.server.fastmcp import FastMCP
+import httpx
+
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +131,48 @@ def main() -> None:
         logger.info(f"Starting HTTP server on {args.host}:{args.port}")
         mcp.run(transport="http", host=args.host, port=args.port)
 
+def register_all_tools(mcp: FastMCP, credentials):
+    """Registers all business tools to the MCP server."""
+    
+    @mcp.tool()
+    async def web_search(query: str, search_depth: str = "advanced") -> dict:
+        """
+        Search the web for real-time business data and news.
+        Returns a structured JSON response optimized for LLM consumption.
+        """
+        # Tier 2 Validation: Check keys at execution time
+        api_key = os.getenv("TAVILY_API_KEY") or os.getenv("BRAVE_SEARCH_API_KEY")
+        if not api_key:
+            return {"error": "Search API key not configured."}
 
+        # Example: Tavily Implementation (LLM-optimized)
+        if os.getenv("TAVILY_API_KEY"):
+            return await _execute_tavily_search(query, api_key, search_depth)
+        
+        # Fallback: Brave Search Implementation
+        return await _execute_brave_search(query, api_key)
+
+    return ["web_search"]
+
+async def _execute_tavily_search(query: str, api_key: str, depth: str):
+    url = "https://api.tavily.com/search"
+    payload = {
+        "api_key": api_key,
+        "query": query,
+        "search_depth": depth,
+        "include_answer": True,
+        "max_results": 5
+    }
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(url, json=payload, timeout=10.0)
+        return resp.json()
+
+async def _execute_brave_search(query: str, api_key: str):
+    url = "https://api.search.brave.com/res/v1/web/search"
+    headers = {"Accept": "application/json", "X-Subscription-Token": api_key}
+    params = {"q": query}
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(url, headers=headers, params=params, timeout=10.0)
+        return resp.json()
 if __name__ == "__main__":
     main()
