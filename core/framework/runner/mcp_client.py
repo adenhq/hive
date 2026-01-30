@@ -457,8 +457,7 @@ class MCPClient:
             if self._loop.is_running():
                 try:
                     cleanup_future = asyncio.run_coroutine_threadsafe(
-                        self._cleanup_stdio_async(),
-                        self._loop
+                        self._cleanup_stdio_async(), self._loop
                     )
                     cleanup_future.result(timeout=self._CLEANUP_TIMEOUT)
                     cleanup_attempted = True
@@ -518,8 +517,14 @@ class MCPClient:
 
         # Clean up HTTP client
         if self._http_client:
-            self._http_client.close()
-            self._http_client = None
+            try:
+                self._http_client.close()
+            except Exception as e:
+                logger.warning(
+                    f"Error closing HTTP client for MCP server '{self.config.name}': {e}"
+                )
+            finally:
+                self._http_client = None
 
         self._connected = False
         logger.info(f"Disconnected from MCP server '{self.config.name}'")
