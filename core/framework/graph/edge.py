@@ -609,4 +609,15 @@ class GraphSpec(BaseModel):
                     continue
                 errors.append(f"Node '{node.id}' is unreachable from entry")
 
+        # Check for divergent cycles
+        try:
+            from framework.graph.cycle_detector import CycleDetector
+            detector = CycleDetector(self)
+            cycles = detector.detect_cycles()
+            for cycle in cycles:
+                if cycle.is_divergent:
+                    errors.append(f"Strictly divergent cycle detected: {cycle.reason}")
+        except ImportError:
+            pass  # Cycle validation optional if module missing
+
         return errors
