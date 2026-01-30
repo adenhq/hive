@@ -15,7 +15,24 @@ import {
   type GitHubIssue,
   type GitHubReaction,
 } from "./auto-close-duplicates";
+import { z } from "zod";
 
+/**
+ * Validates 'Option' objects created by Runtime.decide()
+ */
+export const OptionSchema = z.object({
+  id: z.string().min(1, "Option ID must be a non-empty string"),
+  description: z.string().max(1024, "Description is too long"),
+  metadata: z.record(z.any()).optional().refine((val) => {
+    try { return JSON.stringify(val) !== undefined; } catch { return false; }
+  }, "Metadata must be JSON-serializable")
+});
+
+export const DecideRequestSchema = z.object({
+  options: z.array(OptionSchema).nonempty("At least one option is required"),
+  reasoning: z.string().max(5000).optional()
+});
+  
 describe("extractDuplicateIssueNumber", () => {
   test("extracts #123 format", () => {
     expect(
