@@ -58,6 +58,33 @@ async function githubRequest<T>(
   return response.json();
 }
 
+async function githubRequestPaged<T>(
+  endpoint: string,
+  token: string
+): Promise<T[]> {
+  const items: T[] = [];
+  let page = 1;
+  const perPage = 100;
+
+  while (true) {
+    const sep = endpoint.includes("?") ? "&" : "?";
+    const pageItems: T[] = await githubRequest(
+      `${endpoint}${sep}per_page=${perPage}&page=${page}`,
+      token
+    );
+
+    if (pageItems.length === 0) break;
+    items.push(...pageItems);
+
+    if (pageItems.length < perPage) break;
+    page++;
+
+    if (page > 20) break;
+  }
+
+  return items;
+}
+
 /** True if comment is a bot "possible duplicate" detection (used for filtering). */
 export function isDupeComment(comment: GitHubComment): boolean {
   const bodyLower = comment.body.toLowerCase();
@@ -224,7 +251,7 @@ async function autoCloseDuplicates(): Promise<void> {
     );
 
     console.log(`[DEBUG] Fetching comments for issue #${issue.number}...`);
-    const comments: GitHubComment[] = await githubRequest(
+    const comments: GitHubComment[] = await githubRequestPaged(
       `/repos/${owner}/${repo}/issues/${issue.number}/comments`,
       token
     );
@@ -268,7 +295,7 @@ async function autoCloseDuplicates(): Promise<void> {
     console.log(
       `[DEBUG] Issue #${issue.number} - checking reactions on duplicate comment...`
     );
-    const reactions: GitHubReaction[] = await githubRequest(
+    const reactions: GitHubReaction[] = await githubRequestPaged(
       `/repos/${owner}/${repo}/issues/comments/${lastDupeComment.id}/reactions`,
       token
     );
