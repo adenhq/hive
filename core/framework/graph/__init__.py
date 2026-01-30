@@ -7,6 +7,7 @@ from framework.graph.flexible_executor import ExecutorConfig, FlexibleGraphExecu
 from framework.graph.goal import Constraint, Goal, GoalStatus, SuccessCriterion
 from framework.graph.judge import HybridJudge, create_default_judge
 from framework.graph.node import NodeContext, NodeProtocol, NodeResult, NodeSpec
+from framework.graph.conversation import ConversationStore, Message, NodeConversation
 
 # Flexible execution (Worker-Judge pattern)
 from framework.graph.plan import (
@@ -39,6 +40,10 @@ __all__ = [
     "NodeContext",
     "NodeResult",
     "NodeProtocol",
+    # Conversation
+    "NodeConversation",
+    "Message",
+    "ConversationStore",
     # Edge
     "EdgeSpec",
     "EdgeCondition",

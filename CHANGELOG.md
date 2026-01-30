@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- NodeConversation class for managed agent history and persistence (#2512)
 - Initial project structure
 - React frontend (honeycomb) with Vite and TypeScript
 - Node.js backend (hive) with Express and TypeScript
