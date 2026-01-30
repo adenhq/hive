@@ -220,7 +220,7 @@ Choose other frameworks when you need:
 
 ```
 hive/
-├── core/                   # Core framework - Agent runtime, graph executor, protocols
+├── core/                   # Core framework - Agent runtime, graph execution, storage
 ├── tools/                  # MCP Tools Package - 19 tools for agent capabilities
 ├── exports/                # Agent packages - Pre-built agents and examples
 ├── docs/                   # Documentation and guides
