@@ -221,7 +221,79 @@ Follow the guided flow to:
 
 This workflow orchestrates all agent-building skills to take you from idea → production-ready agent.
 
-## Troubleshooting
+## Common Setup Issues
+
+This section covers frequent errors developers encounter during setup, with brief explanations and concrete fixes.
+
+<details>
+<summary><strong>🔍 Quick Diagnosis</strong></summary>
+
+| Symptom | Likely Cause | Jump To |
+|---------|--------------|---------|
+| `command not found: python` | Python not in PATH | [Python PATH Issues](#python-path-issues) |
+| `python: command not found` but `python3` works | Missing `python` alias | [Python vs Python3](#python-vs-python3) |
+| `externally-managed-environment` error | System Python protection | [PEP 668 Error](#externally-managed-environment-error-pep-668) |
+| `Permission denied` during install | Missing write permissions | [Permission Errors](#permission-errors) |
+| `ModuleNotFoundError: framework` | Package not installed | [Missing Module Errors](#missing-module-errors) |
+| `No module named 'your_agent_name'` | PYTHONPATH not set | [PYTHONPATH Issues](#pythonpath-issues) |
+| Script hangs or no output | Virtual environment not activated | [Virtual Environment Issues](#virtual-environment-issues) |
+
+</details>
+
+---
+
+### Python PATH Issues
+
+**Symptom:** `command not found: python` or `python: command not found`
+
+**Cause:** Python is installed but not in your shell's PATH.
+
+**Solution:**
+
+```bash
+# Check if Python is installed somewhere
+which python3
+# If this returns a path, Python is installed but 'python' command isn't linked
+
+# Option 1: Use python3 explicitly
+python3 --version
+
+# Option 2: Add alias to your shell profile (~/.bashrc, ~/.zshrc)
+echo 'alias python=python3' >> ~/.zshrc
+source ~/.zshrc
+```
+
+**macOS-specific:** If you installed Python via Homebrew:
+```bash
+# Add Homebrew Python to PATH
+echo 'export PATH="/opt/homebrew/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+---
+
+### Python vs Python3
+
+**Symptom:** `python` doesn't work, but `python3` does.
+
+**Cause:** Many systems install Python 3 as `python3` only, not `python`.
+
+**Solution:**
+
+```bash
+# Option 1: Create a symlink (requires sudo on some systems)
+sudo ln -s $(which python3) /usr/local/bin/python
+
+# Option 2: Use an alias (add to ~/.bashrc or ~/.zshrc)
+alias python=python3
+alias pip=pip3
+
+# Option 3: Use python3 in all commands
+python3 -m venv .venv
+python3 -c "import framework; print('OK')"
+```
+
+---
 
 ### "externally-managed-environment" error (PEP 668)
 
@@ -248,7 +320,32 @@ source .venv/bin/activate
 PYTHONPATH=core:exports python -m your_agent_name demo
 ```
 
-### "ModuleNotFoundError: No module named 'framework'"
+---
+
+### Permission Errors
+
+**Symptom:** `Permission denied` during pip install or script execution.
+
+**Cause:** Trying to install packages system-wide without proper permissions.
+
+**Solution:**
+
+```bash
+# NEVER use sudo pip install! Use a virtual environment instead:
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+
+# If script isn't executable:
+chmod +x ./quickstart.sh
+./quickstart.sh
+```
+
+---
+
+### Missing Module Errors
+
+#### "ModuleNotFoundError: No module named 'framework'"
 
 **Solution:** Install the core package:
 
@@ -280,17 +377,65 @@ Or run the setup script:
 pip install --upgrade "openai>=1.0.0"
 ```
 
-### "No module named 'your_agent_name'"
+---
 
-**Cause:** Not running from project root, missing PYTHONPATH, or agent not yet created
+### PYTHONPATH Issues
 
-**Solution:** Ensure you're in the project root directory, have built an agent, and use:
+#### "No module named 'your_agent_name'"
+
+**Cause:** Not running from project root, missing PYTHONPATH, or agent not yet created.
+
+**Solution:** 
 
 ```bash
+# 1. Make sure you're in the project root
+cd /path/to/hive
+
+# 2. Check if agent exists
+ls exports/
+
+# 3. Run with PYTHONPATH set
 PYTHONPATH=core:exports python -m your_agent_name validate
 ```
 
-### Agent imports fail with "broken installation"
+**Common mistakes:**
+- Running from inside `core/` or `tools/` instead of project root
+- Agent not yet created (run `/building-agents-construction` first)
+- Typo in agent name
+
+---
+
+### Virtual Environment Issues
+
+**Symptom:** Commands hang, wrong Python version used, or packages not found after install.
+
+**Cause:** Virtual environment not activated or conflicting with system Python.
+
+**Solution:**
+
+```bash
+# Check if venv is activated (should show .venv path)
+which python
+
+# If not activated, activate it:
+source .venv/bin/activate  # macOS/Linux
+# .venv\Scripts\activate   # Windows
+
+# Verify correct Python is being used
+python --version
+which pip
+```
+
+**If you have multiple Python versions:**
+```bash
+# Create venv with specific Python version
+python3.11 -m venv .venv
+source .venv/bin/activate
+```
+
+---
+
+### Agent imports fail with \"broken installation\"
 
 **Symptom:** `pip list` shows packages pointing to non-existent directories
 
