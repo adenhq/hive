@@ -70,6 +70,8 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 
 ### Installation
 
+> **Note for Windows Users:** Run these commands in a Unix-compatible terminal (like **Git Bash**, **WSL**, or **MSYS2**) to ensure the shell scripts execute correctly.
+
 ```bash
 # Clone the repository
 git clone https://github.com/adenhq/hive.git
