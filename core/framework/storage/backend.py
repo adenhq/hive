@@ -4,6 +4,7 @@ File-based storage backend for runtime data.
 Stores runs as JSON files with indexes for efficient querying.
 Uses Pydantic's built-in serialization.
 """
+
 import json
 import os
 from pathlib import Path
@@ -18,6 +19,7 @@ def atomic_write_text(path: Path, write_fn) -> None:
         f.flush()
         os.fsync(f.fileno())
     tmp_path.replace(path)
+
 
 class FileStorage:
     """
@@ -94,18 +96,12 @@ class FileStorage:
         """Save a run to storage."""
         # Save full run using Pydantic's model_dump_json
         run_path = self.base_path / "runs" / f"{run.id}.json"
-        atomic_write_text(
-            run_path,
-            lambda f: f.write(run.model_dump_json(indent=2))
-        )
+        atomic_write_text(run_path, lambda f: f.write(run.model_dump_json(indent=2)))
 
         # Save summary
         summary = RunSummary.from_run(run)
         summary_path = self.base_path / "summaries" / f"{run.id}.json"
-        atomic_write_text(
-          summary_path,
-          lambda f: f.write(summary.model_dump_json(indent=2))
-        )
+        atomic_write_text(summary_path, lambda f: f.write(summary.model_dump_json(indent=2)))
 
         # Update indexes
         self._add_to_index("by_goal", run.goal_id, run.id)
@@ -200,10 +196,7 @@ class FileStorage:
         values = self._get_index(index_type, key)  # Already validated in _get_index
         if value not in values:
             values.append(value)
-            atomic_write_text(
-             index_path,
-             lambda f: json.dump(values, f, indent=2)
-            )
+            atomic_write_text(index_path, lambda f: json.dump(values, f, indent=2))
 
     def _remove_from_index(self, index_type: str, key: str, value: str) -> None:
         """Remove a value from an index."""
@@ -212,10 +205,7 @@ class FileStorage:
         values = self._get_index(index_type, key)  # Already validated in _get_index
         if value in values:
             values.remove(value)
-            atomic_write_text(
-             index_path,
-             lambda f: json.dump(values, f, indent=2)
-            )
+            atomic_write_text(index_path, lambda f: json.dump(values, f, indent=2))
 
     # === UTILITY ===
 
