@@ -3,11 +3,14 @@ Web Scrape Tool - Extract content from web pages.
 
 Uses httpx for requests and BeautifulSoup for HTML parsing.
 Returns clean text content from web pages.
-Respect robots.txt by default for ethical scraping.
+Respects robots.txt by default for ethical scraping.
+Validates URLs against internal network ranges to prevent SSRF attacks.
 """
 
 from __future__ import annotations
 
+import ipaddress
+import socket
 from typing import Any
 from urllib.parse import urljoin, urlparse
 from urllib.robotparser import RobotFileParser
@@ -29,6 +32,134 @@ BROWSER_USER_AGENT = (
     "Chrome/120.0.0.0 Safari/537.36"
 )
 
+# Manual redirect following prevents redirect-based SSRF bypasses
+_MAX_REDIRECTS = 10
+
+_REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
+
+
+def _is_internal_address(raw_ip: str) -> bool:
+    """
+    Determine whether an IP address targets non-public infrastructure.
+
+    Covers private networks, loopback, link-local, multicast, and reserved ranges.
+
+    Args:
+        raw_ip: IPv4 or IPv6 address string
+
+    Returns:
+        True if the address is non-public
+    """
+    # Strip IPv6 zone identifiers
+    ip_str = raw_ip.split("%")[0] if "%" in raw_ip else raw_ip
+
+    try:
+        addr = ipaddress.ip_address(ip_str)
+    except ValueError:
+        return True  # Unparseable — fail closed
+
+    return (
+        addr.is_private
+        or addr.is_reserved
+        or addr.is_loopback
+        or addr.is_link_local
+        or addr.is_multicast
+        or addr.is_unspecified
+    )
+
+
+def _check_url_target(url: str) -> str | None:
+    """
+    Resolve a URL's hostname and reject it if any address is non-public.
+
+    Performs DNS resolution via ``socket.getaddrinfo`` and checks every
+    returned address.  Blocks the URL if **any** address is internal
+
+    Args:
+        url: Fully-qualified URL to inspect
+
+    Returns:
+        An error message string if the URL must be blocked, None otherwise
+    """
+    hostname = urlparse(url).hostname
+    if not hostname:
+        return "Invalid URL: missing hostname"
+
+    # Fast-path for raw IP literals — no DNS needed
+    try:
+        ipaddress.ip_address(hostname)
+        if _is_internal_address(hostname):
+            return f"Blocked: direct request to internal address ({hostname})"
+    except ValueError:
+        pass  # Not an IP literal, resolve below
+
+    try:
+        results = socket.getaddrinfo(
+            hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM,
+        )
+    except socket.gaierror:
+        return f"DNS resolution failed for host: {hostname}"
+
+    if not results:
+        return f"No DNS records found for host: {hostname}"
+
+    for entry in results:
+        resolved_ip = str(entry[4][0])
+        if _is_internal_address(resolved_ip):
+            return f"Blocked: {hostname} resolves to internal address"
+
+    return None
+
+
+def _fetch_with_ssrf_guard(
+    url: str,
+    headers: dict[str, str],
+    timeout: float = 30.0,
+) -> tuple[httpx.Response, str] | dict[str, Any]:
+    """
+    Fetch a URL while guarding against SSRF at every network hop.
+
+    Replaces a plain ``httpx.get(..., follow_redirects=True)`` call.
+    Redirects are followed manually so that each intermediate target can
+    be validated against internal IP ranges before a connection is made.
+
+    Args:
+        url: Starting URL
+        headers: Request headers (User-Agent, Accept, etc.)
+        timeout: Per-request timeout in seconds
+
+    Returns:
+        ``(response, final_url)`` on success, or an error dict on block
+    """
+    seen: set[str] = set()
+
+    for _ in range(_MAX_REDIRECTS):
+        if url in seen:
+            return {"error": "Redirect loop detected"}
+        seen.add(url)
+
+        block_reason = _check_url_target(url)
+        if block_reason is not None:
+            return {"error": block_reason, "blocked_by_ssrf_protection": True, "url": url}
+
+        response = httpx.get(
+            url, headers=headers, follow_redirects=False, timeout=timeout,
+        )
+
+        if response.status_code not in _REDIRECT_STATUS_CODES:
+            return (response, url)
+
+        location = response.headers.get("location")
+        if not location:
+            return {"error": "Redirect without Location header"}
+
+        url = urljoin(url, location)
+        if not url.startswith(("http://", "https://")):
+            return {"error": f"Redirect to unsupported scheme: {urlparse(url).scheme}"}
+
+    return {"error": "Too many redirects"}
+
+# robots.txt helpers
 
 def _get_robots_parser(base_url: str, timeout: float = 10.0) -> RobotFileParser | None:
     """
@@ -94,6 +225,8 @@ def _is_allowed_by_robots(url: str) -> tuple[bool, str]:
         return False, f"Blocked by robots.txt for path: {path}"
 
 
+# Tool registration
+
 def register_tools(mcp: FastMCP) -> None:
     """Register web scrape tools with the MCP server."""
 
@@ -139,17 +272,20 @@ def register_tools(mcp: FastMCP) -> None:
             # Validate max_length
             max_length = max(1000, min(max_length, 500000))
 
-            # Make request
-            response = httpx.get(
+            # Fetch with SSRF protection and validated redirect following
+            fetch_result = _fetch_with_ssrf_guard(
                 url,
                 headers={
                     "User-Agent": BROWSER_USER_AGENT,
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                     "Accept-Language": "en-US,en;q=0.5",
                 },
-                follow_redirects=True,
-                timeout=30.0,
             )
+
+            if isinstance(fetch_result, dict):
+                return fetch_result
+
+            response, final_url = fetch_result
 
             if response.status_code != 200:
                 return {"error": f"HTTP {response.status_code}: Failed to fetch URL"}
@@ -205,7 +341,7 @@ def register_tools(mcp: FastMCP) -> None:
                 text = text[:max_length] + "..."
 
             result: dict[str, Any] = {
-                "url": str(response.url),
+                "url": final_url,
                 "title": title,
                 "description": description,
                 "content": text,
@@ -216,7 +352,7 @@ def register_tools(mcp: FastMCP) -> None:
             # Extract links if requested
             if include_links:
                 links: list[dict[str, str]] = []
-                base_url = str(response.url)  # Use final URL after redirects
+                base_url = final_url  # Use final URL after redirects
                 for a in soup.find_all("a", href=True)[:50]:
                     href = a["href"]
                     # Convert relative URLs to absolute URLs
