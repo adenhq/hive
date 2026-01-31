@@ -30,7 +30,7 @@ INTEGRATION_CREDENTIALS = {
 3. Name your integration (e.g., "Hive Agent")
 4. Select the workspace to associate it with
 5. Click "Submit" to create the integration
-6. Copy the "Internal Integration Secret" (starts with "secret_")
+6. Copy the "Internal Integration Secret"
 7. Share your Notion pages/databases with the integration:
    - Open the page/database in Notion
    - Click "..." menu → "Add connections"

@@ -11,7 +11,7 @@ Interact with Notion pages and databases via the Notion API.
 3. Name your integration (e.g., "Hive Agent")
 4. Select the workspace to associate it with
 5. Click **Submit**
-6. Copy the **Internal Integration Secret** (starts with `secret_`)
+6. Copy the **Internal Integration Secret**
 
 ### 2. Share Resources with the Integration
 
