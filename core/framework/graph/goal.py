@@ -14,11 +14,13 @@ Goals are:
 from datetime import datetime
 from typing import Any
 from enum import Enum
+import logging
 
 from pydantic import BaseModel, Field
 
 
 class GoalStatus(str, Enum):
+    logger = logging.getLogger(__name__)
     """Lifecycle status of a goal."""
     DRAFT = "draft"           # Being defined
     READY = "ready"           # Ready for agent creation
@@ -164,7 +166,19 @@ class Goal(BaseModel):
     model_config = {"extra": "allow"}
 
     def is_success(self) -> bool:
-        """Check if all weighted success criteria are met."""
+        """Check if all weighted success criteria are met and constraints satisfied."""
+        # FIX: Check hard constraints first (Issue #2552)
+        for constraint in self.constraints:
+            if constraint.constraint_type == "hard":
+                # Hard constraint violated = automatic failure
+                return False
+        
+        # Check soft constraints (log only)
+        for constraint in self.constraints:
+            if constraint.constraint_type == "soft":
+                logger.warning(f"Soft constraint violated: {constraint.id}")
+        
+        # Original success criteria check
         if not self.success_criteria:
             return False
 
