@@ -1,9 +1,9 @@
 """
 Web Scrape Tool - Extract content from web pages.
 
-Uses httpx for requests and BeautifulSoup for HTML parsing.
-Returns clean text content from web pages.
-Respect robots.txt by default for ethical scraping.
+Uses Playwright with stealth for headless browser scraping,
+enabling JavaScript-rendered content and bot detection evasion.
+Uses BeautifulSoup for HTML parsing and content extraction.
 """
 
 from __future__ import annotations
@@ -18,20 +18,22 @@ from urllib.robotparser import RobotFileParser
 
 import httpx
 import httpcore
+from urllib.parse import urljoin
+
 from bs4 import BeautifulSoup
 from fastmcp import FastMCP
-
-# Cache for robots.txt parsers (domain -> parser)
-_robots_cache: dict[str, RobotFileParser | None] = {}
-
-# User-Agent for the scraper - identifies as a bot for transparency
-USER_AGENT = "AdenBot/1.0 (https://adenhq.com; web scraping tool)"
+from playwright.async_api import (
+    Error as PlaywrightError,
+    TimeoutError as PlaywrightTimeout,
+    async_playwright,
+)
+from playwright_stealth import Stealth
 
 # Browser-like User-Agent for actual page requests
 BROWSER_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/120.0.0.0 Safari/537.36"
+    "Chrome/131.0.0.0 Safari/537.36"
 )
 
 
@@ -182,16 +184,16 @@ def register_tools(mcp: FastMCP) -> None:
     """Register web scrape tools with the MCP server."""
 
     @mcp.tool()
-    def web_scrape(
+    async def web_scrape(
         url: str,
         selector: str | None = None,
         include_links: bool = False,
         max_length: int = 50000,
-        respect_robots_txt: bool = True,
     ) -> dict:
         """
         Scrape and extract text content from a webpage.
 
+        Uses a headless browser to render JavaScript and bypass bot detection.
         Use when you need to read the content of a specific URL,
         extract data from a website, or read articles/documentation.
 
@@ -200,7 +202,6 @@ def register_tools(mcp: FastMCP) -> None:
             selector: CSS selector to target specific content (e.g., 'article', '.main-content')
             include_links: Include extracted links in the response
             max_length: Maximum length of extracted text (1000-500000)
-            respect_robots_txt: Whether to respect robots.txt rules (default: True)
 
         Returns:
             Dict with scraped content (url, title, description, content, length) or error dict
@@ -258,6 +259,60 @@ def register_tools(mcp: FastMCP) -> None:
 
             # Parse HTML
             soup = BeautifulSoup(response.text, "html.parser")
+            # Validate max_length
+            max_length = max(1000, min(max_length, 500000))
+
+            # Launch headless browser with stealth
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(
+                    headless=True,
+                    args=[
+                        "--no-sandbox",
+                        "--disable-setuid-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--disable-blink-features=AutomationControlled",
+                    ],
+                )
+                try:
+                    context = await browser.new_context(
+                        viewport={"width": 1920, "height": 1080},
+                        user_agent=BROWSER_USER_AGENT,
+                        locale="en-US",
+                    )
+                    page = await context.new_page()
+                    await Stealth().apply_stealth_async(page)
+
+                    response = await page.goto(
+                        url,
+                        wait_until="domcontentloaded",
+                        timeout=60000,
+                    )
+
+                    # Give JS a moment to render dynamic content
+                    await page.wait_for_timeout(2000)
+
+                    if response is None:
+                        return {"error": "Navigation failed: no response received"}
+
+                    if response.status != 200:
+                        return {"error": f"HTTP {response.status}: Failed to fetch URL"}
+
+                    # Validate Content-Type
+                    content_type = response.headers.get("content-type", "").lower()
+                    if not any(t in content_type for t in ["text/html", "application/xhtml+xml"]):
+                        return {
+                            "error": (f"Skipping non-HTML content (Content-Type: {content_type})"),
+                            "url": url,
+                            "skipped": True,
+                        }
+
+                    # Get fully rendered HTML
+                    html_content = await page.content()
+                finally:
+                    await browser.close()
+
+            # Parse rendered HTML with BeautifulSoup
+            soup = BeautifulSoup(html_content, "html.parser")
 
             # Remove noise elements
             for tag in soup(
@@ -298,12 +353,11 @@ def register_tools(mcp: FastMCP) -> None:
                 text = text[:max_length] + "..."
 
             result: dict[str, Any] = {
-                "url": str(response.url),
+                "url": url,
                 "title": title,
                 "description": description,
                 "content": text,
                 "length": len(text),
-                "robots_txt_respected": respect_robots_txt,
             }
 
             # Extract links if requested
@@ -321,9 +375,9 @@ def register_tools(mcp: FastMCP) -> None:
 
             return result
 
-        except httpx.TimeoutException:
+        except PlaywrightTimeout:
             return {"error": "Request timed out"}
-        except httpx.RequestError as e:
-            return {"error": f"Network error: {str(e)}"}
+        except PlaywrightError as e:
+            return {"error": f"Browser error: {e!s}"}
         except Exception as e:
-            return {"error": f"Scraping failed: {str(e)}"}
+            return {"error": f"Scraping failed: {e!s}"}
