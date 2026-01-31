@@ -31,7 +31,7 @@
   <img src="https://img.shields.io/badge/OpenAI-supported-412991?style=flat-square&logo=openai" alt="OpenAI" />
   <img src="https://img.shields.io/badge/Anthropic-supported-d4a574?style=flat-square" alt="Anthropic" />
   <img src="https://img.shields.io/badge/Google_Gemini-supported-4285F4?style=flat-square&logo=google" alt="Gemini" />
-  <img src="https://img.shields.io/badge/MCP-19_Tools-00ADD8?style=flat-square" alt="MCP" />
+  <img src="https://img.shields.io/badge/MCP-34_Tools-00ADD8?style=flat-square" alt="MCP" />
 </p>
 
 ## Overview
@@ -250,7 +250,8 @@ subgraph Foundation
         e2["Memory STM/LTM"]:::done
         e3["Web Search/Scraper"]:::done
         e4["CSV/PDF"]:::done
-        e5["Excel/Email"]
+        e5["Excel"]:::done
+        e6["Email"]
     end
     subgraph core["Core"]
         f1["Eval System"]

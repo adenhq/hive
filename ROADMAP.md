@@ -34,7 +34,8 @@ subgraph Foundation
         e2["Memory STM/LTM"]:::done
         e3["Web Search/Scraper"]:::done
         e4["CSV/PDF"]:::done
-        e5["Excel/Email"]
+        e5["Excel"]:::done
+        e6["Email"]
     end
     subgraph core["Core"]
         f1["Eval System"]
@@ -173,7 +174,7 @@ classDef done fill:#9e9e9e,color:#fff,stroke:#757575
     - [x] Web Scraper
     - [x] CSV tools
     - [x] PDF tools
-    - [ ] Excel tools
+    - [x] Excel tools
     - [ ] Email Tools
     - [ ] Recipe for "Add your own tools"
 

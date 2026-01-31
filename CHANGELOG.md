@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Excel tools** - Added `excel_read`, `excel_write`, and `excel_info` tools for reading and writing Excel (.xlsx) files
 - Initial project structure
 - React frontend (honeycomb) with Vite and TypeScript
 - Node.js backend (hive) with Express and TypeScript

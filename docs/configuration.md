@@ -109,7 +109,7 @@ MCP (Model Context Protocol) servers are configured in `.mcp.json` at the projec
 }
 ```
 
-The tools MCP server exposes tools including web search, PDF reading, CSV processing, and file system operations.
+The tools MCP server exposes tools including web search, PDF reading, CSV and Excel processing, and file system operations.
 
 ## Storage
 

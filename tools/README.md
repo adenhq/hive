@@ -75,6 +75,15 @@ python mcp_server.py
 | `web_search`           | Search the web (Google or Brave, auto-detected) |
 | `web_scrape`           | Scrape and extract content from webpages       |
 | `pdf_read`             | Read and extract text from PDF files           |
+| `csv_read`             | Read CSV files with pagination support         |
+| `csv_write`            | Write data to CSV files                        |
+| `csv_append`           | Append rows to existing CSV files              |
+| `csv_info`             | Get metadata about CSV files                   |
+| `csv_sql`              | Query CSV files using SQL (DuckDB)             |
+| `excel_read`           | Read Excel (.xlsx) files with sheet selection  |
+| `excel_write`          | Write data to Excel (.xlsx) files              |
+| `excel_info`           | Get metadata about Excel files                 |
+| `send_email`           | Send emails via Resend provider                |
 
 ## Project Structure
 
@@ -85,6 +94,9 @@ tools/
 │   ├── credentials/         # Credential management
 │   └── tools/               # Tool implementations
 │       ├── example_tool/
+│       ├── csv_tool/          # CSV processing tools
+│       ├── email_tool/        # Email sending tools
+│       ├── excel_tool/        # Excel (.xlsx) processing tools
 │       ├── file_system_toolkits/  # File operation tools
 │       │   ├── view_file.py
 │       │   ├── write_to_file.py
@@ -94,6 +106,7 @@ tools/
 │       │   ├── apply_patch.py
 │       │   ├── grep_search.py
 │       │   └── execute_command_tool.py
+│       ├── hubspot_tool/      # HubSpot CRM integration
 │       ├── web_search_tool/
 │       ├── web_scrape_tool/
 │       └── pdf_read_tool/
