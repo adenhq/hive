@@ -98,6 +98,7 @@ claude> /testing-agent
 PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'
 ```
 
+
 **[📖 Complete Setup Guide](ENVIRONMENT_SETUP.md)** - Detailed instructions for agent development
 
 ### Cursor IDE Support
