@@ -11,7 +11,8 @@ def register_tools(mcp: FastMCP):
         return get_secure_path(file_path, allowed_extensions=[".parquet"])
 
     @mcp.tool()
-    def parquet_read(file_path: str):
+    def parquet_read(file_path: str, ):
+
         """ The function to read the the parquet file and return its content as a string or JSON."""
         return {"error": "Not implemented yet."}
 
