@@ -80,8 +80,9 @@ cd hive
 ```
 
 Isto instala:
+
 - **framework** - Runtime do agente principal e executor de grafos
-- **aden_tools** - 19 ferramentas MCP para capacidades de agentes
+- **aden_tools** - 34 ferramentas MCP para capacidades de agentes
 - Todas as dependências necessárias
 
 ### Construa Seu Primeiro Agente
@@ -164,14 +165,14 @@ flowchart LR
 
 ### A Vantagem Aden
 
-| Frameworks Tradicionais | Aden |
-|-------------------------|------|
-| Codificar fluxos de trabalho de agentes | Descrever objetivos em linguagem natural |
-| Definição manual de grafos | Grafos de agentes auto-gerados |
-| Tratamento reativo de erros | Auto-evolução proativa |
-| Configurações de ferramentas estáticas | Nós dinâmicos envolvidos em SDK |
-| Configuração de monitoramento separada | Observabilidade em tempo real integrada |
-| Gerenciamento de orçamento DIY | Controles de custo e degradação integrados |
+| Frameworks Tradicionais                 | Aden                                       |
+| --------------------------------------- | ------------------------------------------ |
+| Codificar fluxos de trabalho de agentes | Descrever objetivos em linguagem natural   |
+| Definição manual de grafos              | Grafos de agentes auto-gerados             |
+| Tratamento reativo de erros             | Auto-evolução proativa                     |
+| Configurações de ferramentas estáticas  | Nós dinâmicos envolvidos em SDK            |
+| Configuração de monitoramento separada  | Observabilidade em tempo real integrada    |
+| Gerenciamento de orçamento DIY          | Controles de custo e degradação integrados |
 
 ### Como Funciona
 
@@ -210,7 +211,7 @@ Escolha outros frameworks quando você precisar de:
 ```
 hive/
 ├── core/                   # Framework principal - Runtime de agentes, executor de grafos, protocolos
-├── tools/                  # Pacote de Ferramentas MCP - 19 ferramentas para capacidades de agentes
+├── tools/                  # Pacote de Ferramentas MCP - 34 ferramentas para capacidades de agentes
 ├── exports/                # Pacotes de Agentes - Agentes pré-construídos e exemplos
 ├── docs/                   # Documentação e guias
 ├── scripts/                # Scripts de build e utilitários
@@ -233,7 +234,7 @@ Para construir e executar agentes orientados a objetivos com o framework:
 
 # Isto instala:
 # - pacote framework (runtime principal)
-# - pacote aden_tools (19 ferramentas MCP)
+# - pacote aden_tools (34 ferramentas MCP)
 # - Todas as dependências
 
 # Construir novos agentes usando habilidades Claude Code
