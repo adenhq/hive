@@ -7,21 +7,136 @@
 # 2. Installs Claude Code skills for building and testing agents
 # 3. Verifies the setup is ready to use
 #
+# Note: For Windows users, it's recommended to run this script in WSL (Windows Subsystem for Linux)
+#
 
 set -e
 
 # Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+if [[ -t 1 ]]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    NC='\033[0m' # No Color
+else
+    # No colors if not running in a terminal
+    RED='' GREEN='' YELLOW='' BLUE='' NC=''
+fi
+
+# Function to check if running in WSL
+is_wsl() {
+    grep -q Microsoft /proc/version 2>/dev/null
+}
+
+# Function to check if running in Git Bash
+is_git_bash() {
+    [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]
+}
+
+# Function to install WSL if not present
+install_wsl() {
+    if ! is_wsl && ! wsl --status &>/dev/null; then
+        echo -e "${YELLOW}WSL is not installed. Installing WSL with Ubuntu...${NC}"
+        echo -e "${YELLOW}This will require administrator privileges and a system restart.${NC}"
+        
+        # Check if running as administrator
+        if ! net session >/dev/null 2>&1; then
+            echo -e "${RED}Please run this script as Administrator to install WSL.${NC}"
+            exit 1
+        fi
+        
+        # Enable WSL feature
+        dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+        dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+        
+        echo -e "${GREEN}WSL features enabled. Please restart your computer and run this script again.${NC}"
+        exit 0
+    fi
+}
+
+# Windows-specific setup
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || -f "/mnt/c/Windows/System32/cmd.exe" ]]; then
+    echo -e "${BLUE}Detected Windows environment${NC}"
+    
+    # Check if running in WSL
+    if is_wsl; then
+        IS_WSL=true
+        echo -e "${YELLOW}Detected Windows Subsystem for Linux (WSL)${NC}"
+        
+        # Check if running from Windows filesystem
+        if [[ "$PWD" =~ ^/mnt/[a-zA-Z]/ ]]; then
+            echo -e "${YELLOW}Warning: Running from Windows filesystem. For better performance, move the project to WSL filesystem.${NC}"
+            echo -e "${YELLOW}Example: Clone the repository in your WSL home directory (~/projects/) instead.${NC}"
+        fi
+        
+    # Check if running in Git Bash
+    elif is_git_bash; then
+        echo -e "${YELLOW}Running in Git Bash on Windows. Some features may not work correctly.${NC}"
+        echo -e "${YELLOW}For best results, we recommend using WSL (Windows Subsystem for Linux).${NC}"
+        
+        # Offer to install WSL
+        read -p "Would you like to install WSL now? (y/N) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            install_wsl
+            exit 0
+        fi
+        
+        # Convert Windows paths to WSL paths if needed
+        if [[ "$PWD" =~ ^[A-Za-z]: ]]; then
+            echo -e "${YELLOW}Note: Running from Windows path. Some features may be limited.${NC}"
+        fi
+    fi
+    
+    # Add WSL to PATH if not present
+    if ! command -v wsl &> /dev/null; then
+        export PATH="$PATH:/mnt/c/Windows/System32"
+    fi
+    
+    echo
+fi
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Claude Code skills directory
-CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
+if [[ -z "$CLAUDE_SKILLS_DIR" ]]; then
+    CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
+    # Create directory if it doesn't exist
+    mkdir -p "$CLAUDE_SKILLS_DIR"
+fi
+
+# Print environment information
+echo -e "${BLUE}Environment:${NC}"
+echo -e "System: $(uname -a)"
+echo -e "Python: $($PYTHON_CMD --version 2>&1)"
+echo -e "Python path: $(which $PYTHON_CMD 2>/dev/null || echo 'Not found')"
+echo -e "Script directory: $SCRIPT_DIR"
+echo -e "Skills directory: $CLAUDE_SKILLS_DIR"
+
+# Check for required commands
+check_commands() {
+    local missing=()
+    for cmd in python3 pip3 git; do
+        if ! command -v $cmd &> /dev/null; then
+            missing+=("$cmd")
+        fi
+    done
+    
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo -e "${YELLOW}Warning: Missing required commands: ${missing[*]}${NC}"
+        if [ "$IS_WSL" = true ]; then
+            echo -e "${YELLOW}Installing missing dependencies...${NC}"
+            sudo apt update && sudo apt install -y ${missing[*]}
+        else
+            echo -e "${YELLOW}Please install the missing commands and try again.${NC}"
+        fi
+    fi
+}
+
+check_commands
+echo
 
 echo ""
 echo "=================================================="
@@ -36,17 +151,42 @@ echo ""
 echo -e "${BLUE}Step 1: Checking Python prerequisites...${NC}"
 echo ""
 
-# Check for Python
-if ! command -v python &> /dev/null && ! command -v python3 &> /dev/null; then
-    echo -e "${RED}Error: Python is not installed.${NC}"
-    echo "Please install Python 3.11+ from https://python.org"
-    exit 1
+# Function to check for Python
+check_python() {
+    if ! command -v python3 &> /dev/null && ! command -v python &> /dev/null; then
+        echo -e "${RED}Error: Python is not installed.${NC}"
+        
+        if [ "$IS_WSL" = true ]; then
+            echo -e "${YELLOW}Installing Python 3.11+ in WSL...${NC}"
+            sudo apt update && sudo apt install -y python3 python3-pip python3-venv
+        else
+            echo "Please install Python 3.11+ from https://python.org"
+            if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+                echo -e "${YELLOW}Or run this in PowerShell as Administrator:${NC}"
+                echo "  winget install Python.Python.3.11"
+            fi
+            exit 1
+        fi
+    fi
 fi
 
 # Use python3 if available, otherwise python
 PYTHON_CMD="python3"
 if ! command -v python3 &> /dev/null; then
     PYTHON_CMD="python"
+fi
+
+# Verify Python version
+PYTHON_VERSION=$($PYTHON_CMD -c "import sys; print('{}.{}'.format(sys.version_info.major, sys.version_info.minor))" 2>/dev/null || echo "0.0")
+if [[ "$(printf '%s\n' "3.11" "$PYTHON_VERSION" | sort -V | head -n1)" != "3.11" ]]; then
+    echo -e "${RED}Error: Python 3.11 or higher is required. Found Python $PYTHON_VERSION${NC}"
+    if [[ "$IS_WSL" == true ]]; then
+        echo -e "${YELLOW}To install Python 3.11 in WSL:${NC}"
+        echo "sudo add-apt-repository ppa:deadsnakes/ppa -y"
+        echo "sudo apt update"
+        echo "sudo apt install -y python3.11 python3.11-venv python3.11-dev"
+    fi
+    exit 1
 fi
 
 # Check Python version
