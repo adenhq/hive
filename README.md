@@ -64,6 +64,21 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 
 ## Quick Start
 
+If you are new to this , dont worry - this is the simplest way to get started
+
+What you need:
+- python 3.11 or newer
+- Terminal 
+- claude or cursor - only to try the agent skill commands
+
+Basic setup for a run:
+- Clone this repository
+- Run - `./quickstart.sh`
+- Make sure you confront no errors
+
+Now your framework and tools are great locally
+claude and cursor are suggested to understand and read the architecture but are optional
+
 ### Prerequisites
 
 - [Python 3.11+](https://www.python.org/downloads/) for agent development
