@@ -331,7 +331,8 @@ class GraphExecutor:
                     # Validate output before accepting it
                     if result.output and node_spec.output_keys:
                         nullable_keys = [
-                            k for k in node_spec.output_keys
+                            k
+                            for k in node_spec.output_keys
                             if node_spec.output_schema
                             and k in node_spec.output_schema
                             and not node_spec.output_schema[k].get("required", True)
@@ -340,7 +341,7 @@ class GraphExecutor:
                             output=result.output,
                             expected_keys=node_spec.output_keys,
                             check_hallucination=True,
-                            nullable_keys=nullable_keys
+                            nullable_keys=nullable_keys,
                         )
                         if not validation.success:
                             self.logger.error(f"   ✗ Output validation failed: {validation.error}")
