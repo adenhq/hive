@@ -10,7 +10,7 @@ import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from framework.schemas.decision import Decision, DecisionType, Option, Outcome
 from framework.schemas.run import Run, RunStatus
