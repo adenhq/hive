@@ -88,14 +88,13 @@ class FileStorage:
         # Save full run using Pydantic's model_dump_json
         run_path = self.base_path / "runs" / f"{run.id}.json"
         with atomic_write(run_path) as f:
-           f.write(run.model_dump_json(indent=2))
-
+            f.write(run.model_dump_json(indent=2))
 
         # Save summary
         summary = RunSummary.from_run(run)
         summary_path = self.base_path / "summaries" / f"{run.id}.json"
         with atomic_write(summary_path) as f:
-           f.write(summary.model_dump_json(indent=2))
+            f.write(summary.model_dump_json(indent=2))
 
         # Update indexes
         self._add_to_index("by_goal", run.goal_id, run.id)
@@ -191,8 +190,7 @@ class FileStorage:
         if value not in values:
             values.append(value)
             with atomic_write(index_path) as f:
-               json.dump(values, f, indent=2)
-
+                json.dump(values, f, indent=2)
 
     def _remove_from_index(self, index_type: str, key: str, value: str) -> None:
         """Remove a value from an index."""
@@ -202,7 +200,7 @@ class FileStorage:
         if value in values:
             values.remove(value)
             with atomic_write(index_path) as f:
-               json.dump(values, f, indent=2)
+                json.dump(values, f, indent=2)
 
     # === UTILITY ===
 
