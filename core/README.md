@@ -11,11 +11,33 @@ Framework provides a runtime framework that captures **decisions**, not just act
 - What it chose and why
 - What happened as a result
 
-## Installation
+
+## Environment Setup (New for Contributors)
+
+Before installing the framework or running MCP scripts, set up your Python environment using our cross-platform setup scripts.
+
+### Windows (PowerShell)
+
+```powershell
+cd scripts
+.\setup-python.ps1
+```
+
+### Linux / macOS (Bash only)
 
 ```bash
-pip install -e .
+cd scripts
+chmod +x setup-python.sh
+./setup-python.sh
 ```
+
+### Windows / Linux / macOS (Unified Setup)
+
+```bash
+cd scripts
+python setup-python.py
+```
+
 
 ## MCP Server Setup
 
