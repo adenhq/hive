@@ -7,6 +7,41 @@ Contains credentials for third-party service integrations (HubSpot, etc.).
 from .base import CredentialSpec
 
 INTEGRATION_CREDENTIALS = {
+    "notion": CredentialSpec(
+        env_var="NOTION_API_KEY",
+        tools=[
+            "notion_search",
+            "notion_get_page",
+            "notion_create_page",
+            "notion_update_page",
+            "notion_query_database",
+            "notion_append_blocks",
+        ],
+        required=True,
+        startup_required=False,
+        help_url="https://developers.notion.com/docs/getting-started",
+        description="Notion API integration token",
+        # Auth method support
+        aden_supported=False,
+        direct_api_key_supported=True,
+        api_key_instructions="""To get a Notion integration token:
+1. Go to https://www.notion.so/my-integrations
+2. Click "+ New integration"
+3. Name your integration (e.g., "Hive Agent")
+4. Select the workspace to associate it with
+5. Click "Submit" to create the integration
+6. Copy the "Internal Integration Secret" (starts with "secret_")
+7. Share your Notion pages/databases with the integration:
+   - Open the page/database in Notion
+   - Click "..." menu → "Add connections"
+   - Select your integration""",
+        # Health check configuration
+        health_check_endpoint="https://api.notion.com/v1/users/me",
+        health_check_method="GET",
+        # Credential store mapping
+        credential_id="notion",
+        credential_key="api_key",
+    ),
     "hubspot": CredentialSpec(
         env_var="HUBSPOT_ACCESS_TOKEN",
         tools=[
