@@ -1,0 +1,42 @@
+app:
+  name: "hive-agent"
+  environment: "development"
+  log_level: "info"
+
+server:
+  frontend:
+    port: 3000
+  backend:
+    port: 8000
+    host: "0.0.0.0"
+
+timescaledb:
+  url: "postgresql://user:pass@localhost:5432/hive"
+  port: 5432
+
+mongodb:
+  url: "mongodb://localhost:27017"
+  database: "hive_db"
+  erp_database: "erp_db"
+  port: 27017
+
+redis:
+  url: "redis://localhost:6379"
+  port: 6379
+
+auth:
+  jwt_secret: "super-secret-key-at-least-8-chars"
+  jwt_expires_in: "7d"
+  passphrase: "another-secret-passphrase-8-chars"
+
+npm:
+  token: ""
+
+cors:
+  origin: "*"
+
+features:
+  registration: true
+  rate_limiting: false
+  request_logging: true
+  mcp_server: false
