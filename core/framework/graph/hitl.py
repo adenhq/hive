@@ -205,7 +205,23 @@ Example format:
             # Parse Haiku's response
             import re
 
-            response_text = message.content[0].text.strip()
+            content = getattr(message, "content", None)
+            text = ""
+            if isinstance(content, str):
+                text = content
+            elif isinstance(content, list):
+                for block in content:
+                    block_text = getattr(block, "text", None)
+                    if isinstance(block_text, str):
+                        text = block_text
+                        break
+                    if isinstance(block, dict) and isinstance(block.get("text"), str):
+                        text = block["text"]
+                        break
+
+            response_text = (text or "").strip()
+            if not response_text:
+                raise ValueError("Empty model response")
             json_match = re.search(r"\{[^{}]*\}", response_text, re.DOTALL)
 
             if json_match:

@@ -120,7 +120,23 @@ Only output the JSON, nothing else."""
                     max_tokens=500,
                     messages=[{"role": "user", "content": prompt}],
                 )
-                text = response.content[0].text.strip()
+                content = getattr(response, "content", None)
+                extracted = ""
+                if isinstance(content, str):
+                    extracted = content
+                elif isinstance(content, list):
+                    for block in content:
+                        block_text = getattr(block, "text", None)
+                        if isinstance(block_text, str):
+                            extracted = block_text
+                            break
+                        if isinstance(block, dict) and isinstance(block.get("text"), str):
+                            extracted = block["text"]
+                            break
+
+                text = (extracted or "").strip()
+                if not text:
+                    raise ValueError("Empty model response")
 
             # Handle potential markdown code blocks
             if text.startswith("```"):

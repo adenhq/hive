@@ -458,7 +458,7 @@ def cmd_list(args: argparse.Namespace) -> int:
             print(f"  {agent['name']}")
             print(f"    Path: {agent['path']}")
             print(f"    Description: {agent['description']}")
-            print(f"    Steps: {agent['steps']}, Tools: {agent['tools']}")
+            print(f"    Steps: {agent['nodes']}, Tools: {agent['tools']}")
             print()
 
     return 0
@@ -676,7 +676,24 @@ Output ONLY valid JSON, no explanation:"""
             messages=[{"role": "user", "content": prompt}],
         )
 
-        json_str = message.content[0].text.strip()
+        # Anthropic returns a list of content blocks; it can be empty.
+        content = getattr(message, "content", None)
+        text = ""
+        if isinstance(content, str):
+            text = content
+        elif isinstance(content, list):
+            for block in content:
+                block_text = getattr(block, "text", None)
+                if isinstance(block_text, str):
+                    text = block_text
+                    break
+                if isinstance(block, dict) and isinstance(block.get("text"), str):
+                    text = block["text"]
+                    break
+
+        json_str = (text or "").strip()
+        if not json_str:
+            raise ValueError("Empty model response")
         # Remove markdown code blocks if present
         if json_str.startswith("```"):
             json_str = json_str.split("```")[1]

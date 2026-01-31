@@ -29,6 +29,26 @@ from framework.runtime.core import Runtime
 logger = logging.getLogger(__name__)
 
 
+def _first_text_block(message: Any) -> str:
+    """
+    Safely extract the first text block from an Anthropic message.
+
+    Anthropic SDK typically returns `message.content` as a list of blocks (may be empty).
+    We defensively handle empty/unknown shapes to avoid IndexError.
+    """
+    content = getattr(message, "content", None)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        for block in content:
+            block_text = getattr(block, "text", None)
+            if isinstance(block_text, str):
+                return block_text
+            if isinstance(block, dict) and isinstance(block.get("text"), str):
+                return block["text"]
+    return ""
+
+
 def find_json_object(text: str) -> str | None:
     """Find the first valid JSON object in text using balanced brace matching.
 
@@ -416,7 +436,9 @@ class NodeResult:
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            summary = message.content[0].text.strip()
+            summary = _first_text_block(message).strip()
+            if not summary:
+                raise ValueError("Empty model response")
             return f"✓ {summary}"
 
         except Exception:
@@ -1047,7 +1069,9 @@ Output ONLY the JSON object, nothing else."""
             )
 
             # Parse Haiku's response
-            response_text = message.content[0].text.strip()
+            response_text = _first_text_block(message).strip()
+            if not response_text:
+                raise ValueError("Empty model response")
 
             # Try to extract JSON using balanced brace matching
             json_str = find_json_object(response_text)
