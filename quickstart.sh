@@ -569,6 +569,13 @@ if [ -z "$SELECTED_PROVIDER_ID" ]; then
             echo -e "${YELLOW}Skipped.${NC} Add your API key to .env when ready."
             SELECTED_ENV_VAR=""
             SELECTED_PROVIDER_ID=""
+
+            # User intentionally skipped providing an LLM API key.
+            # Mark setup as running in limited (no-LLM) mode so verification
+            # does not fail later on LLM-dependent checks.
+            SKIP_LLM_SETUP=true 
+            
+
         fi
     fi
 fi
@@ -592,6 +599,12 @@ echo -e "${YELLOW}⬢${NC} ${BLUE}${BOLD}Step 4: Verifying installation...${NC}"
 echo ""
 
 ERRORS=0
+if [ "$SKIP_LLM_SETUP" = true ]; then
+    echo -e "${YELLOW}⚠️  LLM API key not configured. Skipping LLM-dependent verification.${NC}"
+    echo -e "${DIM}   You can add an API key later to enable full functionality.${NC}"
+    echo ""
+fi
+
 
 # Test imports
 echo -n "  ⬡ framework... "
@@ -635,10 +648,15 @@ fi
 echo ""
 
 if [ $ERRORS -gt 0 ]; then
-    echo -e "${RED}Setup failed with $ERRORS error(s).${NC}"
-    echo "Please check the errors above and try again."
-    exit 1
+    if [ "$SKIP_LLM_SETUP" = true ]; then
+        echo -e "${YELLOW}Setup completed with limited functionality (no LLM configured).${NC}"
+    else
+        echo -e "${RED}Setup failed with $ERRORS error(s).${NC}"
+        echo "Please check the errors above and try again."
+        exit 1
+    fi
 fi
+
 
 # ============================================================
 # Success!
