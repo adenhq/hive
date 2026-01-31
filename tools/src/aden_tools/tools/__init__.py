@@ -22,8 +22,8 @@ if TYPE_CHECKING:
 
 # Import register_tools from each tool module
 from .csv_tool import register_tools as register_csv
-from .excel_tool import register_tools as register_excel
 from .example_tool import register_tools as register_example
+from .excel_tool import register_tools as register_excel
 from .file_system_toolkits.apply_diff import register_tools as register_apply_diff
 from .file_system_toolkits.apply_patch import register_tools as register_apply_patch
 from .file_system_toolkits.execute_command_tool import (
