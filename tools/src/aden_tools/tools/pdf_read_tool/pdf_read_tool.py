@@ -13,6 +13,13 @@ from typing import Any
 from fastmcp import FastMCP
 from pypdf import PdfReader
 
+from aden_tools.utils import (
+    is_path_traversal,
+    sanitize_file_path,
+    validate_file_path,
+    MAX_FILE_SIZE_BYTES,
+)
+
 
 def register_tools(mcp: FastMCP) -> None:
     """Register PDF read tools with the MCP server."""
@@ -110,7 +117,22 @@ def register_tools(mcp: FastMCP) -> None:
             Dict with extracted text and metadata, or error dict
         """
         try:
+            # Sanitize input
+            try:
+                file_path = sanitize_file_path(file_path)
+            except ValueError as e:
+                return {"error": str(e)}
+
             path = Path(file_path).resolve()
+
+            # Security validations (path traversal, symlink, file size)
+            security_error = validate_file_path(
+                path,
+                file_path,
+                max_size_bytes=MAX_FILE_SIZE_BYTES,
+            )
+            if security_error:
+                return security_error
 
             # Validate file exists
             if not path.exists():
