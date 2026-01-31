@@ -212,10 +212,16 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     # Load and run agent
     try:
+        # Improved model selection: prefer explicit --model, fallback to config/env, then default
+        default_model = "gpt-4o"
+        model = getattr(args, "model", None)
+        if not model:
+            # Try to get from environment/config if available (pseudo-code, replace as needed)
+            model = os.environ.get("HIVE_DEFAULT_MODEL") or default_model
         runner = AgentRunner.load(
             args.agent_path,
             mock_mode=args.mock,
-            model=getattr(args, "model", None) or "gpt-4o",
+            model=model,
         )
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
