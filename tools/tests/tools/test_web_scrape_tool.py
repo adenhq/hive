@@ -64,6 +64,13 @@ class TestWebScrapeToolLinkConversion:
         mock_response.status_code = 200
         mock_response.text = html_content
         mock_response.url = final_url
+
+        # Mock headers.get() to return proper Content-Type for HTML
+        mock_response.headers = MagicMock()
+        mock_response.headers.get = MagicMock(
+            side_effect=lambda key, default="": "text/html; charset=utf-8"
+            if key.lower() == "content-type" else default
+        )
         return mock_response
 
     @patch("aden_tools.tools.web_scrape_tool.web_scrape_tool.httpx.get")
