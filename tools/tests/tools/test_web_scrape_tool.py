@@ -63,6 +63,7 @@ class TestWebScrapeToolLinkConversion:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.text = html_content
+        mock_response.headers = {"content-type": "text/html; charset=utf-8"}
         mock_response.url = final_url
         return mock_response
 

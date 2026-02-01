@@ -13,7 +13,7 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlparse
 
 from mcp.server import FastMCP
@@ -1304,6 +1304,8 @@ def validate_graph() -> str:
 def _generate_readme(session: BuildSession, export_data: dict, all_tools: set) -> str:
     """Generate README.md content for the exported agent."""
     goal = session.goal
+    if goal is None:
+        raise ValueError("Goal is required")
     nodes = session.nodes
     edges = session.edges
 
@@ -1506,6 +1508,9 @@ def export_graph() -> str:
     from pathlib import Path
 
     session = get_session()
+    goal = session.goal
+    if goal is None:
+        return json.dumps({"success": False, "error": "Goal is not set"})
     try:
         _validate_agent_dir_name(session.name)
     except Exception as e:
@@ -1605,7 +1610,7 @@ def export_graph() -> str:
     # Build GraphSpec
     graph_spec = {
         "id": f"{session.name}-graph",
-        "goal_id": session.goal.id,
+        "goal_id": goal.id,
         "version": "1.0.0",
         "entry_node": entry_node,
         "entry_points": entry_points,
@@ -1615,7 +1620,7 @@ def export_graph() -> str:
         "edges": edges_list,
         "max_steps": 100,
         "max_retries_per_node": 3,
-        "description": session.goal.description,
+        "description": goal.description,
         "created_at": datetime.now().isoformat(),
     }
 
@@ -1628,12 +1633,12 @@ def export_graph() -> str:
     export_data = {
         "agent": {
             "id": session.name,
-            "name": session.goal.name,
+            "name": goal.name,
             "version": "1.0.0",
-            "description": session.goal.description,
+            "description": goal.description,
         },
         "graph": graph_spec,
-        "goal": session.goal.model_dump(),
+        "goal": goal.model_dump(),
         "required_tools": list(all_tools),
         "metadata": {
             "created_at": datetime.now().isoformat(),
@@ -1643,9 +1648,9 @@ def export_graph() -> str:
     }
 
     # Add enrichment if present in goal
-    if hasattr(session.goal, "success_criteria"):
+    if hasattr(goal, "success_criteria"):
         enriched_criteria = []
-        for criterion in session.goal.success_criteria:
+        for criterion in goal.success_criteria:
             crit_dict = criterion.model_dump() if hasattr(criterion, "model_dump") else criterion
             enriched_criteria.append(crit_dict)
         export_data["goal"]["success_criteria"] = enriched_criteria
@@ -1703,7 +1708,7 @@ def export_graph() -> str:
             "agent": export_data["agent"],
             "files_written": files_written,
             "graph": graph_spec,
-            "goal": session.goal.model_dump(),
+            "goal": goal.model_dump(),
             "evaluation_rules": _evaluation_rules,
             "required_tools": list(all_tools),
             "node_count": len(session.nodes),
@@ -1786,6 +1791,7 @@ def add_mcp_server(
                 "error": f"Invalid transport '{transport}'. Must be 'stdio' or 'http'",
             }
         )
+    transport_lit = cast(Literal["stdio", "http"], transport)
 
     # Check for duplicate
     if any(s["name"] == name for s in session.mcp_servers):
@@ -1803,15 +1809,15 @@ def add_mcp_server(
 
     # Validate required fields
     errors = []
-    if transport == "stdio" and not command:
+    if transport_lit == "stdio" and not command:
         errors.append("command is required for stdio transport")
-    if transport == "http" and not url:
+    if transport_lit == "http" and not url:
         errors.append("url is required for http transport")
 
     if errors:
         return json.dumps({"success": False, "errors": errors})
 
-    if transport == "stdio":
+    if transport_lit == "stdio":
         allow_stdio = os.environ.get("HIVE_MCP_ALLOW_STDIO", "").strip().lower() in {
             "1",
             "true",
@@ -1831,18 +1837,18 @@ def add_mcp_server(
             return json.dumps({"success": False, "error": str(e)})
 
     try:
-        resolved_cwd = _resolve_stdio_cwd(cwd) if transport == "stdio" else None
+        resolved_cwd = _resolve_stdio_cwd(cwd) if transport_lit == "stdio" else None
     except Exception as e:
         return json.dumps({"success": False, "error": str(e)})
 
     # Build server config
-    server_config = {
+    server_config: dict[str, Any] = {
         "name": name,
-        "transport": transport,
+        "transport": transport_lit,
         "description": description,
     }
 
-    if transport == "stdio":
+    if transport_lit == "stdio":
         server_config["command"] = command
         server_config["args"] = args_list
         if cwd:
@@ -1860,12 +1866,12 @@ def add_mcp_server(
 
         mcp_config = MCPServerConfig(
             name=name,
-            transport=transport,
-            command=command if transport == "stdio" else None,
-            args=args_list if transport == "stdio" else [],
+            transport=transport_lit,
+            command=command if transport_lit == "stdio" else None,
+            args=args_list if transport_lit == "stdio" else [],
             env=env_dict,
             cwd=resolved_cwd,
-            url=url if transport == "http" else None,
+            url=url if transport_lit == "http" else None,
             headers=headers_dict,
             description=description,
         )
@@ -1948,7 +1954,7 @@ def list_mcp_tools(
         if not servers_to_query:
             return json.dumps({"success": False, "error": f"MCP server '{server_name}' not found"})
 
-    all_tools = {}
+    all_tools: dict[str, Any] = {}
 
     for server_config in servers_to_query:
         try:
@@ -2619,7 +2625,7 @@ def simulate_plan_execution(
         )
 
     steps = plan.get("steps", [])
-    completed = set()
+    completed: set[str] = set()
     execution_order = []
     iteration = 0
 
@@ -2630,6 +2636,8 @@ def simulate_plan_execution(
         ready = []
         for step in steps:
             step_id = step.get("id")
+            if not isinstance(step_id, str) or not step_id:
+                continue
             if step_id in completed:
                 continue
             deps = set(step.get("dependencies", []))
@@ -2642,6 +2650,8 @@ def simulate_plan_execution(
         # Execute first ready step (in real execution, could be parallel)
         step = ready[0]
         step_id = step.get("id")
+        if not isinstance(step_id, str) or not step_id:
+            continue
 
         execution_order.append(
             {
