@@ -150,3 +150,17 @@ def log_warning(message: str):
 def log_debug(message: str):
     """Quick debug log."""
     logging.debug(message)
+
+
+# Alias for compatibility
+def setup_logging(level: str = "INFO", log_file: Optional[str] = None):
+    """
+    Setup logging for the application.
+    
+    This is an alias for configure_root_logger for backward compatibility.
+    
+    Args:
+        level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        log_file: Optional path to log file
+    """
+    configure_root_logger(level, log_file)
