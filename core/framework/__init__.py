@@ -23,11 +23,9 @@ See `framework.testing` for details.
 """
 
 from framework.builder.query import BuilderQuery
-from framework.llm import AnthropicProvider, LLMProvider
-from framework.runner import AgentOrchestrator, AgentRunner
-from framework.runtime.core import Runtime
-from framework.schemas.decision import Decision, DecisionEvaluation, Option, Outcome
-from framework.schemas.run import Problem, Run, RunSummary
+from framework.llm import LLMProvider, AnthropicProvider
+from framework.runner import AgentRunner, AgentOrchestrator
+from framework.guardrails import GuardrailsConfig, GuardrailsManager, GuardrailViolation
 
 # Testing framework
 from framework.testing import (
@@ -59,6 +57,10 @@ __all__ = [
     # Runner
     "AgentRunner",
     "AgentOrchestrator",
+    # Guardrails
+    "GuardrailsConfig",
+    "GuardrailsManager",
+    "GuardrailViolation",
     # Testing
     "Test",
     "TestResult",
