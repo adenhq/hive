@@ -42,6 +42,7 @@ from .hubspot_tool import register_tools as register_hubspot
 from .pdf_read_tool import register_tools as register_pdf_read
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
+from .excel_tool import register_tools as register_excel
 
 
 def register_all_tools(
@@ -81,6 +82,7 @@ def register_all_tools(
     register_grep_search(mcp)
     register_execute_command(mcp)
     register_csv(mcp)
+    register_excel(mcp)
 
     return [
         "example_tool",
@@ -114,6 +116,12 @@ def register_all_tools(
         "hubspot_get_deal",
         "hubspot_create_deal",
         "hubspot_update_deal",
+        "excel_read",
+        "excel_write",
+        "excel_append",
+        "excel_info",
+        "excel_sheet_list",
+        "excel_to_csv",
     ]
 
 
