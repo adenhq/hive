@@ -113,12 +113,11 @@ def register_tools(mcp: FastMCP):
 
             query = f"""
                 SELECT {select_cols}
-                FROM read_parquet('{rel}')
+                FROM read_parquet(?)
                 {where_clause}
                 LIMIT {limit};
             """
-            result = conn.execute(query).fetchdf()
-            # rows = dict(result.to_dict(orient="list"))
+            result = conn.execute(query, [rel]).fetchdf()
             rows = [dict(rec)for rec in result.to_dict(orient="records")]
             out = {
                 "path":rel,
@@ -173,6 +172,11 @@ def register_tools(mcp: FastMCP):
         workspace_id: str,
         agent_id: str,
         session_id: str,
+        selected_columns: list[str] | None = None,
+        filters: dict[str, Any] | None = None,
+        group_by: list[str] | None = None,
+        order_by: list[str] | None = None,
+        limit: int | None = None,
     ):
         """ The function to run SQL query on the parquet file.
             The arugments are:
@@ -191,15 +195,72 @@ def register_tools(mcp: FastMCP):
             conn.execute(f"CREATE TEMP VIEW t AS SELECT * FROM read_parquet('{rel}');")
             conn.execute(f"CREATE TEMP VIEW sample_data AS SELECT * FROM read_parquet('{rel}');")
 
-            sql_limited, _ = _limit_sql_query(query, 100)
-            result = conn.execute(sql_limited).fetchdf()
-            rows = [dict(rec)for rec in result.to_dict(orient="records")]
-            out = {
+            # Build limited query to prevent large result sets
+            cols = selected_columns or ["*"]
+            selected_clause = ", ".join(
+                ["*" if c == "*" else f'"{c}"' for c in cols]
+            )
+            # selected_clause = ", ".join([f'"{c}"' for c in cols])
+
+            # Build WHERE clause from filters
+            allowed_ops = {"=", "!=", "<", "<=", ">", ">="}
+            where_parts, params = [], []
+            for col, op, val in filters or []:
+                if op not in allowed_ops:
+                    raise ValueError(f"Operator not allowed: {op}")
+                if op == "IN":
+                    placeholders = ", ".join(["?"] * len(val))
+                    where_parts.append(f'"{col}" IN ({placeholders})')
+                    params.extend(list(val))
+                else:
+                    where_parts.append(f'"{col}" {op} ?')
+                    params.append(val)
+            where_clause = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+
+            # Build GROUP BY clause
+            group_by_clause = f"GROUP BY {', '.join(f'{c}' for c in group_by)}" if group_by else ""
+
+            # Build ORDER BY clause
+            order_by_clause = []
+            for col, direction in order_by or []:
+                direction = direction.lower()
+                if direction not in {"asc", "desc"}:
+                    raise ValueError(f"Order direction not allowed: {direction}")
+                order_by_clause.append(f"{col} {direction}")
+            order_by_clause = f"ORDER BY {', '.join(order_by_clause)}" if order_by_clause else ""
+
+            # Limit clause
+            if limit is None:
+                limit = 100
+            limit = max(1, min(int(limit), 100))
+
+            sql = f"""
+                SELECT {selected_clause}
+                FROM t
+                {where_clause}
+                {group_by_clause}
+                {order_by_clause}
+                LIMIT {limit};
+            """
+
+            df = conn.execute(sql, params).fetchdf()
+            rows = [dict(rec)for rec in df.to_dict(orient="records")]
+            return {
                 "path": rel,
-                "columns": list(result.columns),
+                "columns": list(df.columns),
+                "limit": limit,
                 "rows": rows
             }
-            return out
+
+            # sql_limited, _ = _limit_sql_query(query, 100)
+            # result = conn.execute(sql_limited).fetchdf()
+            # rows = [dict(rec)for rec in result.to_dict(orient="records")]
+            # out = {
+            #     "path": rel,
+            #     "columns": list(result.columns),
+            #     "rows": rows
+            # }
+            # return out
         except Exception as e:
             return {"error": str(e)}
 # ------------------------
