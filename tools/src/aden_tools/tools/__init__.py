@@ -35,6 +35,7 @@ from .file_system_toolkits.replace_file_content import (
 # Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
+from .gitlab_tool import register_tools as register_gitlab
 from .pdf_read_tool import register_tools as register_pdf_read
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
@@ -75,6 +76,9 @@ def register_all_tools(
     register_execute_command(mcp)
     register_csv(mcp)
 
+    # Register GitLab tools
+    register_gitlab(mcp, credentials=credentials)
+
     return [
         "example_tool",
         "web_search",
@@ -93,6 +97,12 @@ def register_all_tools(
         "csv_append",
         "csv_info",
         "csv_sql",
+        # GitLab tools
+        "gitlab_list_projects",
+        "gitlab_list_issues",
+        "gitlab_get_merge_request",
+        "gitlab_create_issue",
+        "gitlab_trigger_pipeline",
     ]
 
 
