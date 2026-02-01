@@ -21,6 +21,40 @@ This will:
 - Fix package compatibility issues (openai + litellm)
 - Verify all installations
 
+## Next Steps After Setup
+
+After successfully running `./quickstart.sh` or manual setup, you're ready to build and run agents.
+
+### Is Claude Code Required?
+Claude Code CLI is **recommended but not required**.  
+It provides interactive skills (`/building-agents`, `/testing-agent`) that make agent creation easier.  
+If you have an Anthropic API key, you can use Claude to build agents quickly.  
+
+If you don’t want to use Claude (e.g., no API key or prefer manual setup), you can still build agents manually.
+
+### Minimal Manual Path (No Claude Needed)
+1. Create the `exports/` directory if it does not exist:
+   ```bash
+   mkdir -p exports/my_agent
+   ```
+
+
+Add your agent code inside exports/my_agent/ (e.g., init.py, agent.py, README.md).
+
+Validate your agent:
+
+```bash
+PYTHONPATH=core:exports python -m my_agent validate
+```
+What Success Looks Like
+
+A new folder appears under exports/ (e.g., exports/support_ticket_agent/).
+
+Running validate or info prints agent details without errors.
+
+You can run the agent with --input or --mock mode.
+
+
 ## Alpine Linux Setup
 
 If you are using Alpine Linux (e.g., inside a Docker container), you must install system dependencies and use a virtual environment before running the setup script:
