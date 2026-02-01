@@ -458,19 +458,36 @@ class StreamMemory:
 
         return None
 
-    def write_sync(self, key: str, value: Any) -> None:
+    def write_sync(
+        self,
+        key: str,
+        value: Any,
+        scope: StateScope = StateScope.EXECUTION,
+    ) -> None:
         """
         Synchronous write (for compatibility with existing code).
 
-        Always writes to execution scope for simplicity.
+        Accepts scope (EXECUTION, STREAM, GLOBAL) and writes to the same
+        underlying state as async write(), so stream/global scope persist
+        across executions.
         """
         if self._allowed_write is not None and key not in self._allowed_write:
             raise PermissionError(f"Not allowed to write key: {key}")
 
-        if self._execution_id not in self._manager._execution_state:
-            self._manager._execution_state[self._execution_id] = {}
+        if self._isolation == IsolationLevel.ISOLATED:
+            scope = StateScope.EXECUTION
 
-        self._manager._execution_state[self._execution_id][key] = value
+        if scope == StateScope.EXECUTION:
+            if self._execution_id not in self._manager._execution_state:
+                self._manager._execution_state[self._execution_id] = {}
+            self._manager._execution_state[self._execution_id][key] = value
+        elif scope == StateScope.STREAM:
+            if self._stream_id not in self._manager._stream_state:
+                self._manager._stream_state[self._stream_id] = {}
+            self._manager._stream_state[self._stream_id][key] = value
+        elif scope == StateScope.GLOBAL:
+            self._manager._global_state[key] = value
+
         self._manager._version += 1
 
     def read_all_sync(self) -> dict[str, Any]:
