@@ -196,6 +196,13 @@ for s in suggestions:
 - **Runtime**: Interface agents use to record their behavior.
 - **BuilderQuery**: Interface Builder uses to analyze agent behavior.
 
+## Execution Tracing
+
+Execution tracing captures a deterministic timeline of node execution within a workflow run.
+Each run produces an ordered, machine-readable trace with inputs, outputs, timing, and failures.
+This trace is a system artifact designed for observability, replay, and debugging in later phases.
+It is intentionally separate from logging or metrics.
+
 ## Execution Safety Validation
 
 Workflow graphs can be validated before execution using the deterministic validation utility. The validator enforces:

@@ -10,6 +10,7 @@ The executor:
 """
 
 import logging
+from uuid import uuid4
 from typing import Any, Callable
 from dataclasses import dataclass, field
 
@@ -29,6 +30,7 @@ from framework.graph.edge import GraphSpec
 from framework.graph.validator import OutputValidator
 from framework.graph.output_cleaner import OutputCleaner, CleansingConfig
 from framework.llm.provider import LLMProvider, Tool
+from framework.trace import ExecutionTrace
 
 
 @dataclass
@@ -191,6 +193,7 @@ class GraphExecutor:
             self.logger.info(f"🔄 Resuming from: {current_node_id}")
 
         # Start run
+        trace = ExecutionTrace(workflow_id=graph.id, run_id=str(uuid4()))
         _run_id = self.runtime.start_run(
             goal_id=goal.id,
             goal_description=goal.description,
@@ -255,6 +258,12 @@ class GraphExecutor:
                     )
 
                 # Execute node
+                resolved_inputs = (
+                    {key: memory.read(key) for key in node_spec.input_keys}
+                    if node_spec.input_keys
+                    else {}
+                )
+                trace.record_node_start(node_spec.id, resolved_inputs)
                 self.logger.info("   Executing...")
                 result = await node_impl.execute(ctx)
 
@@ -277,6 +286,7 @@ class GraphExecutor:
                             )
 
                 if result.success:
+                    trace.record_node_success(node_spec.id, result.output)
                     self.logger.info(f"   ✓ Success (tokens: {result.tokens_used}, latency: {result.latency_ms}ms)")
 
                     # Generate and log human-readable summary
@@ -292,6 +302,7 @@ class GraphExecutor:
                                 value_str = value_str[:200] + "..."
                             self.logger.info(f"      {key}: {value_str}")
                 else:
+                    trace.record_node_error(node_spec.id, RuntimeError(result.error or "Node execution failed"))
                     self.logger.error(f"   ✗ Failed: {result.error}")
 
                 total_tokens += result.tokens_used
@@ -319,6 +330,7 @@ class GraphExecutor:
                             output_data=memory.read_all(),
                             narrative=f"Failed at {node_spec.name} after {max_retries_per_node} retries: {result.error}",
                         )
+                        trace.finalize(status="failed")
                         return ExecutionResult(
                             success=False,
                             error=f"Node '{node_spec.name}' failed after {max_retries_per_node} attempts: {result.error}",
@@ -403,6 +415,8 @@ class GraphExecutor:
                 narrative=f"Executed {steps} steps through path: {' -> '.join(path)}",
             )
 
+            trace.finalize(status="completed")
+
             return ExecutionResult(
                 success=True,
                 output=output,
@@ -413,6 +427,8 @@ class GraphExecutor:
             )
 
         except Exception as e:
+            trace.record_node_error(current_node_id, e)
+            trace.finalize(status="failed")
             self.runtime.report_problem(
                 severity="critical",
                 description=str(e),
