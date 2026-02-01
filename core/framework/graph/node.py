@@ -22,6 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from framework.llm.openrouter import OpenRouterProvider
 from pydantic import BaseModel, Field
 
 from framework.llm.provider import LLMProvider, Tool
@@ -1075,13 +1076,17 @@ Keep the same JSON structure but with shorter content values.
         """
         import json
         import re
+        import os
 
-        content = raw_response.strip()
-
+        if os.environ.get("OPENROUTER_API_KEY"):
+            #content = re.sub(r"<think>.*?</think>", "", raw_response, flags=re.DOTALL).strip()
+            content = re.sub(r"<think>.*?(?:</think>|$)", "", raw_response, flags=re.DOTALL).strip()
+            if not content:
+                content = raw_response.strip()
+        else:
+            content = raw_response.strip()
         # Try direct JSON parse first (fast path)
         try:
-            content = raw_response.strip()
-
             # Remove markdown code blocks if present - more robust extraction
             if content.startswith("```"):
                 # Try multiple patterns for markdown code blocks
@@ -1192,14 +1197,18 @@ Keep the same JSON structure but with shorter content values.
             logger.info(f"      Using configured cleanup LLM: {cleanup_llm_model}")
         else:
             # Fall back to default logic: Cerebras preferred, then Haiku
-            api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+            api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
             if not api_key:
                 raise ValueError(
                     "Cannot parse JSON and no API key for LLM cleanup "
                     "(set CEREBRAS_API_KEY or ANTHROPIC_API_KEY, or configure cleanup_llm_model)"
                 )
-
-            if os.environ.get("CEREBRAS_API_KEY"):
+            if os.environ.get("OPENROUTER_API_KEY"):
+                cleaner_llm = OpenRouterProvider(
+                    api_key=os.environ.get("OPENROUTER_API_KEY", ""),
+                    model=os.environ.get("OPENROUTER_MODEL", ""),
+                )
+            elif os.environ.get("CEREBRAS_API_KEY"):
                 cleaner_llm = LiteLLMProvider(
                     api_key=os.environ.get("CEREBRAS_API_KEY"),
                     model="cerebras/llama-3.3-70b",

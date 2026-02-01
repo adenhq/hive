@@ -92,6 +92,32 @@ Get API keys:
 - **OpenAI**: [platform.openai.com](https://platform.openai.com/)
 - **Brave Search**: [brave.com/search/api](https://brave.com/search/api/)
 
+### Starter Agent
+
+For developing and testing the framework without Claude API
+Suggested model: deepseek/deepseek-r1-0528:free 
+
+```bash
+export OPENROUTER_API_KEY="your-key-here"
+export OPENROUTER_MODEL="model-name"
+export OPENROUTER_API_BASE="https://openrouter.ai/api/v1"
+PYTHONPATH=core python core/examples/starter_coding_agent.py
+```
+
+To avoid network calls, mock can be used:
+
+```bash
+STARTER_USE_MOCK=1 PYTHONPATH=core python core/examples/starter_coding_agent.py
+```
+
+Get the API key and the model:
+
+- **OpenRouter**: [openrouter.ai](https://openrouter.ai/)
+
+Related files:
+core/examples/starter_coding_agent.py
+core/llm/openrouter.py
+
 ### Install Claude Code Skills
 
 ```bash
