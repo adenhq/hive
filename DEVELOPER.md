@@ -198,6 +198,7 @@ hive/                                    # Repository root
 │   ├── setup-python.sh                  # Python environment setup
 │   └── setup.sh                         # Legacy setup script
 │
+├── .antigravity/                        # Antigravity IDE: mcp_config.json + skills (symlinks)
 ├── quickstart.sh                        # Install Claude Code skills
 ├── ENVIRONMENT_SETUP.md                 # Complete Python setup guide
 ├── README.md                            # Project overview

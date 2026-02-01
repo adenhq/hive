@@ -15,7 +15,6 @@
 
 [![Apache 2.0 License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/adenhq/hive/blob/main/LICENSE)
 [![Y Combinator](https://img.shields.io/badge/Y%20Combinator-Aden-orange)](https://www.ycombinator.com/companies/aden)
-[![Docker Pulls](https://img.shields.io/docker/pulls/adenhq/hive?logo=Docker&labelColor=%23528bff)](https://hub.docker.com/u/adenhq)
 [![Discord](https://img.shields.io/discord/1172610340073242735?logo=discord&labelColor=%235462eb&logoColor=%23f5f5f5&color=%235462eb)](https://discord.com/invite/MXE49hrKDk)
 [![Twitter Follow](https://img.shields.io/twitter/follow/teamaden?logo=X&color=%23f5f5f5)](https://x.com/aden_hq)
 [![LinkedIn](https://custom-icon-badges.demolab.com/badge/LinkedIn-0A66C2?logo=linkedin-white&logoColor=fff)](https://www.linkedin.com/company/teamaden/)
@@ -109,6 +108,16 @@ Skills are also available in Cursor. To enable:
 3. Restart Cursor to load the MCP servers from `.cursor/mcp.json`
 4. Type `/` in Agent chat and search for skills (e.g., `/building-agents-construction`)
 
+### Antigravity IDE Support
+
+Skills and MCP servers are also available in [Antigravity IDE](https://antigravity.google/) (Google's AI-powered IDE). **Easiest:** open a terminal in the hive repo folder and run (use `./` — the script is inside the repo):
+
+```bash
+./scripts/setup-antigravity-mcp.sh
+```
+
+Then restart Antigravity; **agent-builder** and **tools** MCP servers should connect. Skills are under `.antigravity/skills/` (symlinks to `.claude/skills/`). See [docs/antigravity-setup.md](docs/antigravity-setup.md) for manual setup and troubleshooting.
+
 ## Features
 
 - **Goal-Driven Development** - Define objectives in natural language; the coding agent generates the agent graph and connection code to achieve them
@@ -183,6 +192,9 @@ Aden Hive provides a list of featured agents that you can use and build on top o
 ### Run an agent shared by others
 Put the agent in `exports/` and run `PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'`
 
+## Development
+
+### Python Agent Development
 
 For building and running goal-driven agents with the framework:
 
