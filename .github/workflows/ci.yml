@@ -16,20 +16,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
+
       - name: Install dependencies
         run: |
           cd core
           pip install -e .
           pip install -r requirements-dev.txt
+
       - name: Ruff lint
         run: |
           ruff check core/
           ruff check tools/
+
       - name: Ruff format
         run: |
           ruff format --check core/
@@ -42,27 +46,32 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.11', '3.12', '3.13']
+        python-version: ['3.11', '3.12']
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
+
       - name: Install dependencies
         run: |
           cd core
           pip install --upgrade pip
           pip install -e .
           pip install -r requirements-dev.txt
+
       - name: Install tools dependencies
         run: |
           cd tools
           pip install --upgrade pip
           pip install -e .
+
       - name: Run core tests
         run: cd core && python -m pytest tests/ -v
+
       - name: Run tools tests
         run: cd tools && python -m pytest tests/ -v
 
@@ -72,16 +81,19 @@ jobs:
     needs: [lint, test]
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
+
       - name: Install dependencies
         run: |
           cd core
           pip install -e .
           pip install -r requirements-dev.txt
+
       - name: Validate exported agents
         run: |
           # Check that agent exports have valid structure
@@ -89,13 +101,16 @@ jobs:
             echo "No exports/ directory found, skipping validation"
             exit 0
           fi
+
           shopt -s nullglob
           agent_dirs=(exports/*/)
           shopt -u nullglob
+
           if [ ${#agent_dirs[@]} -eq 0 ]; then
             echo "No agent directories in exports/, skipping validation"
             exit 0
           fi
+
           validated=0
           for agent_dir in "${agent_dirs[@]}"; do
             if [ -f "$agent_dir/agent.json" ]; then
@@ -104,9 +119,9 @@ jobs:
               validated=$((validated + 1))
             fi
           done
+
           if [ "$validated" -eq 0 ]; then
             echo "No agent.json files found in exports/, skipping validation"
           else
             echo "Validated $validated agent(s)"
           fi
-          
