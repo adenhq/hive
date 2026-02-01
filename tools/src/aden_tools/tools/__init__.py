@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from aden_tools.credentials import CredentialManager
 
 # Import register_tools from each tool module
+from .airtable_tool import register_tools as register_airtable
 from .csv_tool import register_tools as register_csv
 from .example_tool import register_tools as register_example
 from .file_system_toolkits.apply_diff import register_tools as register_apply_diff
@@ -36,9 +37,9 @@ from .file_system_toolkits.replace_file_content import (
 from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
 from .pdf_read_tool import register_tools as register_pdf_read
+from .postgres_tool import register_tools as register_postgres
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
-from .postgres_tool import register_tools as register_postgres
 
 
 def register_all_tools(
@@ -77,6 +78,9 @@ def register_all_tools(
     register_csv(mcp)
     register_postgres(mcp, credentials=credentials)
 
+    # Register Airtable tools
+    register_airtable(mcp, credentials=credentials)
+
     return [
         "example_tool",
         "web_search",
@@ -96,6 +100,12 @@ def register_all_tools(
         "csv_info",
         "csv_sql",
         "postgres_read_query",
+        # Airtable tools
+        "airtable_list_bases",
+        "airtable_list_tables",
+        "airtable_list_records",
+        "airtable_create_record",
+        "airtable_update_record",
     ]
 
 

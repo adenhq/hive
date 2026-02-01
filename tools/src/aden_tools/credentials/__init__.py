@@ -46,10 +46,11 @@ To add a new credential:
 3. If new category, import and merge it in this __init__.py
 """
 
+from .airtable import AIRTABLE_CREDENTIALS
 from .base import CredentialError, CredentialManager, CredentialSpec
+from .db import DB_CREDENTIALS
 from .llm import LLM_CREDENTIALS
 from .search import SEARCH_CREDENTIALS
-from .db import DB_CREDENTIALS
 from .store_adapter import CredentialStoreAdapter
 
 # Merged registry of all credentials
@@ -57,6 +58,7 @@ CREDENTIAL_SPECS = {
     **LLM_CREDENTIALS,
     **SEARCH_CREDENTIALS,
     **DB_CREDENTIALS,
+    **AIRTABLE_CREDENTIALS,
 }
 
 __all__ = [
@@ -72,4 +74,5 @@ __all__ = [
     "LLM_CREDENTIALS",
     "SEARCH_CREDENTIALS",
     "DB_CREDENTIALS",
+    "AIRTABLE_CREDENTIALS",
 ]
