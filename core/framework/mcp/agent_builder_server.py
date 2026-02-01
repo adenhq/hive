@@ -2600,6 +2600,22 @@ def generate_constraint_tests(
     if not agent_path:
         return json.dumps({"error": "agent_path required (e.g., 'exports/my_agent')"})
 
+    agent_path = Path(agent_path)
+
+    if not agent_path.exists():
+        return json.dumps(
+            {
+                "success": False,
+                "error": f"Agent export directory not found: {agent_path}",
+                "hint": (
+                    "The agent may not be exported yet. "
+                    "Run export_graph() or ensure exports/<agent_name>/ exists."
+                ),
+            },
+            indent=2,
+        )
+
+
     agent_module = _get_agent_module_from_path(agent_path)
 
     # Format constraints for display
@@ -2679,6 +2695,21 @@ def generate_success_tests(
 
     if not agent_path:
         return json.dumps({"error": "agent_path required (e.g., 'exports/my_agent')"})
+
+    agent_path = Path(agent_path)
+
+    if not agent_path.exists():
+        return json.dumps(
+            {
+                "success": False,
+                "error": f"Agent export directory not found: {agent_path}",
+                "hint": (
+                    "The agent may not be exported yet. "
+                    "Run export_graph() or ensure exports/<agent_name>/ exists."
+                ),
+            },
+            indent=2,
+        )
 
     agent_module = _get_agent_module_from_path(agent_path)
 
