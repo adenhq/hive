@@ -81,6 +81,36 @@ class ValidationResult:
     warnings: list[str] = field(default_factory=list)
     cleaned_output: dict[str, Any] | None = None
 
+class PromptBuilder:
+    """Utility for building prompts for LLM-based tasks."""
+    @staticmethod
+    def build_cleansing_prompt(
+        validation_errors: list[str],
+        target_node_spec: Any,
+        output: dict[str, Any],
+        source_node_id: str,
+    ) -> str:
+        """Build prompt for cleansing output."""
+        schema_desc = OutputCleaner._build_schema_description(None, target_node_spec)
+        return f"""Clean this malformed agent output to match the expected schema.
+
+VALIDATION ERRORS:
+{chr(10).join(f"- {e}" for e in validation_errors)}
+
+EXPECTED SCHEMA for node '{target_node_spec.id}':
+{schema_desc}
+
+RAW OUTPUT from node '{source_node_id}':
+{json.dumps(output, indent=2, default=str)}
+
+INSTRUCTIONS:
+1. Extract values that match the expected schema keys
+2. If a value is a JSON string, parse it and extract the correct field
+3. Convert types to match the schema (string, dict, list, number, boolean)
+4. Remove extra fields not in the expected schema
+5. Ensure all required keys are present
+
+Return ONLY valid JSON matching the expected schema. No explanations, no markdown."""
 
 class OutputCleaner:
     """
@@ -259,26 +289,10 @@ class OutputCleaner:
         schema_desc = self._build_schema_description(target_node_spec)
 
         # Create cleansing prompt
-        prompt = f"""Clean this malformed agent output to match the expected schema.
-
-VALIDATION ERRORS:
-{chr(10).join(f"- {e}" for e in validation_errors)}
-
-EXPECTED SCHEMA for node '{target_node_spec.id}':
-{schema_desc}
-
-RAW OUTPUT from node '{source_node_id}':
-{json.dumps(output, indent=2, default=str)}
-
-INSTRUCTIONS:
-1. Extract values that match the expected schema keys
-2. If a value is a JSON string, parse it and extract the correct field
-3. Convert types to match the schema (string, dict, list, number, boolean)
-4. Remove extra fields not in the expected schema
-5. Ensure all required keys are present
-
-Return ONLY valid JSON matching the expected schema. No explanations, no markdown."""
-
+        prompt = PromptBuilder.build_cleansing_prompt(
+            validation_errors, target_node_spec, output, source_node_id
+        )
+        
         try:
             if self.config.log_cleanings:
                 logger.info(
