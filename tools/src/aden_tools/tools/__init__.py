@@ -35,6 +35,7 @@ from .file_system_toolkits.replace_file_content import (
 # Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
+from .greenhouse_tool import register_tools as register_greenhouse
 from .pdf_read_tool import register_tools as register_pdf_read
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
@@ -61,6 +62,7 @@ def register_all_tools(
     register_pdf_read(mcp)
 
     # Tools that need credentials (pass credentials if provided)
+    register_greenhouse(mcp, credentials=credentials)
     # web_search supports multiple providers (Google, Brave) with auto-detection
     register_web_search(mcp, credentials=credentials)
 
@@ -93,6 +95,12 @@ def register_all_tools(
         "csv_append",
         "csv_info",
         "csv_sql",
+        "greenhouse_list_jobs",
+        "greenhouse_get_job",
+        "greenhouse_list_candidates",
+        "greenhouse_get_candidate",
+        "greenhouse_add_candidate",
+        "greenhouse_list_applications",
     ]
 
 
