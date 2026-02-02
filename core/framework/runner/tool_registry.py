@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from framework.llm.provider import Tool, ToolUse, ToolResult
+from framework.llm.provider import  ToolUse, ToolResult
+from framework.tools.base import Tool
 
 logger = logging.getLogger(__name__)
 

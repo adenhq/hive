@@ -10,7 +10,8 @@ from framework.graph import Goal
 from framework.graph.edge import GraphSpec, EdgeSpec, EdgeCondition, AsyncEntryPointSpec
 from framework.graph.node import NodeSpec
 from framework.graph.executor import GraphExecutor, ExecutionResult
-from framework.llm.provider import LLMProvider, Tool
+from framework.llm.provider import LLMProvider
+from framework.tools.base import Tool
 from framework.runner.tool_registry import ToolRegistry
 from framework.runtime.core import Runtime
 

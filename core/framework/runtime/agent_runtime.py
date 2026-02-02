@@ -21,7 +21,8 @@ from framework.storage.concurrent import ConcurrentStorage
 if TYPE_CHECKING:
     from framework.graph.edge import GraphSpec
     from framework.graph.goal import Goal
-    from framework.llm.provider import LLMProvider, Tool
+    from framework.llm.provider import LLMProvider
+    from framework.tools.base import Tool
 
 logger = logging.getLogger(__name__)
 

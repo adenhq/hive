@@ -14,7 +14,8 @@ from unittest.mock import patch, MagicMock
 
 from framework.llm.litellm import LiteLLMProvider
 from framework.llm.anthropic import AnthropicProvider
-from framework.llm.provider import LLMProvider, Tool, ToolUse, ToolResult
+from framework.llm.provider import LLMProvider, ToolUse, ToolResult
+from framework.tools.base import Tool
 
 
 class TestLiteLLMProviderInit:

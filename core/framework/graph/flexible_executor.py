@@ -36,7 +36,8 @@ from framework.graph.plan import (
 from framework.graph.judge import HybridJudge, create_default_judge
 from framework.graph.worker_node import WorkerNode, StepExecutionResult
 from framework.graph.code_sandbox import CodeSandbox
-from framework.llm.provider import LLMProvider, Tool
+from framework.llm.provider import LLMProvider
+from framework.tools.base import Tool
 
 # Type alias for approval callback
 ApprovalCallback = Callable[[ApprovalRequest], ApprovalResult]

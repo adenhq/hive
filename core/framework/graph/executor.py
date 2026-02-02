@@ -28,7 +28,8 @@ from framework.graph.node import (
 from framework.graph.edge import GraphSpec
 from framework.graph.validator import OutputValidator
 from framework.graph.output_cleaner import OutputCleaner, CleansingConfig
-from framework.llm.provider import LLMProvider, Tool
+from framework.llm.provider import LLMProvider
+from framework.tools.base import Tool
 
 
 @dataclass

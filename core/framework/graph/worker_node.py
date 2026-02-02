@@ -23,7 +23,8 @@ from framework.graph.plan import (
 )
 from framework.graph.code_sandbox import CodeSandbox
 from framework.runtime.core import Runtime
-from framework.llm.provider import LLMProvider, Tool
+from framework.llm.provider import LLMProvider
+from framework.tools.base import Tool
 
 
 def parse_llm_json_response(text: str) -> tuple[Any | None, str]:

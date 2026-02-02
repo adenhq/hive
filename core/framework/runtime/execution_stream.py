@@ -24,7 +24,8 @@ if TYPE_CHECKING:
     from framework.storage.concurrent import ConcurrentStorage
     from framework.runtime.outcome_aggregator import OutcomeAggregator
     from framework.runtime.event_bus import EventBus
-    from framework.llm.provider import LLMProvider, Tool
+    from framework.llm.provider import LLMProvider
+    from framework.tools.base import Tool
 
 logger = logging.getLogger(__name__)
 

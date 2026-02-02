@@ -3,8 +3,9 @@
 import os
 from typing import Any
 
-from framework.llm.provider import LLMProvider, LLMResponse, Tool
+from framework.llm.provider import LLMProvider, LLMResponse
 from framework.llm.litellm import LiteLLMProvider
+from framework.tools.base import Tool
 
 
 def _get_api_key_from_credential_manager() -> str | None:

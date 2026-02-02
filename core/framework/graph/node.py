@@ -23,7 +23,8 @@ from dataclasses import dataclass, field
 from pydantic import BaseModel, Field
 
 from framework.runtime.core import Runtime
-from framework.llm.provider import LLMProvider, Tool
+from framework.llm.provider import LLMProvider
+from framework.tools.base import Tool
 
 logger = logging.getLogger(__name__)
 
