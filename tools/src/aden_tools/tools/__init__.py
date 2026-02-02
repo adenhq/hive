@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 # Import register_tools from each tool module
 from .csv_tool import register_tools as register_csv
+from .database_tool import register_tools as register_database
 from .email_tool import register_tools as register_email
 from .example_tool import register_tools as register_example
 from .file_system_toolkits.apply_diff import register_tools as register_apply_diff
@@ -81,6 +82,7 @@ def register_all_tools(
     register_grep_search(mcp)
     register_execute_command(mcp)
     register_csv(mcp)
+    register_database(mcp)
 
     return [
         "example_tool",
@@ -100,6 +102,8 @@ def register_all_tools(
         "csv_append",
         "csv_info",
         "csv_sql",
+        "db_info",
+        "db_query",
         "send_email",
         "send_budget_alert_email",
         "hubspot_search_contacts",

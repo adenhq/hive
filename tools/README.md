@@ -75,6 +75,8 @@ python mcp_server.py
 | `web_search`           | Search the web (Google or Brave, auto-detected) |
 | `web_scrape`           | Scrape and extract content from webpages       |
 | `pdf_read`             | Read and extract text from PDF files           |
+| `db_info`              | Inspect SQLite schemas (read-only)             |
+| `db_query`             | Run read-only SQLite queries                   |
 
 ## Project Structure
 
