@@ -104,25 +104,20 @@ if ! command -v python &> /dev/null && ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-# Prefer a Python >= 3.11 if multiple are installed (common on macOS).
-PYTHON_CMD=""
-for CANDIDATE in python3.11 python3.12 python3.13 python3 python; do
-    if command -v "$CANDIDATE" &> /dev/null; then
-        PYTHON_MAJOR=$("$CANDIDATE" -c 'import sys; print(sys.version_info.major)')
-        PYTHON_MINOR=$("$CANDIDATE" -c 'import sys; print(sys.version_info.minor)')
-        if [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -ge 11 ]; then
-            PYTHON_CMD="$CANDIDATE"
-            break
-        fi
-    fi
-done
+# Use project virtual environment
+VENV_DIR="$SCRIPT_DIR/.venv"
 
-if [ -z "$PYTHON_CMD" ]; then
-    # Fall back to python3/python just for a helpful detected version in the error message.
-    PYTHON_CMD="python3"
-    if ! command -v python3 &> /dev/null; then
-        PYTHON_CMD="python"
-    fi
+if [ ! -d "$VENV_DIR" ]; then
+    echo -e "${YELLOW}Creating project virtual environment...${NC}"
+    python3 -m venv "$VENV_DIR"
+fi
+
+PYTHON_CMD="$VENV_DIR/bin/python"
+PIP_FLAGS="--break-system-packages"
+
+if [ ! -f "$PYTHON_CMD" ]; then
+    echo -e "${RED}Virtual environment Python not found at $PYTHON_CMD${NC}"
+    exit 1
 fi
 
 # Check Python version (for logging/error messages)
@@ -176,68 +171,47 @@ echo ""
 
 # Upgrade pip, setuptools, and wheel
 echo -n "  Upgrading pip... "
-$PYTHON_CMD -m pip install --upgrade pip setuptools wheel > /dev/null 2>&1
+$PYTHON_CMD -m pip install $PIP_FLAGS --upgrade pip setuptools wheel 
 echo -e "${GREEN}ok${NC}"
 
 # Install framework package from core/
+cd "$SCRIPT_DIR"
+
 echo -n "  Installing framework... "
-cd "$SCRIPT_DIR/core"
+$PYTHON_CMD -m pip install $PIP_FLAGS -e core
+echo -e "${GREEN}ok${NC}"
 
-if [ -f "pyproject.toml" ]; then
-    uv sync > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}  ✓ framework package installed${NC}"
-    else
-        echo -e "${YELLOW}  ⚠ framework installation had issues (may be OK)${NC}"
-    fi
-else
-    echo -e "${RED}failed (no pyproject.toml)${NC}"
-    exit 1
-fi
-
-# Install aden_tools package from tools/
-echo -n "  Installing tools... "
-cd "$SCRIPT_DIR/tools"
-
-if [ -f "pyproject.toml" ]; then
-    uv sync > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}  ✓ aden_tools package installed${NC}"
-    else
-        echo -e "${RED}  ✗ aden_tools installation failed${NC}"
-        exit 1
-    fi
-else
-    echo -e "${RED}failed${NC}"
-    exit 1
-fi
+echo -n "  Installing aden_tools... "
+$PYTHON_CMD -m pip install $PIP_FLAGS -e tools
+echo -e "${GREEN}ok${NC}"
 
 # Install MCP dependencies
 echo -n "  Installing MCP... "
-$PYTHON_CMD -m pip install mcp fastmcp > /dev/null 2>&1
+$PYTHON_CMD -m pip install $PIP_FLAGS mcp fastmcp
 echo -e "${GREEN}ok${NC}"
 
 # Fix openai version compatibility
 echo -n "  Checking openai... "
-$PYTHON_CMD -m pip install "openai>=1.0.0" > /dev/null 2>&1
+$PYTHON_CMD -m pip install $PIP_FLAGS "openai>=1.0.0" 
+echo -e "${GREEN}ok${NC}"
+
+echo -n "  Fixing LiteLLM version... "
+$PYTHON_CMD -m pip install $PIP_FLAGS "litellm>=1.81.0"
 echo -e "${GREEN}ok${NC}"
 
 # Install click for CLI
 echo -n "  Installing CLI tools... "
-$PYTHON_CMD -m pip install click > /dev/null 2>&1
+$PYTHON_CMD -m pip install click
 echo -e "${GREEN}ok${NC}"
 
 # Install Playwright browser
-echo -n "  Installing Playwright browser... "
-if $PYTHON_CMD -c "import playwright" > /dev/null 2>&1; then
-    if $PYTHON_CMD -m playwright install chromium > /dev/null 2>&1; then
-        echo -e "${GREEN}ok${NC}"
-    else
-        echo -e "${YELLOW}⏭${NC}"
-    fi
-else
-    echo -e "${YELLOW}⏭${NC}"
-fi
+echo -n "  Installing Playwright... "
+$PYTHON_CMD -m pip install playwright
+$PYTHON_CMD -m playwright install chromium || {
+  echo -e "${YELLOW}Playwright browser install failed. You may need:${NC}"
+  echo "sudo apt install -y libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libgtk-3-0 libgbm1"
+}
+echo -e "${GREEN}ok${NC}"
 
 cd "$SCRIPT_DIR"
 echo ""
@@ -249,33 +223,6 @@ echo ""
 # ============================================================
 
 echo -e "${YELLOW}⬢${NC} ${BLUE}${BOLD}Step 3: Configuring LLM provider...${NC}"
-# Install MCP dependencies (in tools venv)
-echo "  Installing MCP dependencies..."
-TOOLS_PYTHON="$SCRIPT_DIR/tools/.venv/bin/python"
-uv pip install --python "$TOOLS_PYTHON" mcp fastmcp > /dev/null 2>&1
-echo -e "${GREEN}  ✓ MCP dependencies installed${NC}"
-
-# Fix openai version compatibility (in tools venv)
-TOOLS_PYTHON="$SCRIPT_DIR/tools/.venv/bin/python"
-OPENAI_VERSION=$($TOOLS_PYTHON -c "import openai; print(openai.__version__)" 2>/dev/null || echo "not_installed")
-if [ "$OPENAI_VERSION" = "not_installed" ]; then
-    echo "  Installing openai package..."
-    uv pip install --python "$TOOLS_PYTHON" "openai>=1.0.0" > /dev/null 2>&1
-    echo -e "${GREEN}  ✓ openai installed${NC}"
-elif [[ "$OPENAI_VERSION" =~ ^0\. ]]; then
-    echo "  Upgrading openai to 1.x+ for litellm compatibility..."
-    uv pip install --python "$TOOLS_PYTHON" --upgrade "openai>=1.0.0" > /dev/null 2>&1
-    echo -e "${GREEN}  ✓ openai upgraded${NC}"
-else
-    echo -e "${GREEN}  ✓ openai $OPENAI_VERSION is compatible${NC}"
-fi
-
-# Install click for CLI (in tools venv)
-TOOLS_PYTHON="$SCRIPT_DIR/tools/.venv/bin/python"
-uv pip install --python "$TOOLS_PYTHON" click > /dev/null 2>&1
-echo -e "${GREEN}  ✓ click installed${NC}"
-
-cd "$SCRIPT_DIR"
 echo ""
 
 # ============================================================
@@ -287,55 +234,21 @@ echo ""
 
 IMPORT_ERRORS=0
 
-# Test imports using their respective venvs
-CORE_PYTHON="$SCRIPT_DIR/core/.venv/bin/python"
-TOOLS_PYTHON="$SCRIPT_DIR/tools/.venv/bin/python"
-
-# Test framework import (from core venv)
-if [ -f "$CORE_PYTHON" ] && $CORE_PYTHON -c "import framework" > /dev/null 2>&1; then
-    echo -e "${GREEN}  ✓ framework imports OK${NC}"
-else
-    echo -e "${RED}  ✗ framework import failed${NC}"
-    IMPORT_ERRORS=$((IMPORT_ERRORS + 1))
-fi
-
-# Test aden_tools import (from tools venv)
-if [ -f "$TOOLS_PYTHON" ] && $TOOLS_PYTHON -c "import aden_tools" > /dev/null 2>&1; then
-    echo -e "${GREEN}  ✓ aden_tools imports OK${NC}"
-else
-    echo -e "${RED}  ✗ aden_tools import failed${NC}"
-    IMPORT_ERRORS=$((IMPORT_ERRORS + 1))
-fi
-
-# Test litellm import (from core venv)
-if [ -f "$CORE_PYTHON" ] && $CORE_PYTHON -c "import litellm" > /dev/null 2>&1; then
-    echo -e "${GREEN}  ✓ litellm imports OK (core)${NC}"
-else
-    echo -e "${YELLOW}  ⚠ litellm import issues in core (may be OK)${NC}"
-fi
-
-# Test litellm import (from tools venv)
-if [ -f "$TOOLS_PYTHON" ] && $TOOLS_PYTHON -c "import litellm" > /dev/null 2>&1; then
-    echo -e "${GREEN}  ✓ litellm imports OK (tools)${NC}"
-else
-    echo -e "${YELLOW}  ⚠ litellm import issues in tools (may be OK)${NC}"
-fi
-
-# Test MCP server module (from core venv)
-if [ -f "$CORE_PYTHON" ] && $CORE_PYTHON -c "from framework.mcp import agent_builder_server" > /dev/null 2>&1; then
-    echo -e "${GREEN}  ✓ MCP server module OK${NC}"
-else
-    echo -e "${RED}  ✗ MCP server module failed${NC}"
-    IMPORT_ERRORS=$((IMPORT_ERRORS + 1))
-fi
+for pkg in framework aden_tools litellm playwright; do
+    echo -n "  Testing $pkg... "
+    if $PYTHON_CMD -c "import $pkg" ; then
+        echo -e "${GREEN}ok${NC}"
+    else
+        echo -e "${RED}failed${NC}"
+        IMPORT_ERRORS=$((IMPORT_ERRORS + 1))
+    fi
+done
 
 if [ $IMPORT_ERRORS -gt 0 ]; then
-    echo ""
-    echo -e "${RED}Error: $IMPORT_ERRORS import(s) failed. Please check the errors above.${NC}"
+    echo -e "${RED}Error: $IMPORT_ERRORS imports failed.${NC}"
     exit 1
 fi
-
-echo ""
+echo -e "${GREEN}⬢${NC} All imports successful"
 
 # ============================================================
 # Step 4: Verify Claude Code Skills
@@ -577,7 +490,7 @@ fi
 if [ -n "$SELECTED_PROVIDER_ID" ]; then
     echo ""
     echo -n "  Saving configuration... "
-    save_configuration "$SELECTED_PROVIDER_ID" "$SELECTED_ENV_VAR" > /dev/null
+    save_configuration "$SELECTED_PROVIDER_ID" "$SELECTED_ENV_VAR"  
     echo -e "${GREEN}⬢${NC}"
     echo -e "  ${DIM}~/.hive/configuration.json${NC}"
 fi
@@ -595,7 +508,10 @@ ERRORS=0
 
 # Test imports
 echo -n "  ⬡ framework... "
-if $PYTHON_CMD -c "import framework" > /dev/null 2>&1; then
+echo "Using Python: $PYTHON_CMD"
+$PYTHON_CMD -c "import sys; print(sys.executable)"
+
+if $PYTHON_CMD -c "import framework" ; then
     echo -e "${GREEN}ok${NC}"
 else
     echo -e "${RED}failed${NC}"
@@ -603,7 +519,7 @@ else
 fi
 
 echo -n "  ⬡ aden_tools... "
-if $PYTHON_CMD -c "import aden_tools" > /dev/null 2>&1; then
+if $PYTHON_CMD -c "import aden_tools" ; then
     echo -e "${GREEN}ok${NC}"
 else
     echo -e "${RED}failed${NC}"
@@ -611,7 +527,7 @@ else
 fi
 
 echo -n "  ⬡ litellm... "
-if $PYTHON_CMD -c "import litellm" > /dev/null 2>&1; then
+if $PYTHON_CMD -c "import litellm" ; then
     echo -e "${GREEN}ok${NC}"
 else
     echo -e "${YELLOW}--${NC}"

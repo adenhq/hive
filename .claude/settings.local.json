@@ -35,6 +35,9 @@
       "mcp__agent-builder__export_graph"
     ]
   },
-  "enabledMcpjsonServers": ["agent-builder", "tools"],
-  "enableAllProjectMcpServers": true
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "agent-builder",
+    "tools"
+  ]
 }
