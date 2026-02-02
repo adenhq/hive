@@ -42,6 +42,7 @@ from .hubspot_tool import register_tools as register_hubspot
 from .pdf_read_tool import register_tools as register_pdf_read
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
+from .image_analysis_tool import register_tools as register_image_analysis
 
 
 def register_all_tools(
@@ -63,6 +64,7 @@ def register_all_tools(
     register_example(mcp)
     register_web_scrape(mcp)
     register_pdf_read(mcp)
+    register_image_analysis(mcp)
 
     # Tools that need credentials (pass credentials if provided)
     # web_search supports multiple providers (Google, Brave) with auto-detection
@@ -100,6 +102,7 @@ def register_all_tools(
         "csv_append",
         "csv_info",
         "csv_sql",
+        "analyze_image",
         "send_email",
         "send_budget_alert_email",
         "hubspot_search_contacts",
