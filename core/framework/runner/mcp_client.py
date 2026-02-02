@@ -87,7 +87,7 @@ class MCPClient:
         # If we have a persistent loop (for STDIO), use it
         if self._loop is not None:
             # Check if loop is running AND not closed
-            if self._loop.is_running() and not self._loop.is_closed():
+            if not self._loop.is_closed() and self._loop.is_running():
                 future = asyncio.run_coroutine_threadsafe(coro, self._loop)
                 return future.result()
             # else: fall through to the standard approach below
