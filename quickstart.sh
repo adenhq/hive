@@ -48,22 +48,23 @@ prompt_choice() {
     local options=("$@")
     local i=1
 
-    echo ""
-    echo -e "${BOLD}$prompt${NC}"
-    for opt in "${options[@]}"; do
-        echo -e "  ${CYAN}$i)${NC} $opt"
+    for option in "${options[@]}"; do
+        echo "$i) $option"
         ((i++))
     done
-    echo ""
 
     local choice
-    while true; do
-        read -r -p "Enter choice (1-${#options[@]}): " choice
-        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#options[@]}" ]; then
-            return $((choice - 1))
-        fi
-        echo -e "${RED}Invalid choice. Please enter 1-${#options[@]}${NC}"
-    done
+    read -r -p "$prompt" choice
+
+    # Validate choice is in valid range
+    if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt ${#options[@]} ]; then
+        echo "Invalid choice. Please select between 1 and ${#options[@]}"
+        prompt_choice "$prompt" "${options[@]}"
+        return
+    fi
+
+    # Echo the index (0-based) instead of returning it
+    echo $((choice - 1))
 }
 
 clear
