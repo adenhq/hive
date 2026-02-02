@@ -5,6 +5,7 @@ This module defines the formal structure for pause/resume interactions
 where agents need to gather input from humans.
 """
 
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -18,6 +19,9 @@ class HITLInputType(str, Enum):
     SELECTION = "selection"  # Choose from options
     APPROVAL = "approval"  # Yes/no/modify decision
     MULTI_FIELD = "multi_field"  # Multiple related inputs
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -213,6 +217,10 @@ Example format:
                 response.answers = parsed
 
         except Exception:
+            logger.warning(
+                "HITL parse_response failed to parse with Haiku; using fallback.",
+                exc_info=True,
+            )
             # Fallback: use raw input for first question
             if request.questions:
                 response.answers[request.questions[0].id] = raw_input
