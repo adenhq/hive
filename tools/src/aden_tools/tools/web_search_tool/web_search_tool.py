@@ -188,17 +188,25 @@ def register_tools(
         Returns:
             Dict with search results, total count, and provider used
         """
-        key = _make_cache_key(query, num_results, country, language, provider)
-        cached = _get_from_cache(key)
-        if cached:
-            return {"cached": True, **cached}
-
         if not query or len(query) > 500:
             return {"error": "Query must be 1-500 characters"}
 
         creds = _get_credentials()
         google_available = creds["google_api_key"] and creds["google_cse_id"]
         brave_available = bool(creds["brave_api_key"])
+
+        # Normalize provider for cache key
+        effective_provider = provider
+        if provider == "auto":
+            if brave_available:
+                effective_provider = "brave"
+            elif google_available:
+                effective_provider = "google"
+
+        key = _make_cache_key(query, num_results, country, language, effective_provider)
+        cached = _get_from_cache(key)
+        if cached:
+            return cached
 
         try:
             if provider == "google":
@@ -233,8 +241,7 @@ def register_tools(
                 if brave_available:
                     result = _search_brave(query, num_results, country, creds["brave_api_key"])
                     if "error" not in result:
-                        actual_key = _make_cache_key(query, num_results, country, language, result["provider"])
-                        _set_cache(actual_key, result)
+                        _set_cache(key, result)
                     return result
                 elif google_available:
                     result = _search_google(
@@ -246,8 +253,7 @@ def register_tools(
                         creds["google_cse_id"],
                     )
                     if "error" not in result:
-                        actual_key = _make_cache_key(query, num_results, country, language, result["provider"])
-                        _set_cache(actual_key, result)
+                        _set_cache(key, result)
                     return result
                 else:
                     return {
