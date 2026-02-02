@@ -56,18 +56,66 @@ if [ "$PYTHON_MINOR" -lt 11 ]; then
     echo -e "${YELLOW}You have Python $PYTHON_VERSION which may work but is not officially supported${NC}"
     echo ""
 fi
-
-echo -e "${GREEN}✓${NC} Python version check passed"
+echo -e "${GREEN}✓${NC} pip detected"
 echo ""
 
-# Check for pip
-if ! $PYTHON_CMD -m pip --version &> /dev/null; then
-    echo -e "${RED}Error: pip is not installed${NC}"
-    echo "Please install pip for Python $PYTHON_VERSION"
-    exit 1
+# Check if we're in a virtual environment
+in_venv() {
+    $PYTHON_CMD -c 'import sys; exit(0 if sys.prefix != sys.base_prefix else 1)'
+}
+
+# Check if Python is externally managed (PEP 668)
+is_externally_managed() {
+    # Check if pip install fails with externally-managed error
+    if $PYTHON_CMD -m pip install --dry-run pip 2>&1 | grep -q "externally-managed-environment"; then
+        return 0
+    fi
+    return 1
+}
+
+# Handle externally-managed Python
+if ! in_venv && is_externally_managed; then
+    echo -e "${YELLOW}=================================================="
+    echo "  Externally-Managed Python Detected"
+    echo "==================================================${NC}"
+    echo ""
+    echo "Your Python installation is managed by your OS package manager."
+    echo "To avoid conflicts, we'll create a virtual environment."
+    echo ""
+    
+    if [ ! -d "venv" ]; then
+        echo "Creating virtual environment in ./venv..."
+        if ! $PYTHON_CMD -m venv venv; then
+            echo -e "${RED}Error: Failed to create venv.${NC}"
+            echo "Please install python3-venv:"
+            echo "  ${BLUE}sudo apt install python3-venv${NC}  # Debian/Ubuntu"
+            echo "  ${BLUE}sudo dnf install python3-virtualenv${NC}  # Fedora"
+            exit 1
+        fi
+        echo -e "${GREEN}✓${NC} Virtual environment created"
+    else
+        echo -e "${GREEN}✓${NC} Virtual environment already exists"
+    fi
+    
+    echo ""
+    echo -e "${BLUE}Next steps:${NC}"
+    echo "  1. Activate the virtual environment:"
+    echo "     ${GREEN}source venv/bin/activate${NC}"
+    echo ""
+    echo "  2. Re-run this setup script:"
+    echo "     ${GREEN}./scripts/setup-python.sh${NC}"
+    echo ""
+    exit 0
 fi
 
-echo -e "${GREEN}✓${NC} pip detected"
+# Upgrade pip, setuptools, and wheel
+echo "Upgrading pip, setuptools, and wheel..."
+if ! $PYTHON_CMD -m pip install --upgrade pip setuptools wheel; then
+  echo -e "${YELLOW}⚠ Warning: Could not upgrade pip${NC}"
+  echo "Continuing with existing pip version..."
+  # Don't exit - continue with installation
+fi
+echo -e "${GREEN}✓${NC} Core packages upgraded"
 echo ""
 
 # Upgrade pip, setuptools, and wheel
