@@ -164,9 +164,10 @@ PYTHONPATH=core:exports python -m my_agent test --type success
 
 1. **Detailed Setup**: See [ENVIRONMENT_SETUP.md](../ENVIRONMENT_SETUP.md)
 2. **Developer Guide**: See [DEVELOPER.md](../DEVELOPER.md)
-3. **Build Agents**: Use `/building-agents` skill in Claude Code
-4. **Custom Tools**: Learn to integrate MCP servers
-5. **Join Community**: [Discord](https://discord.com/invite/MXE49hrKDk)
+3. **Local LLMs**: See [Local LLM Setup for Windows](local-llm-windows-setup.md)
+4. **Build Agents**: Use `/building-agents` skill in Claude Code
+5. **Custom Tools**: Learn to integrate MCP servers
+6. **Join Community**: [Discord](https://discord.com/invite/MXE49hrKDk)
 
 ## Troubleshooting
 
