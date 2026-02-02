@@ -1,0 +1,88 @@
+{
+  "name": "support_ticket_agent",
+  "version": "0.1.0",
+  "goal": {
+    "description": "Triage support tickets and draft a reply. Escalate when confidence is low.",
+    "success_criteria": [
+      {
+        "id": "sc_1",
+        "name": "sc_1",
+        "description": "Agent produces a triage summary and a reply, or escalates when confidence is low."
+      }
+    ],
+    "constraints": []
+  },
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "ticket_content": { "type": "string" },
+      "customer_id": { "type": "string" }
+    },
+    "required": ["ticket_content", "customer_id"]
+  },
+  "graph": {
+    "entry_node": "triage",
+    "nodes": [
+      {
+        "id": "triage",
+        "name": "triage",
+        "description": "llm node",
+        "type": "llm",
+        "model": "gpt-4o-mini",
+        "prompt": "You are a support triage assistant. Output JSON with keys: category, priority, summary, confidence (0 to 1).\nTicket: {{ticket_content}}\nCustomer: {{customer_id}}"
+      },
+      {
+        "id": "draft_reply",
+        "name": "draft_reply",
+        "description": "llm node",
+        "type": "llm",
+        "model": "gpt-4o-mini",
+        "prompt": "Draft a helpful support reply. Output JSON with keys: reply, next_steps (array), confidence (0 to 1).\nTicket: {{ticket_content}}\nTriage: {{category}}, {{priority}}, {{summary}}"
+      },
+      {
+        "id": "respond",
+        "name": "respond",
+        "description": "llm node",
+        "type": "llm",
+        "model": "gpt-4o-mini",
+        "prompt": "Return final JSON with keys: reply, next_steps, confidence.\nDraft: {{reply}}\nNext steps: {{next_steps}}\nConfidence: {{confidence}}"
+      },
+      {
+        "id": "escalate",
+        "name": "escalate",
+        "description": "human node",
+        "type": "human",
+        "prompt": "Please review and respond.\nTicket: {{ticket_content}}\nTriage: {{category}}, {{priority}}, {{summary}}\nDraft: {{reply}}",
+        "timeout": "1h"
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge_1",
+        "source": "triage",
+        "target": "draft_reply",
+        "condition": "on_success",
+        "priority": 0,
+        "input_mapping": {}
+      },
+      {
+        "id": "edge_2",
+        "source": "draft_reply",
+        "target": "respond",
+        "condition": "conditional",
+        "condition_expr": "confidence >= 0.7",
+        "priority": 0,
+        "input_mapping": {}
+      },
+      {
+        "id": "edge_3",
+        "source": "draft_reply",
+        "target": "escalate",
+        "condition": "conditional",
+        "condition_expr": "confidence < 0.7",
+        "priority": 0,
+        "input_mapping": {}
+      }
+    ]
+  }
+}
