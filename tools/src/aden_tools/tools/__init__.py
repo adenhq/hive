@@ -38,7 +38,9 @@ from .file_system_toolkits.replace_file_content import (
 # Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
+from .google_sheets_tool import register_tools as register_google_sheets
 from .hubspot_tool import register_tools as register_hubspot
+from .jira_tool import register_tools as register_jira
 from .pdf_read_tool import register_tools as register_pdf_read
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
@@ -67,9 +69,11 @@ def register_all_tools(
     # Tools that need credentials (pass credentials if provided)
     # web_search supports multiple providers (Google, Brave) with auto-detection
     register_web_search(mcp, credentials=credentials)
+    register_google_sheets(mcp, credentials=credentials)
     # email supports multiple providers (Resend) with auto-detection
     register_email(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
+    register_jira(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -100,6 +104,16 @@ def register_all_tools(
         "csv_append",
         "csv_info",
         "csv_sql",
+        "google_sheets_get_spreadsheet",
+        "google_sheets_create_spreadsheet",
+        "google_sheets_get_values",
+        "google_sheets_update_values",
+        "google_sheets_append_values",
+        "google_sheets_clear_values",
+        "google_sheets_batch_update_values",
+        "google_sheets_batch_clear_values",
+        "google_sheets_add_sheet",
+        "google_sheets_delete_sheet",
         "send_email",
         "send_budget_alert_email",
         "hubspot_search_contacts",
@@ -114,6 +128,14 @@ def register_all_tools(
         "hubspot_get_deal",
         "hubspot_create_deal",
         "hubspot_update_deal",
+        "jira_search_issues",
+        "jira_get_issue",
+        "jira_create_issue",
+        "jira_update_issue",
+        "jira_add_comment",
+        "jira_transition_issue",
+        "jira_get_transitions",
+        "jira_list_projects",
     ]
 
 
