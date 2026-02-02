@@ -112,22 +112,25 @@ echo "=================================================="
 echo "Installing Core Framework Package"
 echo "=================================================="
 echo ""
-cd "$PROJECT_ROOT/core"
 
+TOOLS_VENV="$PROJECT_ROOT/tools/.venv"
 # Create venv if it doesn't exist
-if [ ! -d ".venv" ]; then
+if [ ! -d "$TOOLS_VENV" ]; then
     echo "Creating virtual environment in core/.venv..."
-    uv venv
+    uv venv "$TOOLS_VENV"  --seed
     echo -e "${GREEN}✓${NC} Virtual environment created"
 else
     echo -e "${GREEN}✓${NC} Virtual environment already exists"
 fi
+TOOLS_PYTHON="$TOOLS_VENV/bin/python"
+# Ensure pip exists inside tools venv
+uv pip install --python "$TOOLS_PYTHON" --upgrade pip
+
 echo ""
 
 if [ -f "pyproject.toml" ]; then
     echo "Installing framework from core/ (editable mode)..."
-    CORE_PYTHON=".venv/bin/python"
-    if uv pip install --python "$CORE_PYTHON" -e .; then
+    if uv pip install --python "$TOOLS_PYTHON" -e .; then
         echo -e "${GREEN}✓${NC} Framework package installed"
     else
         echo -e "${YELLOW}⚠${NC} Framework installation encountered issues (may be OK if already installed)"
@@ -142,12 +145,12 @@ echo "=================================================="
 echo "Installing Tools Package (aden_tools)"
 echo "=================================================="
 echo ""
-cd "$PROJECT_ROOT/tools"
+# cd "$PROJECT_ROOT/tools"
 
 # Create venv if it doesn't exist
-if [ ! -d ".venv" ]; then
+if [ ! -d "$TOOLS_VENV" ]; then
     echo "Creating virtual environment in tools/.venv..."
-    uv venv
+    uv venv "$TOOLS_VENV" --seed
     echo -e "${GREEN}✓${NC} Virtual environment created"
 else
     echo -e "${GREEN}✓${NC} Virtual environment already exists"
@@ -156,7 +159,6 @@ echo ""
 
 if [ -f "pyproject.toml" ]; then
     echo "Installing aden_tools from tools/ (editable mode)..."
-    TOOLS_PYTHON=".venv/bin/python"
     if uv pip install --python "$TOOLS_PYTHON" -e .; then
         echo -e "${GREEN}✓${NC} Tools package installed"
     else
@@ -194,7 +196,6 @@ echo "Fixing Package Compatibility"
 echo "=================================================="
 echo ""
 
-TOOLS_PYTHON="$PROJECT_ROOT/tools/.venv/bin/python"
 
 # Check openai version in tools venv
 OPENAI_VERSION=$($TOOLS_PYTHON -c "import openai; print(openai.__version__)" 2>/dev/null || echo "not_installed")
@@ -241,9 +242,8 @@ echo ""
 cd "$PROJECT_ROOT"
 
 # Test framework import using core venv
-CORE_PYTHON="$PROJECT_ROOT/core/.venv/bin/python"
-if [ -f "$CORE_PYTHON" ]; then
-    if $CORE_PYTHON -c "import framework; print('framework OK')" > /dev/null 2>&1; then
+if [ -f "$TOOLS_PYTHON" ]; then
+    if $TOOLS_PYTHON -c "import framework; print('framework OK')" > /dev/null 2>&1; then
         echo -e "${GREEN}✓${NC} framework package imports successfully"
     else
         echo -e "${RED}✗${NC} framework package import failed"
@@ -255,7 +255,6 @@ else
 fi
 
 # Test aden_tools import using tools venv
-TOOLS_PYTHON="$PROJECT_ROOT/tools/.venv/bin/python"
 if [ -f "$TOOLS_PYTHON" ]; then
     if $TOOLS_PYTHON -c "import aden_tools; print('aden_tools OK')" > /dev/null 2>&1; then
         echo -e "${GREEN}✓${NC} aden_tools package imports successfully"
@@ -274,6 +273,7 @@ if $TOOLS_PYTHON -c "import litellm; print('litellm OK')" > /dev/null 2>&1; then
 else
     echo -e "${YELLOW}⚠${NC} litellm import had issues (may be OK if not using LLM features)"
 fi
+
 
 echo ""
 
@@ -306,3 +306,4 @@ echo ""
 echo "Documentation: ${PROJECT_ROOT}/README.md"
 echo "Agent Examples: ${PROJECT_ROOT}/exports/"
 echo ""
+
