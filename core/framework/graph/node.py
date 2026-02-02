@@ -17,7 +17,7 @@ Protocol:
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Callable
+from typing import Any, Callable, List, Optional
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
@@ -308,6 +308,9 @@ class NodeContext:
     # Execution metadata
     attempt: int = 1
     max_attempts: int = 3
+    
+    # --- ADDED: Conversation History ---
+    history: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -328,6 +331,10 @@ class NodeResult:
     # For routing decisions
     next_node: str | None = None
     route_reason: str | None = None
+    
+    # --- ADDED: Agentic Loop Fields ---
+    messages: list[dict] = field(default_factory=list)  # Captured messages for history
+    tool_calls: Optional[List[Any]] = None              # Raw tool calls from LLM
 
     # Metadata
     tokens_used: int = 0
@@ -342,6 +349,11 @@ class NodeResult:
         """
         if not self.success:
             return f"❌ Failed: {self.error}"
+        
+        # Special summary for tool calls
+        if self.tool_calls:
+            tool_names = [t.function.name for t in self.tool_calls]
+            return f"🛠️ Requesting tools: {', '.join(tool_names)}"
 
         if not self.output:
             return "✓ Completed (no output)"
@@ -400,32 +412,6 @@ Provide a concise, clear summary that a human can quickly understand. Focus on t
 class NodeProtocol(ABC):
     """
     The interface all nodes must implement.
-
-    To create a node:
-    1. Subclass NodeProtocol
-    2. Implement execute()
-    3. Register with the executor
-
-    Example:
-        class CalculatorNode(NodeProtocol):
-            async def execute(self, ctx: NodeContext) -> NodeResult:
-                expression = ctx.input_data.get("expression")
-
-                # Record decision
-                decision_id = ctx.runtime.decide(
-                    intent="Calculate expression",
-                    options=[...],
-                    chosen="evaluate",
-                    reasoning="Direct evaluation"
-                )
-
-                # Do the work
-                result = eval(expression)
-
-                # Record outcome
-                ctx.runtime.record_outcome(decision_id, success=True, result=result)
-
-                return NodeResult(success=True, output={"result": result})
     """
 
     @abstractmethod
@@ -526,6 +512,11 @@ class LLMNode(NodeProtocol):
         try:
             # Build messages
             messages = self._build_messages(ctx)
+            
+            # --- NEW: Append History ---
+            # If the context has prior history (e.g., from tool loops), append it
+            if ctx.history:
+                messages = [{"role": "user", "content": messages[0]["content"]}] + ctx.history
 
             # Build system prompt
             system = self._build_system_prompt(ctx)
@@ -538,28 +529,38 @@ class LLMNode(NodeProtocol):
                 logger.info(f"         Tools available: {[t.name for t in ctx.available_tools]}")
 
             # Call LLM
-            if ctx.available_tools and self.tool_executor:
-                from framework.llm.provider import ToolUse, ToolResult
+            if ctx.available_tools:
+                # OPTION 1: Use internal executor (Old Logic)
+                if self.tool_executor:
+                    from framework.llm.provider import ToolUse, ToolResult
 
-                def executor(tool_use: ToolUse) -> ToolResult:
-                    logger.info(f"         🔧 Tool call: {tool_use.name}({', '.join(f'{k}={v}' for k, v in tool_use.input.items())})")
-                    result = self.tool_executor(tool_use)
-                    # Truncate long results
-                    result_str = str(result.content)[:150]
-                    if len(str(result.content)) > 150:
-                        result_str += "..."
-                    logger.info(f"         ✓ Tool result: {result_str}")
-                    return result
+                    def executor(tool_use: ToolUse) -> ToolResult:
+                        logger.info(f"         🔧 Tool call: {tool_use.name}({', '.join(f'{k}={v}' for k, v in tool_use.input.items())})")
+                        result = self.tool_executor(tool_use)
+                        # Truncate long results
+                        result_str = str(result.content)[:150]
+                        if len(str(result.content)) > 150:
+                            result_str += "..."
+                        logger.info(f"         ✓ Tool result: {result_str}")
+                        return result
 
-                response = ctx.llm.complete_with_tools(
-                    messages=messages,
-                    system=system,
-                    tools=ctx.available_tools,
-                    tool_executor=executor,
-                )
+                    response = ctx.llm.complete_with_tools(
+                        messages=messages,
+                        system=system,
+                        tools=ctx.available_tools,
+                        tool_executor=executor,
+                    )
+                # OPTION 2: Return Tool Calls to Executor (New Logic)
+                else:
+                    response = ctx.llm.complete_with_tools(
+                        messages=messages,
+                        system=system,
+                        tools=ctx.available_tools,
+                        # No tool_executor passed! LLM returns tool_calls in response.
+                    )
+
             else:
                 # Use JSON mode for llm_generate nodes with output_keys
-                # Skip strict schema validation - just validate keys after parsing
                 use_json_mode = (
                     ctx.node_spec.node_type == "llm_generate"
                     and ctx.node_spec.output_keys
@@ -575,9 +576,7 @@ class LLMNode(NodeProtocol):
                 )
 
             # Log the response
-            response_preview = response.content[:200] if len(response.content) > 200 else response.content
-            if len(response.content) > 200:
-                response_preview += "..."
+            response_preview = response.content[:200] if response.content and len(response.content) > 200 else (response.content or "[Tool Call]")
             logger.info(f"      ← Response: {response_preview}")
 
             latency_ms = int((time.time() - start) * 1000)
@@ -591,73 +590,74 @@ class LLMNode(NodeProtocol):
             )
 
             # Write to output keys
-            output = self._parse_output(response.content, ctx.node_spec)
+            # (Only if no tool calls - if tool calls exist, we just return them)
+            tool_calls = getattr(response, "tool_calls", None)
+            output = {}
+            
+            if not tool_calls:
+                output = self._parse_output(response.content, ctx.node_spec)
 
-            # For llm_generate and llm_tool_use nodes, try to parse JSON and extract fields
-            if ctx.node_spec.node_type in ("llm_generate", "llm_tool_use") and len(ctx.node_spec.output_keys) >= 1:
-                try:
-                    import json
+                # For llm_generate and llm_tool_use nodes, try to parse JSON and extract fields
+                if ctx.node_spec.node_type in ("llm_generate", "llm_tool_use") and len(ctx.node_spec.output_keys) >= 1:
+                    try:
+                        import json
 
-                    # Try to extract JSON from response
-                    parsed = self._extract_json(response.content, ctx.node_spec.output_keys)
+                        # Try to extract JSON from response
+                        parsed = self._extract_json(response.content, ctx.node_spec.output_keys)
 
-                    # If parsed successfully, write each field to its corresponding output key
-                    if isinstance(parsed, dict):
-                        for key in ctx.node_spec.output_keys:
-                            if key in parsed:
-                                value = parsed[key]
-                                # Strip code block wrappers from string values
-                                if isinstance(value, str):
-                                    value = self._strip_code_blocks(value)
-                                ctx.memory.write(key, value)
-                                output[key] = value
-                            elif key in ctx.input_data:
-                                # Key not in parsed JSON but exists in input - pass through input value
-                                ctx.memory.write(key, ctx.input_data[key])
-                                output[key] = ctx.input_data[key]
-                            else:
-                                # Key not in parsed JSON or input, write the whole response (stripped)
-                                stripped_content = self._strip_code_blocks(response.content)
+                        # If parsed successfully, write each field to its corresponding output key
+                        if isinstance(parsed, dict):
+                            for key in ctx.node_spec.output_keys:
+                                if key in parsed:
+                                    value = parsed[key]
+                                    # Strip code block wrappers from string values
+                                    if isinstance(value, str):
+                                        value = self._strip_code_blocks(value)
+                                    ctx.memory.write(key, value)
+                                    output[key] = value
+                                elif key in ctx.input_data:
+                                    # Key not in parsed JSON but exists in input - pass through input value
+                                    ctx.memory.write(key, ctx.input_data[key])
+                                    output[key] = ctx.input_data[key]
+                                else:
+                                    # Key not in parsed JSON or input, write the whole response (stripped)
+                                    stripped_content = self._strip_code_blocks(response.content)
+                                    ctx.memory.write(key, stripped_content)
+                                    output[key] = stripped_content
+                        else:
+                            # Not a dict, fall back to writing entire response to all keys (stripped)
+                            stripped_content = self._strip_code_blocks(response.content)
+                            for key in ctx.node_spec.output_keys:
                                 ctx.memory.write(key, stripped_content)
                                 output[key] = stripped_content
-                    else:
-                        # Not a dict, fall back to writing entire response to all keys (stripped)
-                        stripped_content = self._strip_code_blocks(response.content)
-                        for key in ctx.node_spec.output_keys:
-                            ctx.memory.write(key, stripped_content)
-                            output[key] = stripped_content
 
-                except (json.JSONDecodeError, Exception) as e:
-                    # JSON extraction failed - fail explicitly instead of polluting memory
-                    logger.error(f"      ✗ Failed to extract structured output: {e}")
-                    logger.error(f"      Raw response (first 500 chars): {response.content[:500]}...")
+                    except (json.JSONDecodeError, Exception) as e:
+                        # JSON extraction failed - fail explicitly instead of polluting memory
+                        logger.error(f"      ✗ Failed to extract structured output: {e}")
+                        logger.error(f"      Raw response (first 500 chars): {response.content[:500]}...")
 
-                    # Return failure instead of writing garbage to all keys
-                    return NodeResult(
-                        success=False,
-                        error=f"Output extraction failed: {e}. LLM returned non-JSON response. Expected keys: {ctx.node_spec.output_keys}",
-                        output={},
-                        tokens_used=response.input_tokens + response.output_tokens,
-                        latency_ms=latency_ms,
-                    )
-                    # JSON extraction failed completely - still strip code blocks
-                    # logger.warning(f"      ⚠ Failed to extract JSON output: {e}")
-                    # stripped_content = self._strip_code_blocks(response.content)
-                    # for key in ctx.node_spec.output_keys:
-                    #     ctx.memory.write(key, stripped_content)
-                    #     output[key] = stripped_content
-            else:
-                # For non-llm_generate or single output nodes, write entire response (stripped)
-                stripped_content = self._strip_code_blocks(response.content)
-                for key in ctx.node_spec.output_keys:
-                    ctx.memory.write(key, stripped_content)
-                    output[key] = stripped_content
+                        return NodeResult(
+                            success=False,
+                            error=f"Output extraction failed: {e}. LLM returned non-JSON response.",
+                            output={},
+                            tokens_used=response.input_tokens + response.output_tokens,
+                            latency_ms=latency_ms,
+                        )
+                else:
+                    # For non-llm_generate or single output nodes, write entire response (stripped)
+                    stripped_content = self._strip_code_blocks(response.content)
+                    for key in ctx.node_spec.output_keys:
+                        ctx.memory.write(key, stripped_content)
+                        output[key] = stripped_content
 
             return NodeResult(
                 success=True,
                 output=output,
                 tokens_used=response.input_tokens + response.output_tokens,
                 latency_ms=latency_ms,
+                # --- NEW FIELDS ---
+                messages=[{"role": "assistant", "content": response.content}] if response.content else [],
+                tool_calls=tool_calls
             )
 
         except Exception as e:
@@ -743,6 +743,7 @@ class LLMNode(NodeProtocol):
         import os
         api_key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
+            # If no API key, just assume it's not JSON and let caller handle it
             raise ValueError("Cannot parse JSON and no API key for LLM cleanup (set CEREBRAS_API_KEY or ANTHROPIC_API_KEY)")
 
         # Use fast LLM to clean the response (Cerebras llama-3.3-70b preferred)

@@ -10,6 +10,8 @@ The executor:
 """
 
 import logging
+import json
+import time
 from typing import Any, Callable
 from dataclasses import dataclass, field
 
@@ -30,6 +32,7 @@ from framework.graph.validator import OutputValidator
 from framework.graph.output_cleaner import OutputCleaner, CleansingConfig
 from framework.llm.provider import LLMProvider
 from framework.tools.base import Tool
+from framework.tools.registry import ToolRegistry
 
 
 @dataclass
@@ -42,6 +45,7 @@ class ExecutionResult:
     total_tokens: int = 0
     total_latency_ms: int = 0
     path: list[str] = field(default_factory=list)  # Node IDs traversed
+    history: list[dict] = field(default_factory=list) # <--- ADDED: Track History
     paused_at: str | None = None  # Node ID where execution paused for HITL
     session_state: dict[str, Any] = field(default_factory=dict)  # State to resume from
 
@@ -49,20 +53,6 @@ class ExecutionResult:
 class GraphExecutor:
     """
     Executes agent graphs.
-
-    Example:
-        executor = GraphExecutor(
-            runtime=runtime,
-            llm=llm,
-            tools=tools,
-            tool_executor=my_tool_executor,
-        )
-
-        result = await executor.execute(
-            graph=graph_spec,
-            goal=goal,
-            input_data={"expression": "2 + 3"},
-        )
     """
 
     def __init__(
@@ -77,15 +67,6 @@ class GraphExecutor:
     ):
         """
         Initialize the executor.
-
-        Args:
-            runtime: Runtime for decision logging
-            llm: LLM provider for LLM nodes
-            tools: Available tools
-            tool_executor: Function to execute tools
-            node_registry: Custom node implementations by ID
-            approval_callback: Optional callback for human-in-the-loop approval
-            cleansing_config: Optional output cleansing configuration
         """
         self.runtime = runtime
         self.llm = llm
@@ -106,9 +87,6 @@ class GraphExecutor:
     def _validate_tools(self, graph: GraphSpec) -> list[str]:
         """
         Validate that all tools declared by nodes are available.
-
-        Returns:
-            List of error messages (empty if all tools are available)
         """
         errors = []
         available_tool_names = {t.name for t in self.tools}
@@ -134,15 +112,6 @@ class GraphExecutor:
     ) -> ExecutionResult:
         """
         Execute a graph for a goal.
-
-        Args:
-            graph: The graph specification
-            goal: The goal driving execution
-            input_data: Initial input data
-            session_state: Optional session state to resume from (with paused_at, memory, etc.)
-
-        Returns:
-            ExecutionResult with output and metrics
         """
         # Validate graph
         errors = graph.validate()
@@ -162,6 +131,11 @@ class GraphExecutor:
                 success=False,
                 error=f"Missing tools: {'; '.join(tool_errors)}. Register tools via ToolRegistry or remove tool declarations from nodes.",
             )
+        
+        # --- NEW: Initialize Registry ---
+        registry = ToolRegistry()
+        for t in self.tools:
+            registry.register(t)
 
         # Initialize execution state
         memory = SharedMemory()
@@ -179,6 +153,7 @@ class GraphExecutor:
                 memory.write(key, value)
 
         path: list[str] = []
+        history: list[dict] = [] # <--- NEW: Track History
         total_tokens = 0
         total_latency = 0
         node_retry_counts: dict[str, int] = {}  # Track retries per node
@@ -228,6 +203,7 @@ class GraphExecutor:
                     memory=memory,
                     goal=goal,
                     input_data=input_data or {},
+                    history=history # <--- PASSING HISTORY
                 )
 
                 # Log actual input data being read
@@ -258,6 +234,43 @@ class GraphExecutor:
                 self.logger.info("   Executing...")
                 result = await node_impl.execute(ctx)
 
+                # --- START: TOOL EXECUTION LOOP ---
+                if result.success and getattr(result, "tool_calls", None):
+                    self.logger.info(f"   🛠️ Agent requested {len(result.tool_calls)} tool(s)...")
+                    
+                    # 1. Add the Assistant's "Call" message to history
+                    if result.messages:
+                        history.extend(result.messages)
+
+                    for call in result.tool_calls:
+                        tool_name = call.function.name
+                        try:
+                            args = json.loads(call.function.arguments)
+                        except:
+                            args = {}
+                        
+                        self.logger.info(f"      Running: {tool_name}({args})")
+                        
+                        # 2. Execute
+                        try:
+                            tool_output = registry.execute(tool_name, args)
+                        except Exception as e:
+                            tool_output = f"Error executing tool: {str(e)}"
+
+                        # 3. Add Result to History
+                        tool_msg = {
+                            "role": "tool",
+                            "tool_call_id": call.id,
+                            "name": tool_name,
+                            "content": str(tool_output)
+                        }
+                        history.append(tool_msg)
+                    
+                    self.logger.info(f"   🔄 Tool execution done. Re-invoking node '{current_node_id}'...")
+                    # Loop back to same node (without incrementing next_node logic)
+                    continue 
+                # --- END: TOOL EXECUTION LOOP ---
+
                 if result.success:
                     # Validate output before accepting it
                     if result.output and node_spec.output_keys:
@@ -278,6 +291,10 @@ class GraphExecutor:
 
                 if result.success:
                     self.logger.info(f"   ✓ Success (tokens: {result.tokens_used}, latency: {result.latency_ms}ms)")
+                    
+                    # Add messages to history if present
+                    if result.messages:
+                        history.extend(result.messages)
 
                     # Generate and log human-readable summary
                     summary = result.to_summary(node_spec)
@@ -327,6 +344,7 @@ class GraphExecutor:
                             total_tokens=total_tokens,
                             total_latency_ms=total_latency,
                             path=path,
+                            history=history,
                         )
 
                 # Check if we just executed a pause node - if so, save state and return
@@ -339,6 +357,7 @@ class GraphExecutor:
                         "resume_from": f"{node_spec.id}_resume",  # Resume key
                         "memory": saved_memory,
                         "next_node": None,  # Will resume from entry point
+                        "history": history # <--- Save history
                     }
 
                     self.runtime.end_run(
@@ -356,6 +375,7 @@ class GraphExecutor:
                         path=path,
                         paused_at=node_spec.id,
                         session_state=session_state_out,
+                        history=history,
                     )
 
                 # Check if this is a terminal node - if so, we're done
@@ -390,6 +410,21 @@ class GraphExecutor:
 
             # Collect output
             output = memory.read_all()
+            
+            # --- START: TIMEOUT FIX ---
+            if steps >= graph.max_steps:
+                error_msg = f"Max steps exceeded ({graph.max_steps}). Agent failed to reach a conclusion."
+                self.logger.error(f"❌ {error_msg}")
+                self.runtime.report_problem(severity="error", description=error_msg)
+                
+                return ExecutionResult(
+                    success=False,
+                    error=error_msg,
+                    output=output,
+                    history=history,
+                    steps_executed=steps
+                )
+            # --- END: TIMEOUT FIX ---
 
             self.logger.info("\n✓ Execution complete!")
             self.logger.info(f"   Steps: {steps}")
@@ -410,6 +445,7 @@ class GraphExecutor:
                 total_tokens=total_tokens,
                 total_latency_ms=total_latency,
                 path=path,
+                history=history,
             )
 
         except Exception as e:
@@ -426,6 +462,7 @@ class GraphExecutor:
                 error=str(e),
                 steps_executed=steps,
                 path=path,
+                history=history,
             )
 
     def _build_context(
@@ -434,6 +471,7 @@ class GraphExecutor:
         memory: SharedMemory,
         goal: Goal,
         input_data: dict[str, Any],
+        history: list[dict], # <--- ADDED ARGUMENT
     ) -> NodeContext:
         """Build execution context for a node."""
         # Filter tools to those available to this node
@@ -457,6 +495,7 @@ class GraphExecutor:
             available_tools=available_tools,
             goal_context=goal.to_prompt_context(),
             goal=goal,  # Pass Goal object for LLM-powered routers
+            history=history, # <--- PASSING HISTORY
         )
 
     # Valid node types - no ambiguous "llm" type allowed
