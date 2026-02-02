@@ -63,7 +63,7 @@ if "--stdio" in sys.argv:
 
 from fastmcp import FastMCP  # noqa: E402
 from starlette.requests import Request  # noqa: E402
-from starlette.responses import PlainTextResponse  # noqa: E402
+from starlette.responses import HTMLResponse, PlainTextResponse  # noqa: E402
 
 from aden_tools.credentials import CredentialError, CredentialStoreAdapter  # noqa: E402
 from aden_tools.tools import register_all_tools  # noqa: E402
@@ -105,9 +105,38 @@ async def health_check(request: Request) -> PlainTextResponse:
 
 
 @mcp.custom_route("/", methods=["GET"])
-async def index(request: Request) -> PlainTextResponse:
-    """Landing page for browser visits."""
-    return PlainTextResponse("Welcome to the Hive MCP Server")
+async def index(request: Request) -> HTMLResponse:
+    """Landing page with server status."""
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Hive MCP Server</title>
+        <style>
+            body {{ font-family: system-ui, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; background: #fafafa; }}
+            h1 {{ color: #1f2937; margin-bottom: 8px; }}
+            .status {{ color: #22c55e; font-weight: bold; }}
+            .tool {{ background: white; padding: 10px 14px; margin: 6px 0; border-radius: 6px; border: 1px solid #e5e7eb; }}
+            .count {{ background: #3b82f6; color: white; padding: 2px 10px; border-radius: 12px; font-size: 14px; margin-left: 8px; }}
+            .header {{ display: flex; align-items: center; margin-top: 24px; }}
+            .subtitle {{ color: #6b7280; margin-top: 0; }}
+        </style>
+    </head>
+    <body>
+        <h1>Hive MCP Server</h1>
+        <p class="subtitle">Model Context Protocol Tools Server</p>
+        <p>Status: <span class="status">● Running</span></p>
+        <div class="header">
+            <h2>Available Tools</h2>
+            <span class="count">{len(tools)}</span>
+        </div>
+        <div>
+            {"".join(f'<div class="tool">{tool}</div>' for tool in tools)}
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(html)
 
 
 def main() -> None:
