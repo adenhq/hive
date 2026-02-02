@@ -335,6 +335,42 @@ mcp__agent-builder__get_session_status()
 
 ---
 
+## REFERENCE: Available Tools – Email
+
+The following email tools are provided by the hive-tools MCP server and are discoverable by the coding agent during the tool discovery step.
+
+### `send_email`
+
+Send a general-purpose email message.
+
+**Use when:**
+- Notifying users
+- Sending status updates
+- Delivering generated reports
+
+**Parameters:**
+- `to` (string): Recipient email address
+- `subject` (string): Email subject
+- `body` (string): Email body content
+
+---
+
+### `send_budget_alert_email`
+
+Send an automated email when a budget threshold is reached or exceeded.
+
+**Use when:**
+- Monitoring spending
+- Alerting on budget overruns
+- Financial governance workflows
+
+**Parameters:**
+- `to` (string): Recipient email address
+- `budget_limit` (number): Configured budget threshold
+- `current_spend` (number): Current spend amount
+
+```
+
 ## REFERENCE: System Prompt Best Practice
 
 For nodes with JSON output, include this in the system_prompt:
