@@ -21,8 +21,15 @@ if TYPE_CHECKING:
     from aden_tools.credentials import CredentialStoreAdapter
 
 # Import register_tools from each tool module
+from .communication_tool import register_tools as register_communication
 from .csv_tool import register_tools as register_csv
-from .email_tool import register_tools as register_email
+
+# Optional imports (may not be available in all environments)
+try:
+    from .email_tool import register_tools as register_email
+except ImportError:
+    register_email = None
+
 from .example_tool import register_tools as register_example
 from .file_system_toolkits.apply_diff import register_tools as register_apply_diff
 from .file_system_toolkits.apply_patch import register_tools as register_apply_patch
@@ -61,6 +68,7 @@ def register_all_tools(
     """
     # Tools that don't need credentials
     register_example(mcp)
+    register_communication(mcp)
     register_web_scrape(mcp)
     register_pdf_read(mcp)
 
@@ -68,7 +76,8 @@ def register_all_tools(
     # web_search supports multiple providers (Google, Brave) with auto-detection
     register_web_search(mcp, credentials=credentials)
     # email supports multiple providers (Resend) with auto-detection
-    register_email(mcp, credentials=credentials)
+    if register_email is not None:
+        register_email(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
 
     # Register file system toolkits
@@ -82,8 +91,14 @@ def register_all_tools(
     register_execute_command(mcp)
     register_csv(mcp)
 
-    return [
+    tool_names = [
         "example_tool",
+        "log_chat_message",
+        "get_chat_history",
+        "analyze_conversation",
+        "search_chat_history",
+        "export_conversation",
+        "list_conversation_sessions",
         "web_search",
         "web_scrape",
         "pdf_read",
@@ -100,8 +115,16 @@ def register_all_tools(
         "csv_append",
         "csv_info",
         "csv_sql",
-        "send_email",
-        "send_budget_alert_email",
+    ]
+
+    # Add email tools if available
+    if register_email is not None:
+        tool_names.extend([
+            "send_email",
+            "send_budget_alert_email",
+        ])
+
+    tool_names.extend([
         "hubspot_search_contacts",
         "hubspot_get_contact",
         "hubspot_create_contact",
@@ -114,7 +137,9 @@ def register_all_tools(
         "hubspot_get_deal",
         "hubspot_create_deal",
         "hubspot_update_deal",
-    ]
+    ])
+
+    return tool_names
 
 
 __all__ = ["register_all_tools"]
