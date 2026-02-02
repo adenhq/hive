@@ -7,6 +7,35 @@ Contains credentials for third-party service integrations (HubSpot, etc.).
 from .base import CredentialSpec
 
 INTEGRATION_CREDENTIALS = {
+    "google_calendar": CredentialSpec(
+        env_var="GOOGLE_CALENDAR_ACCESS_TOKEN",
+        tools=[
+            "google_calendar_list_calendars",
+            "google_calendar_list_events",
+            "google_calendar_get_event",
+            "google_calendar_create_event",
+            "google_calendar_update_event",
+            "google_calendar_delete_event",
+        ],
+        required=True,
+        startup_required=False,
+        help_url="https://developers.google.com/calendar/api/guides/overview",
+        description="Google Calendar OAuth2 access token",
+        aden_supported=True,
+        aden_provider_name="google_calendar",
+        direct_api_key_supported=True,
+        api_key_instructions="""To get a Google Calendar OAuth2 token:
+1. Create an OAuth client in Google Cloud Console
+2. Enable the Google Calendar API for your project
+3. Request scopes:
+   - https://www.googleapis.com/auth/calendar
+4. Exchange the auth code for an access token
+5. Set GOOGLE_CALENDAR_ACCESS_TOKEN with the access token""",
+        health_check_endpoint="https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1",
+        health_check_method="GET",
+        credential_id="google_calendar",
+        credential_key="access_token",
+    ),
     "hubspot": CredentialSpec(
         env_var="HUBSPOT_ACCESS_TOKEN",
         tools=[

@@ -75,6 +75,12 @@ python mcp_server.py
 | `web_search`           | Search the web (Google or Brave, auto-detected) |
 | `web_scrape`           | Scrape and extract content from webpages       |
 | `pdf_read`             | Read and extract text from PDF files           |
+| `google_calendar_list_calendars` | List Google Calendar calendars          |
+| `google_calendar_list_events`    | List Google Calendar events              |
+| `google_calendar_get_event`      | Fetch a Google Calendar event            |
+| `google_calendar_create_event`   | Create a Google Calendar event           |
+| `google_calendar_update_event`   | Update a Google Calendar event           |
+| `google_calendar_delete_event`   | Delete a Google Calendar event           |
 
 ## Project Structure
 

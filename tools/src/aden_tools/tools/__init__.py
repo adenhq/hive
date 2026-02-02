@@ -38,6 +38,7 @@ from .file_system_toolkits.replace_file_content import (
 # Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
+from .google_calendar_tool import register_tools as register_google_calendar
 from .hubspot_tool import register_tools as register_hubspot
 from .pdf_read_tool import register_tools as register_pdf_read
 from .web_scrape_tool import register_tools as register_web_scrape
@@ -69,6 +70,7 @@ def register_all_tools(
     register_web_search(mcp, credentials=credentials)
     # email supports multiple providers (Resend) with auto-detection
     register_email(mcp, credentials=credentials)
+    register_google_calendar(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
 
     # Register file system toolkits
@@ -102,6 +104,12 @@ def register_all_tools(
         "csv_sql",
         "send_email",
         "send_budget_alert_email",
+        "google_calendar_list_calendars",
+        "google_calendar_list_events",
+        "google_calendar_get_event",
+        "google_calendar_create_event",
+        "google_calendar_update_event",
+        "google_calendar_delete_event",
         "hubspot_search_contacts",
         "hubspot_get_contact",
         "hubspot_create_contact",
