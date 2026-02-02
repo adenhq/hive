@@ -387,7 +387,7 @@ Hive supports 100+ LLM providers through LiteLLM integration, including OpenAI (
 
 **Q: Can I use Hive with local AI models like Ollama?**
 
-Yes! Hive supports local models through LiteLLM. Simply use the model name format `ollama/model-name` (e.g., `ollama/llama3`, `ollama/mistral`) and ensure Ollama is running locally.
+Yes! Hive supports local models through LiteLLM. Simply use the model name format `ollama/model-name` (e.g., `ollama/llama3`, `ollama/mistral`) and ensure Ollama is running locally. See the [Local LLM Setup Guide for Windows](docs/local-llm-windows-setup.md) for detailed instructions.
 
 **Q: What makes Hive different from other agent frameworks?**
 
