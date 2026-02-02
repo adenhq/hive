@@ -615,7 +615,10 @@ class GraphExecutor:
             return ExecutionResult(
                 success=False,
                 error=str(e),
+                output=memory.read_all(),
                 steps_executed=steps,
+                total_tokens=total_tokens,
+                total_latency_ms=total_latency,
                 path=path,
                 total_retries=total_retries_count,
                 nodes_with_failures=nodes_failed,
