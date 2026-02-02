@@ -221,6 +221,12 @@ fi
 # ------------------------------------------------------------
 # Install MCP dependencies (TOOLS VENV – FINAL & SAFE)
 # ------------------------------------------------------------
+# Modified by Shashank (GitHub: shashankongit) on 2026-02-02
+# Reason: MCP_STATUS was previously checked without being safely set,
+# which caused `[: -eq: unary operator expected` in WSL/bash.
+# Explicitly capturing and quoting the exit status avoids false failures
+# while keeping behavior unchanged.
+
 
 echo -n "  Installing MCP dependencies... "
 
