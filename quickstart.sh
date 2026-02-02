@@ -41,6 +41,9 @@ prompt_yes_no() {
     [[ "$response" =~ ^[Yy] ]]
 }
 
+# Note: Uses global PROMPT_CHOICE_RESULT instead of return code to avoid
+# issues with set -e (return 1+ would be treated as error and exit script)
+PROMPT_CHOICE_RESULT=0
 # Helper function for choice prompts
 prompt_choice() {
     local prompt="$1"
@@ -60,7 +63,8 @@ prompt_choice() {
     while true; do
         read -r -p "Enter choice (1-${#options[@]}): " choice
         if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#options[@]}" ]; then
-            return $((choice - 1))
+            PROMPT_CHOICE_RESULT=$((choice - 1))
+            return 0
         fi
         echo -e "${RED}Invalid choice. Please enter 1-${#options[@]}${NC}"
     done
@@ -507,7 +511,7 @@ if [ -z "$SELECTED_PROVIDER_ID" ]; then
         "Groq - Fast, free tier" \
         "Cerebras - Fast, free tier" \
         "Skip for now"
-    choice=$?
+    choice=$PROMPT_CHOICE_RESULT
 
     case $choice in
         0)
