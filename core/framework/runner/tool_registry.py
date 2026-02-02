@@ -190,65 +190,64 @@ class ToolRegistry:
         return {name: rt.tool for name, rt in self._tools.items()}
 
     def get_executor(self) -> Callable[[ToolUse], ToolResult]:
-      """
-       Get unified tool executor function.
+        """
+        Get unified tool executor function.
 
-       Returns a function that dispatches to the appropriate tool executor.
-      """
+        Returns a function that dispatches to the appropriate tool executor.
+        """
 
-      def executor(
-        tool_use: ToolUse,
-        context: ExecutionContext | None = None
-      ) -> ToolResult:
+        def executor(
+            tool_use: ToolUse,
+            context: ExecutionContext | None = None,
+        ) -> ToolResult:
 
-        # 🔹 SIMULATION MODE (NEW)
-        if context and context.simulate:
-            logger.info(
-                "Simulating tool execution",
-                extra={
-                    "tool_name": tool_use.name,
-                    "inputs": tool_use.input,
-                },
-            )
+            # --- Simulation (dry-run) mode ---
+            if context and context.simulate:
+                logger.info(
+                    "Simulating tool execution",
+                    extra={
+                        "tool_name": tool_use.name,
+                        "inputs": tool_use.input,
+                    },
+                )
+                return ToolResult(
+                    tool_use_id=tool_use.id,
+                    content=json.dumps({
+                        "simulation": True,
+                        "tool": tool_use.name,
+                        "inputs": tool_use.input,
+                        "message": "This action was simulated. No side effects were performed."
+                    }),
+                    is_error=False,
+                )
 
-            return ToolResult(
-                tool_use_id=tool_use.id,
-                content=json.dumps({
-                    "simulation": True,
-                    "tool": tool_use.name,
-                    "inputs": tool_use.input,
-                    "message": "This action was simulated. No side effects were performed."
-                }),
-                is_error=False,
-            )
+            # --- Existing behavior (unchanged) ---
+            if tool_use.name not in self._tools:
+                return ToolResult(
+                    tool_use_id=tool_use.id,
+                    content=json.dumps({"error": f"Unknown tool: {tool_use.name}"}),
+                    is_error=True,
+                )
 
-        # 🔹 EXISTING BEHAVIOR (UNCHANGED)
-        if tool_use.name not in self._tools:
-            return ToolResult(
-                tool_use_id=tool_use.id,
-                content=json.dumps({"error": f"Unknown tool: {tool_use.name}"}),
-                is_error=True,
-            )
+            registered = self._tools[tool_use.name]
+            try:
+                result = registered.executor(tool_use.input)
+                if isinstance(result, ToolResult):
+                    return result
+                return ToolResult(
+                    tool_use_id=tool_use.id,
+                    content=json.dumps(result) if not isinstance(result, str) else result,
+                    is_error=False,
+                )
+            except Exception as e:
+                logger.error(f"Tool execution failed: {e}", exc_info=True)
+                return ToolResult(
+                    tool_use_id=tool_use.id,
+                    content=json.dumps({"error": str(e)}),
+                    is_error=True,
+                )
 
-        registered = self._tools[tool_use.name]
-        try:
-            result = registered.executor(tool_use.input)
-            if isinstance(result, ToolResult):
-                return result
-            return ToolResult(
-                tool_use_id=tool_use.id,
-                content=json.dumps(result) if not isinstance(result, str) else result,
-                is_error=False,
-            )
-        except Exception as e:
-            return ToolResult(
-                tool_use_id=tool_use.id,
-                content=json.dumps({"error": str(e)}),
-                is_error=True,
-            )
-
-      return executor
-
+        return executor
 
     def get_registered_names(self) -> list[str]:
         """Get list of registered tool names."""
