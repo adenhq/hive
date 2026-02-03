@@ -85,7 +85,6 @@ class LLMProvider(ABC):
         """
         pass
 
-    @abstractmethod
     def complete_with_tools(
         self,
         messages: list[dict[str, Any]],
@@ -107,4 +106,7 @@ class LLMProvider(ABC):
         Returns:
             Final LLMResponse after tool use completes
         """
-        pass
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support tool execution. "
+            "Use a ToolAwareLLMProvider or override this method."
+        )
