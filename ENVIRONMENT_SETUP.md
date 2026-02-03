@@ -149,7 +149,7 @@ All agent commands must be run from the project root with `PYTHONPATH` set:
 
 ```bash
 # From /hive/ directory
-PYTHONPATH=core:exports python -m agent_name COMMAND
+PYTHONPATH=core:exports python3 -m agent_name COMMAND
 ```
 
 Windows (PowerShell):
@@ -163,18 +163,18 @@ python -m agent_name COMMAND
 
 ```bash
 # Validate agent structure
-PYTHONPATH=core:exports python -m your_agent_name validate
+PYTHONPATH=core:exports python3 -m your_agent_name validate
 
 # Show agent information
-PYTHONPATH=core:exports python -m your_agent_name info
+PYTHONPATH=core:exports python3 -m your_agent_name info
 
 # Run agent with input
-PYTHONPATH=core:exports python -m your_agent_name run --input '{
+PYTHONPATH=core:exports python3 -m your_agent_name run --input '{
   "task": "Your input here"
 }'
 
 # Run in mock mode (no LLM calls)
-PYTHONPATH=core:exports python -m your_agent_name run --mock --input '{...}'
+PYTHONPATH=core:exports python3 -m your_agent_name run --mock --input '{...}'
 ```
 
 ## Building New Agents and Run Flow
@@ -293,7 +293,7 @@ Always activate the venv before running agents:
 
 ```bash
 source .venv/bin/activate
-PYTHONPATH=core:exports python -m your_agent_name demo
+PYTHONPATH=core:exports python3 -m your_agent_name demo
 ```
 
 ### PowerShell: “running scripts is disabled on this system”
@@ -351,7 +351,7 @@ pip install --upgrade "openai>=1.0.0"
 Linux/macOS:
 
 ```bash
-PYTHONPATH=core:exports python -m your_agent_name validate
+PYTHONPATH=core:exports python3 -m your_agent_name validate
 ```
 
 Windows:
@@ -495,7 +495,7 @@ Enter goal: "Build an agent that processes customer support tickets"
 ### 3. Validate Agent
 
 ```bash
-PYTHONPATH=core:exports python -m your_agent_name validate
+PYTHONPATH=core:exports python3 -m your_agent_name validate
 ```
 
 ### 4. Test Agent
@@ -507,7 +507,7 @@ claude> /testing-agent
 ### 5. Run Agent
 
 ```bash
-PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'
+PYTHONPATH=core:exports python3 -m your_agent_name run --input '{...}'
 ```
 
 ## IDE Setup

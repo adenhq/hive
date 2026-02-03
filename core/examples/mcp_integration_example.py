@@ -25,7 +25,7 @@ async def example_1_programmatic_registration():
     num_tools = runner.register_mcp_server(
         name="tools",
         transport="stdio",
-        command="python",
+        command="python3",
         args=["-m", "aden_tools.mcp_server", "--stdio"],
         cwd="../tools",
     )
@@ -156,7 +156,7 @@ async def example_4_custom_agent_with_mcp_tools():
     runner.register_mcp_server(
         name="tools",
         transport="stdio",
-        command="python",
+        command="python3",
         args=["-m", "aden_tools.mcp_server", "--stdio"],
         cwd="../tools",
     )

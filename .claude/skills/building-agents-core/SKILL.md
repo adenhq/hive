@@ -141,7 +141,7 @@ Tools are provided by MCP servers. Never assume a tool exists - always discover 
 mcp__agent-builder__add_mcp_server(
     name="tools",
     transport="stdio",
-    command="python",
+    command="python3",
     args='["mcp_server.py", "--stdio"]',
     cwd="../tools"
 )

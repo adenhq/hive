@@ -184,7 +184,7 @@ $env:ANTHROPIC_API_KEY = "sk-ant-..."
 Run from the project root with PYTHONPATH:
 
 ```bash
-PYTHONPATH=core:exports python -m my_agent validate
+PYTHONPATH=core:exports python3 -m my_agent validate
 ```
 
 See [Environment Setup](../ENVIRONMENT_SETUP.md) for detailed installation instructions.

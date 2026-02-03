@@ -75,10 +75,10 @@ initialize → list → identify → check
 ### Step 5: Finalize
 
 ```bash
-$ PYTHONPATH=core:exports python -m file_monitor_agent validate
+$ PYTHONPATH=core:exports python3 -m file_monitor_agent validate
 ✓ Agent is valid
 
-$ PYTHONPATH=core:exports python -m file_monitor_agent info
+$ PYTHONPATH=core:exports python3 -m file_monitor_agent info
 Agent: File Monitor & Copy Agent
 Nodes: 7
 Edges: 8
@@ -162,7 +162,7 @@ test_edge_cases.py::test_large_files              PASSED
 ./RUN_AGENT.sh
 
 # Or manually
-PYTHONPATH=core:exports:tools/src python -m file_monitor_agent run
+PYTHONPATH=core:exports:tools/src python3 -m file_monitor_agent run
 ```
 
 **Capabilities:**

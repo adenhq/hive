@@ -97,7 +97,7 @@ claude> /building-agents-construction
 claude> /testing-agent
 
 # エージェントを実行
-PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'
+PYTHONPATH=core:exports python3 -m your_agent_name run --input '{...}'
 ```
 
 **[📖 完全セットアップガイド](ENVIRONMENT_SETUP.md)** - エージェント開発の詳細な手順
@@ -243,7 +243,7 @@ claude> /building-agents-construction
 claude> /testing-agent
 
 # エージェントを実行
-PYTHONPATH=core:exports python -m agent_name run --input '{...}'
+PYTHONPATH=core:exports python3 -m agent_name run --input '{...}'
 ```
 
 完全なセットアップ手順については、[ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md)を参照してください。

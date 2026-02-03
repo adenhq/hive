@@ -56,7 +56,7 @@ mcp.run()
 Or run directly:
 
 ```bash
-python mcp_server.py
+python3 mcp_server.py
 ```
 
 ## Available Tools

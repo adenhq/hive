@@ -342,7 +342,7 @@ agent-workflow (meta-skill)
 - Check node IDs match between nodes/__init__.py and agent.py
 - Verify all edges reference valid node IDs
 - Ensure entry_node exists in nodes list
-- Run: `PYTHONPATH=core:exports python -m agent_name validate`
+- Run: `PYTHONPATH=core:exports python3 -m agent_name validate`
 
 ### "Agent has structure but won't run"
 
@@ -368,7 +368,7 @@ Run these checks:
 ls exports/my_agent/agent.py
 
 # Check if it validates
-PYTHONPATH=core:exports python -m my_agent validate
+PYTHONPATH=core:exports python3 -m my_agent validate
 
 # Check if tests exist
 ls exports/my_agent/tests/

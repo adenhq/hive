@@ -51,7 +51,7 @@ Ensure you have installed:
 Verify installation:
 
 ```bash
-python --version    # Should be 3.11+
+python3 --version    # Should be 3.11+
 uv --version        # Should be latest
 git --version       # Any recent version
 ```
@@ -111,12 +111,12 @@ This installs agent-related Claude Code skills:
 
 ```bash
 # Verify package imports
-python -c "import framework; print('✓ framework OK')"
-python -c "import aden_tools; print('✓ aden_tools OK')"
-python -c "import litellm; print('✓ litellm OK')"
+python3 -c "import framework; print('✓ framework OK')"
+python3 -c "import aden_tools; print('✓ aden_tools OK')"
+python3 -c "import litellm; print('✓ litellm OK')"
 
 # Run an agent (after building one via /building-agents-construction)
-PYTHONPATH=core:exports python -m your_agent_name validate
+PYTHONPATH=core:exports python3 -m your_agent_name validate
 ```
 
 ---
@@ -256,7 +256,7 @@ claude> /testing-agent
 4. **Validate the Agent**
 
    ```bash
-   PYTHONPATH=core:exports python -m your_agent_name validate
+   PYTHONPATH=core:exports python3 -m your_agent_name validate
    ```
 
 5. **Test the Agent**
@@ -302,19 +302,19 @@ If you prefer to build agents manually:
 
 ```bash
 # Validate agent structure
-PYTHONPATH=core:exports python -m agent_name validate
+PYTHONPATH=core:exports python3 -m agent_name validate
 
 # Show agent information
-PYTHONPATH=core:exports python -m agent_name info
+PYTHONPATH=core:exports python3 -m agent_name info
 
 # Run agent with input
-PYTHONPATH=core:exports python -m agent_name run --input '{
+PYTHONPATH=core:exports python3 -m agent_name run --input '{
   "ticket_content": "My login is broken",
   "customer_id": "CUST-123"
 }'
 
 # Run in mock mode (no LLM calls)
-PYTHONPATH=core:exports python -m agent_name run --mock --input '{...}'
+PYTHONPATH=core:exports python3 -m agent_name run --mock --input '{...}'
 ```
 
 ---
@@ -338,17 +338,17 @@ This generates and runs:
 
 ```bash
 # Run all tests for an agent
-PYTHONPATH=core:exports python -m agent_name test
+PYTHONPATH=core:exports python3 -m agent_name test
 
 # Run specific test type
-PYTHONPATH=core:exports python -m agent_name test --type constraint
-PYTHONPATH=core:exports python -m agent_name test --type success
+PYTHONPATH=core:exports python3 -m agent_name test --type constraint
+PYTHONPATH=core:exports python3 -m agent_name test --type success
 
 # Run with parallel execution
-PYTHONPATH=core:exports python -m agent_name test --parallel 4
+PYTHONPATH=core:exports python3 -m agent_name test --parallel 4
 
 # Fail fast (stop on first failure)
-PYTHONPATH=core:exports python -m agent_name test --fail-fast
+PYTHONPATH=core:exports python3 -m agent_name test --fail-fast
 ```
 
 ### Writing Custom Tests
@@ -596,7 +596,7 @@ def my_custom_tool(param1: str, param2: int) -> Dict[str, Any]:
 {
   "tools": {
     "transport": "stdio",
-    "command": "python",
+    "command": "python3",
     "args": ["-m", "aden_tools.mcp_server"],
     "cwd": "tools/",
     "description": "File system and web tools"
@@ -635,10 +635,10 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 # Run with verbose output
-PYTHONPATH=core:exports python -m agent_name run --input '{...}' --verbose
+PYTHONPATH=core:exports python3 -m agent_name run --input '{...}' --verbose
 
 # Use mock mode to test without LLM calls
-PYTHONPATH=core:exports python -m agent_name run --mock --input '{...}'
+PYTHONPATH=core:exports python3 -m agent_name run --mock --input '{...}'
 ```
 
 ---

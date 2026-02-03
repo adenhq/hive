@@ -119,7 +119,7 @@ claude> /building-agents-construction
 claude> /testing-agent
 
 # Run your agent
-PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'
+PYTHONPATH=core:exports python3 -m your_agent_name run --input '{...}'
 ```
 
 **[📖 Complete Setup Guide](ENVIRONMENT_SETUP.md)** - Detailed instructions for agent development
