@@ -359,3 +359,35 @@ Return this exact structure:
 3. **Skipping validation** - Always validate nodes and graph before proceeding
 4. **Not waiting for approval** - Always ask user before major steps
 5. **Displaying this file** - Execute the steps, don't show documentation
+
+---
+
+## REFERENCE: Available Tools - HubSpot CRM
+
+HubSpot CRM tools for contacts, companies, and deals management. Requires `HUBSPOT_ACCESS_TOKEN`.
+
+### Contacts
+| Tool | Description |
+|------|-------------|
+| `hubspot_search_contacts` | Search contacts by query |
+| `hubspot_get_contact` | Get contact by ID |
+| `hubspot_create_contact` | Create a new contact |
+| `hubspot_update_contact` | Update existing contact |
+
+### Companies
+| Tool | Description |
+|------|-------------|
+| `hubspot_search_companies` | Search companies by query |
+| `hubspot_get_company` | Get company by ID |
+| `hubspot_create_company` | Create a new company |
+| `hubspot_update_company` | Update existing company |
+
+### Deals
+| Tool | Description |
+|------|-------------|
+| `hubspot_search_deals` | Search deals by query |
+| `hubspot_get_deal` | Get deal by ID |
+| `hubspot_create_deal` | Create a new deal |
+| `hubspot_update_deal` | Update existing deal |
+
+**Note:** Always verify tool availability with `mcp__agent-builder__list_mcp_tools()` before using.
