@@ -489,7 +489,9 @@ class GraphExecutor:
                     self.logger.info(f"   → Router directing to: {result.next_node}")
                     current_node_id = result.next_node
                 else:
-                    # Get all traversable edges for fan-out detection
+                    # --- REPLACEMENT BLOCK FOR GRAPH_EXECUTOR.PY ---
+
+                    # 1. Identify all independent nodes that can run based on current conditions
                     traversable_edges = self._get_all_traversable_edges(
                         graph=graph,
                         goal=goal,
@@ -501,20 +503,18 @@ class GraphExecutor:
 
                     if not traversable_edges:
                         self.logger.info("   → No more edges, ending execution")
-                        break  # No valid edge, end execution
+                        break
 
-                    # Check for fan-out (multiple traversable edges)
+                    # 2. Check for fan-out (multiple traversable edges) and execute in parallel
                     if self.enable_parallel_execution and len(traversable_edges) > 1:
-                        # Find convergence point (fan-in node)
+                        # Identify the convergence point (fan-in node) before starting branches
                         targets = [e.target for e in traversable_edges]
                         fan_in_node = self._find_convergence_node(graph, targets)
 
-                        # Execute branches in parallel
-                        (
-                            _branch_results,
-                            branch_tokens,
-                            branch_latency,
-                        ) = await self._execute_parallel_branches(
+                        # Execute branches concurrently using existing parallel infrastructure
+                        self.logger.info(f"   ⑂ Fan-out: executing {len(traversable_edges)} branches in parallel")
+                        
+                        _branch_results, branch_tokens, branch_latency = await self._execute_parallel_branches(
                             graph=graph,
                             goal=goal,
                             edges=traversable_edges,
@@ -524,36 +524,31 @@ class GraphExecutor:
                             path=path,
                         )
 
+                        # 3. Aggregate metrics and advance to convergence point
                         total_tokens += branch_tokens
                         total_latency += branch_latency
 
-                        # Continue from fan-in node
                         if fan_in_node:
                             self.logger.info(f"   ⑃ Fan-in: converging at {fan_in_node}")
                             current_node_id = fan_in_node
                         else:
-                            # No convergence point - branches are terminal
+                            # No convergence point found; branches were terminal paths
                             self.logger.info("   → Parallel branches completed (no convergence)")
                             break
                     else:
-                        # Sequential: follow single edge (existing logic via _follow_edges)
-                        next_node = self._follow_edges(
-                            graph=graph,
-                            goal=goal,
-                            current_node_id=current_node_id,
-                            current_node_spec=node_spec,
-                            result=result,
-                            memory=memory,
-                        )
-                        if next_node is None:
-                            self.logger.info("   → No more edges, ending execution")
-                            break
-                        next_spec = graph.get_node(next_node)
-                        self.logger.info(f"   → Next: {next_spec.name if next_spec else next_node}")
-                        current_node_id = next_node
+                        # 4. Fallback: Standard sequential single-edge traversal
+                        edge = traversable_edges[0]
+                        
+                        # Map inputs for the single next node
+                        mapped = edge.map_inputs(result.output, memory.read_all())
+                        for key, value in mapped.items():
+                            memory.write(key, value, validate=False)
+                            
+                        next_spec = graph.get_node(edge.target)
+                        self.logger.info(f"   → Next: {next_spec.name if next_spec else edge.target}")
+                        current_node_id = edge.target
 
-                # Update input_data for next node
-                input_data = result.output
+                    # --- END OF REPLACEMENT ---
 
             # Collect output
             output = memory.read_all()
