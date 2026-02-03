@@ -1,1 +1,69 @@
 3.11
+import sqlite3
+import numpy as np
+from datetime import datetime
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("HiveStringDB")
+
+# --- Persistence Setup ---
+def init_db():
+    conn = sqlite3.connect("hive_business.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS statements (
+            id TEXT PRIMARY KEY,
+            content TEXT,
+            status TEXT,
+            created_at TIMESTAMP,
+            judgment_score REAL
+        )
+    ''')
+    conn.commit()
+    return conn
+
+db_conn = init_db()
+
+# --- Tools ---
+
+@mcp.tool()
+async def initiate_statement(stmt_id: str, text: str) -> str:
+    """
+    Step 1: Initiation - Stores a new business statement for processing.
+    """
+    cursor = db_conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO statements (id, content, status, created_at) VALUES (?, ?, ?, ?)",
+            (stmt_id, text, "INITIATED", datetime.now())
+        )
+        db_conn.commit()
+        return f"Statement {stmt_id} initiated successfully."
+    except sqlite3.IntegrityError:
+        return "Error: Statement ID already exists."
+
+@mcp.tool()
+async def update_statement_lifecycle(stmt_id: str, new_status: str, score: float = 0.0) -> str:
+    """
+    Moves statement through: TRAINING -> TESTING -> VALIDATION.
+    """
+    valid_statuses = ["TRAINING", "TESTING", "VALIDATED"]
+    if new_status not in valid_statuses:
+        return f"Invalid status. Must be one of {valid_statuses}"
+
+    cursor = db_conn.cursor()
+    cursor.execute(
+        "UPDATE statements SET status = ?, judgment_score = ? WHERE id = ?",
+        (new_status, score, stmt_id)
+    )
+    db_conn.commit()
+    return f"Statement {stmt_id} moved to {new_status}."
+
+@mcp.tool()
+async def get_training_batch(limit: int = 5) -> list:
+    """
+    Retrieves statements that are ready for LLM training/testing.
+    """
+    cursor = db_conn.cursor()
+    cursor.execute("SELECT * FROM statements WHERE status = 'INITIATED' LIMIT ?", (limit,))
+    return cursor.fetchall()
