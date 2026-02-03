@@ -14,9 +14,7 @@ try:
 except ImportError:
     FASTMCP_AVAILABLE = False
 
-pytestmark = pytest.mark.skipif(
-    not FASTMCP_AVAILABLE, reason="FastMCP dependencies not installed"
-)
+pytestmark = pytest.mark.skipif(not FASTMCP_AVAILABLE, reason="FastMCP dependencies not installed")
 
 
 class TestToolsMCPServerSetup:

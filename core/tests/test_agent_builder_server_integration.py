@@ -6,8 +6,6 @@ validation logic, and error handling.
 """
 
 import json
-from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -70,9 +68,7 @@ class TestSessionLifecycle:
         assert result["session_id"].startswith("build_")
         assert result["persisted"] is True
 
-    def test_create_session_generates_unique_ids(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_create_session_generates_unique_ids(self, mock_session_storage, reset_global_session):
         """Test that multiple sessions get unique IDs."""
         import time
 
@@ -189,9 +185,7 @@ class TestGoalManagement:
         criteria = json.dumps(
             [{"id": "sc1", "description": "Task completed successfully", "weight": 1.0}]
         )
-        constraints = json.dumps(
-            [{"id": "c1", "description": "Must not exceed rate limits"}]
-        )
+        constraints = json.dumps([{"id": "c1", "description": "Must not exceed rate limits"}])
 
         result = json.loads(
             set_goal(
@@ -350,9 +344,7 @@ class TestNodeOperations:
         assert result["valid"] is False
         assert any("already exists" in e for e in result["errors"])
 
-    def test_add_node_tool_use_without_tools(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_add_node_tool_use_without_tools(self, mock_session_storage, reset_global_session):
         """Test that llm_tool_use nodes require tools."""
         from framework.mcp.agent_builder_server import add_node, create_session
 
@@ -373,9 +365,7 @@ class TestNodeOperations:
         assert result["valid"] is False
         assert any("must specify tools" in e for e in result["errors"])
 
-    def test_add_node_router_without_routes(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_add_node_router_without_routes(self, mock_session_storage, reset_global_session):
         """Test that router nodes require routes."""
         from framework.mcp.agent_builder_server import add_node, create_session
 
@@ -541,9 +531,7 @@ class TestEdgeOperations:
         assert result["valid"] is False
         assert any("not found" in e for e in result["errors"])
 
-    def test_add_edge_conditional_without_expr(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_add_edge_conditional_without_expr(self, mock_session_storage, reset_global_session):
         """Test that conditional edges require condition_expr."""
         from framework.mcp.agent_builder_server import add_edge
 
@@ -570,9 +558,7 @@ class TestEdgeOperations:
 
         add_edge(edge_id="edge_1", source="node_a", target="node_b")
 
-        result = json.loads(
-            add_edge(edge_id="edge_1", source="node_a", target="node_b")
-        )
+        result = json.loads(add_edge(edge_id="edge_1", source="node_a", target="node_b"))
 
         assert result["valid"] is False
         assert any("already exists" in e for e in result["errors"])
@@ -697,9 +683,7 @@ class TestGraphValidation:
         assert result["node_count"] == 2
         assert result["edge_count"] == 1
 
-    def test_validate_unreachable_nodes(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_validate_unreachable_nodes(self, mock_session_storage, reset_global_session):
         """Test detection of unreachable nodes."""
         from framework.mcp.agent_builder_server import (
             add_edge,
@@ -836,9 +820,7 @@ class TestGraphValidation:
 class TestInputValidation:
     """Tests for invalid input handling."""
 
-    def test_malformed_json_in_add_node(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_malformed_json_in_add_node(self, mock_session_storage, reset_global_session):
         """Test graceful handling of malformed JSON in add_node."""
         from framework.mcp.agent_builder_server import add_node, create_session
 
@@ -858,9 +840,7 @@ class TestInputValidation:
         assert result["valid"] is False
         assert any("Invalid JSON" in e for e in result["errors"])
 
-    def test_malformed_json_in_add_edge(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_malformed_json_in_add_edge(self, mock_session_storage, reset_global_session):
         """Test that add_edge handles invalid condition gracefully."""
         from framework.mcp.agent_builder_server import add_edge, add_node, create_session
 
@@ -918,16 +898,14 @@ class TestInputValidation:
 class TestSessionPersistence:
     """Tests for session save/load functionality."""
 
-    def test_session_survives_global_reset(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_session_survives_global_reset(self, mock_session_storage, reset_global_session):
         """Test that session data persists across global state resets."""
+        import framework.mcp.agent_builder_server as server
         from framework.mcp.agent_builder_server import (
             add_node,
             create_session,
             load_session_by_id,
         )
-        import framework.mcp.agent_builder_server as server
 
         # Create session and add a node
         create_result = json.loads(create_session(name="Persistent Agent"))
@@ -951,17 +929,15 @@ class TestSessionPersistence:
         assert load_result["success"] is True
         assert load_result["node_count"] == 1
 
-    def test_goal_persists_across_reload(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_goal_persists_across_reload(self, mock_session_storage, reset_global_session):
         """Test that goal data persists when session is reloaded."""
+        import framework.mcp.agent_builder_server as server
         from framework.mcp.agent_builder_server import (
             create_session,
             get_session,
             load_session_by_id,
             set_goal,
         )
-        import framework.mcp.agent_builder_server as server
 
         create_result = json.loads(create_session(name="Goal Test"))
         session_id = create_result["session_id"]
@@ -981,10 +957,10 @@ class TestSessionPersistence:
         assert session.goal is not None
         assert session.goal.name == "Persisted Goal"
 
-    def test_edges_persist_with_correct_condition(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_edges_persist_with_correct_condition(self, mock_session_storage, reset_global_session):
         """Test that edge conditions are correctly serialized and deserialized."""
+        import framework.mcp.agent_builder_server as server
+        from framework.graph import EdgeCondition
         from framework.mcp.agent_builder_server import (
             add_edge,
             add_node,
@@ -992,8 +968,6 @@ class TestSessionPersistence:
             get_session,
             load_session_by_id,
         )
-        from framework.graph import EdgeCondition
-        import framework.mcp.agent_builder_server as server
 
         create_result = json.loads(create_session(name="Edge Test"))
         session_id = create_result["session_id"]
@@ -1033,9 +1007,7 @@ class TestSessionPersistence:
 class TestMCPServerRegistration:
     """Tests for MCP server registration tools (add, list, remove)."""
 
-    def test_add_mcp_server_http_missing_url(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_add_mcp_server_http_missing_url(self, mock_session_storage, reset_global_session):
         """Test that http transport requires url."""
         from framework.mcp.agent_builder_server import add_mcp_server, create_session
 
@@ -1052,9 +1024,7 @@ class TestMCPServerRegistration:
         assert result["success"] is False
         assert any("url is required" in str(e) for e in result.get("errors", []))
 
-    def test_add_mcp_server_stdio_missing_command(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_add_mcp_server_stdio_missing_command(self, mock_session_storage, reset_global_session):
         """Test that stdio transport requires command."""
         from framework.mcp.agent_builder_server import add_mcp_server, create_session
 
@@ -1071,9 +1041,7 @@ class TestMCPServerRegistration:
         assert result["success"] is False
         assert any("command is required" in str(e) for e in result.get("errors", []))
 
-    def test_add_mcp_server_invalid_transport(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_add_mcp_server_invalid_transport(self, mock_session_storage, reset_global_session):
         """Test rejection of invalid transport type."""
         from framework.mcp.agent_builder_server import add_mcp_server, create_session
 
@@ -1089,9 +1057,7 @@ class TestMCPServerRegistration:
         assert result["success"] is False
         assert "Invalid transport" in result["error"]
 
-    def test_add_mcp_server_invalid_json_args(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_add_mcp_server_invalid_json_args(self, mock_session_storage, reset_global_session):
         """Test handling of malformed JSON in args."""
         from framework.mcp.agent_builder_server import add_mcp_server, create_session
 
@@ -1121,9 +1087,7 @@ class TestMCPServerRegistration:
         assert result["total"] == 0
         assert "No MCP servers" in result.get("note", "")
 
-    def test_remove_mcp_server_not_found(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_remove_mcp_server_not_found(self, mock_session_storage, reset_global_session):
         """Test removing a non-existent server."""
         from framework.mcp.agent_builder_server import (
             create_session,
@@ -1192,9 +1156,7 @@ class TestPlanCreation:
         assert result["success"] is False
         assert "Invalid JSON" in result["error"]
 
-    def test_create_plan_missing_step_id(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_create_plan_missing_step_id(self, mock_session_storage, reset_global_session):
         """Test validation of missing step ID."""
         from framework.mcp.agent_builder_server import create_plan
 
@@ -1219,9 +1181,7 @@ class TestPlanCreation:
         assert result["success"] is False
         assert any("missing 'id'" in e for e in result["errors"])
 
-    def test_create_plan_duplicate_step_id(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_create_plan_duplicate_step_id(self, mock_session_storage, reset_global_session):
         """Test rejection of duplicate step IDs."""
         from framework.mcp.agent_builder_server import create_plan
 
@@ -1259,9 +1219,7 @@ class TestPlanValidation:
         assert result["valid"] is False
         assert any("Missing required field" in e for e in result["errors"])
 
-    def test_validate_plan_invalid_json(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_validate_plan_invalid_json(self, mock_session_storage, reset_global_session):
         """Test handling of malformed JSON."""
         from framework.mcp.agent_builder_server import validate_plan
 
@@ -1270,9 +1228,7 @@ class TestPlanValidation:
         assert result["valid"] is False
         assert any("Invalid JSON" in e for e in result["errors"])
 
-    def test_validate_plan_circular_dependency(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_validate_plan_circular_dependency(self, mock_session_storage, reset_global_session):
         """Test detection of circular dependencies."""
         from framework.mcp.agent_builder_server import validate_plan
 
@@ -1302,9 +1258,7 @@ class TestPlanValidation:
         assert result["valid"] is False
         assert any("Circular dependency" in e for e in result["errors"])
 
-    def test_validate_plan_unknown_dependency(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_validate_plan_unknown_dependency(self, mock_session_storage, reset_global_session):
         """Test detection of unknown dependencies."""
         from framework.mcp.agent_builder_server import validate_plan
 
@@ -1328,9 +1282,7 @@ class TestPlanValidation:
         assert result["valid"] is False
         assert any("unknown dependency" in e for e in result["errors"])
 
-    def test_validate_plan_invalid_action_type(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_validate_plan_invalid_action_type(self, mock_session_storage, reset_global_session):
         """Test rejection of invalid action types."""
         from framework.mcp.agent_builder_server import validate_plan
 
@@ -1424,9 +1376,7 @@ class TestPlanSimulation:
 
         assert result["success"] is False
 
-    def test_simulate_shows_parallel_candidates(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_simulate_shows_parallel_candidates(self, mock_session_storage, reset_global_session):
         """Test that simulation identifies parallel execution candidates."""
         from framework.mcp.agent_builder_server import simulate_plan_execution
 
@@ -1477,9 +1427,7 @@ class TestEvaluationRules:
         yield
         server._evaluation_rules = []
 
-    def test_add_evaluation_rule_valid(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_add_evaluation_rule_valid(self, mock_session_storage, reset_global_session):
         """Test adding a valid evaluation rule."""
         from framework.mcp.agent_builder_server import add_evaluation_rule
 
@@ -1496,9 +1444,7 @@ class TestEvaluationRules:
         assert result["rule"]["id"] == "rule_1"
         assert result["total_rules"] == 1
 
-    def test_add_evaluation_rule_invalid_action(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_add_evaluation_rule_invalid_action(self, mock_session_storage, reset_global_session):
         """Test rejection of invalid action type."""
         from framework.mcp.agent_builder_server import add_evaluation_rule
 
@@ -1514,9 +1460,7 @@ class TestEvaluationRules:
         assert result["success"] is False
         assert "Invalid action" in result["error"]
 
-    def test_add_evaluation_rule_duplicate(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_add_evaluation_rule_duplicate(self, mock_session_storage, reset_global_session):
         """Test rejection of duplicate rule IDs."""
         from framework.mcp.agent_builder_server import add_evaluation_rule
 
@@ -1539,9 +1483,7 @@ class TestEvaluationRules:
         assert result["success"] is False
         assert "already exists" in result["error"]
 
-    def test_list_evaluation_rules_empty(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_list_evaluation_rules_empty(self, mock_session_storage, reset_global_session):
         """Test listing rules when none exist."""
         from framework.mcp.agent_builder_server import list_evaluation_rules
 
@@ -1550,9 +1492,7 @@ class TestEvaluationRules:
         assert result["rules"] == []
         assert result["total"] == 0
 
-    def test_list_evaluation_rules_with_data(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_list_evaluation_rules_with_data(self, mock_session_storage, reset_global_session):
         """Test listing rules after adding some."""
         from framework.mcp.agent_builder_server import (
             add_evaluation_rule,
@@ -1571,9 +1511,7 @@ class TestEvaluationRules:
         assert result["total"] == 2
         assert len(result["rules"]) == 2
 
-    def test_evaluation_rules_sorted_by_priority(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_evaluation_rules_sorted_by_priority(self, mock_session_storage, reset_global_session):
         """Test that rules are sorted by priority (highest first)."""
         from framework.mcp.agent_builder_server import (
             add_evaluation_rule,
@@ -1618,9 +1556,7 @@ class TestEvaluationRules:
         list_result = json.loads(list_evaluation_rules())
         assert list_result["total"] == 0
 
-    def test_remove_evaluation_rule_not_found(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_remove_evaluation_rule_not_found(self, mock_session_storage, reset_global_session):
         """Test removing a non-existent rule."""
         from framework.mcp.agent_builder_server import remove_evaluation_rule
 
@@ -1698,9 +1634,7 @@ class TestExportGraph:
         # Response uses "errors" list from validation
         assert any("goal" in str(e).lower() for e in result.get("errors", []))
 
-    def test_export_graph_invalid_graph(
-        self, mock_session_storage, reset_global_session
-    ):
+    def test_export_graph_invalid_graph(self, mock_session_storage, reset_global_session):
         """Test export fails when graph is invalid."""
         from framework.mcp.agent_builder_server import create_session, export_graph, set_goal
 
@@ -1717,13 +1651,9 @@ class TestExportGraph:
 
         assert result["success"] is False
 
-    def test_export_graph_creates_files(
-        self, mock_session_storage, reset_global_session, tmp_path
-    ):
+    def test_export_graph_creates_files(self, mock_session_storage, reset_global_session, tmp_path):
         """Test that export creates necessary files."""
         import os
-
-        import importlib
 
         from framework.mcp.agent_builder_server import export_graph
 
