@@ -107,3 +107,13 @@ async def build_cnn_model(seq_length: int, vocab_size: int) -> str:
     
     model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
     return "CNN Model for text sequence analysis initiated."
+# mcp_server/keras_engine.py
+def build_business_cnn(vocab_size, seq_length):
+    model = Sequential([
+        layers.Embedding(vocab_size, 64, input_length=seq_length),
+        layers.Conv1D(128, 5, activation='relu'),
+        layers.GlobalMaxPooling1D(),
+        layers.Dense(1, activation='sigmoid') # Binary judgment: Safe vs Risk
+    ])
+    model.compile(optimizer='adam', loss='binary_crossentropy')
+    return model
