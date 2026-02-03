@@ -557,7 +557,8 @@ export AGENT_STORAGE_PATH="/custom/storage"
 
 - **Framework Documentation:** [core/README.md](core/README.md)
 - **Tools Documentation:** [tools/README.md](tools/README.md)
-- **Example Agents:** [exports/](./exports)
+- **Example Agents:** Generated locally under the `exports/` directory when you create an agent using `/building-agents-construction`.
+
 - **Agent Building Guide:** [.claude/skills/building-agents-construction/SKILL.md](.claude/skills/building-agents-construction/SKILL.md)
 - **Testing Guide:** [.claude/skills/testing-agent/SKILL.md](.claude/skills/testing-agent/SKILL.md)
 
