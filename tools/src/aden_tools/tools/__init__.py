@@ -43,6 +43,8 @@ from .pdf_read_tool import register_tools as register_pdf_read
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
 
+from aden_tools.tools.parquet_tool import register_tools as register_parquet_tool
+
 
 def register_all_tools(
     mcp: FastMCP,
@@ -81,6 +83,7 @@ def register_all_tools(
     register_grep_search(mcp)
     register_execute_command(mcp)
     register_csv(mcp)
+    register_parquet_tool(mcp)
 
     return [
         "example_tool",
@@ -100,20 +103,10 @@ def register_all_tools(
         "csv_append",
         "csv_info",
         "csv_sql",
-        "send_email",
-        "send_budget_alert_email",
-        "hubspot_search_contacts",
-        "hubspot_get_contact",
-        "hubspot_create_contact",
-        "hubspot_update_contact",
-        "hubspot_search_companies",
-        "hubspot_get_company",
-        "hubspot_create_company",
-        "hubspot_update_company",
-        "hubspot_search_deals",
-        "hubspot_get_deal",
-        "hubspot_create_deal",
-        "hubspot_update_deal",
+        "parquet_info",
+        "parquet_preview",
+        "sample_parquet",
+        "run_sql_on_parquet",
     ]
 
 
