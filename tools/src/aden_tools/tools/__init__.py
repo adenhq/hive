@@ -40,6 +40,7 @@ from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
 from .hubspot_tool import register_tools as register_hubspot
 from .pdf_read_tool import register_tools as register_pdf_read
+from .seo_tool import register_tools as register_seo
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
 
@@ -82,6 +83,9 @@ def register_all_tools(
     register_execute_command(mcp)
     register_csv(mcp)
 
+    # Register SEO audit tool
+    register_seo(mcp)
+
     return [
         "example_tool",
         "web_search",
@@ -114,6 +118,7 @@ def register_all_tools(
         "hubspot_get_deal",
         "hubspot_create_deal",
         "hubspot_update_deal",
+        "analyze_on_page",
     ]
 
 
