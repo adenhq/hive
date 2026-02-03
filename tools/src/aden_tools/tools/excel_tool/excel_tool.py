@@ -42,11 +42,11 @@ def register_tools(mcp: FastMCP) -> None:
         try:
             secure_path = get_secure_path(path, workspace_id, agent_id, session_id)
 
-            if not os.path.exists(secure_path):
-                return {"error": f"File not found: {path}"}
-
             if not path.lower().endswith((".xlsx", ".xls")):
                 return {"error": "File must have .xlsx or .xls extension"}
+
+            if not os.path.exists(secure_path):
+                return {"error": f"File not found: {path}"}
 
             # Read Excel file
             try:
@@ -223,54 +223,58 @@ def register_tools(mcp: FastMCP) -> None:
             if not rows:
                 return {"error": "rows cannot be empty"}
 
-            # Read existing Excel file
+            # Get available sheet names
             with pd.ExcelFile(secure_path) as xls:
                 available_sheets = xls.sheet_names
 
-                # Determine target sheet
-                if sheet_name is None:
-                    target_sheet = available_sheets[0]
-                elif sheet_name not in available_sheets:
-                    return {
-                        "error": (
-                            f"Sheet '{sheet_name}' not found. Available sheets: {available_sheets}"
-                        )
-                    }
-                else:
-                    target_sheet = sheet_name
+            # Determine target sheet
+            if sheet_name is None:
+                target_sheet = available_sheets[0]
+            elif sheet_name not in available_sheets:
+                return {
+                    "error": (
+                        f"Sheet '{sheet_name}' not found. Available sheets: {available_sheets}"
+                    )
+                }
+            else:
+                target_sheet = sheet_name
 
-                # Read existing data
-                existing_df = pd.read_excel(secure_path, sheet_name=target_sheet)
-                existing_columns = existing_df.columns.tolist()
+            # Read existing data from target sheet
+            existing_df = pd.read_excel(secure_path, sheet_name=target_sheet)
+            existing_columns = existing_df.columns.tolist()
 
-                # Create new DataFrame from rows
-                new_df = pd.DataFrame(rows)
+            # Create new DataFrame from rows
+            new_df = pd.DataFrame(rows)
 
-                # Ensure new rows have same columns as existing
-                for col in existing_columns:
-                    if col not in new_df.columns:
-                        new_df[col] = ""
+            # Ensure new rows have same columns as existing
+            for col in existing_columns:
+                if col not in new_df.columns:
+                    new_df[col] = ""
 
-                # Reorder columns to match existing
-                new_df = new_df[existing_columns]
+            # Reorder columns to match existing
+            new_df = new_df[existing_columns]
 
-                # Append data
-                combined_df = pd.concat([existing_df, new_df], ignore_index=True)
+            # Append data
+            combined_df = pd.concat([existing_df, new_df], ignore_index=True)
 
-                # Write back to file (preserve other sheets if they exist)
-                if len(available_sheets) == 1:
-                    # Single sheet - simple write
-                    combined_df.to_excel(secure_path, sheet_name=target_sheet, index=False)
-                else:
-                    # Multiple sheets - preserve others
-                    with pd.ExcelWriter(secure_path, engine="openpyxl", mode="w") as writer:
-                        for sheet in available_sheets:
-                            if sheet == target_sheet:
-                                combined_df.to_excel(writer, sheet_name=sheet, index=False)
-                            else:
-                                # Read and preserve other sheets
-                                other_df = pd.read_excel(secure_path, sheet_name=sheet)
-                                other_df.to_excel(writer, sheet_name=sheet, index=False)
+            # Handle writing - preserve other sheets if they exist
+            if len(available_sheets) == 1:
+                # Single sheet - simple write
+                combined_df.to_excel(secure_path, sheet_name=target_sheet, index=False) # type: ignore
+            else:
+                # Multiple sheets - preserve others
+                # First, read all existing sheet data
+                sheets_data = {}
+                for sheet in available_sheets:
+                    if sheet == target_sheet:
+                        sheets_data[sheet] = combined_df
+                    else:
+                        sheets_data[sheet] = pd.read_excel(secure_path, sheet_name=sheet)
+                
+                # Write all sheets to file
+                with pd.ExcelWriter(secure_path, engine="openpyxl", mode="w") as writer:
+                    for sheet, data in sheets_data.items():
+                        data.to_excel(writer, sheet_name=sheet, index=False)
 
             return {
                 "success": True,

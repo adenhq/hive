@@ -1,213 +1,410 @@
-"""Tests for Excel tool functionality."""
+"""Tests for excel_tool - Read and manipulate Excel files."""
 
-import os
-import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
-
-from aden_tools.tools.excel_tool import register_tools
 from fastmcp import FastMCP
 
+from aden_tools.tools.excel_tool.excel_tool import register_tools
 
-@pytest.fixture
-def mcp_server():
-    """Create MCP server with Excel tools registered."""
-    mcp = FastMCP("test-excel")
-    register_tools(mcp)
-    return mcp
-
-
-@pytest.fixture
-def temp_dir():
-    """Create a temporary directory for test files."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        yield tmpdir
+# Test IDs for sandbox
+TEST_WORKSPACE_ID = "test-workspace"
+TEST_AGENT_ID = "test-agent"
+TEST_SESSION_ID = "test-session"
 
 
 @pytest.fixture
-def sample_excel_file(temp_dir):
-    """Create a sample Excel file for testing."""
-    file_path = os.path.join(temp_dir, "test.xlsx")
+def mcp():
+    """Create FastMCP instance for testing."""
+    return FastMCP("test-excel")
+
+
+@pytest.fixture
+def excel_tools(mcp: FastMCP, tmp_path: Path):
+    """Register all Excel tools and return them as a dict."""
+    with patch("aden_tools.tools.file_system_toolkits.security.WORKSPACES_DIR", str(tmp_path)):
+        register_tools(mcp)
+        
+        # Access tools safely to avoid IDE type checking errors
+        tools = mcp._tool_manager._tools
+        
+        yield {
+            "excel_read": getattr(tools["excel_read"], "fn"),
+            "excel_write": getattr(tools["excel_write"], "fn"), 
+            "excel_append": getattr(tools["excel_append"], "fn"),
+            "excel_info": getattr(tools["excel_info"], "fn"),
+            "excel_create_sheet": getattr(tools["excel_create_sheet"], "fn"),
+        }
+
+
+@pytest.fixture
+def session_dir(tmp_path: Path) -> Path:
+    """Create and return the session directory within the sandbox."""
+    session_path = tmp_path / TEST_WORKSPACE_ID / TEST_AGENT_ID / TEST_SESSION_ID
+    session_path.mkdir(parents=True, exist_ok=True)
+    return session_path
+
+
+@pytest.fixture
+def basic_excel(session_dir: Path) -> Path:
+    """Create a basic Excel file for testing."""
+    excel_path = session_dir / "test.xlsx"
     
-    # Create sample data
     data = {
         "Name": ["Alice", "Bob", "Charlie"],
         "Age": [25, 30, 35],
         "City": ["New York", "London", "Tokyo"]
     }
     df = pd.DataFrame(data)
-    df.to_excel(file_path, sheet_name="Sheet1", index=False)
+    df.to_excel(excel_path, index=False, sheet_name="Sheet1")
     
-    return file_path
+    return excel_path
 
 
 class TestExcelRead:
     """Test excel_read functionality."""
 
-    def test_read_existing_file(self, mcp_server, sample_excel_file, temp_dir):
-        """Test reading an existing Excel file."""
-        rel_path = "test.xlsx"
+    def test_read_basic_file(self, excel_tools, basic_excel):
+        """Test reading a basic Excel file."""
+        excel_read = excel_tools["excel_read"]
         
-        # Mock the security path function to return our test file
-        import aden_tools.tools.excel_tool.excel_tool as excel_module
+        result = excel_read(
+            path="test.xlsx",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID
+        )
         
-        def mock_get_secure_path(path, workspace_id, agent_id, session_id):
-            return sample_excel_file
-        
-        original_get_secure_path = excel_module.get_secure_path
-        excel_module.get_secure_path = mock_get_secure_path
-        
-        try:
-            # Test the function exists and is callable
-            tools = {tool.name: tool for tool in mcp_server.list_tools()}
-            assert "excel_read" in tools
-            
-            # Test reading the file
-            result = tools["excel_read"].call(
-                path=rel_path,
-                workspace_id="test_workspace",
-                agent_id="test_agent",
-                session_id="test_session"
-            )
-            
-            assert result["success"] is True
-            assert result["path"] == rel_path
-            assert result["columns"] == ["Name", "Age", "City"]
-            assert result["row_count"] == 3
-            assert result["total_rows"] == 3
-            assert len(result["rows"]) == 3
-            
-        finally:
-            excel_module.get_secure_path = original_get_secure_path
+        assert result["success"] is True
+        assert result["path"] == "test.xlsx"
+        assert result["sheet"] == "Sheet1"
+        assert result["row_count"] == 3
+        assert result["column_count"] == 3
+        assert result["total_rows"] == 3
+        assert "Name" in result["columns"]
+        assert "Age" in result["columns"]
+        assert "City" in result["columns"]
+        assert len(result["rows"]) == 3
 
-    def test_read_nonexistent_file(self, mcp_server):
+    def test_read_nonexistent_file(self, excel_tools):
         """Test reading a non-existent file returns error."""
-        import aden_tools.tools.excel_tool.excel_tool as excel_module
+        excel_read = excel_tools["excel_read"]
         
-        def mock_get_secure_path(path, workspace_id, agent_id, session_id):
-            return "/nonexistent/file.xlsx"
-        
-        original_get_secure_path = excel_module.get_secure_path
-        excel_module.get_secure_path = mock_get_secure_path
-        
-        try:
-            tools = {tool.name: tool for tool in mcp_server.list_tools()}
-            result = tools["excel_read"].call(
-                path="nonexistent.xlsx",
-                workspace_id="test_workspace",
-                agent_id="test_agent",
-                session_id="test_session"
-            )
-            
-            assert "error" in result
-            assert "File not found" in result["error"]
-            
-        finally:
-            excel_module.get_secure_path = original_get_secure_path
-
-    def test_read_with_invalid_extension(self, mcp_server):
-        """Test reading file with invalid extension returns error."""
-        tools = {tool.name: tool for tool in mcp_server.list_tools()}
-        result = tools["excel_read"].call(
-            path="test.txt",
-            workspace_id="test_workspace",
-            agent_id="test_agent",
-            session_id="test_session"
+        result = excel_read(
+            path="nonexistent.xlsx",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID
         )
         
         assert "error" in result
-        assert "must have .xlsx or .xls extension" in result["error"]
+        assert "File not found" in result["error"]
 
-    def test_read_with_limit_and_offset(self, mcp_server, sample_excel_file):
-        """Test reading with limit and offset parameters."""
-        import aden_tools.tools.excel_tool.excel_tool as excel_module
+    def test_read_invalid_extension(self, excel_tools):
+        """Test reading file with invalid extension."""
+        excel_read = excel_tools["excel_read"]
         
-        def mock_get_secure_path(path, workspace_id, agent_id, session_id):
-            return sample_excel_file
+        result = excel_read(
+            path="test.txt",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID
+        )
         
-        original_get_secure_path = excel_module.get_secure_path
-        excel_module.get_secure_path = mock_get_secure_path
+        assert "error" in result
+        assert "File must have .xlsx or .xls extension" in result["error"]
+
+    def test_read_with_limit_offset(self, excel_tools, basic_excel):
+        """Test reading with limit and offset."""
+        excel_read = excel_tools["excel_read"]
         
-        try:
-            tools = {tool.name: tool for tool in mcp_server.list_tools()}
-            result = tools["excel_read"].call(
-                path="test.xlsx",
-                workspace_id="test_workspace",
-                agent_id="test_agent",
-                session_id="test_session",
-                limit=2,
-                offset=1
-            )
-            
-            assert result["success"] is True
-            assert result["row_count"] == 2
-            assert result["total_rows"] == 3
-            assert result["offset"] == 1
-            assert result["limit"] == 2
-            
-        finally:
-            excel_module.get_secure_path = original_get_secure_path
+        result = excel_read(
+            path="test.xlsx",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID,
+            limit=2,
+            offset=1
+        )
+        
+        assert result["success"] is True
+        assert result["row_count"] == 2
+        assert result["total_rows"] == 3
+        assert result["offset"] == 1
+        assert result["limit"] == 2
+
+    def test_read_negative_params(self, excel_tools):
+        """Test negative offset and limit return errors."""
+        excel_read = excel_tools["excel_read"]
+        
+        # Test negative offset
+        result = excel_read(
+            path="test.xlsx",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID,
+            offset=-1
+        )
+        assert "error" in result
+        assert "offset and limit must be non-negative" in result["error"]
+        
+        # Test negative limit
+        result = excel_read(
+            path="test.xlsx",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID,
+            limit=-1
+        )
+        assert "error" in result
+        assert "offset and limit must be non-negative" in result["error"]
 
 
 class TestExcelWrite:
     """Test excel_write functionality."""
 
-    def test_write_new_file(self, mcp_server, temp_dir):
+    def test_write_basic_file(self, excel_tools, session_dir):
         """Test writing data to a new Excel file."""
-        output_path = os.path.join(temp_dir, "output.xlsx")
+        excel_write = excel_tools["excel_write"]
         
-        import aden_tools.tools.excel_tool.excel_tool as excel_module
+        columns = ["Product", "Price", "Stock"]
+        rows = [
+            {"Product": "Apple", "Price": 1.5, "Stock": 100},
+            {"Product": "Banana", "Price": 0.8, "Stock": 200}
+        ]
         
-        def mock_get_secure_path(path, workspace_id, agent_id, session_id):
-            return output_path
-        
-        original_get_secure_path = excel_module.get_secure_path
-        excel_module.get_secure_path = mock_get_secure_path
-        
-        try:
-            tools = {tool.name: tool for tool in mcp_server.list_tools()}
-            
-            # Test data
-            columns = ["Product", "Price", "Stock"]
-            rows = [
-                {"Product": "Laptop", "Price": 999.99, "Stock": 10},
-                {"Product": "Mouse", "Price": 29.99, "Stock": 50}
-            ]
-            
-            result = tools["excel_write"].call(
-                path="output.xlsx",
-                workspace_id="test_workspace",
-                agent_id="test_agent",
-                session_id="test_session",
-                columns=columns,
-                rows=rows,
-                sheet_name="Products"
-            )
-            
-            assert result["success"] is True
-            assert result["path"] == "output.xlsx"
-            assert result["sheet"] == "Products"
-            assert result["rows_written"] == 2
-            
-            # Verify file was created and contains correct data
-            assert os.path.exists(output_path)
-            df = pd.read_excel(output_path, sheet_name="Products")
-            assert len(df) == 2
-            assert list(df.columns) == columns
-            
-        finally:
-            excel_module.get_secure_path = original_get_secure_path
-
-    def test_write_empty_columns_error(self, mcp_server):
-        """Test writing with empty columns returns error."""
-        tools = {tool.name: tool for tool in mcp_server.list_tools()}
-        result = tools["excel_write"].call(
+        result = excel_write(
             path="output.xlsx",
-            workspace_id="test_workspace",
-            agent_id="test_agent",
-            session_id="test_session",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID,
+            columns=columns,
+            rows=rows,
+            sheet_name="Products"
+        )
+        
+        assert result["success"] is True
+        assert result["path"] == "output.xlsx"
+        assert result["sheet"] == "Products"
+        assert result["rows_written"] == 2
+        assert result["column_count"] == 3
+        
+        # Verify file was created and content is correct
+        output_path = session_dir / "output.xlsx"
+        assert output_path.exists()
+        
+        df = pd.read_excel(output_path, sheet_name="Products")
+        assert len(df) == 2
+        assert list(df.columns) == columns
+
+    def test_write_empty_columns_error(self, excel_tools):
+        """Test writing with empty columns returns error."""
+        excel_write = excel_tools["excel_write"]
+        
+        result = excel_write(
+            path="output.xlsx",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID,
+            columns=[],
+            rows=[]
+        )
+        
+        assert "error" in result
+        assert "columns cannot be empty" in result["error"]
+
+    def test_write_invalid_extension(self, excel_tools):
+        """Test writing with invalid extension."""
+        excel_write = excel_tools["excel_write"]
+        
+        result = excel_write(
+            path="output.txt",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID,
+            columns=["A"],
+            rows=[{"A": 1}]
+        )
+        
+        assert "error" in result
+        assert "File must have .xlsx or .xls extension" in result["error"]
+
+
+class TestExcelAppend:
+    """Test excel_append functionality."""
+
+    def test_append_to_existing_file(self, excel_tools, basic_excel):
+        """Test appending rows to existing file."""
+        excel_append = excel_tools["excel_append"]
+        
+        new_rows = [
+            {"Name": "David", "Age": 40, "City": "Berlin"}
+        ]
+        
+        result = excel_append(
+            path="test.xlsx",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID,
+            rows=new_rows
+        )
+        
+        assert result["success"] is True
+        assert result["path"] == "test.xlsx"
+        assert result["sheet"] == "Sheet1"
+        assert result["rows_appended"] == 1
+        assert result["total_rows"] == 4  # 3 original + 1 new
+        
+        # Verify the data was appended
+        df = pd.read_excel(basic_excel, sheet_name="Sheet1")
+        assert len(df) == 4
+        assert df.iloc[-1]["Name"] == "David"
+
+    def test_append_nonexistent_file(self, excel_tools):
+        """Test appending to non-existent file returns error."""
+        excel_append = excel_tools["excel_append"]
+        
+        result = excel_append(
+            path="nonexistent.xlsx",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID,
+            rows=[{"A": 1}]
+        )
+        
+        assert "error" in result
+        assert "File not found" in result["error"]
+
+    def test_append_empty_rows(self, excel_tools, basic_excel):
+        """Test appending empty rows returns error."""
+        excel_append = excel_tools["excel_append"]
+        
+        result = excel_append(
+            path="test.xlsx",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID,
+            rows=[]
+        )
+        
+        assert "error" in result
+        assert "rows cannot be empty" in result["error"]
+
+
+class TestExcelInfo:
+    """Test excel_info functionality."""
+
+    def test_get_file_info(self, excel_tools, basic_excel):
+        """Test getting file information."""
+        excel_info = excel_tools["excel_info"]
+        
+        result = excel_info(
+            path="test.xlsx",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID
+        )
+        
+        assert result["success"] is True
+        assert result["path"] == "test.xlsx"
+        assert result["sheet_count"] == 1
+        assert "file_size" in result
+        assert len(result["sheets"]) == 1
+        
+        sheet_info = result["sheets"][0]
+        assert sheet_info["name"] == "Sheet1"
+        assert sheet_info["row_count"] == 3
+        assert sheet_info["column_count"] == 3
+        assert "Name" in sheet_info["columns"]
+
+    def test_info_nonexistent_file(self, excel_tools):
+        """Test getting info for non-existent file."""
+        excel_info = excel_tools["excel_info"]
+        
+        result = excel_info(
+            path="nonexistent.xlsx",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID
+        )
+        
+        assert "error" in result
+        assert "File not found" in result["error"]
+
+
+class TestExcelCreateSheet:
+    """Test excel_create_sheet functionality."""
+
+    def test_create_sheet_new_file(self, excel_tools, session_dir):
+        """Test creating a sheet in a new file."""
+        excel_create_sheet = excel_tools["excel_create_sheet"]
+        
+        columns = ["ID", "Value"]
+        rows = [{"ID": 1, "Value": "Test"}]
+        
+        result = excel_create_sheet(
+            path="new_file.xlsx",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID,
+            sheet_name="Data",
+            columns=columns,
+            rows=rows
+        )
+        
+        assert result["success"] is True
+        assert result["path"] == "new_file.xlsx"
+        assert result["sheet"] == "Data"
+        assert result["rows_written"] == 1
+        assert result.get("file_created") is True
+        
+        # Verify file was created
+        new_file = session_dir / "new_file.xlsx"
+        assert new_file.exists()
+        
+        df = pd.read_excel(new_file, sheet_name="Data")
+        assert len(df) == 1
+        assert list(df.columns) == columns
+
+    def test_create_sheet_existing_file(self, excel_tools, basic_excel):
+        """Test adding a sheet to existing file."""
+        excel_create_sheet = excel_tools["excel_create_sheet"]
+        
+        columns = ["X", "Y"]
+        rows = [{"X": 10, "Y": 20}]
+        
+        result = excel_create_sheet(
+            path="test.xlsx",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID,
+            sheet_name="NewSheet",
+            columns=columns,
+            rows=rows
+        )
+        
+        assert result["success"] is True
+        assert result["sheet"] == "NewSheet"
+        assert result["rows_written"] == 1
+        assert "existing_sheets" in result
+        
+        # Verify both sheets exist
+        with pd.ExcelFile(basic_excel) as xls:
+            assert "Sheet1" in xls.sheet_names
+            assert "NewSheet" in xls.sheet_names
+
+    def test_create_sheet_empty_columns(self, excel_tools):
+        """Test creating sheet with empty columns returns error."""
+        excel_create_sheet = excel_tools["excel_create_sheet"]
+        
+        result = excel_create_sheet(
+            path="new_file.xlsx",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID,
+            sheet_name="Test",
             columns=[],
             rows=[]
         )
@@ -216,114 +413,47 @@ class TestExcelWrite:
         assert "columns cannot be empty" in result["error"]
 
 
-class TestExcelInfo:
-    """Test excel_info functionality."""
+class TestMultiSheetOperations:
+    """Test multi-sheet Excel operations."""
 
-    def test_get_file_info(self, mcp_server, sample_excel_file):
-        """Test getting information about an Excel file."""
-        import aden_tools.tools.excel_tool.excel_tool as excel_module
+    def test_read_specific_sheet(self, excel_tools, session_dir):
+        """Test reading a specific sheet by name."""
+        # Create multi-sheet Excel file
+        excel_path = session_dir / "multi_sheet.xlsx"
         
-        def mock_get_secure_path(path, workspace_id, agent_id, session_id):
-            return sample_excel_file
+        with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
+            df1 = pd.DataFrame({"A": [1, 2], "B": [3, 4]})
+            df2 = pd.DataFrame({"X": [5, 6], "Y": [7, 8]})
+            df1.to_excel(writer, sheet_name='FirstSheet', index=False)
+            df2.to_excel(writer, sheet_name='SecondSheet', index=False)
         
-        original_get_secure_path = excel_module.get_secure_path
-        excel_module.get_secure_path = mock_get_secure_path
+        excel_read = excel_tools["excel_read"]
         
-        try:
-            tools = {tool.name: tool for tool in mcp_server.list_tools()}
-            result = tools["excel_info"].call(
-                path="test.xlsx",
-                workspace_id="test_workspace",
-                agent_id="test_agent",
-                session_id="test_session"
-            )
-            
-            assert result["success"] is True
-            assert result["path"] == "test.xlsx"
-            assert result["sheet_count"] == 1
-            assert "file_size" in result
-            assert len(result["sheets"]) == 1
-            
-            sheet_info = result["sheets"][0]
-            assert sheet_info["name"] == "Sheet1"
-            assert sheet_info["columns"] == ["Name", "Age", "City"]
-            assert sheet_info["row_count"] == 3
-            
-        finally:
-            excel_module.get_secure_path = original_get_secure_path
+        # Read specific sheet
+        result = excel_read(
+            path="multi_sheet.xlsx",
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID,
+            sheet_name="SecondSheet"
+        )
+        
+        assert result["success"] is True
+        assert result["sheet"] == "SecondSheet"
+        assert result["columns"] == ["X", "Y"]
+        assert result["row_count"] == 2
 
-
-class TestExcelCreateSheet:
-    """Test excel_create_sheet functionality."""
-
-    def test_create_sheet_new_file(self, mcp_server, temp_dir):
-        """Test creating a sheet in a new file."""
-        output_path = os.path.join(temp_dir, "new_file.xlsx")
+    def test_read_invalid_sheet(self, excel_tools, basic_excel):
+        """Test reading invalid sheet name returns error."""
+        excel_read = excel_tools["excel_read"]
         
-        import aden_tools.tools.excel_tool.excel_tool as excel_module
-        
-        def mock_get_secure_path(path, workspace_id, agent_id, session_id):
-            return output_path
-        
-        original_get_secure_path = excel_module.get_secure_path
-        excel_module.get_secure_path = mock_get_secure_path
-        
-        try:
-            tools = {tool.name: tool for tool in mcp_server.list_tools()}
-            
-            result = tools["excel_create_sheet"].call(
-                path="new_file.xlsx",
-                workspace_id="test_workspace",
-                agent_id="test_agent",
-                session_id="test_session",
-                sheet_name="TestSheet",
-                columns=["A", "B", "C"],
-                rows=[{"A": 1, "B": 2, "C": 3}]
-            )
-            
-            assert result["success"] is True
-            assert result["file_created"] is True
-            assert result["sheet"] == "TestSheet"
-            assert result["rows_written"] == 1
-            
-            # Verify file exists
-            assert os.path.exists(output_path)
-            
-        finally:
-            excel_module.get_secure_path = original_get_secure_path
-
-
-class TestParameterValidation:
-    """Test parameter validation."""
-
-    def test_negative_offset(self, mcp_server):
-        """Test that negative offset returns error."""
-        tools = {tool.name: tool for tool in mcp_server.list_tools()}
-        result = tools["excel_read"].call(
+        result = excel_read(
             path="test.xlsx",
-            workspace_id="test_workspace",
-            agent_id="test_agent",
-            session_id="test_session",
-            offset=-1
+            workspace_id=TEST_WORKSPACE_ID,
+            agent_id=TEST_AGENT_ID,
+            session_id=TEST_SESSION_ID,
+            sheet_name="InvalidSheet"
         )
         
         assert "error" in result
-        assert "must be non-negative" in result["error"]
-
-    def test_negative_limit(self, mcp_server):
-        """Test that negative limit returns error."""
-        tools = {tool.name: tool for tool in mcp_server.list_tools()}
-        result = tools["excel_read"].call(
-            path="test.xlsx",
-            workspace_id="test_workspace",
-            agent_id="test_agent",
-            session_id="test_session",
-            limit=-1
-        )
-        
-        assert "error" in result
-        assert "must be non-negative" in result["error"]
-
-
-if __name__ == "__main__":
-    pytest.main([__file__])
+        assert "Sheet 'InvalidSheet' not found" in result["error"]
