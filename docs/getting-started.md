@@ -7,14 +7,38 @@ This guide will help you set up the Aden Agent Framework and build your first ag
 - **Python 3.11+** ([Download](https://www.python.org/downloads/)) - Python 3.12 or 3.13 recommended
 - **pip** - Package installer for Python (comes with Python)
 - **git** - Version control
-- **Claude Code** ([Install](https://docs.anthropic.com/claude/docs/claude-code)) - Optional, for using building skills
+- **Claude Code** ([Install](https://docs.anthropic.com/claude/docs/claude-code)) - Optional, for building agents using skills
+
+## Windows Setup (Recommended)
+
+This project uses bash scripts (for example `./scripts/setup-python.sh`).
+If you're on Windows, we recommend using **WSL2** (Windows Subsystem for Linux) for the smoothest setup experience.
+
+> **Windows note:** PowerShell cannot run `.sh` scripts directly. Use **WSL** or **Git Bash**.
+
+### Option A: Use WSL2 (Recommended)
+1. Install WSL2: https://learn.microsoft.com/windows/wsl/install
+2. Open the Ubuntu terminal (or your preferred Linux distro)
+3. Follow the **Quick Start** commands below inside WSL
+
+### Option B: Use Git Bash
+If you prefer not to use WSL, you can run the bash scripts using **Git Bash**:
+- Install Git: https://git-scm.com/downloads
+- Right-click inside the project folder → **Git Bash Here**
+- Run the commands from **Quick Start**
 
 ## Quick Start
 
 The fastest way to get started:
 
+> **Note (Contributing):** If you plan to contribute, fork the repo and clone your fork instead of cloning directly from `adenhq/hive`.
+
+> **Windows note:** `./scripts/setup-python.sh` is a bash script and will not run in PowerShell.
+> Use **WSL** (recommended) or **Git Bash**, then run the commands below.
+
 ```bash
 # 1. Clone the repository
+#If contributing, clone ouyr fork instead of cloning adenhq/hive directly 
 git clone https://github.com/adenhq/hive.git
 cd hive
 
