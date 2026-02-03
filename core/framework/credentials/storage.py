@@ -151,11 +151,14 @@ class EncryptedFileStorage(CredentialStorage):
             if key_str:
                 self._key = key_str.encode()
             else:
-                # Generate new key
+                # Generate new key and save to restricted file (never log the key)
                 self._key = Fernet.generate_key()
+                key_file = self.base_path / ".generated_key"
+                key_file.write_bytes(self._key)
+                key_file.chmod(0o600)  # Owner read/write only
                 logger.warning(
-                    f"Generated new encryption key. To persist credentials across restarts, "
-                    f"set {key_env_var}={self._key.decode()}"
+                    f"Generated new encryption key saved to {key_file}. "
+                    f"To persist credentials across restarts, set {key_env_var} from this file."
                 )
 
         self._fernet = Fernet(self._key)

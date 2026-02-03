@@ -10,6 +10,7 @@ Tests cover:
 - OAuth2 module
 """
 
+import logging
 import os
 import tempfile
 from datetime import UTC, datetime, timedelta
@@ -701,6 +702,131 @@ class TestOAuth2Module:
                 token_url="https://example.com/token",
                 token_placement=TokenPlacement.HEADER_CUSTOM,
             )
+
+
+class TestEncryptedFileStorageSecurityFix:
+    """Tests for security fix preventing encryption key from being logged."""
+
+    @pytest.fixture
+    def temp_dir(self):
+        """Create a temporary directory for tests."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield Path(tmpdir)
+
+    def test_generated_key_not_logged(self, temp_dir, caplog):
+        """Test that encryption key is not in log output."""
+        import re
+
+        with caplog.at_level(logging.WARNING):
+            storage = EncryptedFileStorage(temp_dir)
+
+        fernet_key_pattern = r"[A-Za-z0-9_-]{43}="
+        for record in caplog.records:
+            matches = re.findall(fernet_key_pattern, record.message)
+            for match in matches:
+                assert match != storage._key.decode(), (
+                    f"Encryption key was logged in message: {record.message}"
+                )
+
+    def test_generated_key_saved_to_file(self, temp_dir):
+        """Test that .generated_key file is created with valid Fernet key."""
+        from cryptography.fernet import Fernet
+
+        storage = EncryptedFileStorage(temp_dir)
+        key_file = temp_dir / ".generated_key"
+
+        assert key_file.exists()
+        key_content = key_file.read_bytes()
+        assert len(key_content) == 44
+
+        Fernet(key_content)  # Validates key format
+        assert key_content == storage._key
+
+    def test_generated_key_file_permissions(self, temp_dir):
+        """Test that .generated_key file has restricted permissions (0o600)."""
+        import stat
+
+        EncryptedFileStorage(temp_dir)
+        key_file = temp_dir / ".generated_key"
+
+        file_stat = key_file.stat()
+        permissions = stat.S_IMODE(file_stat.st_mode)
+        assert permissions == 0o600
+
+    def test_log_message_contains_file_path_not_key(self, temp_dir, caplog):
+        """Test that log mentions file path but not the actual key."""
+        with caplog.at_level(logging.WARNING):
+            storage = EncryptedFileStorage(temp_dir)
+
+        warning_records = [r for r in caplog.records if r.levelname == "WARNING"]
+        assert len(warning_records) == 1
+
+        log_message = warning_records[0].message
+        assert ".generated_key" in log_message
+        assert str(temp_dir) in log_message
+        assert storage._key.decode() not in log_message
+
+    def test_existing_env_key_does_not_create_file(self, temp_dir):
+        """Test that no .generated_key file is created when env key is set."""
+        from cryptography.fernet import Fernet
+
+        env_key = Fernet.generate_key().decode()
+        with patch.dict(os.environ, {"HIVE_CREDENTIAL_KEY": env_key}):
+            EncryptedFileStorage(temp_dir)
+
+        key_file = temp_dir / ".generated_key"
+        assert not key_file.exists()
+
+    def test_end_to_end_credential_workflow_no_key_leak(self, temp_dir, caplog):
+        """Test full credential save/load workflow without leaking key to logs."""
+        import re
+        import stat
+
+        from cryptography.fernet import Fernet
+
+        with caplog.at_level(logging.WARNING):
+            storage = EncryptedFileStorage(temp_dir)
+
+        sensitive_api_key = "sk-super-secret-api-key-12345"
+        cred = CredentialObject(
+            id="production_api",
+            credential_type=CredentialType.API_KEY,
+            keys={"api_key": CredentialKey(name="api_key", value=SecretStr(sensitive_api_key))},
+        )
+        storage.save(cred)
+
+        loaded_cred = storage.load("production_api")
+        assert loaded_cred is not None
+        assert loaded_cred.get_key("api_key") == sensitive_api_key
+
+        # Verify key not in logs
+        all_log_text = " ".join(record.message for record in caplog.records)
+        actual_key = storage._key.decode()
+        assert actual_key not in all_log_text
+
+        fernet_pattern = r"[A-Za-z0-9_-]{43}="
+        for match in re.findall(fernet_pattern, all_log_text):
+            assert match != actual_key
+
+        # Verify key file
+        key_file = temp_dir / ".generated_key"
+        assert key_file.exists()
+        assert stat.S_IMODE(key_file.stat().st_mode) == 0o600
+
+        # Verify key from file can decrypt credentials
+        key_from_file = key_file.read_bytes()
+        storage2 = EncryptedFileStorage(temp_dir, encryption_key=key_from_file)
+        loaded_cred2 = storage2.load("production_api")
+        assert loaded_cred2.get_key("api_key") == sensitive_api_key
+
+        # Verify data is encrypted on disk
+        encrypted_file = temp_dir / "credentials" / "production_api.enc"
+        encrypted_content = encrypted_file.read_bytes()
+        assert sensitive_api_key.encode() not in encrypted_content
+
+        fernet = Fernet(key_from_file)
+        decrypted = fernet.decrypt(encrypted_content)
+        assert sensitive_api_key.encode() in decrypted
 
 
 if __name__ == "__main__":
