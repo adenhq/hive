@@ -1152,12 +1152,6 @@ Keep the same JSON structure but with shorter content values.
                         tokens_used=response.input_tokens + response.output_tokens,
                         latency_ms=latency_ms,
                     )
-                    # JSON extraction failed completely - still strip code blocks
-                    # logger.warning(f"      ⚠ Failed to extract JSON output: {e}")
-                    # stripped_content = self._strip_code_blocks(response.content)
-                    # for key in ctx.node_spec.output_keys:
-                    #     ctx.memory.write(key, stripped_content)
-                    #     output[key] = stripped_content
             else:
                 # For non-llm_generate or single output nodes, write entire response (stripped)
                 stripped_content = self._strip_code_blocks(response.content)
