@@ -1,53 +1,13 @@
-# Dependencies
-node_modules/
-.pnpm-store/
+# --- Virtual Environments (The Culprits) ---
+venv/
+.venv/
+env/
+.env/
+bin/
+lib/
+include/
 
-# Build outputs
-dist/
-build/
-workdir/
-.next/
-out/
-
-# Environment files
-.env
-.env.local
-.env.*.local
-
-# User configuration (copied from .example)
-config.yaml
-docker-compose.override.yml
-
-# IDE
-.idea/
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json.example
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Testing
-coverage/
-.nyc_output/
-.pytest_cache/
-
-# TypeScript
-*.tsbuildinfo
-
-# Python
+# --- Python & Build ---
 __pycache__/
 *.py[cod]
 *$py.class
@@ -55,18 +15,47 @@ __pycache__/
 .eggs/
 *.egg
 uv.lock
+dist/
+build/
+*.tsbuildinfo
 
-# Generated runtime data
+# --- Node.js & Web ---
+node_modules/
+.pnpm-store/
+.next/
+out/
+coverage/
+.nyc_output/
+
+# --- Logs & Runtime Data ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+logs/
 core/data/
+agent_logs/        # Verification script verilerini repoya sokmayalım
+exports/
+.agent-builder-sessions/
 
-# Misc
-*.local
+# --- Environment & Config ---
+.env
+.env.local
+.env.*.local
+config.yaml
+docker-compose.override.yml
+
+# --- IDE & OS ---
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# --- Misc ---
 .cache/
 tmp/
 temp/
-
-exports/*
-
-.agent-builder-sessions/*
-
-.venv
