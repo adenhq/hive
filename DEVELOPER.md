@@ -26,6 +26,7 @@ Aden Agent Framework is a Python-based system for building goal-driven, self-imp
 | **tools**     | `/tools`   | MCP tools for agent capabilities        | Python 3.11+ |
 | **exports**   | `/exports` | Agent packages (user-created, gitignored) | Python 3.11+ |
 | **skills**    | `.claude`  | Claude Code skills for building/testing | Markdown     |
+| **agents**    | `.github/agents` | VS Code custom agents | Markdown |
 
 ### Key Principles
 
@@ -46,7 +47,10 @@ Ensure you have installed:
 - **Python 3.11+** - [Download](https://www.python.org/downloads/) (3.12 or 3.13 recommended)
 - **uv** - Python package manager ([Install](https://docs.astral.sh/uv/getting-started/installation/))
 - **git** - Version control
-- **Claude Code** - [Install](https://docs.anthropic.com/claude/docs/claude-code) (optional, for using building skills)
+- **IDE** (pick one):
+  - **VS Code** with [GitHub Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot) - [Setup guide](docs/vscode-copilot-setup.md)
+  - **Cursor** - [Download](https://cursor.sh/)
+  - **Claude Code** - [Install](https://docs.anthropic.com/claude/docs/claude-code)
 
 Verify installation:
 
@@ -218,19 +222,39 @@ hive/                                    # Repository root
 
 ## Building Agents
 
-### Using Claude Code Skills
+### Using IDE Skills/Agents
 
-The fastest way to build agents is using the Claude Code skills:
+The fastest way to build agents is using your IDE's skills or agents. These are installed/configured automatically when you run `./quickstart.sh`.
 
+**Claude Code:**
 ```bash
-# Install skills (one-time)
-./quickstart.sh
-
-# Build a new agent
+# Skills are available in .claude/skills/
+# Use them directly in Claude Code:
 claude> /building-agents-construction
-
-# Test the agent
 claude> /testing-agent
+claude> /agent-workflow
+```
+
+**Cursor:**
+```bash
+# Skills are available via MCP in .cursor/mcp.json
+# Type / in Agent chat to access them:
+/building-agents-construction
+/testing-agent
+/agent-workflow
+```
+
+**VS Code + GitHub Copilot:**
+```bash
+# Custom agents are available in .github/agents/
+# Open Copilot Chat (Cmd/Ctrl + Shift + I)
+# Click the mode dropdown at the top
+# Select a custom agent:
+#   - agent-workflow (for complete workflow)
+#   - building-agents-construction (step-by-step)
+#   - testing-agent (testing)
+# Then type your request:
+Build a customer support agent
 ```
 
 ### Agent Development Workflow
