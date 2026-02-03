@@ -33,7 +33,17 @@
       "Bash(PYTHONPATH=/home/timothy/oss/hive/core:/home/timothy/oss/hive/exports python:*)",
       "Bash(PYTHONPATH=core:exports:tools/src python -m hubspot_input:*)",
       "mcp__agent-builder__export_graph",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(gh issue list:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(pip install:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(git merge:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
