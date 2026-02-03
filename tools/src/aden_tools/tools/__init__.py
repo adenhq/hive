@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from aden_tools.credentials import CredentialStoreAdapter
 
 # Import register_tools from each tool module
+from .bigquery_tool import register_tools as register_bigquery
 from .csv_tool import register_tools as register_csv
 from .email_tool import register_tools as register_email
 from .example_tool import register_tools as register_example
@@ -72,6 +73,7 @@ def register_all_tools(
     # email supports multiple providers (Resend) with auto-detection
     register_email(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
+    register_bigquery(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -129,6 +131,8 @@ def register_all_tools(
         "hubspot_get_deal",
         "hubspot_create_deal",
         "hubspot_update_deal",
+        "run_bigquery_query",
+        "describe_dataset",
     ]
 
 

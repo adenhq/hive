@@ -44,6 +44,7 @@ To add a new credential:
 """
 
 from .base import CredentialError, CredentialSpec
+from .bigquery import BIGQUERY_CREDENTIALS
 from .browser import get_aden_auth_url, get_aden_setup_url, open_browser
 from .email import EMAIL_CREDENTIALS
 from .health_check import HealthCheckResult, check_credential_health
@@ -63,6 +64,7 @@ CREDENTIAL_SPECS = {
     **LLM_CREDENTIALS,
     **SEARCH_CREDENTIALS,
     **EMAIL_CREDENTIALS,
+    **BIGQUERY_CREDENTIALS,
     **INTEGRATION_CREDENTIALS,
 }
 
