@@ -98,11 +98,23 @@ echo -e "${GREEN}✓${NC} Python version check passed"
 echo ""
 
 # Check for uv
-if ! command -v uv &> /dev/null; then
-    echo -e "${RED}Error: uv is not installed${NC}"
-    echo "Please install uv from https://github.com/astral-sh/uv"
-    exit 1
+# Check for uv (auto-install if missing)
+if ! command -v uv >/dev/null 2>&1; then
+    echo -e "${YELLOW}uv not found. Installing...${NC}"
+    if command -v curl >/dev/null 2>&1; then
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+    elif command -v wget >/dev/null 2>&1; then
+        wget -qO- https://astral.sh/uv/install.sh | sh
+    else
+        echo -e "${RED}Error:${NC} curl or wget required to install uv"
+        exit 1
+    fi
+    export PATH="$HOME/.local/bin:$PATH"
 fi
+
+echo -e "${GREEN}✓${NC} uv detected"
+echo ""
+
 
 echo -e "${GREEN}✓${NC} uv detected"
 echo ""
