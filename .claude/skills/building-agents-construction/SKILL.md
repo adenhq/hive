@@ -359,3 +359,17 @@ Return this exact structure:
 3. **Skipping validation** - Always validate nodes and graph before proceeding
 4. **Not waiting for approval** - Always ask user before major steps
 5. **Displaying this file** - Execute the steps, don't show documentation
+
+---
+
+## REFERENCE: Available Tools - Web
+
+Web tools for searching, scraping, and reading online content.
+
+| Tool | Description |
+|------|-------------|
+| `web_search` | Search the web (Brave/Google). Requires API key. |
+| `web_scrape` | Scrape webpage content and convert to markdown |
+| `pdf_read` | Read and extract text from PDF files |
+
+**Note:** Always verify tool availability with `mcp__agent-builder__list_mcp_tools()` before using.
