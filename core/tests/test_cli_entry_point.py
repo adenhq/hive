@@ -59,6 +59,36 @@ class TestConfigurePaths:
         _configure_paths()
 
 
+class TestHelpExamples:
+    """Test that all subcommands include usage examples in --help."""
+
+    SUBCOMMANDS = [
+        "run",
+        "info",
+        "validate",
+        "list",
+        "dispatch",
+        "shell",
+        "test-run",
+        "test-debug",
+        "test-list",
+        "test-stats",
+    ]
+
+    @pytest.mark.parametrize("subcommand", SUBCOMMANDS)
+    def test_subcommand_has_examples(self, project_root, subcommand):
+        result = subprocess.run(
+            [sys.executable, "-m", "framework", subcommand, "--help"],
+            capture_output=True,
+            text=True,
+            cwd=str(project_root / "core"),
+        )
+        assert result.returncode == 0
+        assert "examples:" in result.stdout.lower(), (
+            f"'{subcommand} --help' is missing an examples section"
+        )
+
+
 class TestFrameworkModule:
     """Test ``python -m framework`` invocation (the underlying module)."""
 
