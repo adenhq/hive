@@ -31,6 +31,33 @@ You may submit PRs without prior assignment for:
   | Typos & Documentation & Linting | Refactoring for "clean code" |
   | No logic/API/DB changes | New features (even tiny ones) |
 
+## How You Can Contribute
+
+Hive welcomes contributions beyond code. Here are ways to get involved based on your background:
+
+### Documentation
+
+- Improve or add guides, tutorials, and examples
+- Fix typos, broken links, or unclear instructions
+- Translate documentation (see `docs/i18n/`)
+- No dev environment setup needed — edit files directly on GitHub
+
+### Design & UX
+
+- Create diagrams explaining agent architecture or workflows
+- Design UI mockups for the observability dashboard
+- Improve the visual presentation of documentation
+- Propose UX improvements for CLI tools and setup flows
+
+### Product & Project Management
+
+- Help triage and label open issues
+- Write clear reproduction steps for bug reports
+- Draft feature proposals with user stories and acceptance criteria
+- Provide feedback on the roadmap (see [ROADMAP.md](ROADMAP.md))
+
+> **Tip:** Non-code contributions don't require a local dev setup. You can fork the repo, edit files on GitHub, and submit a PR directly.
+
 ## Getting Started
 
 1. Fork the repository
