@@ -41,6 +41,12 @@ class EventType(str, Enum):
     STREAM_STARTED = "stream_started"
     STREAM_STOPPED = "stream_stopped"
 
+    # Durable wait / signal lifecycle (run-isolated, exactly-once resume)
+    WAIT_CREATED = "wait.created"
+    WAIT_MATCHED = "wait.matched"
+    WAIT_TIMED_OUT = "wait.timed_out"
+    WAIT_RESUMED = "wait.resumed"
+
     # Custom events
     CUSTOM = "custom"
 
