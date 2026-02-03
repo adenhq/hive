@@ -379,7 +379,7 @@ def test_ticket_categorization():
 - **PEP 8** - Follow Python style guide
 - **Type hints** - Use for function signatures and class attributes
 - **Docstrings** - Document classes and public functions
-- **Ruff** - Linter and formatter (run with `make check`)
+- **Ruff** - Linter and formatter (run with `make check` or `python scripts/check.py`)
 
 ```python
 # Good
@@ -515,6 +515,7 @@ chore(deps): update React to 18.2.0
 2. Make your changes with clear commits
 3. Run tests locally: `make test`
 4. Run linting: `make check`
+   - On Windows PowerShell (no GNU make): `python scripts/check.py`
 5. Push and create a PR
 6. Fill out the PR template
 7. Request review from CODEOWNERS

@@ -39,8 +39,11 @@ You may submit PRs without prior assignment for:
 4. Make your changes
 5. Run checks and tests:
    ```bash
-   make check    # Lint and format checks (ruff check + ruff format --check on core/ and tools/)
-   make test     # Core tests (cd core && pytest tests/ -v)
+   make check               # Lint + format checks (Linux/macOS if GNU make is installed)
+   make test                # Core tests (Linux/macOS if GNU make is installed)
+
+   # Cross-platform (recommended; works on Windows PowerShell too)
+   python scripts/check.py  # Ruff check + format --check (core/, tools/) + core tests
    ```
 6. Commit your changes following our commit conventions
 7. Push to your fork and submit a Pull Request
@@ -91,7 +94,7 @@ docs(readme): update installation instructions
 1. **Get assigned to the issue first** (see [Issue Assignment Policy](#issue-assignment-policy))
 2. Update documentation if needed
 3. Add tests for new functionality
-4. Ensure `make check` and `make test` pass
+4. Ensure `make check`/`make test` or `python scripts/check.py` pass
 5. Update the CHANGELOG.md if applicable
 6. Request review from maintainers
 
@@ -132,8 +135,14 @@ feat(component): add new feature description
 # Run lint and format checks (mirrors CI lint job)
 make check
 
+# Cross-platform alternative (recommended)
+python scripts/check.py --skip-tests
+
 # Run core framework tests (mirrors CI test job)
 make test
+
+# Cross-platform alternative (recommended)
+python scripts/check.py
 
 # Or run tests directly
 cd core && pytest tests/ -v

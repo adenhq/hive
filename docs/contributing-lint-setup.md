@@ -53,6 +53,26 @@ make help           # Show all available targets
 
 ---
 
+## Cross-Platform (Windows-Friendly) Commands
+
+If you don't have GNU `make` (common on Windows), use the repo script:
+
+```bash
+python scripts/check.py          # Ruff check + format --check (core/, tools/) + core tests
+python scripts/check.py --fix    # Ruff check --fix + ruff format (core/, tools/) + core tests
+python scripts/check.py --skip-tests
+```
+
+PowerShell wrapper:
+
+```powershell
+.\scripts\check.ps1
+.\scripts\check.ps1 -Fix
+.\scripts\check.ps1 -SkipTests
+```
+
+---
+
 ## Pre-Commit Hooks
 
 After running `make install-hooks`, every `git commit` will automatically:

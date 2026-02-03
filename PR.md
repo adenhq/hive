@@ -39,7 +39,8 @@
 - `tools/src/aden_tools/tools/hubspot_tool/hubspot_tool.py` — Fixed E501 line length violations
 
 ## Test plan
-- [ ] Run `make lint` — passes clean
+- [ ] Run `make lint` — passes clean (Linux/macOS with GNU make)
+- [ ] Or run `python scripts/check.py --fix` — passes clean (cross-platform)
 - [ ] Run `./quickstart.sh` and verify interactive flow works, config saved to `~/.hive/configuration.json`
 - [ ] Run `./scripts/setup-python.sh` and verify Playwright Chromium installs
 - [ ] Run `pytest tests/tools/test_web_scrape_tool.py -v`
