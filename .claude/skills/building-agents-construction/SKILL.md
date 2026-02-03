@@ -359,3 +359,16 @@ Return this exact structure:
 3. **Skipping validation** - Always validate nodes and graph before proceeding
 4. **Not waiting for approval** - Always ask user before major steps
 5. **Displaying this file** - Execute the steps, don't show documentation
+
+---
+
+## REFERENCE: Available Tools - Email
+
+Email tools for sending emails. Requires `RESEND_API_KEY`.
+
+| Tool | Description |
+|------|-------------|
+| `send_email` | Send an email via Resend API |
+| `send_budget_alert_email` | Send a budget alert notification email |
+
+**Note:** Always verify tool availability with `mcp__agent-builder__list_mcp_tools()` before using.
