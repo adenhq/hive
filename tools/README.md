@@ -28,6 +28,7 @@ cp .env.example .env
 | `BRAVE_SEARCH_API_KEY` | `web_search` tool (Brave)     | [brave.com/search/api](https://brave.com/search/api/)   |
 | `GOOGLE_API_KEY`       | `web_search` tool (Google)    | [console.cloud.google.com](https://console.cloud.google.com/) |
 | `GOOGLE_CSE_ID`        | `web_search` tool (Google)    | [programmablesearchengine.google.com](https://programmablesearchengine.google.com/) |
+| `GOOGLE_MAPS_API_KEY`  | `google_maps` tools           | [developers.google.com/maps](https://developers.google.com/maps/documentation/geocoding/get-api-key) |
 
 > **Note:** `web_search` supports multiple providers. Set either Brave OR Google credentials. Brave is preferred for backward compatibility.
 
@@ -36,6 +37,7 @@ Alternatively, export as environment variables:
 ```bash
 export ANTHROPIC_API_KEY=your-key-here
 export BRAVE_SEARCH_API_KEY=your-key-here
+export GOOGLE_MAPS_API_KEY=your-key-here
 ```
 
 See [.env.example](.env.example) for details.
@@ -75,6 +77,7 @@ python mcp_server.py
 | `web_search`           | Search the web (Google or Brave, auto-detected) |
 | `web_scrape`           | Scrape and extract content from webpages       |
 | `pdf_read`             | Read and extract text from PDF files           |
+| `google_maps`          | Geocoding, routing, and location intelligence  |
 
 ## Project Structure
 
@@ -93,10 +96,11 @@ tools/
 │       │   ├── apply_diff.py
 │       │   ├── apply_patch.py
 │       │   ├── grep_search.py
-│       │   └── execute_command_tool.py
+│       │   ├── execute_command_tool.py
 │       ├── web_search_tool/
 │       ├── web_scrape_tool/
-│       └── pdf_read_tool/
+│       ├── pdf_read_tool/
+│       └── google_maps_tool/
 ├── tests/                   # Test suite
 ├── mcp_server.py            # MCP server entry point
 ├── README.md

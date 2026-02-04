@@ -38,6 +38,7 @@ from .file_system_toolkits.write_to_file import register_tools as register_write
 from .pdf_read_tool import register_tools as register_pdf_read
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
+from .google_maps_tool import register_tools as register_google_maps
 
 
 def register_all_tools(
@@ -74,6 +75,9 @@ def register_all_tools(
     register_grep_search(mcp)
     register_execute_command(mcp)
     register_csv(mcp)
+    
+    # Register Google Maps tools
+    register_google_maps(mcp, credentials=credentials)
 
     return [
         "example_tool",
@@ -93,6 +97,13 @@ def register_all_tools(
         "csv_append",
         "csv_info",
         "csv_sql",
+        # Google Maps tools
+        "maps_geocode",
+        "maps_reverse_geocode",
+        "maps_directions",
+        "maps_distance_matrix",
+        "maps_place_details",
+        "maps_place_search",
     ]
 
 
