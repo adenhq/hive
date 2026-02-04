@@ -9,7 +9,6 @@ See: https://docs.litellm.ai/docs/providers
 
 import json
 import logging
-import time
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -25,61 +24,6 @@ except ImportError:
 from framework.llm.provider import LLMProvider, LLMResponse, Tool, ToolResult, ToolUse
 
 logger = logging.getLogger(__name__)
-
-RATE_LIMIT_MAX_RETRIES = 10
-RATE_LIMIT_BACKOFF_BASE = 2  # seconds
-
-# Directory for dumping failed requests
-FAILED_REQUESTS_DIR = Path.home() / ".hive" / "failed_requests"
-
-
-def _estimate_tokens(model: str, messages: list[dict]) -> tuple[int, str]:
-    """Estimate token count for messages. Returns (token_count, method)."""
-    # Try litellm's token counter first
-    if litellm is not None:
-        try:
-            count = litellm.token_counter(model=model, messages=messages)
-            return count, "litellm"
-        except Exception:
-            pass
-
-    # Fallback: rough estimate based on character count (~4 chars per token)
-    total_chars = sum(len(str(m.get("content", ""))) for m in messages)
-    return total_chars // 4, "estimate"
-
-
-def _dump_failed_request(
-    model: str,
-    kwargs: dict[str, Any],
-    error_type: str,
-    attempt: int,
-) -> str:
-    """Dump failed request to a file for debugging. Returns the file path."""
-    FAILED_REQUESTS_DIR.mkdir(parents=True, exist_ok=True)
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    filename = f"{error_type}_{model.replace('/', '_')}_{timestamp}.json"
-    filepath = FAILED_REQUESTS_DIR / filename
-
-    # Build dump data
-    messages = kwargs.get("messages", [])
-    dump_data = {
-        "timestamp": datetime.now().isoformat(),
-        "model": model,
-        "error_type": error_type,
-        "attempt": attempt,
-        "estimated_tokens": _estimate_tokens(model, messages),
-        "num_messages": len(messages),
-        "messages": messages,
-        "tools": kwargs.get("tools"),
-        "max_tokens": kwargs.get("max_tokens"),
-        "temperature": kwargs.get("temperature"),
-    }
-
-    with open(filepath, "w") as f:
-        json.dump(dump_data, f, indent=2, default=str)
-
-    return str(filepath)
 
 
 class LiteLLMProvider(LLMProvider):
@@ -268,6 +212,114 @@ class LiteLLMProvider(LLMProvider):
         if self.api_base:
             kwargs["api_base"] = self.api_base
 
+    def _safe_completion(self, **kwargs: Any) -> LLMResponse:
+        """
+        Execute litellm.completion with unified error handling and logging.
+        """
+        # Set default retries for transient errors if not manually specified
+        if "num_retries" not in kwargs:
+            kwargs["num_retries"] = 1
+
+        try:
+            response = litellm.completion(**kwargs)
+            
+            # Extract content (handle potentially different response structures if needed, 
+            # but standard litellm response has choices[0].message.content)
+            content = response.choices[0].message.content or ""
+            
+            usage = response.usage
+            input_tokens = usage.prompt_tokens if usage else 0
+            output_tokens = usage.completion_tokens if usage else 0
+            
+            return LLMResponse(
+                content=content,
+                model=response.model or self.model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                stop_reason=response.choices[0].finish_reason or "",
+                raw_response=response,
+            )
+
+        except litellm.exceptions.AuthenticationError as e:
+            logger.error(f"LiteLLM Authentication Error: {str(e)}. Please check your API key.")
+            return LLMResponse(
+                content=f"Authentication Error: {str(e)}",
+                model=self.model,
+                input_tokens=0,
+                output_tokens=0,
+                stop_reason="error",
+                raw_response=None,
+            )
+        except litellm.exceptions.RateLimitError as e:
+            logger.error(f"LiteLLM Rate Limit Error: {str(e)}. Retries exhausted.")
+            return LLMResponse(
+                content=f"Rate Limit Error: {str(e)}",
+                model=self.model,
+                input_tokens=0,
+                output_tokens=0,
+                stop_reason="error",
+                raw_response=None,
+            )
+        except litellm.exceptions.APIConnectionError as e:
+            logger.error(f"LiteLLM Connection Error: {str(e)}. Check your network.")
+            return LLMResponse(
+                content=f"Connection Error: {str(e)}",
+                model=self.model,
+                input_tokens=0,
+                output_tokens=0,
+                stop_reason="error",
+                raw_response=None,
+            )
+        except Exception as e:
+            # Added exc_info=True to log full traceback for unexpected errors
+            logger.error(f"LiteLLM unexpected completion failed: {str(e)}", exc_info=True)
+            return LLMResponse(
+                content=f"Error: {str(e)}",
+                model=self.model,
+                input_tokens=0,
+                output_tokens=0,
+                stop_reason="error",
+                raw_response=None,
+            )
+
+    def complete(
+        self,
+        messages: list[dict[str, Any]],
+        system: str = "",
+        tools: list[Tool] | None = None,
+        max_tokens: int = 1024,
+        response_format: dict[str, Any] | None = None,
+        json_mode: bool = False,
+    ) -> LLMResponse:
+        """Generate a completion using LiteLLM."""
+        # Prepare messages with system prompt
+        full_messages = []
+        if system:
+            full_messages.append({"role": "system", "content": system})
+        full_messages.extend(messages)
+
+        # Add JSON mode via prompt engineering (works across all providers)
+        if json_mode:
+            json_instruction = "\n\nPlease respond with a valid JSON object."
+            # Append to system message if present, otherwise add as system message
+            if full_messages and full_messages[0]["role"] == "system":
+                full_messages[0]["content"] += json_instruction
+            else:
+                full_messages.insert(0, {"role": "system", "content": json_instruction.strip()})
+
+        # Build kwargs
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": full_messages,
+            "max_tokens": max_tokens,
+            **self.extra_kwargs,
+        }
+
+        if self.api_key:
+            kwargs["api_key"] = self.api_key
+        if self.api_base:
+            kwargs["api_base"] = self.api_base
+
         # Add tools if provided
         if tools:
             kwargs["tools"] = [self._tool_to_openai_format(t) for t in tools]
@@ -277,25 +329,7 @@ class LiteLLMProvider(LLMProvider):
         if response_format:
             kwargs["response_format"] = response_format
 
-        # Make the call
-        response = self._completion_with_rate_limit_retry(**kwargs)
-
-        # Extract content
-        content = response.choices[0].message.content or ""
-
-        # Get usage info
-        usage = response.usage
-        input_tokens = usage.prompt_tokens if usage else 0
-        output_tokens = usage.completion_tokens if usage else 0
-
-        return LLMResponse(
-            content=content,
-            model=response.model or self.model,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            stop_reason=response.choices[0].finish_reason or "",
-            raw_response=response,
-        )
+        return self._safe_completion(**kwargs)
 
     def complete_with_tools(
         self,
@@ -334,26 +368,34 @@ class LiteLLMProvider(LLMProvider):
             if self.api_base:
                 kwargs["api_base"] = self.api_base
 
-            response = self._completion_with_rate_limit_retry(**kwargs)
+            # Use safe completion
+            response = self._safe_completion(**kwargs)
+            
+            # Check for error in response
+            if response.stop_reason == "error":
+                # Propagate tokens used so far + current error tokens (0)
+                response.input_tokens += total_input_tokens
+                response.output_tokens += total_output_tokens
+                return response
 
             # Track tokens
-            usage = response.usage
-            if usage:
-                total_input_tokens += usage.prompt_tokens
-                total_output_tokens += usage.completion_tokens
+            total_input_tokens += response.input_tokens
+            total_output_tokens += response.output_tokens
 
-            choice = response.choices[0]
+            # Check if we're done (no tool calls or explicit stop)
+            # Access raw response to check for tool calls
+            raw_response = response.raw_response
+            choice = raw_response.choices[0]
             message = choice.message
-
-            # Check if we're done (no tool calls)
+            
             if choice.finish_reason == "stop" or not message.tool_calls:
                 return LLMResponse(
                     content=message.content or "",
-                    model=response.model or self.model,
+                    model=response.model,
                     input_tokens=total_input_tokens,
                     output_tokens=total_output_tokens,
                     stop_reason=choice.finish_reason or "stop",
-                    raw_response=response,
+                    raw_response=raw_response,
                 )
 
             # Process tool calls.
