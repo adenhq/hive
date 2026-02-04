@@ -38,6 +38,7 @@ from .file_system_toolkits.write_to_file import register_tools as register_write
 from .pdf_read_tool import register_tools as register_pdf_read
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
+from .n8n_tool import register_tools as register_n8n
 
 
 def register_all_tools(
@@ -74,6 +75,9 @@ def register_all_tools(
     register_grep_search(mcp)
     register_execute_command(mcp)
     register_csv(mcp)
+    
+    # Register n8n tools
+    register_n8n(mcp, credentials=credentials)
 
     return [
         "example_tool",
@@ -93,6 +97,10 @@ def register_all_tools(
         "csv_append",
         "csv_info",
         "csv_sql",
+        # n8n tools
+        "n8n_trigger_workflow",
+        "n8n_get_execution_status",
+        "n8n_list_workflows",
     ]
 
 
