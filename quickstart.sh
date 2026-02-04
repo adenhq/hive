@@ -49,6 +49,19 @@ prompt_yes_no() {
     [[ "$response" =~ ^[Yy] ]]
 }
 
+# Helper function to safely run python
+# It checks if an environment is active before demanding one.
+safe_uv_python() {
+    # Check if 'uv' knows about an active environment
+    if uv env --path > /dev/null 2>&1; then
+        # Plan A: Use the active environment
+        uv run --active python "$@"
+    else
+        # Plan B: Let uv find python automatically
+        uv run python "$@"
+    fi
+}
+
 # Helper function for choice prompts
 prompt_choice() {
     local prompt="$1"
@@ -201,7 +214,7 @@ fi
 
 # Install Playwright browser
 echo -n "  Installing Playwright browser... "
-if uv run python -c "import playwright" > /dev/null 2>&1; then
+if safe_uv_python -c "import playwright" > /dev/null 2>&1; then
     if uv run python -m playwright install chromium > /dev/null 2>&1; then
         echo -e "${GREEN}ok${NC}"
     else
@@ -233,27 +246,27 @@ echo ""
 IMPORT_ERRORS=0
 
 # Test imports using workspace venv via uv run
-if uv run python -c "import framework" > /dev/null 2>&1; then
+if safe_uv_python -c "import framework" > /dev/null 2>&1; then
     echo -e "${GREEN}  ✓ framework imports OK${NC}"
 else
     echo -e "${RED}  ✗ framework import failed${NC}"
     IMPORT_ERRORS=$((IMPORT_ERRORS + 1))
 fi
 
-if uv run python -c "import aden_tools" > /dev/null 2>&1; then
+if safe_uv_python -c "import aden_tools" > /dev/null 2>&1; then
     echo -e "${GREEN}  ✓ aden_tools imports OK${NC}"
 else
     echo -e "${RED}  ✗ aden_tools import failed${NC}"
     IMPORT_ERRORS=$((IMPORT_ERRORS + 1))
 fi
 
-if uv run python -c "import litellm" > /dev/null 2>&1; then
+if safe_uv_python -c "import litellm" > /dev/null 2>&1; then
     echo -e "${GREEN}  ✓ litellm imports OK${NC}"
 else
     echo -e "${YELLOW}  ⚠ litellm import issues (may be OK)${NC}"
 fi
 
-if uv run python -c "from framework.mcp import agent_builder_server" > /dev/null 2>&1; then
+if safe_uv_python -c "from framework.mcp import agent_builder_server" > /dev/null 2>&1; then
     echo -e "${GREEN}  ✓ MCP server module OK${NC}"
 else
     echo -e "${RED}  ✗ MCP server module failed${NC}"
@@ -591,7 +604,7 @@ ERRORS=0
 
 # Test imports
 echo -n "  ⬡ framework... "
-if uv run python -c "import framework" > /dev/null 2>&1; then
+if safe_uv_python -c "import framework" > /dev/null 2>&1; then
     echo -e "${GREEN}ok${NC}"
 else
     echo -e "${RED}failed${NC}"
@@ -599,7 +612,7 @@ else
 fi
 
 echo -n "  ⬡ aden_tools... "
-if uv run python -c "import aden_tools" > /dev/null 2>&1; then
+if safe_uv_python -c "import aden_tools" > /dev/null 2>&1; then
     echo -e "${GREEN}ok${NC}"
 else
     echo -e "${RED}failed${NC}"
@@ -607,7 +620,7 @@ else
 fi
 
 echo -n "  ⬡ litellm... "
-if uv run python -c "import litellm" > /dev/null 2>&1; then
+if safe_uv_python -c "import litellm" > /dev/null 2>&1; then
     echo -e "${GREEN}ok${NC}"
 else
     echo -e "${YELLOW}--${NC}"
