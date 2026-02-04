@@ -66,6 +66,7 @@ tmp/
 temp/
 
 exports/*
+!exports/skincare_advisor/
 
 .agent-builder-sessions/*
 
