@@ -85,9 +85,17 @@ async def test_batched_write_cache_consistency(tmp_path: Path):
         assert cache_key not in storage._cache, (
             "Cache should not be updated before batch is flushed"
         )
-
+        import time
+        async def wait_until(predicate, timeout=2.0, interval=0.02):
+            start = time.monotonic()
+            while time.monotonic() - start < timeout:
+                if predicate():
+                    return
+                await asyncio.sleep(interval)
+            raise AssertionError("Timed out waiting for condition")
         # Wait for batch to flush
-        await asyncio.sleep(0.1)
+        await wait_until(lambda: cache_key in storage._cache, timeout=2.0)
+
 
         # After batch flush, cache should contain the run
         assert cache_key in storage._cache, "Cache should be updated after batch flush"
