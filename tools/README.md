@@ -28,6 +28,7 @@ cp .env.example .env
 | `BRAVE_SEARCH_API_KEY` | `web_search` tool (Brave)     | [brave.com/search/api](https://brave.com/search/api/)   |
 | `GOOGLE_API_KEY`       | `web_search` tool (Google)    | [console.cloud.google.com](https://console.cloud.google.com/) |
 | `GOOGLE_CSE_ID`        | `web_search` tool (Google)    | [programmablesearchengine.google.com](https://programmablesearchengine.google.com/) |
+| `DISCORD_BOT_TOKEN`    | `discord` tools               | [discord.com/developers](https://discord.com/developers/applications) |
 
 > **Note:** `web_search` supports multiple providers. Set either Brave OR Google credentials. Brave is preferred for backward compatibility.
 
@@ -36,6 +37,7 @@ Alternatively, export as environment variables:
 ```bash
 export ANTHROPIC_API_KEY=your-key-here
 export BRAVE_SEARCH_API_KEY=your-key-here
+export DISCORD_BOT_TOKEN=your-token-here
 ```
 
 See [.env.example](.env.example) for details.
@@ -75,6 +77,7 @@ python mcp_server.py
 | `web_search`           | Search the web (Google or Brave, auto-detected) |
 | `web_scrape`           | Scrape and extract content from webpages       |
 | `pdf_read`             | Read and extract text from PDF files           |
+| `discord`              | Discord channel management and messaging       |
 
 ## Project Structure
 
@@ -96,7 +99,8 @@ tools/
 │       │   └── execute_command_tool.py
 │       ├── web_search_tool/
 │       ├── web_scrape_tool/
-│       └── pdf_read_tool/
+│       ├── pdf_read_tool/
+│       └── discord_tool/
 ├── tests/                   # Test suite
 ├── mcp_server.py            # MCP server entry point
 ├── README.md
