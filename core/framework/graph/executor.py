@@ -378,6 +378,7 @@ class GraphExecutor:
                     )
 
                     # [CORRECTED] Use node_spec.max_retries instead of hardcoded 3
+                    # max_retries represents total allowed attempts (not additional retries)
                     max_retries = getattr(node_spec, "max_retries", 3)
 
                     if node_retry_counts[current_node_id] < max_retries:
@@ -401,6 +402,22 @@ class GraphExecutor:
                         self.logger.error(
                             f"   ✗ Max retries ({max_retries}) exceeded for node {current_node_id}"
                         )
+                        
+                        next_node = self._follow_edges(
+                            graph=graph,
+                            goal=goal,
+                            current_node_id=current_node_id,
+                            current_node_spec=node_spec,
+                            result=result,
+                            memory=memory,
+                        )
+                        if next_node:
+                            self.logger.info(
+                                f"   → Following failure edge to: {next_node}"
+                            )
+                            current_node_id = next_node
+                            continue  # Continue execution following failure edge
+                          
                         self.runtime.report_problem(
                             severity="critical",
                             description=(
@@ -408,6 +425,7 @@ class GraphExecutor:
                                 f"{max_retries} attempts: {result.error}"
                             ),
                         )
+                        
                         self.runtime.end_run(
                             success=False,
                             output_data=memory.read_all(),
@@ -459,7 +477,12 @@ class GraphExecutor:
 
                     # Calculate quality metrics
                     total_retries_count = sum(node_retry_counts.values())
-                    nodes_failed = [nid for nid, count in node_retry_counts.items() if count > 0]
+                    nodes_failed = [
+                        nid
+                        for nid, count in node_retry_counts.items() 
+                        if count >= getattr(graph.get_node(nid), "max_retries", 3)
+                    ]
+                    
                     exec_quality = "degraded" if total_retries_count > 0 else "clean"
 
                     return ExecutionResult(
@@ -942,8 +965,11 @@ class GraphExecutor:
 
                 # Execute with retries
                 last_result = None
-                for attempt in range(node_spec.max_retries):
-                    branch.retry_count = attempt
+                
+                max_retries = getattr(node_spec, "max_retries", 3)
+                for attempt in range(max_retries):
+
+                    branch.retry_count = attempt + 1
 
                     # Build context for this branch
                     ctx = self._build_context(node_spec, memory, goal, mapped, graph.max_tokens)
