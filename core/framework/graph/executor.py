@@ -249,11 +249,17 @@ class GraphExecutor:
         path: list[str] = []
         total_tokens = 0
         total_latency = 0
-        node_retry_counts: dict[str, int] = {}  # Track retries per node
-
+        node_retry_counts: dict[str, int] = {}
+        steps = 0
+        if session_state:
+    # Backward compatible: older session states won't have these keys
+            path = list(session_state.get("path", []))
+            total_tokens = int(session_state.get("total_tokens", 0))
+            total_latency = int(session_state.get("total_latency_ms", 0))
+            node_retry_counts = dict(session_state.get("node_retry_counts", {}))
+            steps = int(session_state.get("steps", 0))
         # Determine entry point (may differ if resuming)
         current_node_id = graph.get_entry_point(session_state)
-        steps = 0
 
         if session_state and current_node_id != graph.entry_node:
             self.logger.info(f"🔄 Resuming from: {current_node_id}")
@@ -449,6 +455,13 @@ class GraphExecutor:
                         "resume_from": f"{node_spec.id}_resume",  # Resume key
                         "memory": saved_memory,
                         "next_node": None,  # Will resume from entry point
+                        "steps": steps,
+                        "total_tokens": total_tokens,
+                        "total_latency_ms": total_latency,
+                        "node_retry_counts": dict(node_retry_counts),
+
+                        # Optional but recommended for accurate trace continuity
+                        "path": list(path),
                     }
 
                     self.runtime.end_run(
