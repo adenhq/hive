@@ -249,7 +249,6 @@ class TestEventBus:
         # Allow handler to run (wait deterministically instead of sleeping)
         await wait_until(lambda: len(received_events) == 1, timeout=2.0)
 
-
         assert len(received_events) == 1
         assert received_events[0].type == EventType.EXECUTION_STARTED
         assert received_events[0].stream_id == "webhook"
