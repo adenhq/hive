@@ -6,6 +6,7 @@ from typing import Any
 
 from framework.llm.litellm import LiteLLMProvider
 from framework.llm.provider import LLMProvider, LLMResponse, Tool, ToolResult, ToolUse
+from framework.llm.resilience import ResilienceConfig
 
 
 def _get_api_key_from_credential_manager() -> str | None:
@@ -39,6 +40,7 @@ class AnthropicProvider(LLMProvider):
         self,
         api_key: str | None = None,
         model: str = "claude-haiku-4-5-20251001",
+        resilience_config: ResilienceConfig | None = None,
     ):
         """
         Initialize the Anthropic provider.
@@ -47,7 +49,9 @@ class AnthropicProvider(LLMProvider):
             api_key: Anthropic API key. If not provided, uses CredentialManager
                      or ANTHROPIC_API_KEY env var.
             model: Model to use (default: claude-haiku-4-5-20251001)
+            resilience_config: Optional resilience configuration.
         """
+        super().__init__(resilience_config)
         # Delegate to LiteLLMProvider internally.
         self.api_key = api_key or _get_api_key_from_credential_manager()
         if not self.api_key:
@@ -60,9 +64,10 @@ class AnthropicProvider(LLMProvider):
         self._provider = LiteLLMProvider(
             model=model,
             api_key=self.api_key,
+            resilience_config=self.resilience_config,
         )
 
-    def complete(
+    async def complete(
         self,
         messages: list[dict[str, Any]],
         system: str = "",
@@ -72,7 +77,7 @@ class AnthropicProvider(LLMProvider):
         json_mode: bool = False,
     ) -> LLMResponse:
         """Generate a completion from Claude (via LiteLLM)."""
-        return self._provider.complete(
+        return await self._provider.complete(
             messages=messages,
             system=system,
             tools=tools,
@@ -81,7 +86,7 @@ class AnthropicProvider(LLMProvider):
             json_mode=json_mode,
         )
 
-    def complete_with_tools(
+    async def complete_with_tools(
         self,
         messages: list[dict[str, Any]],
         system: str,
@@ -90,7 +95,7 @@ class AnthropicProvider(LLMProvider):
         max_iterations: int = 10,
     ) -> LLMResponse:
         """Run a tool-use loop until Claude produces a final response (via LiteLLM)."""
-        return self._provider.complete_with_tools(
+        return await self._provider.complete_with_tools(
             messages=messages,
             system=system,
             tools=tools,

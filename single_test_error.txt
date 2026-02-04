@@ -1,0 +1,60 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.6, pytest-9.0.2, pluggy-1.6.0 -- C:\Python312\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\Advika Nagool\Desktop\Hiv\core
+configfile: pyproject.toml
+plugins: anyio-4.10.0, langsmith-0.4.31, asyncio-1.3.0, xdist-3.8.0, typeguard-4.4.4
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+core\tests\test_builder.py::TestBuilderQueryBasics::test_get_recent_failures FAILED [100%]
+
+================================== FAILURES ===================================
+_______________ TestBuilderQueryBasics.test_get_recent_failures _______________
+
+self = <tests.test_builder.TestBuilderQueryBasics object at 0x0000027E89BE87A0>
+tmp_path = WindowsPath('C:/Users/Advika Nagool/AppData/Local/Temp/pytest-of-Advika Nagool/pytest-9/test_get_recent_failures0')
+
+    def test_get_recent_failures(self, tmp_path: Path):
+        """Test getting recent failed runs."""
+        runtime = Runtime(tmp_path)
+        create_successful_run(runtime)
+>       create_failed_run(runtime)
+
+core\tests\test_builder.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+core\tests\test_builder.py:67: in create_failed_run
+    runtime.end_run(success=False, narrative="Failed to process - no data")
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <encodings.cp1252.IncrementalEncoder object at 0x0000027E89BE9AF0>
+input = '{\r\n  "run_id": "run_20260129_001523_5d095b01",\r\n  "goal_id": "test_goal",\r\n  "status": "failed",\r\n  "duration...ical_problems": [\r\n    "Processing failed due to empty input"\r\n  ],\r\n  "warnings": [],\r\n  "successes": []\r\n}'
+final = False
+
+    def encode(self, input, final=False):
+>       return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 264: character maps to <undefined>
+
+C:\Python312\Lib\encodings\cp1252.py:19: UnicodeEncodeError
+============================== warnings summary ===============================
+core\framework\graph\safe_eval.py:79
+  C:\Users\Advika Nagool\Desktop\Hiv\core\framework\graph\safe_eval.py:79: DeprecationWarning: ast.Num is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    def visit_Num(self, node: ast.Num) -> Any:
+
+core\framework\graph\safe_eval.py:82
+  C:\Users\Advika Nagool\Desktop\Hiv\core\framework\graph\safe_eval.py:82: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    def visit_Str(self, node: ast.Str) -> Any:
+
+core\framework\graph\safe_eval.py:85
+  C:\Users\Advika Nagool\Desktop\Hiv\core\framework\graph\safe_eval.py:85: DeprecationWarning: ast.NameConstant is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    def visit_NameConstant(self, node: ast.NameConstant) -> Any:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED core\tests\test_builder.py::TestBuilderQueryBasics::test_get_recent_failures - UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 264: character maps to <undefined>
+======================== 1 failed, 3 warnings in 4.15s ========================

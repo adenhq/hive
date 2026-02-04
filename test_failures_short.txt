@@ -1,0 +1,551 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.6, pytest-9.0.2, pluggy-1.6.0 -- C:\Python312\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\Advika Nagool\Desktop\Hiv\core
+configfile: pyproject.toml
+plugins: anyio-4.10.0, langsmith-0.4.31, asyncio-1.3.0, xdist-3.8.0, typeguard-4.4.4
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 273 items
+
+core\tests\test_builder.py::TestBuilderQueryBasics::test_get_run_summary PASSED [  0%]
+core\tests\test_builder.py::TestBuilderQueryBasics::test_get_full_run PASSED [  0%]
+core\tests\test_builder.py::TestBuilderQueryBasics::test_list_runs_for_goal PASSED [  1%]
+core\tests\test_builder.py::TestBuilderQueryBasics::test_get_recent_failures FAILED [  1%]
+core\tests\test_builder.py::TestFailureAnalysis::test_analyze_failure FAILED [  1%]
+core\tests\test_builder.py::TestFailureAnalysis::test_analyze_failure_returns_none_for_success PASSED [  2%]
+core\tests\test_builder.py::TestFailureAnalysis::test_failure_analysis_has_suggestions FAILED [  2%]
+core\tests\test_builder.py::TestFailureAnalysis::test_get_decision_trace PASSED [  2%]
+core\tests\test_builder.py::TestPatternAnalysis::test_find_patterns_basic FAILED [  3%]
+core\tests\test_builder.py::TestPatternAnalysis::test_find_patterns_common_failures FAILED [  3%]
+core\tests\test_builder.py::TestPatternAnalysis::test_find_patterns_problematic_nodes FAILED [  4%]
+core\tests\test_builder.py::TestPatternAnalysis::test_compare_runs FAILED [  4%]
+core\tests\test_builder.py::TestImprovementSuggestions::test_suggest_improvements FAILED [  4%]
+core\tests\test_builder.py::TestImprovementSuggestions::test_suggest_improvements_for_low_success_rate FAILED [  5%]
+core\tests\test_builder.py::TestImprovementSuggestions::test_get_node_performance PASSED [  5%]
+core\tests\test_builder.py::TestBuilderWorkflow::test_builder_investigation_workflow FAILED [  5%]
+core\tests\test_execution_stream.py::test_execution_stream_retention PASSED [  6%]
+core\tests\test_executor_max_retries.py::test_executor_respects_custom_max_retries_high PASSED [  6%]
+core\tests\test_executor_max_retries.py::test_executor_respects_custom_max_retries_low PASSED [  6%]
+core\tests\test_executor_max_retries.py::test_executor_respects_default_max_retries PASSED [  7%]
+core\tests\test_executor_max_retries.py::test_executor_max_retries_two_succeeds_on_second PASSED [  7%]
+core\tests\test_executor_max_retries.py::test_executor_different_nodes_different_max_retries PASSED [  8%]
+core\tests\test_fanout.py::test_fanout_triggers_on_multiple_success_edges PASSED [  8%]
+core\tests\test_fanout.py::test_branches_execute_concurrently PASSED     [  8%]
+core\tests\test_fanout.py::test_convergence_at_fan_in_node PASSED        [  9%]
+core\tests\test_fanout.py::test_fail_all_strategy_raises_on_branch_failure PASSED [  9%]
+core\tests\test_fanout.py::test_continue_others_strategy_allows_partial_success PASSED [  9%]
+core\tests\test_fanout.py::test_wait_all_strategy_collects_all_results PASSED [ 10%]
+core\tests\test_fanout.py::test_per_branch_retry PASSED                  [ 10%]
+core\tests\test_fanout.py::test_single_edge_no_parallel_overhead PASSED  [ 10%]
+core\tests\test_fanout.py::test_detect_fan_out_nodes PASSED              [ 11%]
+core\tests\test_fanout.py::test_detect_fan_in_nodes PASSED               [ 11%]
+core\tests\test_fanout.py::test_parallel_disabled_uses_sequential PASSED [ 12%]
+core\tests\test_flexible_executor.py::TestPlanDataStructures::test_plan_step_creation PASSED [ 12%]
+core\tests\test_flexible_executor.py::TestPlanDataStructures::test_plan_step_is_ready PASSED [ 12%]
+core\tests\test_flexible_executor.py::TestPlanDataStructures::test_plan_get_ready_steps PASSED [ 13%]
+core\tests\test_flexible_executor.py::TestPlanDataStructures::test_plan_is_complete PASSED [ 13%]
+core\tests\test_flexible_executor.py::TestPlanDataStructures::test_plan_to_feedback_context PASSED [ 13%]
+core\tests\test_flexible_executor.py::TestCodeSandbox::test_simple_execution PASSED [ 14%]
+core\tests\test_flexible_executor.py::TestCodeSandbox::test_input_injection PASSED [ 14%]
+core\tests\test_flexible_executor.py::TestCodeSandbox::test_blocked_import PASSED [ 15%]
+core\tests\test_flexible_executor.py::TestCodeSandbox::test_blocked_private_access PASSED [ 15%]
+core\tests\test_flexible_executor.py::TestCodeSandbox::test_blocked_exec_eval PASSED [ 15%]
+core\tests\test_flexible_executor.py::TestCodeSandbox::test_safe_eval_expression PASSED [ 16%]
+core\tests\test_flexible_executor.py::TestCodeSandbox::test_allowed_modules PASSED [ 16%]
+core\tests\test_flexible_executor.py::TestHybridJudge::test_rule_based_accept PASSED [ 16%]
+core\tests\test_flexible_executor.py::TestHybridJudge::test_rule_based_retry PASSED [ 17%]
+core\tests\test_flexible_executor.py::TestHybridJudge::test_rule_priority PASSED [ 17%]
+core\tests\test_flexible_executor.py::TestHybridJudge::test_default_judge_rules PASSED [ 17%]
+core\tests\test_flexible_executor.py::TestJudgment::test_judgment_creation PASSED [ 18%]
+core\tests\test_flexible_executor.py::TestJudgment::test_judgment_with_feedback PASSED [ 18%]
+core\tests\test_flexible_executor.py::TestPlanExecutionResult::test_completed_result PASSED [ 19%]
+core\tests\test_flexible_executor.py::TestPlanExecutionResult::test_needs_replan_result PASSED [ 19%]
+core\tests\test_flexible_executor.py::TestFlexibleExecutorIntegration::test_executor_creation PASSED [ 19%]
+core\tests\test_flexible_executor.py::TestFlexibleExecutorIntegration::test_executor_with_custom_judge PASSED [ 20%]
+core\tests\test_graph_executor.py::test_executor_single_node_success PASSED [ 20%]
+core\tests\test_graph_executor.py::test_executor_single_node_failure PASSED [ 20%]
+core\tests\test_hallucination_detection.py::TestSharedMemoryHallucinationDetection::test_detects_code_at_start PASSED [ 21%]
+core\tests\test_hallucination_detection.py::TestSharedMemoryHallucinationDetection::test_detects_code_in_middle PASSED [ 21%]
+core\tests\test_hallucination_detection.py::TestSharedMemoryHallucinationDetection::test_detects_code_at_end PASSED [ 21%]
+core\tests\test_hallucination_detection.py::TestSharedMemoryHallucinationDetection::test_detects_javascript_code PASSED [ 22%]
+core\tests\test_hallucination_detection.py::TestSharedMemoryHallucinationDetection::test_detects_sql_injection PASSED [ 22%]
+core\tests\test_hallucination_detection.py::TestSharedMemoryHallucinationDetection::test_detects_script_injection PASSED [ 23%]
+core\tests\test_hallucination_detection.py::TestSharedMemoryHallucinationDetection::test_allows_short_strings_without_validation PASSED [ 23%]
+core\tests\test_hallucination_detection.py::TestSharedMemoryHallucinationDetection::test_allows_long_strings_without_code PASSED [ 23%]
+core\tests\test_hallucination_detection.py::TestSharedMemoryHallucinationDetection::test_validate_false_bypasses_check PASSED [ 24%]
+core\tests\test_hallucination_detection.py::TestSharedMemoryHallucinationDetection::test_sampling_for_very_long_strings PASSED [ 24%]
+core\tests\test_hallucination_detection.py::TestOutputValidatorHallucinationDetection::test_detects_code_anywhere_in_output PASSED [ 24%]
+core\tests\test_hallucination_detection.py::TestOutputValidatorHallucinationDetection::test_contains_code_indicators_full_check PASSED [ 25%]
+core\tests\test_hallucination_detection.py::TestOutputValidatorHallucinationDetection::test_contains_code_indicators_sampling PASSED [ 25%]
+core\tests\test_hallucination_detection.py::TestOutputValidatorHallucinationDetection::test_no_false_positive_for_clean_text PASSED [ 26%]
+core\tests\test_hallucination_detection.py::TestOutputValidatorHallucinationDetection::test_detects_multiple_languages PASSED [ 26%]
+core\tests\test_hallucination_detection.py::TestEdgeCases::test_empty_string PASSED [ 26%]
+core\tests\test_hallucination_detection.py::TestEdgeCases::test_non_string_values PASSED [ 27%]
+core\tests\test_hallucination_detection.py::TestEdgeCases::test_exactly_5000_chars PASSED [ 27%]
+core\tests\test_hallucination_detection.py::TestEdgeCases::test_5001_chars_triggers_validation PASSED [ 27%]
+core\tests\test_litellm_provider.py::TestLiteLLMProviderInit::test_init_with_defaults PASSED [ 28%]
+core\tests\test_litellm_provider.py::TestLiteLLMProviderInit::test_init_with_custom_model PASSED [ 28%]
+core\tests\test_litellm_provider.py::TestLiteLLMProviderInit::test_init_deepseek_model PASSED [ 28%]
+core\tests\test_litellm_provider.py::TestLiteLLMProviderInit::test_init_with_api_key PASSED [ 29%]
+core\tests\test_litellm_provider.py::TestLiteLLMProviderInit::test_init_with_api_base PASSED [ 29%]
+core\tests\test_litellm_provider.py::TestLiteLLMProviderInit::test_init_ollama_no_key_needed PASSED [ 30%]
+core\tests\test_litellm_provider.py::TestLiteLLMProviderComplete::test_complete_basic PASSED [ 30%]
+core\tests\test_litellm_provider.py::TestLiteLLMProviderComplete::test_complete_with_system_prompt PASSED [ 30%]
+core\tests\test_litellm_provider.py::TestLiteLLMProviderComplete::test_complete_with_tools PASSED [ 31%]
+core\tests\test_litellm_provider.py::TestLiteLLMProviderToolUse::test_complete_with_tools_single_iteration PASSED [ 31%]
+core\tests\test_litellm_provider.py::TestToolConversion::test_tool_to_openai_format PASSED [ 31%]
+core\tests\test_litellm_provider.py::TestAnthropicProviderBackwardCompatibility::test_anthropic_provider_is_llm_provider PASSED [ 32%]
+core\tests\test_litellm_provider.py::TestAnthropicProviderBackwardCompatibility::test_anthropic_provider_init_defaults PASSED [ 32%]
+core\tests\test_litellm_provider.py::TestAnthropicProviderBackwardCompatibility::test_anthropic_provider_init_custom_model PASSED [ 32%]
+core\tests\test_litellm_provider.py::TestAnthropicProviderBackwardCompatibility::test_anthropic_provider_uses_litellm_internally PASSED [ 33%]
+core\tests\test_litellm_provider.py::TestAnthropicProviderBackwardCompatibility::test_anthropic_provider_complete PASSED [ 33%]
+core\tests\test_litellm_provider.py::TestAnthropicProviderBackwardCompatibility::test_anthropic_provider_complete_with_tools PASSED [ 34%]
+core\tests\test_litellm_provider.py::TestAnthropicProviderBackwardCompatibility::test_anthropic_provider_passes_response_format PASSED [ 34%]
+core\tests\test_litellm_provider.py::TestJsonMode::test_json_mode_adds_instruction_to_system_prompt PASSED [ 34%]
+core\tests\test_litellm_provider.py::TestJsonMode::test_json_mode_creates_system_prompt_if_none PASSED [ 35%]
+core\tests\test_litellm_provider.py::TestJsonMode::test_json_mode_false_no_instruction PASSED [ 35%]
+core\tests\test_litellm_provider.py::TestJsonMode::test_json_mode_default_is_false PASSED [ 35%]
+core\tests\test_litellm_provider.py::TestJsonMode::test_anthropic_provider_passes_json_mode PASSED [ 36%]
+core\tests\test_llm_judge.py::TestLLMJudgeWithProvider::test_init_with_provider PASSED [ 36%]
+core\tests\test_llm_judge.py::TestLLMJudgeWithProvider::test_evaluate_uses_provider PASSED [ 36%]
+core\tests\test_llm_judge.py::TestLLMJudgeWithProvider::test_evaluate_passes_correct_arguments PASSED [ 37%]
+core\tests\test_llm_judge.py::TestLLMJudgeWithProvider::test_evaluate_failing_result PASSED [ 37%]
+core\tests\test_llm_judge.py::TestLLMJudgeResponseParsing::test_parse_plain_json PASSED [ 38%]
+core\tests\test_llm_judge.py::TestLLMJudgeResponseParsing::test_parse_json_in_markdown_code_block PASSED [ 38%]
+core\tests\test_llm_judge.py::TestLLMJudgeResponseParsing::test_parse_json_in_plain_code_block PASSED [ 38%]
+core\tests\test_llm_judge.py::TestLLMJudgeResponseParsing::test_parse_response_with_whitespace PASSED [ 39%]
+core\tests\test_llm_judge.py::TestLLMJudgeResponseParsing::test_default_explanation_when_missing PASSED [ 39%]
+core\tests\test_llm_judge.py::TestLLMJudgeResponseParsing::test_passes_coerced_to_bool PASSED [ 39%]
+core\tests\test_llm_judge.py::TestLLMJudgeResponseParsing::test_passes_false_when_missing PASSED [ 40%]
+core\tests\test_llm_judge.py::TestLLMJudgeErrorHandling::test_invalid_json_response PASSED [ 40%]
+core\tests\test_llm_judge.py::TestLLMJudgeErrorHandling::test_provider_raises_exception PASSED [ 41%]
+core\tests\test_llm_judge.py::TestLLMJudgeBackwardCompatibility::test_init_without_provider PASSED [ 41%]
+core\tests\test_llm_judge.py::TestLLMJudgeBackwardCompatibility::test_evaluate_without_provider_uses_anthropic PASSED [ 41%]
+core\tests\test_llm_judge.py::TestLLMJudgeBackwardCompatibility::test_anthropic_client_lazy_loaded PASSED [ 42%]
+core\tests\test_llm_judge.py::TestLLMJudgeBackwardCompatibility::test_anthropic_import_error_handling PASSED [ 42%]
+core\tests\test_llm_judge.py::TestLLMJudgeBackwardCompatibility::test_anthropic_client_uses_correct_model PASSED [ 42%]
+core\tests\test_llm_judge.py::TestLLMJudgeIntegrationPatterns::test_with_anthropic_provider PASSED [ 43%]
+core\tests\test_llm_judge.py::TestLLMJudgeIntegrationPatterns::test_with_multiple_evaluations PASSED [ 43%]
+core\tests\test_llm_judge.py::TestLLMJudgeIntegrationPatterns::test_provider_reuse_across_judges PASSED [ 43%]
+core\tests\test_mcp_server.py::TestMCPDependencies::test_mcp_package_available PASSED [ 44%]
+core\tests\test_mcp_server.py::TestMCPDependencies::test_fastmcp_available PASSED [ 44%]
+core\tests\test_mcp_server.py::TestAgentBuilderServerModule::test_module_importable PASSED [ 45%]
+core\tests\test_mcp_server.py::TestAgentBuilderServerModule::test_mcp_object_exported PASSED [ 45%]
+core\tests\test_mcp_server.py::TestAgentBuilderServerModule::test_mcp_server_name PASSED [ 45%]
+core\tests\test_mcp_server.py::TestMCPPackageExports::test_package_importable PASSED [ 46%]
+core\tests\test_mcp_server.py::TestMCPPackageExports::test_agent_builder_server_exported PASSED [ 46%]
+core\tests\test_node_json_extraction.py::TestJsonExtraction::test_clean_json PASSED [ 46%]
+core\tests\test_node_json_extraction.py::TestJsonExtraction::test_json_with_whitespace PASSED [ 47%]
+core\tests\test_node_json_extraction.py::TestJsonExtraction::test_markdown_code_block_at_start PASSED [ 47%]
+core\tests\test_node_json_extraction.py::TestJsonExtraction::test_markdown_code_block_without_json_label PASSED [ 47%]
+core\tests\test_node_json_extraction.py::TestJsonExtraction::test_prose_around_markdown_block PASSED [ 48%]
+core\tests\test_node_json_extraction.py::TestJsonExtraction::test_json_embedded_in_prose PASSED [ 48%]
+core\tests\test_node_json_extraction.py::TestJsonExtraction::test_nested_json PASSED [ 49%]
+core\tests\test_node_json_extraction.py::TestJsonExtraction::test_deeply_nested_json PASSED [ 49%]
+core\tests\test_node_json_extraction.py::TestJsonExtraction::test_json_with_array PASSED [ 49%]
+core\tests\test_node_json_extraction.py::TestJsonExtraction::test_json_with_string_containing_braces PASSED [ 50%]
+core\tests\test_node_json_extraction.py::TestJsonExtraction::test_json_with_escaped_quotes PASSED [ 50%]
+core\tests\test_node_json_extraction.py::TestJsonExtraction::test_multiple_json_objects_takes_first PASSED [ 50%]
+core\tests\test_node_json_extraction.py::TestJsonExtraction::test_json_with_boolean_and_null PASSED [ 51%]
+core\tests\test_node_json_extraction.py::TestJsonExtraction::test_json_with_numbers PASSED [ 51%]
+core\tests\test_node_json_extraction.py::TestJsonExtraction::test_invalid_json_raises_error PASSED [ 52%]
+core\tests\test_node_json_extraction.py::TestJsonExtraction::test_empty_string_raises_error PASSED [ 52%]
+core\tests\test_orchestrator.py::TestOrchestratorLLMInitialization::test_auto_creates_litellm_provider_when_no_llm_passed PASSED [ 52%]
+core\tests\test_orchestrator.py::TestOrchestratorLLMInitialization::test_uses_custom_model_parameter PASSED [ 53%]
+core\tests\test_orchestrator.py::TestOrchestratorLLMInitialization::test_supports_openai_model_names PASSED [ 53%]
+core\tests\test_orchestrator.py::TestOrchestratorLLMInitialization::test_supports_anthropic_model_names PASSED [ 53%]
+core\tests\test_orchestrator.py::TestOrchestratorLLMInitialization::test_skips_auto_creation_when_llm_passed PASSED [ 54%]
+core\tests\test_orchestrator.py::TestOrchestratorLLMInitialization::test_model_attribute_stored_correctly PASSED [ 54%]
+core\tests\test_orchestrator.py::TestOrchestratorLLMProviderType::test_llm_is_litellm_provider_instance PASSED [ 54%]
+core\tests\test_orchestrator.py::TestOrchestratorLLMProviderType::test_llm_implements_llm_provider_interface PASSED [ 55%]
+core\tests\test_plan.py::TestActionTypeEnum::test_action_type_values_exist PASSED [ 55%]
+core\tests\test_plan.py::TestActionTypeEnum::test_action_type_count PASSED [ 56%]
+core\tests\test_plan.py::TestActionTypeEnum::test_action_type_string_enum PASSED [ 56%]
+core\tests\test_plan.py::TestStepStatusEnum::test_step_status_values_exist PASSED [ 56%]
+core\tests\test_plan.py::TestStepStatusEnum::test_step_status_count PASSED [ 57%]
+core\tests\test_plan.py::TestStepStatusEnum::test_step_status_transition_pending_to_in_progress PASSED [ 57%]
+core\tests\test_plan.py::TestStepStatusEnum::test_step_status_transition_in_progress_to_completed PASSED [ 57%]
+core\tests\test_plan.py::TestStepStatusEnum::test_step_status_transition_in_progress_to_failed PASSED [ 58%]
+core\tests\test_plan.py::TestApprovalDecisionEnum::test_approval_decision_values_exist PASSED [ 58%]
+core\tests\test_plan.py::TestApprovalDecisionEnum::test_approval_decision_count PASSED [ 58%]
+core\tests\test_plan.py::TestJudgmentActionEnum::test_judgment_action_values_exist PASSED [ 59%]
+core\tests\test_plan.py::TestJudgmentActionEnum::test_judgment_action_count PASSED [ 59%]
+core\tests\test_plan.py::TestExecutionStatusEnum::test_execution_status_values_exist PASSED [ 60%]
+core\tests\test_plan.py::TestExecutionStatusEnum::test_execution_status_count PASSED [ 60%]
+core\tests\test_plan.py::TestPlanStepIsReady::test_plan_step_is_ready_no_deps PASSED [ 60%]
+core\tests\test_plan.py::TestPlanStepIsReady::test_plan_step_is_ready_deps_met PASSED [ 61%]
+core\tests\test_plan.py::TestPlanStepIsReady::test_plan_step_not_ready_deps_missing PASSED [ 61%]
+core\tests\test_plan.py::TestPlanStepIsReady::test_plan_step_not_ready_wrong_status PASSED [ 61%]
+core\tests\test_plan.py::TestPlanStepIsReady::test_plan_step_not_ready_completed_status PASSED [ 62%]
+core\tests\test_plan.py::TestPlanStepIsReady::test_plan_step_is_ready_multiple_deps_all_met PASSED [ 62%]
+core\tests\test_plan.py::TestPlanFromJson::test_plan_from_json_string PASSED [ 63%]
+core\tests\test_plan.py::TestPlanFromJson::test_plan_from_json_dict PASSED [ 63%]
+core\tests\test_plan.py::TestPlanFromJson::test_plan_from_json_nested_plan_key PASSED [ 63%]
+core\tests\test_plan.py::TestPlanFromJson::test_plan_from_json_action_type_conversion PASSED [ 64%]
+core\tests\test_plan.py::TestPlanFromJson::test_plan_from_json_all_action_types PASSED [ 64%]
+core\tests\test_plan.py::TestPlanFromJson::test_from_json_invalid_action_type PASSED [ 64%]
+core\tests\test_plan.py::TestPlanFromJson::test_from_json_malformed_json_string PASSED [ 65%]
+core\tests\test_plan.py::TestPlanFromJson::test_from_json_missing_step_id PASSED [ 65%]
+core\tests\test_plan.py::TestPlanFromJson::test_from_json_wrong_type_for_steps PASSED [ 65%]
+core\tests\test_plan.py::TestPlanFromJson::test_from_json_empty_data PASSED [ 66%]
+core\tests\test_plan.py::TestPlanMethods::test_plan_get_step PASSED      [ 66%]
+core\tests\test_plan.py::TestPlanMethods::test_plan_get_step_not_found PASSED [ 67%]
+core\tests\test_plan.py::TestPlanMethods::test_plan_get_ready_steps PASSED [ 67%]
+core\tests\test_plan.py::TestPlanMethods::test_plan_get_completed_steps PASSED [ 67%]
+core\tests\test_plan.py::TestPlanMethods::test_plan_is_complete_false PASSED [ 68%]
+core\tests\test_plan.py::TestPlanMethods::test_plan_is_complete_true PASSED [ 68%]
+core\tests\test_plan.py::TestPlanMethods::test_plan_is_complete_empty PASSED [ 68%]
+core\tests\test_plan.py::TestPlanMethods::test_plan_to_feedback_context PASSED [ 69%]
+core\tests\test_plan.py::TestPlanRoundTrip::test_plan_round_trip_model_dump PASSED [ 69%]
+core\tests\test_plan.py::TestPlanRoundTrip::test_plan_round_trip_json_string PASSED [ 69%]
+core\tests\test_plan.py::TestPlanRoundTrip::test_plan_step_serialization PASSED [ 70%]
+core\tests\test_pydantic_validation.py::TestNodeSpecOutputModel::test_nodespec_accepts_output_model PASSED [ 70%]
+core\tests\test_pydantic_validation.py::TestNodeSpecOutputModel::test_nodespec_output_model_optional PASSED [ 71%]
+core\tests\test_pydantic_validation.py::TestNodeSpecOutputModel::test_nodespec_custom_validation_retries PASSED [ 71%]
+core\tests\test_pydantic_validation.py::TestOutputValidatorPydantic::test_validate_valid_output PASSED [ 71%]
+core\tests\test_pydantic_validation.py::TestOutputValidatorPydantic::test_validate_missing_required_field PASSED [ 72%]
+core\tests\test_pydantic_validation.py::TestOutputValidatorPydantic::test_validate_wrong_type PASSED [ 72%]
+core\tests\test_pydantic_validation.py::TestOutputValidatorPydantic::test_validate_complex_model PASSED [ 72%]
+core\tests\test_pydantic_validation.py::TestOutputValidatorPydantic::test_validate_field_constraints PASSED [ 73%]
+core\tests\test_pydantic_validation.py::TestOutputValidatorPydantic::test_validate_range_constraints PASSED [ 73%]
+core\tests\test_pydantic_validation.py::TestOutputValidatorPydantic::test_validate_realistic_model PASSED [ 73%]
+core\tests\test_pydantic_validation.py::TestValidationFeedback::test_format_feedback_includes_errors PASSED [ 74%]
+core\tests\test_pydantic_validation.py::TestValidationFeedback::test_format_feedback_includes_schema PASSED [ 74%]
+core\tests\test_pydantic_validation.py::TestNodeResultValidationErrors::test_noderesult_includes_validation_errors PASSED [ 75%]
+core\tests\test_pydantic_validation.py::TestNodeResultValidationErrors::test_noderesult_empty_validation_errors_by_default PASSED [ 75%]
+core\tests\test_pydantic_validation.py::TestPydanticValidationIntegration::test_nodespec_serialization_with_output_model PASSED [ 75%]
+core\tests\test_pydantic_validation.py::TestJSONSchemaGeneration::test_simple_model_schema_generation PASSED [ 76%]
+core\tests\test_pydantic_validation.py::TestJSONSchemaGeneration::test_complex_model_schema_generation PASSED [ 76%]
+core\tests\test_pydantic_validation.py::TestJSONSchemaGeneration::test_schema_includes_required_fields PASSED [ 76%]
+core\tests\test_pydantic_validation.py::TestJSONSchemaGeneration::test_schema_can_be_used_in_response_format PASSED [ 77%]
+core\tests\test_pydantic_validation.py::TestRetryWithFeedback::test_validation_feedback_format PASSED [ 77%]
+core\tests\test_pydantic_validation.py::TestRetryWithFeedback::test_feedback_mentions_fix_instruction PASSED [ 78%]
+core\tests\test_pydantic_validation.py::TestRetryWithFeedback::test_max_validation_retries_default PASSED [ 78%]
+core\tests\test_pydantic_validation.py::TestRetryWithFeedback::test_max_validation_retries_customizable PASSED [ 78%]
+core\tests\test_pydantic_validation.py::TestRetryWithFeedback::test_zero_retries_allowed PASSED [ 79%]
+core\tests\test_pydantic_validation.py::TestRetryWithFeedback::test_feedback_includes_all_error_types PASSED [ 79%]
+core\tests\test_pydantic_validation.py::TestPydanticValidationIntegrationExtended::test_nodespec_with_all_validation_options PASSED [ 79%]
+core\tests\test_pydantic_validation.py::TestPydanticValidationIntegrationExtended::test_validator_preserves_model_defaults PASSED [ 80%]
+core\tests\test_pydantic_validation.py::TestPydanticValidationIntegrationExtended::test_validation_result_error_property PASSED [ 80%]
+core\tests\test_run.py::TestRuntimeMetrics::test_success_rate PASSED     [ 80%]
+core\tests\test_run.py::TestRuntimeMetrics::test_success_rate_zero_decisions PASSED [ 81%]
+core\tests\test_run.py::TestRun::test_duration_ms PASSED                 [ 81%]
+core\tests\test_run.py::TestRun::test_add_decision PASSED                [ 82%]
+core\tests\test_run.py::TestRun::test_record_outcome PASSED              [ 82%]
+core\tests\test_run.py::TestRun::test_add_problem PASSED                 [ 82%]
+core\tests\test_run.py::TestRun::test_complete PASSED                    [ 83%]
+core\tests\test_run.py::TestRunSummary::test_from_run_basic PASSED       [ 83%]
+core\tests\test_run.py::TestRunSummary::test_from_run_with_decisions PASSED [ 83%]
+core\tests\test_run.py::TestRunSummary::test_from_run_with_problems PASSED [ 84%]
+core\tests\test_runtime.py::TestRuntimeBasics::test_start_and_end_run PASSED [ 84%]
+core\tests\test_runtime.py::TestRuntimeBasics::test_end_without_start_is_graceful PASSED [ 84%]
+core\tests\test_runtime.py::TestRuntimeBasics::test_run_saved_on_end PASSED [ 85%]
+core\tests\test_runtime.py::TestDecisionRecording::test_basic_decision FAILED [ 85%]
+core\tests\test_runtime.py::TestDecisionRecording::test_decision_without_run_is_graceful PASSED [ 86%]
+core\tests\test_runtime.py::TestDecisionRecording::test_decision_with_node_context FAILED [ 86%]
+core\tests\test_runtime.py::TestDecisionRecording::test_decision_type FAILED [ 86%]
+core\tests\test_runtime.py::TestOutcomeRecording::test_record_successful_outcome PASSED [ 87%]
+core\tests\test_runtime.py::TestOutcomeRecording::test_record_failed_outcome FAILED [ 87%]
+core\tests\test_runtime.py::TestOutcomeRecording::test_metrics_updated_on_outcome FAILED [ 87%]
+core\tests\test_runtime.py::TestProblemReporting::test_report_problem PASSED [ 88%]
+core\tests\test_runtime.py::TestProblemReporting::test_problem_linked_to_decision FAILED [ 88%]
+core\tests\test_runtime.py::TestConvenienceMethods::test_quick_decision FAILED [ 89%]
+core\tests\test_runtime.py::TestConvenienceMethods::test_decide_and_execute_success PASSED [ 89%]
+core\tests\test_runtime.py::TestConvenienceMethods::test_decide_and_execute_failure FAILED [ 89%]
+core\tests\test_runtime.py::TestNarrativeGeneration::test_default_narrative_success PASSED [ 90%]
+core\tests\test_runtime.py::TestNarrativeGeneration::test_default_narrative_failure FAILED [ 90%]
+core\tests\test_testing_framework.py::TestTestCaseSchema::test_create_test PASSED [ 90%]
+core\tests\test_testing_framework.py::TestTestCaseSchema::test_approve_test PASSED [ 91%]
+core\tests\test_testing_framework.py::TestTestCaseSchema::test_modify_test PASSED [ 91%]
+core\tests\test_testing_framework.py::TestTestCaseSchema::test_reject_test PASSED [ 91%]
+core\tests\test_testing_framework.py::TestTestCaseSchema::test_record_result PASSED [ 92%]
+core\tests\test_testing_framework.py::TestTestResultSchema::test_create_passed_result PASSED [ 92%]
+core\tests\test_testing_framework.py::TestTestResultSchema::test_create_failed_result PASSED [ 93%]
+core\tests\test_testing_framework.py::TestTestResultSchema::test_summary_dict PASSED [ 93%]
+core\tests\test_testing_framework.py::TestTestSuiteResult::test_suite_result_properties PASSED [ 93%]
+core\tests\test_testing_framework.py::TestTestSuiteResult::test_get_results_by_category PASSED [ 94%]
+core\tests\test_testing_framework.py::TestTestStorage::test_save_and_load_test PASSED [ 94%]
+core\tests\test_testing_framework.py::TestTestStorage::test_delete_test PASSED [ 94%]
+core\tests\test_testing_framework.py::TestTestStorage::test_get_tests_by_goal PASSED [ 95%]
+core\tests\test_testing_framework.py::TestTestStorage::test_get_approved_tests PASSED [ 95%]
+core\tests\test_testing_framework.py::TestTestStorage::test_save_and_load_result PASSED [ 95%]
+core\tests\test_testing_framework.py::TestTestStorage::test_result_history PASSED [ 96%]
+core\tests\test_testing_framework.py::TestTestStorage::test_get_stats PASSED [ 96%]
+core\tests\test_testing_framework.py::TestErrorCategorizer::test_categorize_passed PASSED [ 97%]
+core\tests\test_testing_framework.py::TestErrorCategorizer::test_categorize_logic_error PASSED [ 97%]
+core\tests\test_testing_framework.py::TestErrorCategorizer::test_categorize_implementation_error PASSED [ 97%]
+core\tests\test_testing_framework.py::TestErrorCategorizer::test_categorize_edge_case PASSED [ 98%]
+core\tests\test_testing_framework.py::TestErrorCategorizer::test_categorize_from_stack_trace PASSED [ 98%]
+core\tests\test_testing_framework.py::TestErrorCategorizer::test_get_fix_suggestion PASSED [ 98%]
+core\tests\test_testing_framework.py::TestErrorCategorizer::test_get_iteration_guidance PASSED [ 99%]
+core\tests\test_testing_framework.py::TestDebugTool::test_analyze_missing_test PASSED [ 99%]
+core\tests\test_testing_framework.py::TestDebugTool::test_analyze_with_result PASSED [100%]
+
+================================== FAILURES ===================================
+_______________ TestBuilderQueryBasics.test_get_recent_failures _______________
+core\tests\test_builder.py:120: in test_get_recent_failures
+    create_failed_run(runtime)
+core\tests\test_builder.py:67: in create_failed_run
+    runtime.end_run(success=False, narrative="Failed to process - no data")
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 264: character maps to <undefined>
+__________________ TestFailureAnalysis.test_analyze_failure ___________________
+core\tests\test_builder.py:137: in test_analyze_failure
+    run_id = create_failed_run(runtime)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+core\tests\test_builder.py:67: in create_failed_run
+    runtime.end_run(success=False, narrative="Failed to process - no data")
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 264: character maps to <undefined>
+__________ TestFailureAnalysis.test_failure_analysis_has_suggestions __________
+core\tests\test_builder.py:162: in test_failure_analysis_has_suggestions
+    run_id = create_failed_run(runtime)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+core\tests\test_builder.py:67: in create_failed_run
+    runtime.end_run(success=False, narrative="Failed to process - no data")
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 264: character maps to <undefined>
+________________ TestPatternAnalysis.test_find_patterns_basic _________________
+core\tests\test_builder.py:192: in test_find_patterns_basic
+    create_failed_run(runtime, "goal_x")
+core\tests\test_builder.py:67: in create_failed_run
+    runtime.end_run(success=False, narrative="Failed to process - no data")
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 261: character maps to <undefined>
+___________ TestPatternAnalysis.test_find_patterns_common_failures ____________
+core\tests\test_builder.py:207: in test_find_patterns_common_failures
+    create_failed_run(runtime, "failing_goal")
+core\tests\test_builder.py:67: in create_failed_run
+    runtime.end_run(success=False, narrative="Failed to process - no data")
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 267: character maps to <undefined>
+__________ TestPatternAnalysis.test_find_patterns_problematic_nodes ___________
+core\tests\test_builder.py:222: in test_find_patterns_problematic_nodes
+    create_failed_run(runtime, "node_test")
+core\tests\test_builder.py:67: in create_failed_run
+    runtime.end_run(success=False, narrative="Failed to process - no data")
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 264: character maps to <undefined>
+____________________ TestPatternAnalysis.test_compare_runs ____________________
+core\tests\test_builder.py:235: in test_compare_runs
+    run2 = create_failed_run(runtime)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+core\tests\test_builder.py:67: in create_failed_run
+    runtime.end_run(success=False, narrative="Failed to process - no data")
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 264: character maps to <undefined>
+____________ TestImprovementSuggestions.test_suggest_improvements _____________
+core\tests\test_builder.py:253: in test_suggest_improvements
+    create_failed_run(runtime, "improve_goal")
+core\tests\test_builder.py:67: in create_failed_run
+    runtime.end_run(success=False, narrative="Failed to process - no data")
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 267: character maps to <undefined>
+__ TestImprovementSuggestions.test_suggest_improvements_for_low_success_rate __
+core\tests\test_builder.py:268: in test_suggest_improvements_for_low_success_rate
+    create_failed_run(runtime, "low_success")
+core\tests\test_builder.py:67: in create_failed_run
+    runtime.end_run(success=False, narrative="Failed to process - no data")
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 266: character maps to <undefined>
+___________ TestBuilderWorkflow.test_builder_investigation_workflow ___________
+core\tests\test_builder.py:304: in test_builder_investigation_workflow
+    create_failed_run(runtime, "customer_goal")
+core\tests\test_builder.py:67: in create_failed_run
+    runtime.end_run(success=False, narrative="Failed to process - no data")
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 268: character maps to <undefined>
+__________________ TestDecisionRecording.test_basic_decision __________________
+core\tests\test_runtime.py:78: in test_basic_decision
+    runtime.end_run(success=True)
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 337: character maps to <undefined>
+____________ TestDecisionRecording.test_decision_with_node_context ____________
+core\tests\test_runtime.py:111: in test_decision_with_node_context
+    runtime.end_run(success=True)
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 332: character maps to <undefined>
+__________________ TestDecisionRecording.test_decision_type ___________________
+core\tests\test_runtime.py:132: in test_decision_type
+    runtime.end_run(success=True)
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 337: character maps to <undefined>
+_______________ TestOutcomeRecording.test_record_failed_outcome _______________
+core\tests\test_runtime.py:191: in test_record_failed_outcome
+    runtime.end_run(success=False)
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 312: character maps to <undefined>
+____________ TestOutcomeRecording.test_metrics_updated_on_outcome _____________
+core\tests\test_runtime.py:222: in test_metrics_updated_on_outcome
+    runtime.end_run(success=False)
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 309: character maps to <undefined>
+____________ TestProblemReporting.test_problem_linked_to_decision _____________
+core\tests\test_runtime.py:270: in test_problem_linked_to_decision
+    runtime.end_run(success=True)
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 347: character maps to <undefined>
+_________________ TestConvenienceMethods.test_quick_decision __________________
+core\tests\test_runtime.py:292: in test_quick_decision
+    runtime.end_run(success=True)
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 331: character maps to <undefined>
+___________ TestConvenienceMethods.test_decide_and_execute_failure ____________
+core\tests\test_runtime.py:338: in test_decide_and_execute_failure
+    runtime.end_run(success=False)
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 315: character maps to <undefined>
+___________ TestNarrativeGeneration.test_default_narrative_failure ____________
+core\tests\test_runtime.py:381: in test_default_narrative_failure
+    runtime.end_run(success=False)
+core\framework\runtime\core.py:117: in end_run
+    self.storage.save_run(self._current_run)
+core\framework\storage\backend.py:62: in save_run
+    f.write(summary.model_dump_json(indent=2))
+C:\Python312\Lib\encodings\cp1252.py:19: in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   UnicodeEncodeError: 'charmap' codec can't encode character '\u2717' in position 352: character maps to <undefined>
+============================== warnings summary ===============================
+core\framework\graph\safe_eval.py:79
+  C:\Users\Advika Nagool\Desktop\Hiv\core\framework\graph\safe_eval.py:79: DeprecationWarning: ast.Num is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    def visit_Num(self, node: ast.Num) -> Any:
+
+core\framework\graph\safe_eval.py:82
+  C:\Users\Advika Nagool\Desktop\Hiv\core\framework\graph\safe_eval.py:82: DeprecationWarning: ast.Str is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    def visit_Str(self, node: ast.Str) -> Any:
+
+core\framework\graph\safe_eval.py:85
+  C:\Users\Advika Nagool\Desktop\Hiv\core\framework\graph\safe_eval.py:85: DeprecationWarning: ast.NameConstant is deprecated and will be removed in Python 3.14; use ast.Constant instead
+    def visit_NameConstant(self, node: ast.NameConstant) -> Any:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED core\tests\test_builder.py::TestBuilderQueryBasics::test_get_recent_failures
+FAILED core\tests\test_builder.py::TestFailureAnalysis::test_analyze_failure
+FAILED core\tests\test_builder.py::TestFailureAnalysis::test_failure_analysis_has_suggestions
+FAILED core\tests\test_builder.py::TestPatternAnalysis::test_find_patterns_basic
+FAILED core\tests\test_builder.py::TestPatternAnalysis::test_find_patterns_common_failures
+FAILED core\tests\test_builder.py::TestPatternAnalysis::test_find_patterns_problematic_nodes
+FAILED core\tests\test_builder.py::TestPatternAnalysis::test_compare_runs - U...
+FAILED core\tests\test_builder.py::TestImprovementSuggestions::test_suggest_improvements
+FAILED core\tests\test_builder.py::TestImprovementSuggestions::test_suggest_improvements_for_low_success_rate
+FAILED core\tests\test_builder.py::TestBuilderWorkflow::test_builder_investigation_workflow
+FAILED core\tests\test_runtime.py::TestDecisionRecording::test_basic_decision
+FAILED core\tests\test_runtime.py::TestDecisionRecording::test_decision_with_node_context
+FAILED core\tests\test_runtime.py::TestDecisionRecording::test_decision_type
+FAILED core\tests\test_runtime.py::TestOutcomeRecording::test_record_failed_outcome
+FAILED core\tests\test_runtime.py::TestOutcomeRecording::test_metrics_updated_on_outcome
+FAILED core\tests\test_runtime.py::TestProblemReporting::test_problem_linked_to_decision
+FAILED core\tests\test_runtime.py::TestConvenienceMethods::test_quick_decision
+FAILED core\tests\test_runtime.py::TestConvenienceMethods::test_decide_and_execute_failure
+FAILED core\tests\test_runtime.py::TestNarrativeGeneration::test_default_narrative_failure
+============ 19 failed, 254 passed, 3 warnings in 63.22s (0:01:03) ============

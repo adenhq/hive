@@ -73,17 +73,23 @@ class SafeEvalVisitor(ast.NodeVisitor):
         return self.visit(node.value)
 
     def visit_Constant(self, node: ast.Constant) -> Any:
-        return node.value
+        # Strictly allow only basic types: int, float, str, bool, bytes, NoneType
+        if isinstance(node.value, (int, float, str, bool, bytes, type(None))):
+            return node.value
+        raise ValueError(f"Constant of type {type(node.value).__name__} is not allowed")
 
-    # --- Number/String/Bytes/NameConstant (Python < 3.8 compat if needed) ---
+    # --- Number/String/Bytes/NameConstant (Python < 3.8 compat) ---
     def visit_Num(self, node: ast.Num) -> Any:
-        return node.n
+        return self.visit_Constant(ast.Constant(value=node.n))
 
     def visit_Str(self, node: ast.Str) -> Any:
-        return node.s
+        return self.visit_Constant(ast.Constant(value=node.s))
+
+    def visit_Bytes(self, node: ast.Bytes) -> Any:
+        return self.visit_Constant(ast.Constant(value=node.s))
 
     def visit_NameConstant(self, node: ast.NameConstant) -> Any:
-        return node.value
+        return self.visit_Constant(ast.Constant(value=node.value))
 
     # --- Data Structures ---
     def visit_List(self, node: ast.List) -> list:

@@ -10,11 +10,13 @@ For live tests (requires API keys):
 """
 
 import os
-from unittest.mock import MagicMock, patch
+import pytest
+from unittest.mock import MagicMock, patch, AsyncMock
 
 from framework.llm.anthropic import AnthropicProvider
 from framework.llm.litellm import LiteLLMProvider
 from framework.llm.provider import LLMProvider, Tool, ToolResult, ToolUse
+from framework.llm.resilience import ResilienceConfig
 
 
 class TestLiteLLMProviderInit:
@@ -63,8 +65,9 @@ class TestLiteLLMProviderInit:
 class TestLiteLLMProviderComplete:
     """Test LiteLLMProvider.complete() method."""
 
-    @patch("litellm.completion")
-    def test_complete_basic(self, mock_completion):
+    @pytest.mark.asyncio
+    @patch("litellm.acompletion", new_callable=AsyncMock)
+    async def test_complete_basic(self, mock_acompletion):
         """Test basic completion call."""
         # Mock response
         mock_response = MagicMock()
@@ -74,10 +77,10 @@ class TestLiteLLMProviderComplete:
         mock_response.model = "gpt-4o-mini"
         mock_response.usage.prompt_tokens = 10
         mock_response.usage.completion_tokens = 20
-        mock_completion.return_value = mock_response
+        mock_acompletion.return_value = mock_response
 
         provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
-        result = provider.complete(messages=[{"role": "user", "content": "Hello"}])
+        result = await provider.complete(messages=[{"role": "user", "content": "Hello"}])
 
         assert result.content == "Hello! I'm an AI assistant."
         assert result.model == "gpt-4o-mini"
@@ -85,14 +88,15 @@ class TestLiteLLMProviderComplete:
         assert result.output_tokens == 20
         assert result.stop_reason == "stop"
 
-        # Verify litellm.completion was called correctly
-        mock_completion.assert_called_once()
-        call_kwargs = mock_completion.call_args[1]
+        # Verify litellm.acompletion was called correctly
+        mock_acompletion.assert_called_once()
+        call_kwargs = mock_acompletion.call_args[1]
         assert call_kwargs["model"] == "gpt-4o-mini"
         assert call_kwargs["api_key"] == "test-key"
 
-    @patch("litellm.completion")
-    def test_complete_with_system_prompt(self, mock_completion):
+    @pytest.mark.asyncio
+    @patch("litellm.acompletion", new_callable=AsyncMock)
+    async def test_complete_with_system_prompt(self, mock_acompletion):
         """Test completion with system prompt."""
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -101,20 +105,21 @@ class TestLiteLLMProviderComplete:
         mock_response.model = "gpt-4o-mini"
         mock_response.usage.prompt_tokens = 15
         mock_response.usage.completion_tokens = 5
-        mock_completion.return_value = mock_response
+        mock_acompletion.return_value = mock_response
 
         provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
-        provider.complete(
+        await provider.complete(
             messages=[{"role": "user", "content": "Hello"}], system="You are a helpful assistant."
         )
 
-        call_kwargs = mock_completion.call_args[1]
+        call_kwargs = mock_acompletion.call_args[1]
         messages = call_kwargs["messages"]
         assert messages[0]["role"] == "system"
         assert messages[0]["content"] == "You are a helpful assistant."
 
-    @patch("litellm.completion")
-    def test_complete_with_tools(self, mock_completion):
+    @pytest.mark.asyncio
+    @patch("litellm.acompletion", new_callable=AsyncMock)
+    async def test_complete_with_tools(self, mock_acompletion):
         """Test completion with tools."""
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -123,7 +128,7 @@ class TestLiteLLMProviderComplete:
         mock_response.model = "gpt-4o-mini"
         mock_response.usage.prompt_tokens = 20
         mock_response.usage.completion_tokens = 10
-        mock_completion.return_value = mock_response
+        mock_acompletion.return_value = mock_response
 
         provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
 
@@ -138,11 +143,11 @@ class TestLiteLLMProviderComplete:
             )
         ]
 
-        provider.complete(
+        await provider.complete(
             messages=[{"role": "user", "content": "What's the weather?"}], tools=tools
         )
 
-        call_kwargs = mock_completion.call_args[1]
+        call_kwargs = mock_acompletion.call_args[1]
         assert "tools" in call_kwargs
         assert call_kwargs["tools"][0]["type"] == "function"
         assert call_kwargs["tools"][0]["function"]["name"] == "get_weather"
@@ -151,8 +156,9 @@ class TestLiteLLMProviderComplete:
 class TestLiteLLMProviderToolUse:
     """Test LiteLLMProvider.complete_with_tools() method."""
 
-    @patch("litellm.completion")
-    def test_complete_with_tools_single_iteration(self, mock_completion):
+    @pytest.mark.asyncio
+    @patch("litellm.acompletion", new_callable=AsyncMock)
+    async def test_complete_with_tools_single_iteration(self, mock_acompletion):
         """Test tool use with single iteration."""
         # First response: tool call
         tool_call_response = MagicMock()
@@ -179,7 +185,7 @@ class TestLiteLLMProviderToolUse:
         final_response.usage.prompt_tokens = 30
         final_response.usage.completion_tokens = 10
 
-        mock_completion.side_effect = [tool_call_response, final_response]
+        mock_acompletion.side_effect = [tool_call_response, final_response]
 
         provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
 
@@ -197,7 +203,7 @@ class TestLiteLLMProviderToolUse:
         def tool_executor(tool_use: ToolUse) -> ToolResult:
             return ToolResult(tool_use_id=tool_use.id, content="Sunny, 22C", is_error=False)
 
-        result = provider.complete_with_tools(
+        result = await provider.complete_with_tools(
             messages=[{"role": "user", "content": "What's the weather in London?"}],
             system="You are a weather assistant.",
             tools=tools,
@@ -207,7 +213,7 @@ class TestLiteLLMProviderToolUse:
         assert result.content == "The weather in London is sunny."
         assert result.input_tokens == 50  # 20 + 30
         assert result.output_tokens == 25  # 15 + 10
-        assert mock_completion.call_count == 2
+        assert mock_acompletion.call_count == 2
 
 
 class TestToolConversion:
@@ -261,8 +267,9 @@ class TestAnthropicProviderBackwardCompatibility:
         assert provider._provider.model == "claude-3-haiku-20240307"
         assert provider._provider.api_key == "test-key"
 
-    @patch("litellm.completion")
-    def test_anthropic_provider_complete(self, mock_completion):
+    @pytest.mark.asyncio
+    @patch("litellm.acompletion", new_callable=AsyncMock)
+    async def test_anthropic_provider_complete(self, mock_acompletion):
         """Test AnthropicProvider.complete() delegates to LiteLLM."""
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -271,10 +278,10 @@ class TestAnthropicProviderBackwardCompatibility:
         mock_response.model = "claude-3-haiku-20240307"
         mock_response.usage.prompt_tokens = 10
         mock_response.usage.completion_tokens = 5
-        mock_completion.return_value = mock_response
+        mock_acompletion.return_value = mock_response
 
         provider = AnthropicProvider(api_key="test-key", model="claude-3-haiku-20240307")
-        result = provider.complete(
+        result = await provider.complete(
             messages=[{"role": "user", "content": "Hello"}],
             system="You are helpful.",
             max_tokens=100,
@@ -285,13 +292,14 @@ class TestAnthropicProviderBackwardCompatibility:
         assert result.input_tokens == 10
         assert result.output_tokens == 5
 
-        mock_completion.assert_called_once()
-        call_kwargs = mock_completion.call_args[1]
+        mock_acompletion.assert_called_once()
+        call_kwargs = mock_acompletion.call_args[1]
         assert call_kwargs["model"] == "claude-3-haiku-20240307"
         assert call_kwargs["api_key"] == "test-key"
 
-    @patch("litellm.completion")
-    def test_anthropic_provider_complete_with_tools(self, mock_completion):
+    @pytest.mark.asyncio
+    @patch("litellm.acompletion", new_callable=AsyncMock)
+    async def test_anthropic_provider_complete_with_tools(self, mock_acompletion):
         """Test AnthropicProvider.complete_with_tools() delegates to LiteLLM."""
         # Mock a simple response (no tool calls)
         mock_response = MagicMock()
@@ -302,7 +310,7 @@ class TestAnthropicProviderBackwardCompatibility:
         mock_response.model = "claude-3-haiku-20240307"
         mock_response.usage.prompt_tokens = 20
         mock_response.usage.completion_tokens = 10
-        mock_completion.return_value = mock_response
+        mock_acompletion.return_value = mock_response
 
         provider = AnthropicProvider(api_key="test-key", model="claude-3-haiku-20240307")
 
@@ -317,7 +325,7 @@ class TestAnthropicProviderBackwardCompatibility:
         def tool_executor(tool_use: ToolUse) -> ToolResult:
             return ToolResult(tool_use_id=tool_use.id, content="3:00 PM", is_error=False)
 
-        result = provider.complete_with_tools(
+        result = await provider.complete_with_tools(
             messages=[{"role": "user", "content": "What time is it?"}],
             system="You are a time assistant.",
             tools=tools,
@@ -325,10 +333,11 @@ class TestAnthropicProviderBackwardCompatibility:
         )
 
         assert result.content == "The time is 3:00 PM."
-        mock_completion.assert_called_once()
+        mock_acompletion.assert_called_once()
 
-    @patch("litellm.completion")
-    def test_anthropic_provider_passes_response_format(self, mock_completion):
+    @pytest.mark.asyncio
+    @patch("litellm.acompletion", new_callable=AsyncMock)
+    async def test_anthropic_provider_passes_response_format(self, mock_acompletion):
         """Test that AnthropicProvider accepts and forwards response_format."""
         # Setup mock
         mock_response = MagicMock()
@@ -338,23 +347,24 @@ class TestAnthropicProviderBackwardCompatibility:
         mock_response.model = "claude-3-haiku-20240307"
         mock_response.usage.prompt_tokens = 10
         mock_response.usage.completion_tokens = 5
-        mock_completion.return_value = mock_response
+        mock_acompletion.return_value = mock_response
 
         provider = AnthropicProvider(api_key="test-key")
         fmt = {"type": "json_object"}
 
-        provider.complete(messages=[{"role": "user", "content": "hi"}], response_format=fmt)
+        await provider.complete(messages=[{"role": "user", "content": "hi"}], response_format=fmt)
 
         # Verify it was passed to litellm
-        call_kwargs = mock_completion.call_args[1]
+        call_kwargs = mock_acompletion.call_args[1]
         assert call_kwargs["response_format"] == fmt
 
 
 class TestJsonMode:
     """Test json_mode parameter for structured JSON output via prompt engineering."""
 
-    @patch("litellm.completion")
-    def test_json_mode_adds_instruction_to_system_prompt(self, mock_completion):
+    @pytest.mark.asyncio
+    @patch("litellm.acompletion", new_callable=AsyncMock)
+    async def test_json_mode_adds_instruction_to_system_prompt(self, mock_acompletion):
         """Test that json_mode=True adds JSON instruction to system prompt."""
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -363,16 +373,16 @@ class TestJsonMode:
         mock_response.model = "gpt-4o-mini"
         mock_response.usage.prompt_tokens = 10
         mock_response.usage.completion_tokens = 5
-        mock_completion.return_value = mock_response
+        mock_acompletion.return_value = mock_response
 
         provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
-        provider.complete(
+        await provider.complete(
             messages=[{"role": "user", "content": "Return JSON"}],
             system="You are helpful.",
             json_mode=True,
         )
 
-        call_kwargs = mock_completion.call_args[1]
+        call_kwargs = mock_acompletion.call_args[1]
         # Should NOT use response_format (prompt engineering instead)
         assert "response_format" not in call_kwargs
         # Should have JSON instruction appended to system message
@@ -381,8 +391,9 @@ class TestJsonMode:
         assert "You are helpful." in messages[0]["content"]
         assert "Please respond with a valid JSON object" in messages[0]["content"]
 
-    @patch("litellm.completion")
-    def test_json_mode_creates_system_prompt_if_none(self, mock_completion):
+    @pytest.mark.asyncio
+    @patch("litellm.acompletion", new_callable=AsyncMock)
+    async def test_json_mode_creates_system_prompt_if_none(self, mock_acompletion):
         """Test that json_mode=True creates system prompt if none provided."""
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -391,19 +402,20 @@ class TestJsonMode:
         mock_response.model = "gpt-4o-mini"
         mock_response.usage.prompt_tokens = 10
         mock_response.usage.completion_tokens = 5
-        mock_completion.return_value = mock_response
+        mock_acompletion.return_value = mock_response
 
         provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
-        provider.complete(messages=[{"role": "user", "content": "Return JSON"}], json_mode=True)
+        await provider.complete(messages=[{"role": "user", "content": "Return JSON"}], json_mode=True)
 
-        call_kwargs = mock_completion.call_args[1]
+        call_kwargs = mock_acompletion.call_args[1]
         messages = call_kwargs["messages"]
         # Should insert a system message with JSON instruction
         assert messages[0]["role"] == "system"
         assert "Please respond with a valid JSON object" in messages[0]["content"]
 
-    @patch("litellm.completion")
-    def test_json_mode_false_no_instruction(self, mock_completion):
+    @pytest.mark.asyncio
+    @patch("litellm.acompletion", new_callable=AsyncMock)
+    async def test_json_mode_false_no_instruction(self, mock_acompletion):
         """Test that json_mode=False does not add JSON instruction."""
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -412,23 +424,24 @@ class TestJsonMode:
         mock_response.model = "gpt-4o-mini"
         mock_response.usage.prompt_tokens = 10
         mock_response.usage.completion_tokens = 5
-        mock_completion.return_value = mock_response
+        mock_acompletion.return_value = mock_response
 
         provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
-        provider.complete(
+        await provider.complete(
             messages=[{"role": "user", "content": "Hello"}],
             system="You are helpful.",
             json_mode=False,
         )
 
-        call_kwargs = mock_completion.call_args[1]
+        call_kwargs = mock_acompletion.call_args[1]
         assert "response_format" not in call_kwargs
         messages = call_kwargs["messages"]
         assert messages[0]["role"] == "system"
         assert "Please respond with a valid JSON object" not in messages[0]["content"]
 
-    @patch("litellm.completion")
-    def test_json_mode_default_is_false(self, mock_completion):
+    @pytest.mark.asyncio
+    @patch("litellm.acompletion", new_callable=AsyncMock)
+    async def test_json_mode_default_is_false(self, mock_acompletion):
         """Test that json_mode defaults to False (no JSON instruction)."""
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -437,21 +450,22 @@ class TestJsonMode:
         mock_response.model = "gpt-4o-mini"
         mock_response.usage.prompt_tokens = 10
         mock_response.usage.completion_tokens = 5
-        mock_completion.return_value = mock_response
+        mock_acompletion.return_value = mock_response
 
         provider = LiteLLMProvider(model="gpt-4o-mini", api_key="test-key")
-        provider.complete(
+        await provider.complete(
             messages=[{"role": "user", "content": "Hello"}], system="You are helpful."
         )
 
-        call_kwargs = mock_completion.call_args[1]
+        call_kwargs = mock_acompletion.call_args[1]
         assert "response_format" not in call_kwargs
         messages = call_kwargs["messages"]
         # System prompt should be unchanged
         assert messages[0]["content"] == "You are helpful."
 
-    @patch("litellm.completion")
-    def test_anthropic_provider_passes_json_mode(self, mock_completion):
+    @pytest.mark.asyncio
+    @patch("litellm.acompletion", new_callable=AsyncMock)
+    async def test_anthropic_provider_passes_json_mode(self, mock_acompletion):
         """Test that AnthropicProvider passes json_mode through (prompt engineering)."""
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -460,16 +474,16 @@ class TestJsonMode:
         mock_response.model = "claude-haiku-4-5-20251001"
         mock_response.usage.prompt_tokens = 10
         mock_response.usage.completion_tokens = 5
-        mock_completion.return_value = mock_response
+        mock_acompletion.return_value = mock_response
 
         provider = AnthropicProvider(api_key="test-key")
-        provider.complete(
+        await provider.complete(
             messages=[{"role": "user", "content": "Return JSON"}],
             system="You are helpful.",
             json_mode=True,
         )
 
-        call_kwargs = mock_completion.call_args[1]
+        call_kwargs = mock_acompletion.call_args[1]
         # Should NOT use response_format
         assert "response_format" not in call_kwargs
         # Should have JSON instruction in system prompt

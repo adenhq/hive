@@ -17,6 +17,7 @@ except ImportError:
     litellm = None  # type: ignore[assignment]
 
 from framework.llm.provider import LLMProvider, LLMResponse, Tool, ToolResult, ToolUse
+from framework.llm.resilience import ResilienceConfig
 
 
 class LiteLLMProvider(LLMProvider):
@@ -61,6 +62,7 @@ class LiteLLMProvider(LLMProvider):
         model: str = "gpt-4o-mini",
         api_key: str | None = None,
         api_base: str | None = None,
+        resilience_config: ResilienceConfig | None = None,
         **kwargs: Any,
     ):
         """
@@ -73,8 +75,10 @@ class LiteLLMProvider(LLMProvider):
                      look for the appropriate env var (OPENAI_API_KEY,
                      ANTHROPIC_API_KEY, etc.)
             api_base: Custom API base URL (for proxies or local deployments)
+            resilience_config: Optional resilience configuration.
             **kwargs: Additional arguments passed to litellm.completion()
         """
+        super().__init__(resilience_config)
         self.model = model
         self.api_key = api_key
         self.api_base = api_base
@@ -85,7 +89,7 @@ class LiteLLMProvider(LLMProvider):
                 "LiteLLM is not installed. Please install it with: pip install litellm"
             )
 
-    def complete(
+    async def complete(
         self,
         messages: list[dict[str, Any]],
         system: str = "",
@@ -94,7 +98,27 @@ class LiteLLMProvider(LLMProvider):
         response_format: dict[str, Any] | None = None,
         json_mode: bool = False,
     ) -> LLMResponse:
-        """Generate a completion using LiteLLM."""
+        """Resiliently generate a completion using LiteLLM."""
+        return await self._execute_with_resilience(
+            self._complete,
+            messages=messages,
+            system=system,
+            tools=tools,
+            max_tokens=max_tokens,
+            response_format=response_format,
+            json_mode=json_mode
+        )
+
+    async def _complete(
+        self,
+        messages: list[dict[str, Any]],
+        system: str = "",
+        tools: list[Tool] | None = None,
+        max_tokens: int = 1024,
+        response_format: dict[str, Any] | None = None,
+        json_mode: bool = False,
+    ) -> LLMResponse:
+        """Internal completion implementation."""
         # Prepare messages with system prompt
         full_messages = []
         if system:
@@ -133,7 +157,7 @@ class LiteLLMProvider(LLMProvider):
             kwargs["response_format"] = response_format
 
         # Make the call
-        response = litellm.completion(**kwargs)  # type: ignore[union-attr]
+        response = await litellm.acompletion(**kwargs)  # type: ignore[union-attr]
 
         # Extract content
         content = response.choices[0].message.content or ""
@@ -152,7 +176,7 @@ class LiteLLMProvider(LLMProvider):
             raw_response=response,
         )
 
-    def complete_with_tools(
+    async def complete_with_tools(
         self,
         messages: list[dict[str, Any]],
         system: str,
@@ -161,7 +185,27 @@ class LiteLLMProvider(LLMProvider):
         max_iterations: int = 10,
         max_tokens: int = 4096,
     ) -> LLMResponse:
-        """Run a tool-use loop until the LLM produces a final response."""
+        """Resiliently run a tool-use loop."""
+        return await self._execute_with_resilience(
+            self._complete_with_tools,
+            messages=messages,
+            system=system,
+            tools=tools,
+            tool_executor=tool_executor,
+            max_iterations=max_iterations,
+            max_tokens=max_tokens
+        )
+
+    async def _complete_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        system: str,
+        tools: list[Tool],
+        tool_executor: Callable[[ToolUse], ToolResult],
+        max_iterations: int = 10,
+        max_tokens: int = 4096,
+    ) -> LLMResponse:
+        """Internal tool-use loop implementation."""
         # Prepare messages with system prompt
         current_messages = []
         if system:
@@ -189,7 +233,7 @@ class LiteLLMProvider(LLMProvider):
             if self.api_base:
                 kwargs["api_base"] = self.api_base
 
-            response = litellm.completion(**kwargs)  # type: ignore[union-attr]
+            response = await litellm.acompletion(**kwargs)  # type: ignore[union-attr]
 
             # Track tokens
             usage = response.usage

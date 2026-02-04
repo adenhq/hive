@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+from framework.llm.resilience import ResilienceConfig, CircuitBreaker, RetryHandler
+
 @dataclass
 class LLMResponse:
     """Response from an LLM call."""
@@ -56,8 +58,23 @@ class LLMProvider(ABC):
     - Error handling
     """
 
+    def __init__(self, resilience_config: ResilienceConfig | None = None):
+        self.resilience_config = resilience_config or ResilienceConfig()
+        self._circuit_breaker = CircuitBreaker(self.resilience_config)
+        self._retry_handler = RetryHandler(self.resilience_config)
+
+    async def _execute_with_resilience(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+        """
+        Helper to run a provider method with both retry and circuit breaker.
+        """
+        # Inner function that the circuit breaker will call, which in turn calls retry
+        async def _call_with_retry():
+            return await self._retry_handler.execute_with_retry(func, *args, **kwargs)
+            
+        return await self._circuit_breaker.call(_call_with_retry)
+
     @abstractmethod
-    def complete(
+    async def complete(
         self,
         messages: list[dict[str, Any]],
         system: str = "",
@@ -86,7 +103,7 @@ class LLMProvider(ABC):
         pass
 
     @abstractmethod
-    def complete_with_tools(
+    async def complete_with_tools(
         self,
         messages: list[dict[str, Any]],
         system: str,

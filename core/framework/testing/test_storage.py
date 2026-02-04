@@ -55,17 +55,53 @@ class TestStorage:
         for d in dirs:
             d.mkdir(parents=True, exist_ok=True)
 
+    def _validate_key(self, key: str) -> None:
+        """
+        Validate key to prevent path traversal attacks.
+
+        Args:
+            key: The key to validate
+
+        Raises:
+            ValueError: If key contains path traversal or dangerous patterns
+        """
+        if not key or key.strip() == "":
+            raise ValueError("Key cannot be empty")
+
+        # Block path separators
+        if "/" in key or "\\" in key:
+            raise ValueError(f"Invalid key format: path separators not allowed in '{key}'")
+
+        # Block parent directory references
+        if ".." in key or key.startswith("."):
+            raise ValueError(f"Invalid key format: path traversal detected in '{key}'")
+
+        # Block absolute paths
+        if key.startswith("/") or (len(key) > 1 and key[1] == ":"):
+            raise ValueError(f"Invalid key format: absolute paths not allowed in '{key}'")
+
+        # Block null bytes (Unix path injection)
+        if "\x00" in key:
+            raise ValueError("Invalid key format: null bytes not allowed")
+
+        # Block other dangerous special characters
+        dangerous_chars = {"<", ">", "|", "&", "$", "`", "'", '"'}
+        if any(char in key for char in dangerous_chars):
+            raise ValueError(f"Invalid key format: contains dangerous characters in '{key}'")
+
     # === TEST OPERATIONS ===
 
     def save_test(self, test: Test) -> None:
         """Save a test to storage."""
+        self._validate_key(test.id)
+        self._validate_key(test.goal_id)
         # Ensure goal directory exists
         goal_dir = self.base_path / "tests" / test.goal_id
         goal_dir.mkdir(parents=True, exist_ok=True)
 
         # Save full test
         test_path = goal_dir / f"{test.id}.json"
-        with open(test_path, "w") as f:
+        with open(test_path, "w", encoding="utf-8") as f:
             f.write(test.model_dump_json(indent=2))
 
         # Update indexes
@@ -79,7 +115,7 @@ class TestStorage:
         test_path = self.base_path / "tests" / goal_id / f"{test_id}.json"
         if not test_path.exists():
             return None
-        with open(test_path) as f:
+        with open(test_path, encoding="utf-8") as f:
             return Test.model_validate_json(f.read())
 
     def delete_test(self, goal_id: str, test_id: str) -> bool:
@@ -175,12 +211,12 @@ class TestStorage:
         # Save with timestamp
         timestamp = result.timestamp.strftime("%Y%m%d_%H%M%S")
         result_path = results_dir / f"{timestamp}.json"
-        with open(result_path, "w") as f:
+        with open(result_path, "w", encoding="utf-8") as f:
             f.write(result.model_dump_json(indent=2))
 
         # Update latest
         latest_path = results_dir / "latest.json"
-        with open(latest_path, "w") as f:
+        with open(latest_path, "w", encoding="utf-8") as f:
             f.write(result.model_dump_json(indent=2))
 
     def get_latest_result(self, test_id: str) -> TestResult | None:
@@ -188,7 +224,7 @@ class TestStorage:
         latest_path = self.base_path / "results" / test_id / "latest.json"
         if not latest_path.exists():
             return None
-        with open(latest_path) as f:
+        with open(latest_path, encoding="utf-8") as f:
             return TestResult.model_validate_json(f.read())
 
     def get_result_history(self, test_id: str, limit: int = 10) -> list[TestResult]:
@@ -204,7 +240,7 @@ class TestStorage:
 
         results = []
         for f in result_files:
-            with open(f) as file:
+            with open(f, encoding="utf-8") as file:
                 results.append(TestResult.model_validate_json(file.read()))
 
         return results
@@ -213,10 +249,11 @@ class TestStorage:
 
     def _get_index(self, index_type: str, key: str) -> list[str]:
         """Get values from an index."""
+        self._validate_key(key)  # Prevent path traversal
         index_path = self.base_path / "indexes" / index_type / f"{key}.json"
         if not index_path.exists():
             return []
-        with open(index_path) as f:
+        with open(index_path, encoding="utf-8") as f:
             return json.load(f)
 
     def _add_to_index(self, index_type: str, key: str, value: str) -> None:
@@ -225,7 +262,7 @@ class TestStorage:
         values = self._get_index(index_type, key)
         if value not in values:
             values.append(value)
-            with open(index_path, "w") as f:
+            with open(index_path, "w", encoding="utf-8") as f:
                 json.dump(values, f)
 
     def _remove_from_index(self, index_type: str, key: str, value: str) -> None:
@@ -234,7 +271,7 @@ class TestStorage:
         values = self._get_index(index_type, key)
         if value in values:
             values.remove(value)
-            with open(index_path, "w") as f:
+            with open(index_path, "w", encoding="utf-8") as f:
                 json.dump(values, f)
 
     # === UTILITY ===

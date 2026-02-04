@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import Any
 
 from framework.llm.provider import LLMProvider, LLMResponse, Tool, ToolResult, ToolUse
+from framework.llm.resilience import ResilienceConfig
 
 
 class MockLLMProvider(LLMProvider):
@@ -26,13 +27,19 @@ class MockLLMProvider(LLMProvider):
         # Returns: {"name": "mock_value", "age": "mock_value"}
     """
 
-    def __init__(self, model: str = "mock-model"):
+    def __init__(
+        self,
+        model: str = "mock-model",
+        resilience_config: ResilienceConfig | None = None,
+    ):
         """
         Initialize the mock LLM provider.
 
         Args:
             model: Model name to report in responses (default: "mock-model")
+            resilience_config: Optional resilience configuration.
         """
+        super().__init__(resilience_config)
         self.model = model
 
     def _extract_output_keys(self, system: str) -> list[str]:
@@ -106,7 +113,7 @@ class MockLLMProvider(LLMProvider):
             # Plain text mock response
             return "This is a mock response for testing purposes."
 
-    def complete(
+    async def complete(
         self,
         messages: list[dict[str, Any]],
         system: str = "",
@@ -139,7 +146,7 @@ class MockLLMProvider(LLMProvider):
             stop_reason="mock_complete",
         )
 
-    def complete_with_tools(
+    async def complete_with_tools(
         self,
         messages: list[dict[str, Any]],
         system: str,
