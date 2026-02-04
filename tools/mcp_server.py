@@ -138,6 +138,16 @@ def main() -> None:
         logger.info(f"Starting HTTP server on {args.host}:{args.port}")
         mcp.run(transport="http", host=args.host, port=args.port)
 
+# mcp_server/keras_engine.py
+def build_business_cnn(vocab_size, seq_length):
+    model = Sequential([
+        layers.Embedding(vocab_size, 64, input_length=seq_length),
+        layers.Conv1D(128, 5, activation='relu'),
+        layers.GlobalMaxPooling1D(),
+        layers.Dense(1, activation='sigmoid') # Binary judgment: Safe vs Risk
+    ])
+    model.compile(optimizer='adam', loss='binary_crossentropy')
+    return model
 
 if __name__ == "__main__":
     main()
