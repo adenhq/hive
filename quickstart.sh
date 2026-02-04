@@ -18,7 +18,10 @@ if [ "$BASH_MAJOR_VERSION" -ge 4 ]; then
     USE_ASSOC_ARRAYS=true
 fi
 echo "[debug] Bash version: ${BASH_VERSION}"
-
+IS_WINDOWS=false
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
+    IS_WINDOWS=true
+fi
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -233,6 +236,9 @@ echo ""
 IMPORT_ERRORS=0
 
 # Test imports using workspace venv via uv run
+SEP=":"
+[ "$IS_WINDOWS" = true ] && SEP=";"
+if PYTHONPATH="$SEP$SCRIPT_DIR" uv run python -c "import framework"; then
 if uv run python -c "import framework" > /dev/null 2>&1; then
     echo -e "${GREEN}  ✓ framework imports OK${NC}"
 else
@@ -253,7 +259,7 @@ else
     echo -e "${YELLOW}  ⚠ litellm import issues (may be OK)${NC}"
 fi
 
-if uv run python -c "from framework.mcp import agent_builder_server" > /dev/null 2>&1; then
+if uv run python -m framework.mcp import agent_builder_server --help > /dev/null 2>&1; then
     echo -e "${GREEN}  ✓ MCP server module OK${NC}"
 else
     echo -e "${RED}  ✗ MCP server module failed${NC}"
@@ -591,7 +597,7 @@ ERRORS=0
 
 # Test imports
 echo -n "  ⬡ framework... "
-if uv run python -c "import framework" > /dev/null 2>&1; then
+if uv run python -c "import framework" >; then
     echo -e "${GREEN}ok${NC}"
 else
     echo -e "${RED}failed${NC}"
