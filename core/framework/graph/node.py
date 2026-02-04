@@ -1435,7 +1435,7 @@ Do NOT fabricate data or return empty objects."""
         memory_data = ctx.memory.read_all()
 
         # If memory is empty or very simple, just use raw data
-        if not memory_data or len(memory_data) <= 2:
+        if not memory_data or len(memory_data) <= 20:
             # Simple case - just format the input keys directly
             parts = []
             for key in ctx.node_spec.input_keys:
