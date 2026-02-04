@@ -57,6 +57,40 @@ Set `PYTHONPATH` (required in every new PowerShell session):
 ```powershell
 $env:PYTHONPATH="core;exports"
 ```
+## Remote Development Setup (SSH)
+If you are developing inside a Virtual Machine (e.g., VirtualBox) and experience mouse lag or UI latency, it is strongly recommended to use a Remote SSH connection for a more responsive development experience.
+### 1. Configure the Virtual Machine (Guest)
+Run the automated remote setup script inside your Ubuntu/Linux terminal:
+
+    ´´´´ bash scripts/setup-remote.sh ´´´
+### 2. Configure Port Forwarding
+To allow your Host (Windows/Mac) to communicate with the VM, set up a tunnel in your virtualization software:
+
+ a) Open VirtualBox Settings → Network → Advanced → Port Forwarding.
+
+ b)Add a new rule with the following details:
+  
+     ______________________________
+     | Field    |   Value         |
+     |__________|_________________|
+     | Name     |   SSH           |
+     |__________|_________________|
+     | Protocol |  TCP            |
+     |__________|_________________|
+     | Host Port|  2222           |
+     |__________|_________________|
+     |Guest Port|  22             |
+     |__________|_________________|
+     | Host IP  |127.0.0.1        |
+     |          |(or leave blank) |
+     | ___________________________|
+### 3. IDE Connection
+  Connect your IDE (VS Code, Cursor, or PyCharm) using the following configuration:
+  - Host: 127.0.0.1
+  - Port: 2222
+  - User: your Ubuntu username
+
+    Pro Tip: For VS Code users, install the Remote - SSH extension by Microsoft. Once installed, press F1, type Remote-SSH: Connect to Host..., and enter ssh federico@127.0.0.1 -p 2222.
 
 ## Alpine Linux Setup
 
