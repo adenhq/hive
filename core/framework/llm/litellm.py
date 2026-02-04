@@ -432,3 +432,64 @@ class LiteLLMProvider(LLMProvider):
                 },
             },
         }
+
+    def complete_structure(
+        self,
+        messages: list[dict[str, Any]],
+        schema: type[Any],
+        system: str = "",
+        tools: list[Tool] | None = None,
+        max_tokens: int = 1024,
+        **kwargs: Any,
+    ) -> Any:
+        """Generate a structured response validated by a Pydantic model."""
+        # Clean kwargs of potential conflicts
+        clean_kwargs = {
+            k: v for k, v in self.extra_kwargs.items()
+            if k not in ["response_format", "messages", "model", "max_tokens"]
+        }
+        clean_kwargs.update(kwargs)
+
+        # Prepare messages
+        full_messages = []
+        if system:
+            full_messages.append({"role": "system", "content": system})
+        full_messages.extend(messages)
+
+        # LiteLLM supports response_format={"type": "json_object", "response_schema": schema}
+        # for some providers, but strict mode is safer via native schema
+        # For universal support, we'll try to use litellm's schema passing if supported,
+        # otherwise fallback to prompt engineering + json mode
+        
+        # Current best practice with LiteLLM for Pydantic:
+        # Pass response_format=SchemaClass
+        
+        call_kwargs = {
+            "model": self.model,
+            "messages": full_messages,
+            "max_tokens": max_tokens,
+            "response_format": schema,
+            **clean_kwargs
+        }
+        
+        if self.api_key:
+            call_kwargs["api_key"] = self.api_key
+        if self.api_base:
+            call_kwargs["api_base"] = self.api_base
+
+        response = litellm.completion(**call_kwargs)
+        
+        # LiteLLM 1.40+ handles parsing if response_format is a Pydantic model
+        # The content should be the parsed object or a JSON string
+        
+        content = response.choices[0].message.content
+        
+        # If LiteLLM returned the object directly (some versions)
+        if isinstance(content, schema):
+            return content
+            
+        # If content is string, parse it
+        # Note: newer litellm returns the object in specific field or just as string. 
+        # Standardize on parsing from string if it didn't auto-parse.
+        
+        return schema.model_validate_json(content)

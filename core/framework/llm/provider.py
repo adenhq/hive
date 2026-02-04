@@ -108,3 +108,29 @@ class LLMProvider(ABC):
             Final LLMResponse after tool use completes
         """
         pass
+
+    @abstractmethod
+    def complete_structure(
+        self,
+        messages: list[dict[str, Any]],
+        schema: type[Any],
+        system: str = "",
+        tools: list[Tool] | None = None,
+        max_tokens: int = 1024,
+        **kwargs: Any,
+    ) -> Any:
+        """
+        Generate a structured response validated by a Pydantic model.
+
+        Args:
+            messages: Conversation history
+            schema: Pydantic model class to validate against
+            system: System prompt
+            tools: Available tools
+            max_tokens: Max tokens
+            **kwargs: Provider specific args
+
+        Returns:
+            Instance of the schema class
+        """
+        pass
