@@ -91,6 +91,7 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 ### Prerequisites
 
 - [Python 3.11+](https://www.python.org/downloads/) for agent development
+- Git (for cloning the repository)
 - Claude Code or Cursor for utilizing agent skills
 
 ### Installation
