@@ -5,6 +5,20 @@ from mcp.server.fastmcp import FastMCP
 
 from ..security import WORKSPACES_DIR, get_secure_path
 
+MAX_OUTPUT_CHARS = 5000
+TRUNCATION_NOTICE = "\n... [output truncated]"
+
+def _decode_and_truncate(output: bytes) -> str:
+    if not output:
+        return ""
+
+    text = output.decode("utf-8", errors="replace")
+
+    if len(text) > MAX_OUTPUT_CHARS:
+        return text[:MAX_OUTPUT_CHARS] + TRUNCATION_NOTICE
+
+    return text
+
 
 def register_tools(mcp: FastMCP) -> None:
     """Register command execution tools with the MCP server."""
@@ -48,15 +62,15 @@ def register_tools(mcp: FastMCP) -> None:
                 secure_cwd = session_root
 
             result = subprocess.run(
-                command, shell=True, cwd=secure_cwd, capture_output=True, text=True, timeout=60
+                command, shell=True, cwd=secure_cwd, capture_output=True, timeout=60
             )
 
             return {
                 "success": True,
                 "command": command,
                 "return_code": result.returncode,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
+                "stdout": _decode_and_truncate(result.stdout),
+                "stderr": _decode_and_truncate(result.stderr),
                 "cwd": cwd or ".",
             }
         except subprocess.TimeoutExpired:
