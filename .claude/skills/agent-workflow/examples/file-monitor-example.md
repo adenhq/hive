@@ -44,30 +44,28 @@ goal = Goal(
 
 ### Step 3: Design Nodes
 
-7 nodes approved and written incrementally:
+5 high-performance nodes approved and written incrementally:
 
-1. `initialize-state` - Set up tracking
-2. `list-downloads` - Scan directory
-3. `identify-new-files` - Find new files
-4. `check-for-new-files` - Router
-5. `copy-files` - Copy with conflict resolution
-6. `update-state` - Mark as processed
-7. `wait-interval` - Sleep between cycles
+1. `initialize-observer` - Set up observer
+2. `event-listener` - Listens for file closed event
+3. `filter-temp-files` - Ignores partial files
+4. `zero-copy-transfer` - Moves data via kernel
+5. `update-registry` - Mark as processed
 
 **Output**: All nodes in nodes/__init__.py
 
 ### Step 4: Connect Edges
 
-8 edges connecting the workflow loop:
+4 edges connecting the workflow loop:
 
 ```
-initialize → list → identify → check
-                                ↓  ↓
-                              copy  wait
-                                ↓    ↑
-                              update ↓
-                                ↓    ↓
-                              wait → list (loop)
+initialize → observer
+                ↓
+         [OS SIGNAL: ON_CLOSED]
+                ↓
+         event-listener → filter → zero-copy-transfer → update
+                                          ↑               ↓
+                                          └────── < ──────┘
 ```
 
 **Output**: Edges written to agent.py
@@ -76,12 +74,12 @@ initialize → list → identify → check
 
 ```bash
 $ PYTHONPATH=core:exports python -m file_monitor_agent validate
-✓ Agent is valid
+✓ Agent is valid (Reactive Architecture Detected)
 
 $ PYTHONPATH=core:exports python -m file_monitor_agent info
-Agent: File Monitor & Copy Agent
-Nodes: 7
-Edges: 8
+Agent: Optimized File Monitor & Copy
+Nodes: 5
+Edges: 4
 ```
 
 **Phase 1 Complete**: Structure validated ✅
@@ -92,10 +90,10 @@ Edges: 8
 exports/file_monitor_agent/
 ├── __init__.py          ✅ (exports)
 ├── __main__.py          ✅ (CLI)
-├── agent.py             ✅ (goal, graph, agent class)
-├── nodes/__init__.py    ✅ (7 nodes)
+├── agent.py             ✅ (goal, reactive graph, agent class)
+├── nodes/__init__.py    ✅ (5 optimized nodes)
 ├── config.py            ✅ (configuration)
-├── implementations.py   ✅ (Python functions)
+├── implementations.py   ✅ (Watchdog & sendfile logic)
 ├── README.md            ✅ (documentation)
 ├── IMPLEMENTATION_GUIDE.md ✅ (next steps)
 └── STATUS.md            ✅ (current state)
@@ -133,22 +131,12 @@ Tests approved incrementally by user.
 ```bash
 $ PYTHONPATH=core:exports pytest exports/file_monitor_agent/tests/
 
-test_constraints.py::test_preserves_originals     PASSED
-test_constraints.py::test_handles_errors          PASSED
-test_constraints.py::test_tracks_state            PASSED
-test_constraints.py::test_respects_permissions    PASSED
+test_constraints.py::test_zero_cpu_idle           PASSED
+test_constraints.py::test_kernel_copy_integrity   PASSED
+test_success_criteria.py::test_instant_detection  PASSED
+test_edge_cases.py::test_ignore_partial_files     PASSED
 
-test_success_criteria.py::test_detects_all_files  PASSED
-test_success_criteria.py::test_copies_all_files   PASSED
-test_success_criteria.py::test_resolves_conflicts PASSED
-test_success_criteria.py::test_continuous_run     PASSED
-
-test_edge_cases.py::test_empty_directory          PASSED
-test_edge_cases.py::test_permission_denied        PASSED
-test_edge_cases.py::test_disk_full                PASSED
-test_edge_cases.py::test_large_files              PASSED
-
-========================== 12 passed in 3.42s ==========================
+========================== 12 passed in 2.15s ==========================
 ```
 
 **Phase 2 Complete**: All tests pass ✅
