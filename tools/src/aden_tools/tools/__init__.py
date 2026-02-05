@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 # Import register_tools from each tool module
 from .csv_tool import register_tools as register_csv
+from .discord_tool import register_tools as register_discord
 from .email_tool import register_tools as register_email
 from .example_tool import register_tools as register_example
 from .file_system_toolkits.apply_diff import register_tools as register_apply_diff
@@ -75,6 +76,7 @@ def register_all_tools(
     register_email(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
     register_slack(mcp, credentials=credentials)
+    register_discord(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -198,6 +200,10 @@ def register_all_tools(
         "slack_kick_user_from_channel",
         "slack_delete_file",
         "slack_get_team_stats",
+        "discord_send_message",
+        "discord_read_messages",
+        "discord_list_channels",
+        "discord_add_reaction",
     ]
 
 
