@@ -44,7 +44,7 @@
 # Aden क्या है?
 
 <p align="center">
-  <img width="100%" alt="Aden Architecture" src="docs/assets/aden-architecture-diagram.jpg" />
+  <img width="100%" alt="Aden Architecture" src="../assets/aden-architecture-diagram.jpg" />
 </p>
 
 Aden एक ऐसा प्लेटफ़ॉर्म है जो AI एजेंट्स को बनाने, डिप्लॉय करने, ऑपरेट करने और अनुकूलित करने के लिए उपयोग होता है:
@@ -83,7 +83,7 @@ git clone https://github.com/adenhq/hive.git
 cd hive
 
 # Python वातावरण कॉन्फ़िगरेशन चलाएँ
-./scripts/setup-python.sh
+./quickstart.sh
 ```
 
 यह इंस्टॉल करता है:
@@ -236,7 +236,7 @@ hive/
 
 ```bash
 # एक-बार का कॉन्फ़िगरेशन
-./scripts/setup-python.sh
+./quickstart.sh
 
 # यह इंस्टॉल करता है:
 # - फ्रेमवर्क पैकेज (मुख्य रनटाइम)
