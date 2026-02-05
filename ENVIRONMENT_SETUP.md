@@ -8,6 +8,10 @@ Complete setup guide for building and running goal-driven agents with the Aden A
 # Run the automated setup script
 ./quickstart.sh
 ```
+```md
+> **Tip:** Start with the Quick Setup script above.
+> Only follow the Manual Setup section if the script fails
+> or if you need more control over the installation process.
 
 > **Note for Windows Users:**  
 > Running the setup script on native Windows shells (PowerShell / Git Bash) may sometimes fail due to Python App Execution Aliases.  
