@@ -463,6 +463,7 @@ Health checks validate credentials by making lightweight API calls:
 | `google_search` | `GET /customsearch/v1?q=test&num=1`     | API key + CSE ID validity          |
 | `github`        | `GET /user`                             | Token validity, user identity      |
 | `hubspot`       | `GET /crm/v3/objects/contacts?limit=1`  | Bearer token validity, CRM scopes  |
+| `linear`        | `POST /graphql` (viewer query)          | API key validity, workspace access |
 | `resend`        | `GET /domains`                          | API key validity                   |
 
 ```python
@@ -509,7 +510,7 @@ All credential specs are defined in `tools/src/aden_tools/credentials/`:
 | `llm.py`          | LLM Providers | `anthropic`                                   | No             |
 | `search.py`       | Search Tools  | `brave_search`, `google_search`, `google_cse` | No             |
 | `email.py`        | Email         | `resend`                                      | No             |
-| `integrations.py` | Integrations  | `github`, `hubspot`                           | No / Yes       |
+| `integrations.py` | Integrations  | `github`, `hubspot`, `linear`                 | No / Yes / Yes |
 
 **Note:** Additional LLM providers (Cerebras, Groq, OpenAI) are handled by LiteLLM via environment
 variables (`CEREBRAS_API_KEY`, `GROQ_API_KEY`, `OPENAI_API_KEY`) but are not yet in CREDENTIAL_SPECS.

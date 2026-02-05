@@ -41,6 +41,7 @@ from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
 from .github_tool import register_tools as register_github
 from .hubspot_tool import register_tools as register_hubspot
+from .linear_tool import register_tools as register_linear
 from .pdf_read_tool import register_tools as register_pdf_read
 from .slack_tool import register_tools as register_slack
 from .web_scrape_tool import register_tools as register_web_scrape
@@ -75,6 +76,8 @@ def register_all_tools(
     register_email(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
     register_slack(mcp, credentials=credentials)
+    # Linear project management integration
+    register_linear(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -139,6 +142,26 @@ def register_all_tools(
         "hubspot_get_deal",
         "hubspot_create_deal",
         "hubspot_update_deal",
+        # Linear tools
+        "linear_issue_create",
+        "linear_issue_get",
+        "linear_issue_update",
+        "linear_issue_delete",
+        "linear_issue_search",
+        "linear_issue_add_comment",
+        "linear_project_create",
+        "linear_project_get",
+        "linear_project_update",
+        "linear_project_list",
+        "linear_teams_list",
+        "linear_team_get",
+        "linear_workflow_states_get",
+        "linear_label_create",
+        "linear_labels_list",
+        "linear_users_list",
+        "linear_user_get",
+        "linear_viewer",
+        # Slack tools
         "slack_send_message",
         "slack_list_channels",
         "slack_get_channel_history",
