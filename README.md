@@ -439,6 +439,17 @@ Hive focuses on generating agents that run real business processes, rather than 
 
 **Q: Does Aden offer enterprise support?**
 
+**Technical Migration Guides From Other AI Automation Agents To Aden Hives
+Are a developer using other AI automation Agents and yo are ready to migrate your agents to Aden Hives
+We are building a step by step migration guide to aid smooth successful migration of other AI agent framework to Aden Hives
+
+** Why Migrate to Hive
+- **Build** - A Coding Agent generates specialized Worker Agents (Sales, Marketing, Ops) from natural language goals
+- **Deploy** - Headless deployment with CI/CD integration and full API lifecycle management
+
+**Note: A detailed migration guide covering core framework mapping and developer checlist is currently under proposal: see issues 3645 for details.
+
+
 For enterprise inquiries, contact the Aden team through [adenhq.com](https://adenhq.com) or join our [Discord community](https://discord.com/invite/MXE49hrKDk) for support and discussions.
 
 ---
