@@ -95,6 +95,12 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 
 > **Note for Windows Users:** It is strongly recommended to use **WSL (Windows Subsystem for Linux)** or **Git Bash** to run this framework. Some core automation scripts may not execute correctly in standard Command Prompt or PowerShell.
 
+**First-time contributor notes**
+- Claude Code skills are optional unless you plan to build new agents.
+- It is normal if `exports/` is missing or empty initially (often gitignored); it gets populated when generating or adding agents.
+- Many local run commands below use `PYTHONPATH=core:exports`.
+
+
 ### Installation
 
 ```bash
