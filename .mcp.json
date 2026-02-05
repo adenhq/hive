@@ -1,14 +1,20 @@
 {
   "mcpServers": {
     "agent-builder": {
-      "command": "uv",
-      "args": ["run", "-m", "framework.mcp.agent_builder_server"],
-      "cwd": "core"
+      "command": "core/.venv/bin/python",
+      "args": ["-m", "framework.mcp.agent_builder_server"],
+      "cwd": "core",
+      "env": {
+        "PYTHONPATH": "../tools/src"
+      }
     },
     "tools": {
-      "command": "uv",
-      "args": ["run", "mcp_server.py", "--stdio"],
-      "cwd": "tools"
+      "command": "tools/.venv/bin/python",
+      "args": ["tools/mcp_server.py", "--stdio"],
+      "cwd": ".",
+      "env": {
+        "PYTHONPATH": "tools/src:core"
+      }
     }
   }
 }

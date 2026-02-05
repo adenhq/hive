@@ -655,9 +655,12 @@ echo ""
 
 ERRORS=0
 
-# Test imports
+# Test imports using venv Python interpreters
+CORE_PYTHON="$SCRIPT_DIR/core/.venv/bin/python"
+TOOLS_PYTHON="$SCRIPT_DIR/tools/.venv/bin/python"
+
 echo -n "  ⬡ framework... "
-if uv run python -c "import framework" > /dev/null 2>&1; then
+if [ -f "$CORE_PYTHON" ] && $CORE_PYTHON -c "import framework" > /dev/null 2>&1; then
     echo -e "${GREEN}ok${NC}"
 else
     echo -e "${RED}failed${NC}"
@@ -665,7 +668,7 @@ else
 fi
 
 echo -n "  ⬡ aden_tools... "
-if uv run python -c "import aden_tools" > /dev/null 2>&1; then
+if [ -f "$TOOLS_PYTHON" ] && $TOOLS_PYTHON -c "import aden_tools" > /dev/null 2>&1; then
     echo -e "${GREEN}ok${NC}"
 else
     echo -e "${RED}failed${NC}"
@@ -673,7 +676,7 @@ else
 fi
 
 echo -n "  ⬡ litellm... "
-if uv run python -c "import litellm" > /dev/null 2>&1; then
+if [ -f "$CORE_PYTHON" ] && $CORE_PYTHON -c "import litellm" > /dev/null 2>&1; then
     echo -e "${GREEN}ok${NC}"
 else
     echo -e "${YELLOW}--${NC}"

@@ -34,6 +34,19 @@ class _HubSpotClient:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._client.close()
+        return False
+
+    def __del__(self):
+        """Cleanup on garbage collection as last resort."""
+        if hasattr(self, "_client"):
+            try:
+                self._client.close()
+            except Exception:
+                pass
+
+    def close(self):
+        """Explicitly close the HTTP client."""
+        self._client.close()
 
     @property
     def _headers(self) -> dict[str, str]:
