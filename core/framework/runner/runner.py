@@ -467,6 +467,65 @@ class AgentRunner:
             enable_tui=enable_tui,
         )
 
+    @classmethod
+    def from_file(
+        cls,
+        agent_json_path: str | Path,
+        mock_mode: bool = False,
+        storage_path: Path | None = None,
+        model: str | None = None,
+        enable_tui: bool = False,
+    ) -> "AgentRunner":
+        """
+        Load an agent directly from an agent.json file.
+
+        This is a convenience method for loading agents from JSON files
+        without requiring a full agent directory structure. The agent_path
+        will be set to the directory containing the JSON file.
+
+        Args:
+            agent_json_path: Path to agent.json file
+            mock_mode: If True, use mock LLM responses
+            storage_path: Path for runtime storage (defaults to ~/.hive/storage/{name})
+            model: LLM model to use (reads from ~/.hive/configuration.json if None)
+            enable_tui: If True, forces use of AgentRuntime with EventBus
+
+        Returns:
+            AgentRunner instance ready to run
+
+        Raises:
+            FileNotFoundError: If the agent.json file doesn't exist
+            ValueError: If the JSON is invalid or missing required fields
+
+        Example:
+            >>> runner = AgentRunner.from_file("path/to/agent.json")
+            >>> result = await runner.run({"input": "value"})
+        """
+        agent_json_path = Path(agent_json_path)
+
+        if not agent_json_path.exists():
+            raise FileNotFoundError(f"Agent JSON file not found: {agent_json_path}")
+
+        if not agent_json_path.is_file():
+            raise ValueError(f"Path is not a file: {agent_json_path}")
+
+        # Load the agent export from JSON
+        with open(agent_json_path) as f:
+            graph, goal = load_agent_export(f.read())
+
+        # Use the directory containing the JSON as agent_path
+        agent_path = agent_json_path.parent
+
+        return cls(
+            agent_path=agent_path,
+            graph=graph,
+            goal=goal,
+            mock_mode=mock_mode,
+            storage_path=storage_path,
+            model=model,
+            enable_tui=enable_tui,
+        )
+
     def register_tool(
         self,
         name: str,
