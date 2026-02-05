@@ -1,1 +1,154 @@
 3.11
+import sqlite3
+import numpy as np
+from datetime import datetime
+import tensorflow as tf
+from tensorflow.keras import layers, models
+from mcp.server.fastmcp import FastMCP
+import base64
+import torch
+from robotics.perception import OpenVisionEncoder
+from robotics.control import LaplaceTransformer
+
+# implement database initi
+mcp = FastMCP("HiveStringDB")
+# data base initi
+# --- Persistence Setup ---
+def init_db():
+    conn = sqlite3.connect("hive_business.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS statements (
+            id TEXT PRIMARY KEY,
+            content TEXT,
+            status TEXT,
+            created_at TIMESTAMP,
+            judgment_score REAL
+        )
+    ''')
+    conn.commit()
+    return conn
+
+db_conn = init_db()
+
+# --- Tools ---
+
+@mcp.tool()
+async def initiate_statement(stmt_id: str, text: str) -> str:
+    """
+    Step 1: Initiation - Stores a new business statement for processing.
+    """
+    cursor = db_conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO statements (id, content, status, created_at) VALUES (?, ?, ?, ?)",
+            (stmt_id, text, "INITIATED", datetime.now())
+        )
+        db_conn.commit()
+        return f"Statement {stmt_id} initiated successfully."
+    except sqlite3.IntegrityError:
+        return "Error: Statement ID already exists."
+# Tensorflow Neural Network Keras for training, test and validation data
+@mcp.tool()
+async def update_statement_lifecycle(stmt_id: str, new_status: str, score: float = 0.0) -> str:
+    """
+    Moves statement through: TRAINING -> TESTING -> VALIDATION.
+    """
+    valid_statuses = ["TRAINING", "TESTING", "VALIDATED"]
+    if new_status not in valid_statuses:
+        return f"Invalid status. Must be one of {valid_statuses}"
+
+    cursor = db_conn.cursor()
+    cursor.execute(
+        "UPDATE statements SET status = ?, judgment_score = ? WHERE id = ?",
+        (new_status, score, stmt_id)
+    )
+    db_conn.commit()
+    return f"Statement {stmt_id} moved to {new_status}."
+
+@mcp.tool()
+async def get_training_batch(limit: int = 5) -> list:
+    """
+    Retrieves statements that are ready for LLM training/testing.
+    """
+    cursor = db_conn.cursor()
+    cursor.execute("SELECT * FROM statements WHERE status = 'INITIATED' LIMIT ?", (limit,))
+    return cursor.fetchall()
+
+
+mcp = FastMCP("HiveKerasEngine")
+
+@mcp.tool()
+async def build_ann_model(input_dim: int, num_classes: int) -> str:
+    """
+    Generates a simple ANN for structured business data classification.
+    """
+    model = models.Sequential([
+        layers.Dense(64, activation='relu', input_shape=(input_dim,)),
+        layers.Dropout(0.2),
+        layers.Dense(32, activation='relu'),
+        layers.Dense(num_classes, activation='softmax')
+    ])
+    
+    model.compile(optimizer='adam', 
+                  loss='categorical_crossentropy', 
+                  metrics=['accuracy'])
+    
+    # In a real app, you'd save the model path to the SQLite DB
+    return "ANN Model compiled and ready for training."
+
+@mcp.tool()
+async def build_cnn_model(seq_length: int, vocab_size: int) -> str:
+    """
+    Generates a 1D CNN for sequence-based business statement analysis.
+    """
+    model = models.Sequential([
+        layers.Embedding(vocab_size, 64, input_length=seq_length),
+        layers.Conv1D(128, 5, activation='relu'),
+        layers.GlobalMaxPooling1D(),
+        layers.Dense(10, activation='relu'),
+        layers.Dense(1, activation='sigmoid')
+    ])
+    
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    return "CNN Model for text sequence analysis initiated."
+# mcp_server/keras_engine.py
+def build_business_cnn(vocab_size, seq_length):
+    model = Sequential([
+        layers.Embedding(vocab_size, 64, input_length=seq_length),
+        layers.Conv1D(128, 5, activation='relu'),
+        layers.GlobalMaxPooling1D(),
+        layers.Dense(1, activation='sigmoid') # Binary judgment: Safe vs Risk
+    ])
+    model.compile(optimizer='adam', loss='binary_crossentropy')
+    return model
+
+# Initialize the robotics stack
+mcp = FastMCP("RoboticsController")
+vision_encoder = OpenVisionEncoder()
+control_module = LaplaceTransformer()
+
+@mcp.tool()
+async def vision_language_action(image_b64: str, instruction: str) -> dict:
+    """
+    VLA Tool: Takes a camera frame and a command to generate 
+    a smooth robotic trajectory using Laplace s-domain control.
+    """
+    # 1. Perception: Convert Image to Spatial Embeddings
+    image_data = base64.b64decode(image_b64)
+    visual_context = vision_encoder.encode(image_data)
+    
+    # 2. Reasoning: Combine Vision + Language
+    # (Typically involves a transformer cross-attention layer)
+    multimodal_state = f"{instruction} | Context: {visual_context.shape}"
+
+    # 3. Action: Generate Laplace Trajectory
+    # Maps instructions to s-domain algebraic motor commands
+    action_chunk = control_module.generate_trajectory(visual_context, instruction)
+    
+    return {
+        "status": "success",
+        "action_type": "trajectory_chunk",
+        "commands": action_chunk.tolist(),
+        "metadata": {"control_mode": "Laplace_s_domain"}
+    }
