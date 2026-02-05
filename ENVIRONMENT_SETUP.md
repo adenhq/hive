@@ -123,6 +123,14 @@ $env:ANTHROPIC_API_KEY="your-key-here"
 
 All agent commands must be run from the project root with `PYTHONPATH` set:
 
+**Note:**
+This repository does not include pre-built agent packages by default.
+
+The `exports/` directory is created when:
+- building agents using Claude Code (`./quickstart.sh`), or
+- manually creating agent packages following the documented structure.
+
+
 ```bash
 # From /hive/ directory
 PYTHONPATH=exports uv run python -m agent_name COMMAND
