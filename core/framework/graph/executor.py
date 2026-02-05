@@ -263,6 +263,48 @@ class GraphExecutor:
         node_visit_counts: dict[str, int] = {}  # Track visits for feedback loops
         _is_retry = False  # True when looping back for a retry (not a new visit)
 
+        # Restore retry and visit metadata if present
+        if session_state:
+            def _coerce_counter_dict(data: dict[str, Any]) -> dict[str, int]:
+                coerced: dict[str, int] = {}
+                for key, val in data.items():
+                    try:
+                        num = int(val)
+                    except (TypeError, ValueError):
+                        continue
+                    if num < 0:
+                        continue
+                    coerced[str(key)] = num
+                return coerced
+
+            retry_data = session_state.get("retry_details") or session_state.get("node_retry_counts")
+            if retry_data is not None:
+                if isinstance(retry_data, dict):
+                    node_retry_counts = _coerce_counter_dict(retry_data)
+                    if node_retry_counts:
+                        self.logger.info(
+                            f"📥 Restored retry counts for {len(node_retry_counts)} nodes"
+                        )
+                else:
+                    self.logger.warning(
+                        f"⚠️ Invalid retry data type in session state: "
+                        f"{type(retry_data).__name__}, expected dict"
+                    )
+
+            visit_data = session_state.get("node_visit_counts")
+            if visit_data is not None:
+                if isinstance(visit_data, dict):
+                    node_visit_counts = _coerce_counter_dict(visit_data)
+                    if node_visit_counts:
+                        self.logger.info(
+                            f"📥 Restored visit counts for {len(node_visit_counts)} nodes"
+                        )
+                else:
+                    self.logger.warning(
+                        f"⚠️ Invalid visit count data type in session state: "
+                        f"{type(visit_data).__name__}, expected dict"
+                    )
+
         # Determine entry point (may differ if resuming)
         current_node_id = graph.get_entry_point(session_state)
         steps = 0
@@ -530,6 +572,8 @@ class GraphExecutor:
                         "resume_from": f"{node_spec.id}_resume",  # Resume key
                         "memory": saved_memory,
                         "next_node": None,  # Will resume from entry point
+                        "retry_details": dict(node_retry_counts),
+                        "node_visit_counts": dict(node_visit_counts),
                     }
 
                     self.runtime.end_run(
@@ -1110,7 +1154,7 @@ class GraphExecutor:
 
                         branch.result = result
                         branch.status = "completed"
-                        self.logger.info(
+                        self.logger.debug(
                             f"      ✓ Branch {node_spec.name}: success "
                             f"(tokens: {result.tokens_used}, latency: {result.latency_ms}ms)"
                         )
