@@ -23,6 +23,8 @@ docker-compose.override.yml
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json.example
+!.vscode/mcp.json
+!.vscode/settings.json
 *.swp
 *.swo
 *~

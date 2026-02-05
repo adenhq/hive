@@ -1,0 +1,10 @@
+{
+  // Enable Agent Skills (experimental feature as of VS Code 1.108)
+  "chat.useAgentSkills": true,
+
+  // MCP Access Level
+  "chat.mcp.access": "all",
+
+  // Auto-start MCP servers (experimental)
+  "chat.mcp.autostart": "newAndOutdated",
+}

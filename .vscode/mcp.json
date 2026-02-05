@@ -1,0 +1,34 @@
+{
+  "servers": {
+    "agent-builder": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${workspaceFolder}/core",
+        "python",
+        "-m",
+        "framework.mcp.agent_builder_server"
+      ],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/tools/src"
+      }
+    },
+    "tools": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${workspaceFolder}/tools",
+        "python",
+        "mcp_server.py",
+        "--stdio"
+      ],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/tools/src:${workspaceFolder}/core"
+      }
+    }
+  }
+}

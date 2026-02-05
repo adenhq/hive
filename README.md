@@ -91,7 +91,7 @@ Aden is a platform for building, deploying, operating, and adapting AI agents:
 ## Prerequisites
 
 - Python 3.11+ for agent development
-- Claude Code or Cursor for utilizing agent skills
+- IDE with MCP support: [VS Code](https://code.visualstudio.com/) + [GitHub Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot), [Cursor](https://cursor.sh/), or [Claude Code](https://claude.ai/)
 
 > **Note for Windows Users:** It is strongly recommended to use **WSL (Windows Subsystem for Linux)** or **Git Bash** to run this framework. Some core automation scripts may not execute correctly in standard Command Prompt or PowerShell.
 
@@ -113,18 +113,38 @@ This sets up:
 
 ### Build Your First Agent
 
+**Claude Code:**
 ```bash
-# Build an agent using Claude Code
+# Use skills directly
 claude> /building-agents-construction
-
-# Test your agent
 claude> /testing-agent
+```
 
-# Run your agent
-PYTHONPATH=exports uv run python -m your_agent_name run --input '{...}'
+**Cursor:**
+```bash
+# Type / in Agent chat
+/building-agents-construction
+/testing-agent
+```
+
+**VS Code + GitHub Copilot:**
+```bash
+# Open Copilot Chat (Cmd/Ctrl + Shift + I)
+# Select a custom agent from the mode dropdown:
+#   - agent-workflow
+#   - building-agents-construction
+#   - testing-agent
+# Then type your request:
+Build a file monitor agent
+```
+
+**Run your agent:**
+```bash
+PYTHONPATH=core:exports python -m your_agent_name run --input '{...}'
 ```
 
 **[📖 Complete Setup Guide](ENVIRONMENT_SETUP.md)** - Detailed instructions for agent development
+**[VS Code + GitHub Copilot Setup](docs/vscode-copilot-setup.md)**
 
 ### Cursor IDE Support
 
