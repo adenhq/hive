@@ -63,14 +63,11 @@ core/data/
 .cache/
 tmp/
 temp/
-
-exports/*
-
-.agent-builder-sessions/*
-
 .claude/settings.local.json
 
 .venv
 
 docs/github-issues/*
 core/tests/*dumps/*
+.agent_runs/
+agent_demo.mov
