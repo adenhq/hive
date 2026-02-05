@@ -107,8 +107,8 @@ cd hive
 ```
 
 This sets up:
-- **framework** - Core agent runtime and graph executor (in `core/.venv`)
-- **aden_tools** - MCP tools for agent capabilities (in `tools/.venv`)
+- **framework** - Core agent runtime and graph executor (in `core/`)
+- **aden_tools** - MCP tools for agent capabilities (in `tools/`)
 - All required Python dependencies
 
 ### Build Your First Agent

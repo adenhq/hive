@@ -351,35 +351,30 @@ The Hive framework consists of three Python packages:
 
 ```
 hive/
+├── .venv/                   # Created by quickstart.sh (shared workspace venv)
 ├── core/                    # Core framework (runtime, graph executor, LLM providers)
 │   ├── framework/
-│   ├── .venv/              # Created by quickstart.sh
 │   └── pyproject.toml
 │
 ├── tools/                   # Tools and MCP servers
 │   ├── src/
 │   │   └── aden_tools/     # Actual package location
-│   ├── .venv/              # Created by quickstart.sh
 │   └── pyproject.toml
 │
 └── exports/                 # Agent packages (user-created, gitignored)
     └── your_agent_name/     # Created via /building-agents-construction
 ```
 
-## Separate Virtual Environments
+## Workspace Virtual Environment
 
-The project uses **separate virtual environments** for `core` and `tools` packages to:
-
-- Isolate dependencies and avoid conflicts
-- Allow independent development and testing of each package
-- Enable MCP servers to run with their specific dependencies
+The project uses a **single shared virtual environment** at the workspace root (`.venv/`), managed by `uv` workspaces. The root `pyproject.toml` defines `core` and `tools` as workspace members.
 
 ### How It Works
 
-When you run `./quickstart.sh` or `uv sync` in each directory:
+When you run `./quickstart.sh` or `uv sync` from the project root:
 
-1. **core/.venv/** - Contains the `framework` package and its dependencies (anthropic, litellm, mcp, etc.)
-2. **tools/.venv/** - Contains the `aden_tools` package and its dependencies (beautifulsoup4, pandas, etc.)
+1. A single `.venv/` is created at the workspace root
+2. Both `framework` (from `core/`) and `aden_tools` (from `tools/`) are installed into this shared environment
 
 ### Cross-Package Imports
 
@@ -403,18 +398,20 @@ PYTHONPATH=tools/src uv run python your_script.py
 
 ### MCP Server Configuration
 
-The `.mcp.json` at project root configures MCP servers to use their respective virtual environments:
+The `.mcp.json` at project root configures MCP servers using `uv run` to leverage the workspace environment:
 
 ```json
 {
   "mcpServers": {
     "agent-builder": {
-      "command": "core/.venv/bin/python",
-      "args": ["-m", "framework.mcp.agent_builder_server"]
+      "command": "uv",
+      "args": ["run", "-m", "framework.mcp.agent_builder_server"],
+      "cwd": "core"
     },
     "tools": {
-      "command": "tools/.venv/bin/python",
-      "args": ["-m", "aden_tools.mcp_server", "--stdio"]
+      "command": "uv",
+      "args": ["run", "mcp_server.py", "--stdio"],
+      "cwd": "tools"
     }
   }
 }
