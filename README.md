@@ -35,7 +35,7 @@
 
 ## Overview
 
-Build reliable, self-improving AI agents without hardcoding workflows. Define your goal through conversation with a coding agent, and the framework generates a node graph with dynamically created connection code. When things break, the framework captures failure data, evolves the agent through the coding agent, and redeploys. Built-in human-in-the-loop nodes, credential management, and real-time monitoring give you control without sacrificing adaptability.
+Build reliable, self-improving AI agents without hardcoding workflows. Define your goal through conversation with a coding agent, and the framework generates a node graph with dynamically created connection code. When things break, the framework captures failure data to guide the coding agent in evolving and redeploying the graph. Built-in human-in-the-loop nodes, credential management, and real-time monitoring give you control without sacrificing adaptability.
 
 Visit [adenhq.com](https://adenhq.com) for complete documentation, examples, and guides.
 
@@ -62,7 +62,6 @@ Use Hive when you need:
 - Continuous improvement based on failures
 - Strong monitoring, safety, and budget controls
 - A framework that evolves with your goals
-
 
 ## What is Aden
 
@@ -107,6 +106,7 @@ cd hive
 ```
 
 This sets up:
+
 - **framework** - Core agent runtime and graph executor (in `core/.venv`)
 - **aden_tools** - MCP tools for agent capabilities (in `tools/.venv`)
 - All required Python dependencies
@@ -188,7 +188,7 @@ flowchart LR
 | -------------------------- | -------------------------------------- |
 | Hardcode agent workflows   | Describe goals in natural language     |
 | Manual graph definition    | Auto-generated agent graphs            |
-| Reactive error handling    | Outcome-evaluation and adaptiveness               |
+| Reactive error handling    | Outcome-evaluation and adaptiveness    |
 | Static tool configurations | Dynamic SDK-wrapped nodes              |
 | Separate monitoring setup  | Built-in real-time observability       |
 | DIY budget management      | Integrated cost controls & degradation |
@@ -199,16 +199,30 @@ flowchart LR
 2. **Coding Agent Generates** → Creates the agent graph, connection code, and test cases
 3. **Workers Execute** → SDK-wrapped nodes run with full observability and tool access
 4. **Control Plane Monitors** → Real-time metrics, budget enforcement, policy management
-5. **Adaptiveness** → On failure, the system evolves the graph and redeploys automatically
+5. **Adaptiveness** → On failure, the system captures data to drive the coding agent's evolution loop
+
+### Current Status of "Self-Evolution"
+
+While Aden Hive is designed for self-improving agents, the current open-source version emphasizes **assisted evolution** rather than fully autonomous runtime mutation.
+
+| Feature              | Current OSS Status                                                     | Planned / Platform                                                          |
+| -------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **Observability**    | ✅ Full logging, tracing, and metric collection                        | Advanced analytics & anomaly detection                                      |
+| **Failure Analysis** | ✅ Captures failure data & context                                     | Automated root cause analysis                                               |
+| **Evolution**        | ⚠️ **Guided:** Coding Agent uses failure data to suggest/apply changes | **Autonomous:** Runtime can self-heal and mutate graph without intervention |
+| **Redeployment**     | ⚠️ **Manual/Scripted:** Users approve and run deployment commands      | **Automatic:** CI/CD integration for auto-generated fixes                   |
+
+We are actively bridging this gap. See [ROADMAP.md](ROADMAP.md) for progress on the fully autonomous feedback loop.
 
 ## Run pre-built Agents (Coming Soon)
 
 ### Run a sample agent
+
 Aden Hive provides a list of featured agents that you can use and build on top of.
 
 ### Run an agent shared by others
-Put the agent in `exports/` and run `PYTHONPATH=exports uv run python -m your_agent_name run --input '{...}'`
 
+Put the agent in `exports/` and run `PYTHONPATH=exports uv run python -m your_agent_name run --input '{...}'`
 
 For building and running goal-driven agents with the framework:
 
@@ -332,11 +346,12 @@ end
 
 classDef done fill:#9e9e9e,color:#fff,stroke:#757575
 ```
+
 ## Contributing
 
 We welcome contributions from the community! We’re especially looking for help building tools, integrations, and example agents for the framework ([check #2805](https://github.com/adenhq/hive/issues/2805)). If you’re interested in extending its functionality, this is the perfect place to start. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-**Important:** Please get assigned to an issue before submitting a PR. Comment on an issue to claim it, and a maintainer will assign you. Issues with reproducible steps and proposals are prioritized. This helps prevent duplicate work. 
+**Important:** Please get assigned to an issue before submitting a PR. Comment on an issue to claim it, and a maintainer will assign you. Issues with reproducible steps and proposals are prioritized. This helps prevent duplicate work.
 
 1. Find or create an issue and get assigned
 2. Fork the repository
