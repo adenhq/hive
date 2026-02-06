@@ -149,21 +149,68 @@ fi
 echo -e "${GREEN}⬢${NC} Python $PYTHON_VERSION"
 echo ""
 
-# Check for uv (install automatically if missing)
+# Check for uv (install or let user choose method if missing)
 if ! command -v uv &> /dev/null; then
-    echo -e "${YELLOW}  uv not found. Installing...${NC}"
-    if ! command -v curl &> /dev/null; then
-        echo -e "${RED}Error: curl is not installed (needed to install uv)${NC}"
-        echo "Please install curl or install uv manually from https://astral.sh/uv/"
-        exit 1
+    echo -e "${YELLOW}  uv not found.${NC}"
+    echo ""
+
+    # Build install options based on what's available
+    UV_INSTALL_OPTIONS=()
+    UV_INSTALL_ACTIONS=()
+
+    if command -v mise &> /dev/null; then
+        UV_INSTALL_OPTIONS+=("Install with mise (mise use uv)")
+        UV_INSTALL_ACTIONS+=("mise")
     fi
 
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    export PATH="$HOME/.local/bin:$PATH"
+    UV_INSTALL_OPTIONS+=("Install with curl (script installs to ~/.local/bin)")
+    UV_INSTALL_ACTIONS+=("curl")
+
+    UV_INSTALL_OPTIONS+=("I'll install manually (show instructions)")
+    UV_INSTALL_ACTIONS+=("manual")
+
+    prompt_choice "How would you like to install uv?" "${UV_INSTALL_OPTIONS[@]}"
+    UV_CHOICE="${UV_INSTALL_ACTIONS[$PROMPT_CHOICE]}"
+
+    case "$UV_CHOICE" in
+        mise)
+            echo ""
+            echo -e "${DIM}Running: mise use uv${NC}"
+            if mise use uv 2>/dev/null; then
+                eval "$(mise activate bash)" 2>/dev/null || eval "$(mise activate zsh)" 2>/dev/null || true
+                export PATH="$HOME/.local/share/mise/shims:$PATH"
+            fi
+            ;;
+        curl)
+            echo ""
+            if ! command -v curl &> /dev/null; then
+                echo -e "${RED}Error: curl is not installed (needed to install uv)${NC}"
+                echo "Please install curl or use: mise use uv"
+                exit 1
+            fi
+            echo -e "${DIM}Running: curl -LsSf https://astral.sh/uv/install.sh | sh${NC}"
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            export PATH="$HOME/.local/bin:$PATH"
+            ;;
+        manual)
+            echo ""
+            echo "Install uv manually:"
+            echo "  • With mise:  mise use uv"
+            echo "  • With curl:  curl -LsSf https://astral.sh/uv/install.sh | sh"
+            echo "  • See: https://astral.sh/uv/"
+            echo ""
+            echo "Then run this script again."
+            exit 0
+            ;;
+    esac
 
     if ! command -v uv &> /dev/null; then
-        echo -e "${RED}Error: uv installation failed${NC}"
-        echo "Please install uv manually from https://astral.sh/uv/"
+        echo -e "${RED}Error: uv installation failed or not in PATH${NC}"
+        echo ""
+        echo "If you used mise, ensure your shell has mise activated (add to ~/.bashrc or ~/.zshrc):"
+        echo "  eval \"\$(mise activate bash)\"  # or zsh"
+        echo ""
+        echo "Or install manually: https://astral.sh/uv/"
         exit 1
     fi
     echo -e "${GREEN}  ✓ uv installed successfully${NC}"
