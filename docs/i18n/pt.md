@@ -67,6 +67,9 @@ Aden é uma plataforma para construir, implantar, operar e adaptar agentes de IA
 
 - [Python 3.11+](https://www.python.org/downloads/) - Para desenvolvimento de agentes
 - [Docker](https://docs.docker.com/get-docker/) (v20.10+) - Opcional, para ferramentas containerizadas
+- [Claude Code](https://claude.com/product/claude-code) ou [Cursor](https://cursor.com/) para utilizar suas habilidades de agentes
+
+> **Notas para usuários de Windows:** É fortemente recomendado que utilize o **WSL (Windows Subsistema para Linux)** or **Git Bash** para executar o *framework*. Alguns *scripts* podem não funcionar no Powershell ou Prompt de Comando (CMD).
 
 ### Instalação
 
