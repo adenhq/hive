@@ -114,7 +114,7 @@ Introduce a single subcommand: **`hive memory`** (alternatives: `hive storage`; 
                              └──────────────────────────────────────┘
 ```
 
-Mermaid version (for docs that render it):
+Mermaid version:
 
 ```mermaid
 flowchart LR
