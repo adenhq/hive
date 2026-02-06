@@ -159,23 +159,22 @@ $env:PYTHONPATH="core;exports"
 python -m agent_name COMMAND
 ```
 
-### Example: Support Ticket Agent
+
+
+### Example: Marketing Agent (Template)
+
+To verify your installation immediately, you can run the marketing agent template included in the examples.
+
+**Linux / Mac:**
 
 ```bash
-# Validate agent structure
-PYTHONPATH=core:exports python -m your_agent_name validate
+# Run in mock mode
+PYTHONPATH=core:examples/templates python -m marketing_agent run --mock --input '{"topic": "AI", "goal": "write a tweet"}'
 
-# Show agent information
-PYTHONPATH=core:exports python -m your_agent_name info
-
-# Run agent with input
-PYTHONPATH=core:exports python -m your_agent_name run --input '{
-  "task": "Your input here"
-}'
-
-# Run in mock mode (no LLM calls)
-PYTHONPATH=core:exports python -m your_agent_name run --mock --input '{...}'
-```
+**Windows (PowerShell):**
+```powershell
+$env:PYTHONPATH="core;examples\templates"
+python -m marketing_agent run --mock --input '{\"topic\": \"AI\", \"goal\": \"write a tweet\"}'
 
 ## Building New Agents and Run Flow
 
