@@ -17,7 +17,7 @@ def register_tools(mcp: FastMCP) -> None:
             Replace all occurrences of a target string with replacement text in a file.
 
         When to use
-            Fixing repeated errors or typos
+            Fixing repeated typos or errors
             Updating deprecated terms or placeholders
             Refactoring simple patterns across a file
 
