@@ -42,6 +42,7 @@ from .file_system_toolkits.write_to_file import register_tools as register_write
 from .github_tool import register_tools as register_github
 from .hubspot_tool import register_tools as register_hubspot
 from .pdf_read_tool import register_tools as register_pdf_read
+from .redshift_tool import register_tools as register_redshift
 from .slack_tool import register_tools as register_slack
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
@@ -74,6 +75,7 @@ def register_all_tools(
     # email supports multiple providers (Resend) with auto-detection
     register_email(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
+    register_redshift(mcp, credentials=credentials)
     register_slack(mcp, credentials=credentials)
 
     # Register file system toolkits
@@ -140,6 +142,11 @@ def register_all_tools(
         "hubspot_get_deal",
         "hubspot_create_deal",
         "hubspot_update_deal",
+        "redshift_list_schemas",
+        "redshift_list_tables",
+        "redshift_get_table_schema",
+        "redshift_execute_query",
+        "redshift_export_query_results",
         "slack_send_message",
         "slack_list_channels",
         "slack_get_channel_history",
