@@ -39,6 +39,7 @@ Credential categories:
 - github.py: GitHub API credentials
 - hubspot.py: HubSpot CRM credentials
 - slack.py: Slack workspace credentials
+- calcom.py: Cal.com scheduling API credentials
 
 Note: Tools that don't need credentials simply omit the 'credentials' parameter
 from their register_tools() function. This convention is enforced by CI tests.
@@ -51,6 +52,7 @@ To add a new credential:
 
 from .base import CredentialError, CredentialSpec
 from .browser import get_aden_auth_url, get_aden_setup_url, open_browser
+from .calcom import CALCOM_CREDENTIALS
 from .email import EMAIL_CREDENTIALS
 from .github import GITHUB_CREDENTIALS
 from .health_check import HealthCheckResult, check_credential_health
@@ -74,6 +76,7 @@ CREDENTIAL_SPECS = {
     **GITHUB_CREDENTIALS,
     **HUBSPOT_CREDENTIALS,
     **SLACK_CREDENTIALS,
+    **CALCOM_CREDENTIALS,
 }
 
 __all__ = [
@@ -104,4 +107,5 @@ __all__ = [
     "GITHUB_CREDENTIALS",
     "HUBSPOT_CREDENTIALS",
     "SLACK_CREDENTIALS",
+    "CALCOM_CREDENTIALS",
 ]

@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from aden_tools.credentials import CredentialStoreAdapter
 
 # Import register_tools from each tool module
+from .calcom_tool import register_tools as register_calcom
 from .csv_tool import register_tools as register_csv
 from .email_tool import register_tools as register_email
 from .example_tool import register_tools as register_example
@@ -74,6 +75,7 @@ def register_all_tools(
     # email supports multiple providers (Resend) with auto-detection
     register_email(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
+    register_calcom(mcp, credentials=credentials)
     register_slack(mcp, credentials=credentials)
 
     # Register file system toolkits
@@ -110,6 +112,14 @@ def register_all_tools(
         "csv_append",
         "csv_info",
         "csv_sql",
+        "calcom_list_bookings",
+        "calcom_get_booking",
+        "calcom_create_booking",
+        "calcom_cancel_booking",
+        "calcom_get_availability",
+        "calcom_update_schedule",
+        "calcom_list_event_types",
+        "calcom_get_event_type",
         "github_list_repos",
         "github_get_repo",
         "github_search_repos",
