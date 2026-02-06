@@ -315,6 +315,20 @@ Linux/macOS:
 PYTHONPATH=exports uv run python -m your_agent_name validate
 ```
 
+**Note for macOS Users:**  
+> When running Hive or Aden SDKs locally with Python, you may encounter SSL certificate verification errors
+> (e.g. `SSLCertVerificationError: CERTIFICATE_VERIFY_FAILED`).  
+> This is typically due to Python not picking up system root certificates on macOS.
+>
+> A common workaround is:
+> ```bash
+> export SSL_CERT_FILE="$(python3 -c 'import certifi; print(certifi.where())')"
+> export REQUESTS_CA_BUNDLE="$SSL_CERT_FILE"
+> ```
+>
+> If using the python.org installer, running the bundled `Install Certificates.command`
+> may also resolve the issue.
+
 Windows:
 
 ```powershell
