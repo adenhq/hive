@@ -128,18 +128,26 @@ pip install uv
 # Install dependencies
 uv sync
 
+# Verify installation
+python core/verify_mcp.py
+
 ### Build Your First Agent
 
+After completing the setup, you can create and run your first agent using Claude Code.
+
 ```bash
-# Build an agent using Claude Code
-claude> /hive
+# Open Claude Code in the project directory
+claude
+
+# Create an agent
+/hive
 
 # Test your agent
-claude> /hive-test
+/hive-test
 
 # Run your agent
 PYTHONPATH=exports uv run python -m your_agent_name run --input '{...}'
-```
+
 
 **[📖 Complete Setup Guide](docs/environment-setup.md)** - Detailed instructions for agent development
 
