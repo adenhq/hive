@@ -6,10 +6,12 @@ without using the Claude Code CLI or external LLM APIs.
 
 It uses 'function' nodes to define logic in pure Python, making it perfect
 for understanding the core runtime loop:
-Setup -> Graph definition -> Execution -> Result
+Input → Nodes → Edge → Execution → Output
 
 Run with:
     uv run python core/examples/manual_agent.py
+    # or if setup hasn't been run yet:
+    PYTHONPATH=core python core/examples/manual_agent.py
 """
 
 import asyncio

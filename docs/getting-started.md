@@ -25,6 +25,26 @@ cd hive
 uv run python -c "import framework; import aden_tools; print('✓ Setup complete')"
 ```
 
+## Hello World Agent (Minimal Path)
+
+Run a minimal agent end-to-end in under a minute:
+
+```bash
+# With setup complete via quickstart.sh
+uv run python core/examples/manual_agent.py
+
+# If setup isn't done yet, use PYTHONPATH fallback
+cd core && uv pip install -e . && cd -
+PYTHONPATH=core python core/examples/manual_agent.py
+```
+
+This demonstrates the full loop using pure Python functions:
+- Define nodes (`greet`, `uppercase`) and an edge
+- Instantiate `Runtime` and `GraphExecutor`
+- Execute with input → get final output (uppercase greeting)
+
+See the example at [core/examples/manual_agent.py](../core/examples/manual_agent.py).
+
 ## Building Your First Agent
 
 ### Option 1: Using Claude Code Skills (Recommended)
