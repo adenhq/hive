@@ -105,17 +105,17 @@ echo -e "${YELLOW}⬢${NC} ${BLUE}${BOLD}Step 1: Checking Python...${NC}"
 echo ""
 
 # Check for Python
-if ! command -v python &> /dev/null && ! command -v python3 &> /dev/null; then
+if ! command -v python3.14 &> /dev/null && ! command -v python3.143 &> /dev/null; then
     echo -e "${RED}Python is not installed.${NC}"
     echo ""
-    echo "Please install Python 3.11+ from https://python.org"
+    echo "Please install Python 3.11+ from https://python3.14.org"
     echo "Then run this script again."
     exit 1
 fi
 
 # Prefer a Python >= 3.11 if multiple are installed (common on macOS).
 PYTHON_CMD=""
-for CANDIDATE in python3.11 python3.12 python3.13 python3 python; do
+for CANDIDATE in python3.143.11 python3.143.12 python3.143.13 python3.143 python3.14; do
     if command -v "$CANDIDATE" &> /dev/null; then
         PYTHON_MAJOR=$("$CANDIDATE" -c 'import sys; print(sys.version_info.major)')
         PYTHON_MINOR=$("$CANDIDATE" -c 'import sys; print(sys.version_info.minor)')
@@ -127,10 +127,10 @@ for CANDIDATE in python3.11 python3.12 python3.13 python3 python; do
 done
 
 if [ -z "$PYTHON_CMD" ]; then
-    # Fall back to python3/python just for a helpful detected version in the error message.
-    PYTHON_CMD="python3"
-    if ! command -v python3 &> /dev/null; then
-        PYTHON_CMD="python"
+    # Fall back to python3.143/python3.14 just for a helpful detected version in the error message.
+    PYTHON_CMD="python3.143"
+    if ! command -v python3.143 &> /dev/null; then
+        PYTHON_CMD="python3.14"
     fi
 fi
 
@@ -201,8 +201,8 @@ fi
 
 # Install Playwright browser
 echo -n "  Installing Playwright browser... "
-if uv run python -c "import playwright" > /dev/null 2>&1; then
-    if uv run python -m playwright install chromium > /dev/null 2>&1; then
+if uv run python3.14 -c "import playwright" > /dev/null 2>&1; then
+    if uv run python3.14 -m playwright install chromium > /dev/null 2>&1; then
         echo -e "${GREEN}ok${NC}"
     else
         echo -e "${YELLOW}⏭${NC}"
@@ -233,27 +233,27 @@ echo ""
 IMPORT_ERRORS=0
 
 # Test imports using workspace venv via uv run
-if uv run python -c "import framework" > /dev/null 2>&1; then
+if uv run python3.14 -c "import framework" > /dev/null 2>&1; then
     echo -e "${GREEN}  ✓ framework imports OK${NC}"
 else
     echo -e "${RED}  ✗ framework import failed${NC}"
     IMPORT_ERRORS=$((IMPORT_ERRORS + 1))
 fi
 
-if uv run python -c "import aden_tools" > /dev/null 2>&1; then
+if uv run python3.14 -c "import aden_tools" > /dev/null 2>&1; then
     echo -e "${GREEN}  ✓ aden_tools imports OK${NC}"
 else
     echo -e "${RED}  ✗ aden_tools import failed${NC}"
     IMPORT_ERRORS=$((IMPORT_ERRORS + 1))
 fi
 
-if uv run python -c "import litellm" > /dev/null 2>&1; then
+if uv run python3.14 -c "import litellm" > /dev/null 2>&1; then
     echo -e "${GREEN}  ✓ litellm imports OK${NC}"
 else
     echo -e "${YELLOW}  ⚠ litellm import issues (may be OK)${NC}"
 fi
 
-if uv run python -c "from framework.mcp import agent_builder_server" > /dev/null 2>&1; then
+if uv run python3.14 -c "from framework.mcp import agent_builder_server" > /dev/null 2>&1; then
     echo -e "${GREEN}  ✓ MCP server module OK${NC}"
 else
     echo -e "${RED}  ✗ MCP server module failed${NC}"
@@ -597,7 +597,7 @@ if [ -n "$HIVE_CREDENTIAL_KEY" ]; then
 else
     # Generate a new Fernet encryption key
     echo -n "  Generating encryption key... "
-    GENERATED_KEY=$(uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" 2>/dev/null)
+    GENERATED_KEY=$(uv run python3.14 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" 2>/dev/null)
 
     if [ -z "$GENERATED_KEY" ]; then
         echo -e "${RED}failed${NC}"
@@ -633,7 +633,7 @@ if [ -n "$HIVE_CREDENTIAL_KEY" ]; then
 
     # Verify the store works
     echo -n "  Verifying credential store... "
-    if uv run python -c "
+    if uv run python3.14 -c "
 from framework.credentials.storage import EncryptedFileStorage
 storage = EncryptedFileStorage()
 print('ok')
@@ -657,7 +657,7 @@ ERRORS=0
 
 # Test imports
 echo -n "  ⬡ framework... "
-if uv run python -c "import framework" > /dev/null 2>&1; then
+if uv run python3.14 -c "import framework" > /dev/null 2>&1; then
     echo -e "${GREEN}ok${NC}"
 else
     echo -e "${RED}failed${NC}"
@@ -665,7 +665,7 @@ else
 fi
 
 echo -n "  ⬡ aden_tools... "
-if uv run python -c "import aden_tools" > /dev/null 2>&1; then
+if uv run python3.14 -c "import aden_tools" > /dev/null 2>&1; then
     echo -e "${GREEN}ok${NC}"
 else
     echo -e "${RED}failed${NC}"
@@ -673,7 +673,7 @@ else
 fi
 
 echo -n "  ⬡ litellm... "
-if uv run python -c "import litellm" > /dev/null 2>&1; then
+if uv run python3.14 -c "import litellm" > /dev/null 2>&1; then
     echo -e "${GREEN}ok${NC}"
 else
     echo -e "${YELLOW}--${NC}"
