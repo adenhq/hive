@@ -445,3 +445,36 @@ For enterprise inquiries, contact the Aden team through [adenhq.com](https://ade
 <p align="center">
   Made with 🔥 Passion in San Francisco
 </p>
+
+## 🚀 Start Here (New Users)
+
+### 📚 Documentation & Next Steps
+
+- Read the full documentation: https://docs.adenhq.com
+- Learn core concepts: https://docs.adenhq.com/concepts/overview
+- Build your first agent: https://docs.adenhq.com/building/first-agent
+
+For product overview and platform features, see: https://adenhq.com
+
+If you’re new to Hive, here’s a simple way to get started:
+
+1. Understand the core concept: Hive helps build goal-driven, self-improving AI agents for real business workflows.
+2. Define your first mission (example: automate customer support).
+3. Run a basic agent locally to understand the execution flow.
+4. Explore agent templates once available (Support, Sales, Ops).
+5. Iterate based on outcomes.
+
+A lightweight “Hello World” agent example would greatly help first-time users.
+
+---
+
+## 💼 Example Business Use Cases
+
+Hive can power real production workflows such as:
+
+- Autonomous Customer Support Agents  
+- Sales Lead Qualification Agents  
+- Operations Monitoring Agents  
+- Internal Knowledge Assistants  
+
+Concrete examples for these scenarios would reduce onboarding friction and improve adoption for non-engineering stakeholders.
