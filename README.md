@@ -39,6 +39,17 @@ Build reliable, self-improving AI agents without hardcoding workflows. Define yo
 
 Visit [adenhq.com](https://adenhq.com) for complete documentation, examples, and guides.
 
+## Getting Started (High-level)
+
+If you’re new to Hive, a simple way to explore the framework is:
+
+1. Read through the core concepts to understand how goals, agents, and execution loops interact.
+2. Run a minimal example to observe an agent completing a basic task end-to-end.
+3. Iterate by modifying goals or constraints to see how the agent adapts over time.
+
+This section is intended to provide a clearer mental model before diving into advanced configurations.
+
+
 ## Who Is Hive For?
 
 Hive is designed for developers and teams who want to build **production-grade AI agents** without manually wiring complex workflows.
