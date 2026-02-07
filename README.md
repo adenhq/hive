@@ -104,6 +104,9 @@ This sets up:
 - **LLM provider** - Interactive default model configuration
 - All required Python dependencies with `uv`
 
+
+> **💡 Windows Users:** Follow the [Windows Setup Guide](docs/windows-setup.md) for PowerShell-specific installation steps.
+
 ### Build Your First Agent
 
 ```bash
