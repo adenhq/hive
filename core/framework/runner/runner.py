@@ -2,24 +2,25 @@
 
 import json
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Any
+from typing import TYPE_CHECKING, Any
 
 from framework.graph import Goal
-from framework.graph.edge import GraphSpec, EdgeSpec, EdgeCondition, AsyncEntryPointSpec
+from framework.graph.edge import AsyncEntryPointSpec, EdgeCondition, EdgeSpec, GraphSpec
+from framework.graph.executor import ExecutionResult, GraphExecutor
 from framework.graph.node import NodeSpec
-from framework.graph.executor import GraphExecutor, ExecutionResult
 from framework.llm.provider import LLMProvider, Tool
 from framework.runner.tool_registry import ToolRegistry
-from framework.runtime.core import Runtime
 
 # Multi-entry-point runtime imports
-from framework.runtime.agent_runtime import AgentRuntime, AgentRuntimeConfig, create_agent_runtime
+from framework.runtime.agent_runtime import AgentRuntime, create_agent_runtime
+from framework.runtime.core import Runtime
 from framework.runtime.execution_stream import EntryPointSpec
 
 if TYPE_CHECKING:
-    from framework.runner.protocol import CapabilityResponse, AgentMessage
+    from framework.runner.protocol import AgentMessage, CapabilityResponse
 
 
 @dataclass
@@ -102,56 +103,69 @@ def load_agent_export(data: str | dict) -> tuple[GraphSpec, Goal]:
     # Build AsyncEntryPointSpec objects for multi-entry-point support
     async_entry_points = []
     for aep_data in graph_data.get("async_entry_points", []):
-        async_entry_points.append(AsyncEntryPointSpec(
-            id=aep_data["id"],
-            name=aep_data.get("name", aep_data["id"]),
-            entry_node=aep_data["entry_node"],
-            trigger_type=aep_data.get("trigger_type", "manual"),
-            trigger_config=aep_data.get("trigger_config", {}),
-            isolation_level=aep_data.get("isolation_level", "shared"),
-            priority=aep_data.get("priority", 0),
-            max_concurrent=aep_data.get("max_concurrent", 10),
-        ))
+        async_entry_points.append(
+            AsyncEntryPointSpec(
+                id=aep_data["id"],
+                name=aep_data.get("name", aep_data["id"]),
+                entry_node=aep_data["entry_node"],
+                trigger_type=aep_data.get("trigger_type", "manual"),
+                trigger_config=aep_data.get("trigger_config", {}),
+                isolation_level=aep_data.get("isolation_level", "shared"),
+                priority=aep_data.get("priority", 0),
+                max_concurrent=aep_data.get("max_concurrent", 10),
+            )
+        )
 
     # Build GraphSpec
-    graph = GraphSpec(
-        id=graph_data.get("id", "agent-graph"),
-        goal_id=graph_data.get("goal_id", ""),
-        version=graph_data.get("version", "1.0.0"),
-        entry_node=graph_data.get("entry_node", ""),
-        entry_points=graph_data.get("entry_points", {}),  # Support pause/resume architecture
-        async_entry_points=async_entry_points,  # Support multi-entry-point agents
-        terminal_nodes=graph_data.get("terminal_nodes", []),
-        pause_nodes=graph_data.get("pause_nodes", []),  # Support pause/resume architecture
-        nodes=nodes,
-        edges=edges,
-        max_steps=graph_data.get("max_steps", 100),
-        max_retries_per_node=graph_data.get("max_retries_per_node", 3),
-        description=graph_data.get("description", ""),
-    )
+    graph_kwargs = {
+        "id": graph_data.get("id", "agent-graph"),
+        "goal_id": graph_data.get("goal_id", ""),
+        "version": graph_data.get("version", "1.0.0"),
+        "entry_node": graph_data.get("entry_node", ""),
+        "entry_points": graph_data.get("entry_points", {}),
+        "async_entry_points": async_entry_points,
+        "terminal_nodes": graph_data.get("terminal_nodes", []),
+        "pause_nodes": graph_data.get("pause_nodes", []),
+        "nodes": nodes,
+        "edges": edges,
+        "max_steps": graph_data.get("max_steps", 100),
+        "max_retries_per_node": graph_data.get("max_retries_per_node", 3),
+        "description": graph_data.get("description", ""),
+    }
+
+    if "default_model" in graph_data:
+        graph_kwargs["default_model"] = graph_data["default_model"]
+    elif "defaultModel" in graph_data:
+        graph_kwargs["default_model"] = graph_data["defaultModel"]
+
+    graph = GraphSpec(**graph_kwargs)
 
     # Build Goal
-    from framework.graph.goal import SuccessCriterion, Constraint
+    from framework.graph.goal import Constraint, SuccessCriterion
 
     success_criteria = []
     for sc_data in goal_data.get("success_criteria", []):
-        success_criteria.append(SuccessCriterion(
-            id=sc_data["id"],
-            description=sc_data["description"],
-            metric=sc_data.get("metric", ""),
-            target=sc_data.get("target", ""),
-            weight=sc_data.get("weight", 1.0),
-        ))
+        success_criteria.append(
+            SuccessCriterion(
+                id=sc_data["id"],
+                description=sc_data["description"],
+                metric=sc_data.get("metric", ""),
+                target=sc_data.get("target", ""),
+                weight=sc_data.get("weight", 1.0),
+            )
+        )
 
     constraints = []
     for c_data in goal_data.get("constraints", []):
-        constraints.append(Constraint(
-            id=c_data["id"],
-            description=c_data["description"],
-            constraint_type=c_data.get("constraint_type", "hard"),
-            category=c_data.get("category", "safety"),
-            check=c_data.get("check", ""),
-        ))
+        constraints.append(
+            Constraint(
+                id=c_data["id"],
+                description=c_data["description"],
+                constraint_type=c_data.get("constraint_type", "hard"),
+                category=c_data.get("category", "safety"),
+                check=c_data.get("check", ""),
+            )
+        )
 
     goal = Goal(
         id=goal_data.get("id", ""),
@@ -196,7 +210,7 @@ class AgentRunner:
         goal: Goal,
         mock_mode: bool = False,
         storage_path: Path | None = None,
-        model: str = "cerebras/zai-glm-4.7",
+        model: str | None = None,
     ):
         """
         Initialize the runner (use AgentRunner.load() instead).
@@ -255,7 +269,7 @@ class AgentRunner:
         agent_path: str | Path,
         mock_mode: bool = False,
         storage_path: Path | None = None,
-        model: str = "cerebras/zai-glm-4.7",
+        model: str | None = None,
     ) -> "AgentRunner":
         """
         Load an agent from an export folder.
@@ -279,13 +293,19 @@ class AgentRunner:
         with open(agent_json_path) as f:
             graph, goal = load_agent_export(f.read())
 
+        effective_model = model if model is not None else graph.default_model
+        if effective_model is None or effective_model.strip() == "":
+            raise ValueError(
+                "No model configured. Set graph.default_model in agent.json or pass --model."
+            )
+
         return cls(
             agent_path=agent_path,
             graph=graph,
             goal=goal,
             mock_mode=mock_mode,
             storage_path=storage_path,
-            model=model,
+            model=effective_model,
         )
 
     def register_tool(
@@ -379,7 +399,9 @@ class AgentRunner:
                 try:
                     self._tool_registry.register_mcp_server(server_config)
                 except Exception as e:
-                    print(f"Warning: Failed to register MCP server '{server_config.get('name', 'unknown')}': {e}")
+                    print(
+                        f"Warning: Failed to register MCP server '{server_config.get('name', 'unknown')}': {e}"
+                    )
         except Exception as e:
             print(f"Warning: Failed to load MCP servers config from {config_path}: {e}")
 
@@ -416,6 +438,7 @@ class AgentRunner:
             api_key_env = self._get_api_key_env_var(self.model)
             if api_key_env and os.environ.get(api_key_env):
                 from framework.llm.litellm import LiteLLMProvider
+
                 self._llm = LiteLLMProvider(model=self.model)
             elif api_key_env:
                 print(f"Warning: {api_key_env} not set. LLM calls will fail.")
@@ -444,8 +467,10 @@ class AgentRunner:
             return "OPENAI_API_KEY"
         elif model_lower.startswith("anthropic/") or model_lower.startswith("claude"):
             return "ANTHROPIC_API_KEY"
-        elif model_lower.startswith("gemini/") or model_lower.startswith("google/"):
+        elif model_lower.startswith("google/"):
             return "GOOGLE_API_KEY"
+        elif model_lower.startswith("gemini/"):
+            return "GEMINI_API_KEY"
         elif model_lower.startswith("mistral/"):
             return "MISTRAL_API_KEY"
         elif model_lower.startswith("groq/"):
@@ -760,7 +785,12 @@ class AgentRunner:
             entry_node=self.graph.entry_node,
             terminal_nodes=self.graph.terminal_nodes,
             success_criteria=[
-                {"id": sc.id, "description": sc.description, "metric": sc.metric, "target": sc.target}
+                {
+                    "id": sc.id,
+                    "description": sc.description,
+                    "metric": sc.metric,
+                    "target": sc.target,
+                }
                 for sc in self.goal.success_criteria
             ],
             constraints=[
@@ -810,7 +840,7 @@ class AgentRunner:
 
             # Check tool credentials (Tier 2)
             missing_creds = cred_manager.get_missing_for_tools(info.required_tools)
-            for cred_name, spec in missing_creds:
+            for _cred_name, spec in missing_creds:
                 missing_credentials.append(spec.env_var)
                 affected_tools = [t for t in info.required_tools if t in spec.tools]
                 tools_str = ", ".join(affected_tools)
@@ -822,7 +852,7 @@ class AgentRunner:
             # Check node type credentials (e.g., ANTHROPIC_API_KEY for LLM nodes)
             node_types = list(set(node.node_type for node in self.graph.nodes))
             missing_node_creds = cred_manager.get_missing_for_node_types(node_types)
-            for cred_name, spec in missing_node_creds:
+            for _cred_name, spec in missing_node_creds:
                 if spec.env_var not in missing_credentials:  # Avoid duplicates
                     missing_credentials.append(spec.env_var)
                     affected_types = [t for t in node_types if t in spec.node_types]
@@ -834,11 +864,19 @@ class AgentRunner:
         except ImportError:
             # aden_tools not installed - fall back to direct check
             has_llm_nodes = any(
-                node.node_type in ("llm_generate", "llm_tool_use")
-                for node in self.graph.nodes
+                node.node_type in ("llm_generate", "llm_tool_use") for node in self.graph.nodes
             )
-            if has_llm_nodes and not os.environ.get("ANTHROPIC_API_KEY"):
-                warnings.append("Agent has LLM nodes but ANTHROPIC_API_KEY not set")
+
+            if has_llm_nodes:
+                api_key_env = self._get_api_key_env_var(self.model)
+
+                # Some providers (e.g., ollama/) don't require an API key
+                if api_key_env and not os.environ.get(api_key_env):
+                    warnings.append(
+                        f"Agent has LLM nodes but {api_key_env} not set "
+                        f"(selected model: {self.model})"
+                    )
+
 
         return ValidationResult(
             valid=len(errors) == 0,
@@ -848,7 +886,9 @@ class AgentRunner:
             missing_credentials=missing_credentials,
         )
 
-    async def can_handle(self, request: dict, llm: LLMProvider | None = None) -> "CapabilityResponse":
+    async def can_handle(
+        self, request: dict, llm: LLMProvider | None = None
+    ) -> "CapabilityResponse":
         """
         Ask the agent if it can handle this request.
 
@@ -861,7 +901,7 @@ class AgentRunner:
         Returns:
             CapabilityResponse with level, confidence, and reasoning
         """
-        from framework.runner.protocol import CapabilityResponse, CapabilityLevel
+        from framework.runner.protocol import CapabilityLevel, CapabilityResponse
 
         # Use provided LLM or set up our own
         eval_llm = llm
@@ -918,7 +958,8 @@ Respond with JSON only:
 
             # Parse response
             import re
-            json_match = re.search(r'\{[^{}]*\}', response.content, re.DOTALL)
+
+            json_match = re.search(r"\{[^{}]*\}", response.content, re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group())
                 level_map = {
@@ -942,7 +983,7 @@ Respond with JSON only:
 
     def _keyword_capability_check(self, request: dict) -> "CapabilityResponse":
         """Simple keyword-based capability check (fallback when no LLM)."""
-        from framework.runner.protocol import CapabilityResponse, CapabilityLevel
+        from framework.runner.protocol import CapabilityLevel, CapabilityResponse
 
         info = self.info()
         request_str = json.dumps(request).lower()
