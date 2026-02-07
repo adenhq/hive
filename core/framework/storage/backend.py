@@ -11,7 +11,7 @@ Uses Pydantic's built-in serialization.
 import json
 from pathlib import Path
 
-from framework.schemas.run import Run, RunStatus, RunSummary
+from framework.schemas import Run, RunStatus, RunSummary
 from framework.utils.io import atomic_write
 
 

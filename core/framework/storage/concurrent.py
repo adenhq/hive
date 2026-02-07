@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 from weakref import WeakValueDictionary
 
-from framework.schemas.run import Run, RunStatus, RunSummary
+from framework.schemas import Run, RunStatus, RunSummary
 from framework.storage.backend import FileStorage
 
 logger = logging.getLogger(__name__)

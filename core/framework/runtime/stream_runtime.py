@@ -12,8 +12,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from framework.schemas.decision import Decision, DecisionType, Option, Outcome
-from framework.schemas.run import Run, RunStatus
+from framework.schemas import Decision, DecisionType, Option, Outcome, Run, RunStatus
 from framework.storage.concurrent import ConcurrentStorage
 
 if TYPE_CHECKING:

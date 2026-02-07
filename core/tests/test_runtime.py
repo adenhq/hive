@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from framework import Runtime
-from framework.schemas.decision import DecisionType
+from framework.schemas import DecisionType
 
 
 class TestRuntimeBasics:

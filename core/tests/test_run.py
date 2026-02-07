@@ -4,8 +4,15 @@ Test the run module.
 
 from datetime import datetime
 
-from framework.schemas.decision import Decision, Option, Outcome
-from framework.schemas.run import Run, RunMetrics, RunStatus, RunSummary
+from framework.schemas import (
+    Decision,
+    Option,
+    Outcome,
+    Run,
+    RunMetrics,
+    RunStatus,
+    RunSummary,
+)
 
 
 class TestRuntimeMetrics:

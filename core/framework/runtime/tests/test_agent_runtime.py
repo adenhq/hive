@@ -340,7 +340,7 @@ class TestOutcomeAggregator:
         """Test recording decisions."""
         aggregator = OutcomeAggregator(sample_goal)
 
-        from framework.schemas.decision import Decision, DecisionType
+        from framework.schemas import Decision, DecisionType
 
         decision = Decision(
             id="dec-1",

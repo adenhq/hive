@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from framework.schemas.decision import Decision, Outcome
+from framework.schemas import Decision, Outcome
 
 if TYPE_CHECKING:
     from framework.graph.goal import Goal

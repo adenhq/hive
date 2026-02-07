@@ -13,8 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from framework.schemas.decision import Decision, DecisionType, Option, Outcome
-from framework.schemas.run import Run, RunStatus
+from framework.schemas import Decision, DecisionType, Option, Outcome, Run, RunStatus
 from framework.storage.backend import FileStorage
 
 logger = logging.getLogger(__name__)
