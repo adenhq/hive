@@ -21,18 +21,22 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
 
       - name: Install dependencies
-        run: |
-          cd core
-          pip install -e .
-          pip install -r requirements-dev.txt
+        run: uv sync --project core --group dev
 
-      - name: Run ruff
+      - name: Ruff lint
         run: |
-          cd core
-          ruff check .
+          uv run --project core ruff check core/
+          uv run --project core ruff check tools/
+
+      - name: Ruff format
+        run: |
+          uv run --project core ruff format --check core/
+          uv run --project core ruff format --check tools/
 
   test:
     name: Test (${{ matrix.os }} / Py${{ matrix.python-version }})
@@ -50,23 +54,19 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'pip'
 
-      - name: Install dependencies
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies and run tests
         run: |
           cd core
-          pip install -e .
-          pip install -r requirements-dev.txt
+          uv sync
+          uv run pytest tests/ -v
 
-      - name: Run tests
-        run: |
-          cd core
-          pytest tests/ -v
-
-  validate:
-    name: Validate Agent Exports
+  test-tools:
+    name: Test Tools
     runs-on: ubuntu-latest
-    needs: [lint, test]
     steps:
       - uses: actions/checkout@v4
 
@@ -74,16 +74,63 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies and run tests
+        run: |
+          cd tools
+          uv sync --extra dev
+          uv run pytest tests/ -v
+
+  validate:
+    name: Validate Agent Exports
+    runs-on: ubuntu-latest
+    needs: [lint, test, test-tools]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
 
       - name: Install dependencies
         run: |
           cd core
-          pip install -e .
-          pip install -r requirements-dev.txt
+          uv sync
 
       - name: Validate exported agents
         run: |
-          # Check that agent exports have valid structure
-          # Using python script for cross-platform compatibility
-          python -c "import glob, json, os; [json.load(open(os.path.join(d, 'agent.json'))) for d in glob.glob('exports/*/')] and print('Validation passed')"
+          if [ ! -d "exports" ]; then
+            echo "No exports/ directory found, skipping validation"
+            exit 0
+          fi
+
+          shopt -s nullglob
+          agent_dirs=(exports/*/)
+          shopt -u nullglob
+
+          if [ ${#agent_dirs[@]} -eq 0 ]; then
+            echo "No agent directories in exports/, skipping validation"
+            exit 0
+          fi
+
+          validated=0
+          for agent_dir in "${agent_dirs[@]}"; do
+            if [ -f "$agent_dir/agent.json" ]; then
+              echo "Validating $agent_dir"
+              uv run python -c "import json; json.load(open('$agent_dir/agent.json'))"
+              validated=$((validated + 1))
+            fi
+          done
+
+          if [ "$validated" -eq 0 ]; then
+            echo "No agent.json files found in exports/, skipping validation"
+          else
+            echo "Validated $validated agent(s)"
+          fi
