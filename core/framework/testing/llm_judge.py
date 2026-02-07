@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -106,14 +107,52 @@ Respond with JSON: {{"passes": true/false, "explanation": "..."}}"""
     def _parse_json_result(self, text: str) -> dict[str, Any]:
         """Robustly parse JSON output even if LLM adds markdown or chatter."""
         try:
+            text_stripped = text.strip()
+            
+            # Strategy 1: Try direct parse
+            if text_stripped.startswith('{') or text_stripped.startswith('['):
+                try:
+                    result = json.loads(text_stripped)
+                    return {
+                        "passes": bool(result.get("passes", False)),
+                        "explanation": result.get("explanation", "No explanation provided"),
+                    }
+                except json.JSONDecodeError:
+                    pass
+            
+            # Strategy 2: Extract from markdown code blocks
             if "```" in text:
-                text = text.split("```")[1].replace("json", "").strip()
-
-            result = json.loads(text.strip())
-            return {
-                "passes": bool(result.get("passes", False)),
-                "explanation": result.get("explanation", "No explanation provided"),
-            }
+                code_block_pattern = r'```(?:json)?\s*\n?(.*?)\n?```'
+                match = re.search(code_block_pattern, text, re.DOTALL)
+                if match:
+                    json_text = match.group(1).strip()
+                    try:
+                        result = json.loads(json_text)
+                        return {
+                            "passes": bool(result.get("passes", False)),
+                            "explanation": result.get("explanation", "No explanation provided"),
+                        }
+                    except json.JSONDecodeError:
+                        pass
+            
+            # Strategy 3: Find JSON object with regex
+            json_pattern = r'\{(?:[^{}]|(?:\{[^{}]*\}))*\}'
+            matches = re.finditer(json_pattern, text, re.DOTALL)
+            
+            for match in matches:
+                json_text = match.group(0)
+                try:
+                    result = json.loads(json_text)
+                    if 'passes' in result or 'explanation' in result:
+                        return {
+                            "passes": bool(result.get("passes", False)),
+                            "explanation": result.get("explanation", "No explanation provided"),
+                        }
+                except json.JSONDecodeError:
+                    continue
+            
+            raise ValueError("No valid JSON object found")
+            
         except Exception as e:
             # Must include 'LLM judge error' for specific unit tests to pass
             raise ValueError(f"LLM judge error: Failed to parse JSON: {e}") from e
