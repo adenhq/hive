@@ -383,3 +383,8 @@ When agent is complete, transition to testing phase:
 ---
 
 **Remember: Agent is actively constructed, visible the whole time. No hidden state. No surprise exports. Just transparent, incremental file building.**
+## Simple Explanation for Beginners
+
+This document describes common patterns used to build AI agents in Hive.
+In simple terms, these patterns help agents move step by step through tasks
+in a transparent and predictable way, without hidden or confusing behavior.
