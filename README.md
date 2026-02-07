@@ -82,6 +82,7 @@ Use Hive when you need:
 
 - Python 3.11+ for agent development
 - Claude Code or Cursor for utilizing agent skills
+- Git (latest version)
 
 > **Note for Windows Users:** It is strongly recommended to use **WSL (Windows Subsystem for Linux)** or **Git Bash** to run this framework. Some core automation scripts may not execute correctly in standard Command Prompt or PowerShell.
 
