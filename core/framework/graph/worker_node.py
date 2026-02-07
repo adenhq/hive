@@ -12,7 +12,7 @@ appropriate executor based on action type:
 
 import json
 import logging
-import re
+
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -27,76 +27,9 @@ from framework.graph.plan import (
 from framework.llm.provider import LLMProvider, Tool
 from framework.runtime.core import Runtime
 
+from framework.utils.json_parser import parse_json_from_text as parse_llm_json_response
+
 logger = logging.getLogger(__name__)
-
-
-def parse_llm_json_response(text: str) -> tuple[Any | None, str]:
-    """
-    Parse JSON from LLM response, handling markdown code blocks.
-
-    LLMs often return JSON wrapped in markdown code blocks like:
-    ```json
-    {"key": "value"}
-    ```
-
-    This function extracts and parses the JSON.
-
-    Args:
-        text: Raw LLM response text
-
-    Returns:
-        Tuple of (parsed_json_or_None, cleaned_text)
-    """
-    if not isinstance(text, str):
-        return None, str(text)
-
-    cleaned = text.strip()
-
-    # Try to extract JSON from markdown code blocks
-    # Pattern: ```json ... ``` or ``` ... ```
-    code_block_pattern = r"```(?:json)?\s*([\s\S]*?)\s*```"
-    matches = re.findall(code_block_pattern, cleaned)
-
-    if matches:
-        # Try to parse each match
-        for match in matches:
-            try:
-                parsed = json.loads(match.strip())
-                return parsed, match.strip()
-            except json.JSONDecodeError as e:
-                logger.debug(
-                    f"Failed to parse JSON from code block: {e}. "
-                    f"Content preview: {match.strip()[:100]}..."
-                )
-                continue
-
-    # No code blocks or parsing failed - try parsing the whole response
-    try:
-        parsed = json.loads(cleaned)
-        return parsed, cleaned
-    except json.JSONDecodeError as e:
-        logger.debug(
-            f"Failed to parse entire response as JSON: {e}. Content preview: {cleaned[:100]}..."
-        )
-
-    # Try to find JSON-like content (starts with { or [)
-    json_start_pattern = r"(\{[\s\S]*\}|\[[\s\S]*\])"
-    json_matches = re.findall(json_start_pattern, cleaned)
-
-    for match in json_matches:
-        try:
-            parsed = json.loads(match)
-            return parsed, match
-        except json.JSONDecodeError as e:
-            logger.debug(f"Failed to parse JSON pattern: {e}. Content preview: {match[:100]}...")
-            continue
-
-    # Could not parse as JSON - log warning
-    logger.warning(
-        f"Could not parse LLM response as JSON after trying all strategies. "
-        f"Response preview: {cleaned[:200]}..."
-    )
-    return None, cleaned
 
 
 @dataclass
@@ -602,7 +535,11 @@ class WorkerNode:
                 latency_ms=sandbox_result.execution_time_ms,
             )
         else:
-            error_type = "security" if "Security" in (sandbox_result.error or "") else "code_error"
+            error_type = (
+                "security"
+                if "Security" in (sandbox_result.error or "")
+                else "code_error"
+            )
             return StepExecutionResult(
                 success=False,
                 error=sandbox_result.error,

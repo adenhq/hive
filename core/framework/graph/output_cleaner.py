@@ -9,55 +9,13 @@ This prevents cascading failures and dramatically improves execution success rat
 
 import json
 import logging
-import re
+
 from dataclasses import dataclass, field
 from typing import Any
 
+from framework.utils.json_parser import parse_json_from_text
+
 logger = logging.getLogger(__name__)
-
-
-def _heuristic_repair(text: str) -> dict | None:
-    """
-    Attempt to repair JSON without an LLM call.
-
-    Handles common errors:
-    - Markdown code blocks
-    - Python booleans/None (True -> true)
-    - Single quotes instead of double quotes
-    """
-    if not isinstance(text, str):
-        return None
-
-    # 1. Strip Markdown code blocks
-    text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE)
-    text = re.sub(r"\s*```$", "", text, flags=re.MULTILINE)
-    text = text.strip()
-
-    # 2. Find outermost JSON-like structure (greedy match)
-    match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
-    if match:
-        candidate = match.group(1)
-
-        # 3. Common fixes
-        # Fix Python constants
-        candidate = re.sub(r"\bTrue\b", "true", candidate)
-        candidate = re.sub(r"\bFalse\b", "false", candidate)
-        candidate = re.sub(r"\bNone\b", "null", candidate)
-
-        # 4. Attempt load
-        try:
-            return json.loads(candidate)
-        except json.JSONDecodeError:
-            # 5. Advanced: Try swapping single quotes if double quotes fail
-            # This is risky but effective for simple dicts
-            try:
-                if "'" in candidate and '"' not in candidate:
-                    candidate_swapped = candidate.replace("'", '"')
-                    return json.loads(candidate_swapped)
-            except json.JSONDecodeError:
-                pass
-
-    return None
 
 
 @dataclass
@@ -121,10 +79,14 @@ class OutputCleaner:
                     )
                     logger.info(f"✓ Initialized OutputCleaner with {config.fast_model}")
                 else:
-                    logger.warning("⚠ CEREBRAS_API_KEY not found, output cleaning will be disabled")
+                    logger.warning(
+                        "⚠ CEREBRAS_API_KEY not found, output cleaning will be disabled"
+                    )
                     self.llm = None
             except ImportError:
-                logger.warning("⚠ LiteLLMProvider not available, output cleaning disabled")
+                logger.warning(
+                    "⚠ LiteLLMProvider not available, output cleaning disabled"
+                )
                 self.llm = None
         else:
             self.llm = None
@@ -181,7 +143,10 @@ class OutputCleaner:
                         )
 
             # Check 3: Type validation (if schema provided)
-            if hasattr(target_node_spec, "input_schema") and target_node_spec.input_schema:
+            if (
+                hasattr(target_node_spec, "input_schema")
+                and target_node_spec.input_schema
+            ):
                 expected_schema = target_node_spec.input_schema.get(key)
                 if expected_schema:
                     expected_type = expected_schema.get("type")
@@ -241,7 +206,7 @@ class OutputCleaner:
 
         for key, value in output.items():
             if isinstance(value, str):
-                repaired = _heuristic_repair(value)
+                repaired, _ = parse_json_from_text(value)
                 if repaired and isinstance(repaired, dict | list):
                     # Check if this repaired structure looks like what we want
                     # e.g. if the key is 'data' and the string contained valid JSON
@@ -300,7 +265,7 @@ Return ONLY valid JSON matching the expected schema. No explanations, no markdow
             cleaned_text = response.content.strip()
 
             # Apply heuristic repair to the LLM's output too (just in case)
-            cleaned = _heuristic_repair(cleaned_text)
+            cleaned, _ = parse_json_from_text(cleaned_text)
 
             if not cleaned:
                 # Fallback to standard load if heuristic returns None (unlikely for LLM output)
@@ -318,7 +283,9 @@ Return ONLY valid JSON matching the expected schema. No explanations, no markdow
                 if self.config.fallback_to_raw:
                     return output
                 else:
-                    raise ValueError(f"Cleaning produced {type(cleaned)}, expected dict")
+                    raise ValueError(
+                        f"Cleaning produced {type(cleaned)}, expected dict"
+                    )
 
         except json.JSONDecodeError as e:
             logger.error(f"✗ Failed to parse cleaned JSON: {e}")
