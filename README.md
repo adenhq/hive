@@ -43,6 +43,21 @@ Build autonomous, reliable, self-improving AI agents without hardcoding workflow
 Visit [adenhq.com](https://adenhq.com) for complete documentation, examples, and guides.
 
 https://github.com/user-attachments/assets/846c0cc7-ffd6-47fa-b4b7-495494857a55
+## Quick Start for First-Time Users
+
+If you are new to Hive, this section outlines a simple recommended path to get your first successful run.
+
+Suggested flow:
+1. Read the Overview to understand what problem Hive is designed to solve
+2. Follow the Installation steps to set up the framework locally
+3. Use the Quick Start commands to generate and run your first agent
+4. Launch the TUI dashboard to observe agent execution and logs
+
+For a first successful experience, your goal is to:
+- Define a simple goal in natural language
+- Generate an agent from that goal
+- Run the agent locally
+- Observe execution in the TUI
 
 ## Who Is Hive For?
 
