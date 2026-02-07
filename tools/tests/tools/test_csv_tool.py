@@ -26,6 +26,7 @@ def csv_tools(mcp: FastMCP, tmp_path: Path):
             "csv_read": mcp._tool_manager._tools["csv_read"].fn,
             "csv_write": mcp._tool_manager._tools["csv_write"].fn,
             "csv_append": mcp._tool_manager._tools["csv_append"].fn,
+            "csv_update": mcp._tool_manager._tools["csv_update"].fn,
             "csv_info": mcp._tool_manager._tools["csv_info"].fn,
             "csv_sql": mcp._tool_manager._tools["csv_sql"].fn,
         }
@@ -890,3 +891,217 @@ class TestCsvSql:
         assert result["success"] is True
         assert result["row_count"] == 1
         assert result["rows"][0]["名前"] == "商品B"
+
+
+class TestCsvUpdate:
+    """Tests for csv_update function."""
+
+    def test_update_single_row(self, csv_tools, basic_csv, session_dir, tmp_path):
+        """Update a single row by identifier."""
+        with patch("aden_tools.tools.file_system_toolkits.security.WORKSPACES_DIR", str(tmp_path)):
+            result = csv_tools["csv_update"](
+                path="basic.csv",
+                workspace_id=TEST_WORKSPACE_ID,
+                agent_id=TEST_AGENT_ID,
+                session_id=TEST_SESSION_ID,
+                row_identifier={"name": "Alice"},
+                updates={"age": "31", "city": "Boston"},
+            )
+
+        assert result["success"] is True
+        assert result["rows_updated"] == 1
+
+        # Verify the update
+        content = (session_dir / "basic.csv").read_text()
+        assert "Alice,31,Boston" in content
+        # Other rows unchanged
+        assert "Bob,25,LA" in content
+        assert "Charlie,35,Chicago" in content
+
+    def test_update_multiple_rows(self, csv_tools, session_dir, tmp_path):
+        """Update multiple rows matching the identifier."""
+        csv_file = session_dir / "products.csv"
+        csv_file.write_text(
+            "id,category,price\n"
+            "1,Electronics,100\n"
+            "2,Electronics,200\n"
+            "3,Clothing,50\n"
+        )
+
+        with patch("aden_tools.tools.file_system_toolkits.security.WORKSPACES_DIR", str(tmp_path)):
+            result = csv_tools["csv_update"](
+                path="products.csv",
+                workspace_id=TEST_WORKSPACE_ID,
+                agent_id=TEST_AGENT_ID,
+                session_id=TEST_SESSION_ID,
+                row_identifier={"category": "Electronics"},
+                updates={"price": "150"},
+            )
+
+        assert result["success"] is True
+        assert result["rows_updated"] == 2
+
+        content = (session_dir / "products.csv").read_text()
+        assert "1,Electronics,150" in content
+        assert "2,Electronics,150" in content
+        # Clothing row unchanged
+        assert "3,Clothing,50" in content
+
+    def test_update_no_matching_rows(self, csv_tools, basic_csv, tmp_path):
+        """Handle case where no rows match the identifier."""
+        with patch("aden_tools.tools.file_system_toolkits.security.WORKSPACES_DIR", str(tmp_path)):
+            result = csv_tools["csv_update"](
+                path="basic.csv",
+                workspace_id=TEST_WORKSPACE_ID,
+                agent_id=TEST_AGENT_ID,
+                session_id=TEST_SESSION_ID,
+                row_identifier={"name": "NonExistent"},
+                updates={"age": "99"},
+            )
+
+        assert result["success"] is True
+        assert result["rows_updated"] == 0
+        assert "No rows matched" in result.get("message", "")
+
+    def test_update_file_not_found(self, csv_tools, session_dir, tmp_path):
+        """Return error when file doesn't exist."""
+        with patch("aden_tools.tools.file_system_toolkits.security.WORKSPACES_DIR", str(tmp_path)):
+            result = csv_tools["csv_update"](
+                path="nonexistent.csv",
+                workspace_id=TEST_WORKSPACE_ID,
+                agent_id=TEST_AGENT_ID,
+                session_id=TEST_SESSION_ID,
+                row_identifier={"id": "1"},
+                updates={"value": "100"},
+            )
+
+        assert "error" in result
+        assert "not found" in result["error"].lower()
+
+    def test_update_identifier_column_not_found(self, csv_tools, basic_csv, tmp_path):
+        """Return error when identifier column doesn't exist."""
+        with patch("aden_tools.tools.file_system_toolkits.security.WORKSPACES_DIR", str(tmp_path)):
+            result = csv_tools["csv_update"](
+                path="basic.csv",
+                workspace_id=TEST_WORKSPACE_ID,
+                agent_id=TEST_AGENT_ID,
+                session_id=TEST_SESSION_ID,
+                row_identifier={"nonexistent_column": "value"},
+                updates={"age": "30"},
+            )
+
+        assert "error" in result
+        assert "not found" in result["error"].lower()
+
+    def test_update_column_not_found(self, csv_tools, basic_csv, tmp_path):
+        """Return error when update column doesn't exist."""
+        with patch("aden_tools.tools.file_system_toolkits.security.WORKSPACES_DIR", str(tmp_path)):
+            result = csv_tools["csv_update"](
+                path="basic.csv",
+                workspace_id=TEST_WORKSPACE_ID,
+                agent_id=TEST_AGENT_ID,
+                session_id=TEST_SESSION_ID,
+                row_identifier={"name": "Alice"},
+                updates={"nonexistent_column": "value"},
+            )
+
+        assert "error" in result
+        assert "not found" in result["error"].lower()
+
+    def test_update_empty_identifier_error(self, csv_tools, basic_csv, tmp_path):
+        """Return error when row_identifier is empty."""
+        with patch("aden_tools.tools.file_system_toolkits.security.WORKSPACES_DIR", str(tmp_path)):
+            result = csv_tools["csv_update"](
+                path="basic.csv",
+                workspace_id=TEST_WORKSPACE_ID,
+                agent_id=TEST_AGENT_ID,
+                session_id=TEST_SESSION_ID,
+                row_identifier={},
+                updates={"age": "30"},
+            )
+
+        assert "error" in result
+        assert "empty" in result["error"].lower()
+
+    def test_update_empty_updates_error(self, csv_tools, basic_csv, tmp_path):
+        """Return error when updates is empty."""
+        with patch("aden_tools.tools.file_system_toolkits.security.WORKSPACES_DIR", str(tmp_path)):
+            result = csv_tools["csv_update"](
+                path="basic.csv",
+                workspace_id=TEST_WORKSPACE_ID,
+                agent_id=TEST_AGENT_ID,
+                session_id=TEST_SESSION_ID,
+                row_identifier={"name": "Alice"},
+                updates={},
+            )
+
+        assert "error" in result
+        assert "empty" in result["error"].lower()
+
+    def test_update_non_csv_extension_error(self, csv_tools, session_dir, tmp_path):
+        """Return error for non-CSV file extension."""
+        txt_file = session_dir / "data.txt"
+        txt_file.write_text("name,age\nAlice,30\n")
+
+        with patch("aden_tools.tools.file_system_toolkits.security.WORKSPACES_DIR", str(tmp_path)):
+            result = csv_tools["csv_update"](
+                path="data.txt",
+                workspace_id=TEST_WORKSPACE_ID,
+                agent_id=TEST_AGENT_ID,
+                session_id=TEST_SESSION_ID,
+                row_identifier={"name": "Alice"},
+                updates={"age": "31"},
+            )
+
+        assert "error" in result
+        assert ".csv" in result["error"].lower()
+
+    def test_update_with_multiple_identifier_criteria(self, csv_tools, session_dir, tmp_path):
+        """Update row matching multiple identifier criteria."""
+        csv_file = session_dir / "users.csv"
+        csv_file.write_text(
+            "name,department,role\n"
+            "Alice,Engineering,Developer\n"
+            "Alice,Marketing,Manager\n"
+            "Bob,Engineering,Developer\n"
+        )
+
+        with patch("aden_tools.tools.file_system_toolkits.security.WORKSPACES_DIR", str(tmp_path)):
+            result = csv_tools["csv_update"](
+                path="users.csv",
+                workspace_id=TEST_WORKSPACE_ID,
+                agent_id=TEST_AGENT_ID,
+                session_id=TEST_SESSION_ID,
+                row_identifier={"name": "Alice", "department": "Engineering"},
+                updates={"role": "Senior Developer"},
+            )
+
+        assert result["success"] is True
+        assert result["rows_updated"] == 1
+
+        content = (session_dir / "users.csv").read_text()
+        assert "Alice,Engineering,Senior Developer" in content
+        # Other Alice row unchanged
+        assert "Alice,Marketing,Manager" in content
+
+    def test_update_unicode_content(self, csv_tools, session_dir, tmp_path):
+        """Update CSV with Unicode content."""
+        csv_file = session_dir / "unicode.csv"
+        csv_file.write_text("名前,年齢,都市\n太郎,30,東京\nAlice,25,北京\n", encoding="utf-8")
+
+        with patch("aden_tools.tools.file_system_toolkits.security.WORKSPACES_DIR", str(tmp_path)):
+            result = csv_tools["csv_update"](
+                path="unicode.csv",
+                workspace_id=TEST_WORKSPACE_ID,
+                agent_id=TEST_AGENT_ID,
+                session_id=TEST_SESSION_ID,
+                row_identifier={"名前": "太郎"},
+                updates={"年齢": "31", "都市": "大阪"},
+            )
+
+        assert result["success"] is True
+        assert result["rows_updated"] == 1
+
+        content = (session_dir / "unicode.csv").read_text(encoding="utf-8")
+        assert "太郎,31,大阪" in content
+

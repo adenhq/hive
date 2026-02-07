@@ -212,6 +212,111 @@ def register_tools(mcp: FastMCP) -> None:
             return {"error": f"Failed to append to CSV: {str(e)}"}
 
     @mcp.tool()
+    def csv_update(
+        path: str,
+        workspace_id: str,
+        agent_id: str,
+        session_id: str,
+        row_identifier: dict,
+        updates: dict,
+    ) -> dict:
+        """
+        Update specific cells in a CSV file based on row identifier.
+
+        This function locates rows matching the identifier and updates specified columns.
+        More efficient than rewriting entire files for small updates.
+
+        Args:
+            path: Path to the CSV file (relative to session sandbox)
+            workspace_id: Workspace identifier
+            agent_id: Agent identifier
+            session_id: Session identifier
+            row_identifier: Dict to identify target row(s), e.g. {"id": "123"} or {"name": "Alice"}
+                           Rows matching ALL key-value pairs will be updated.
+            updates: Dict of column:value pairs to update, e.g. {"price": "99.99", "stock": "50"}
+
+        Returns:
+            dict with success status, rows_updated count, and path
+
+        Examples:
+            # Update price for product with id "123"
+            csv_update(path="products.csv", row_identifier={"id": "123"}, updates={"price": "99.99"})
+
+            # Update multiple fields for user "Alice"
+            csv_update(path="users.csv", row_identifier={"name": "Alice"}, updates={"age": "31", "city": "Boston"})
+        """
+        try:
+            secure_path = get_secure_path(path, workspace_id, agent_id, session_id)
+
+            if not os.path.exists(secure_path):
+                return {"error": f"File not found: {path}. Use csv_write to create a new file."}
+
+            if not path.lower().endswith(".csv"):
+                return {"error": "File must have .csv extension"}
+
+            if not row_identifier:
+                return {"error": "row_identifier cannot be empty"}
+
+            if not updates:
+                return {"error": "updates cannot be empty"}
+
+            # Read existing data
+            with open(secure_path, encoding="utf-8", newline="") as f:
+                reader = csv.DictReader(f)
+                if reader.fieldnames is None:
+                    return {"error": "CSV file is empty or has no headers"}
+                columns = list(reader.fieldnames)
+                rows = list(reader)
+
+            # Validate that identifier columns exist
+            for key in row_identifier:
+                if key not in columns:
+                    return {"error": f"Identifier column '{key}' not found in CSV. Available columns: {columns}"}
+
+            # Validate that update columns exist
+            for key in updates:
+                if key not in columns:
+                    return {"error": f"Update column '{key}' not found in CSV. Available columns: {columns}"}
+
+            # Find and update matching rows
+            rows_updated = 0
+            for row in rows:
+                # Check if row matches all identifier criteria
+                matches = all(row.get(k) == str(v) for k, v in row_identifier.items())
+                if matches:
+                    for col, val in updates.items():
+                        row[col] = str(val)
+                    rows_updated += 1
+
+            if rows_updated == 0:
+                return {
+                    "success": True,
+                    "path": path,
+                    "rows_updated": 0,
+                    "message": "No rows matched the identifier criteria",
+                }
+
+            # Write updated data back
+            with open(secure_path, "w", encoding="utf-8", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=columns)
+                writer.writeheader()
+                writer.writerows(rows)
+
+            return {
+                "success": True,
+                "path": path,
+                "rows_updated": rows_updated,
+                "total_rows": len(rows),
+            }
+
+        except csv.Error as e:
+            return {"error": f"CSV parsing error: {str(e)}"}
+        except UnicodeDecodeError:
+            return {"error": "File encoding error: unable to decode as UTF-8"}
+        except Exception as e:
+            return {"error": f"Failed to update CSV: {str(e)}"}
+
+    @mcp.tool()
     def csv_info(
         path: str,
         workspace_id: str,
