@@ -104,6 +104,28 @@ This sets up:
 - **LLM provider** - Interactive default model configuration
 - All required Python dependencies with `uv`
 
+### Hello World Agent (60 seconds)
+
+Run a minimal agent end-to-end with observable output:
+
+```bash
+# From the repo root
+
+# If you ran ./quickstart.sh, just run:
+uv run python core/examples/manual_agent.py
+
+# If you did not run setup yet, use PYTHONPATH fallback:
+cd core && uv pip install -e . && cd -
+PYTHONPATH=core python core/examples/manual_agent.py
+```
+
+What you'll see:
+- Define nodes (`greet`, `uppercase`), wire an edge
+- Instantiate `Runtime` and `GraphExecutor`
+- Execute with input → get final output (uppercase greeting)
+
+See the full example in [core/examples/manual_agent.py](core/examples/manual_agent.py).
+
 ### Build Your First Agent
 
 ```bash

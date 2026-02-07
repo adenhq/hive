@@ -22,6 +22,21 @@ Use templates when you want to:
 - Start from a known-good structure instead of from scratch
 - See how all the pieces (goal, nodes, edges, config, CLI) fit together in real code
 
+## Minimal "Hello World" Agent
+
+Prefer a quick, code-first example you can run immediately?
+
+```bash
+# From the repo root
+uv run python core/examples/manual_agent.py
+
+# If setup isn't done yet
+cd core && uv pip install -e . && cd -
+PYTHONPATH=core python core/examples/manual_agent.py
+```
+
+This uses pure Python function nodes and a single edge to map input → action → output. See [core/examples/manual_agent.py](../core/examples/manual_agent.py) for the full example.
+
 ## How to use a template
 
 ```bash
