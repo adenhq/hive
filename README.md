@@ -95,6 +95,7 @@ cd hive
 # Run quickstart setup
 ./quickstart.sh
 ```
+If the setup completes successfully, you should see confirmation output for environment setup and be able to run `hive tui` to launch the interactive dashboard.
 
 This sets up:
 
