@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 # Import register_tools from each tool module
 from .apollo_tool import register_tools as register_apollo
+from .calendar_tool import register_tools as register_calendar
 from .csv_tool import register_tools as register_csv
 from .email_tool import register_tools as register_email
 from .example_tool import register_tools as register_example
@@ -78,6 +79,8 @@ def register_all_tools(
     register_email(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
     register_apollo(mcp, credentials=credentials)
+    # calendar tools require Google Calendar OAuth token
+    register_calendar(mcp, credentials=credentials)
     register_slack(mcp, credentials=credentials)
 
     # Register file system toolkits
@@ -148,6 +151,14 @@ def register_all_tools(
         "hubspot_get_deal",
         "hubspot_create_deal",
         "hubspot_update_deal",
+        "calendar_list_events",
+        "calendar_get_event",
+        "calendar_create_event",
+        "calendar_update_event",
+        "calendar_delete_event",
+        "calendar_list_calendars",
+        "calendar_get_calendar",
+        "calendar_check_availability",
         "query_runtime_logs",
         "query_runtime_log_details",
         "query_runtime_log_raw",
