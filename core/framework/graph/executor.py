@@ -208,6 +208,8 @@ class GraphExecutor:
         goal: Goal,
         input_data: dict[str, Any] | None = None,
         session_state: dict[str, Any] | None = None,
+        timeout: float | None = None,
+        node_timeout: float | None = None,
     ) -> ExecutionResult:
         """
         Execute a graph for a goal.
@@ -217,10 +219,35 @@ class GraphExecutor:
             goal: The goal driving execution
             input_data: Initial input data
             session_state: Optional session state to resume from (with paused_at, memory, etc.)
+            timeout: Overall execution timeout in seconds (default: 300s = 5 minutes)
+            node_timeout: Per-node execution timeout in seconds (default: 60s)
 
         Returns:
             ExecutionResult with output and metrics
         """
+        timeout = timeout or 300.0
+        node_timeout = node_timeout or 60.0
+        
+        try:
+            return await asyncio.wait_for(
+                self._execute_internal(graph, goal, input_data, session_state, node_timeout),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            self.logger.error(f"❌ Execution timed out after {timeout}s")
+            return ExecutionResult(
+                success=False,
+                error=f"Execution exceeded timeout of {timeout}s",
+            )
+    
+    async def _execute_internal(
+        self,
+        graph: GraphSpec,
+        goal: Goal,
+        input_data: dict[str, Any] | None = None,
+        session_state: dict[str, Any] | None = None,
+        node_timeout: float = 60.0,
+    ) -> ExecutionResult:
         # Validate graph
         errors = graph.validate()
         if errors:
@@ -399,7 +426,18 @@ class GraphExecutor:
 
                 # Execute node
                 self.logger.info("   Executing...")
-                result = await node_impl.execute(ctx)
+                try:
+                    result = await asyncio.wait_for(
+                        node_impl.execute(ctx),
+                        timeout=node_timeout
+                    )
+                except asyncio.TimeoutError:
+                    self.logger.error(f"   ✗ Node execution timed out after {node_timeout}s")
+                    result = NodeResult(
+                        success=False,
+                        error=f"Node execution exceeded timeout of {node_timeout}s",
+                        output={},
+                    )
 
                 # Emit node-completed event (skip event_loop nodes)
                 if self._event_bus and node_spec.node_type != "event_loop":
