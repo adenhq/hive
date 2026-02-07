@@ -36,6 +36,12 @@
   <img src="https://img.shields.io/badge/Google_Gemini-supported-4285F4?style=flat-square&logo=google" alt="Gemini" />
 </p>
 
+> **Documentation Status**
+>  
+> This README reflects the current structure and capabilities of Hive as of **February 2026**.  
+> As Hive evolves rapidly, some sections may change. Please refer to commit history or open issues for the latest updates.
+
+
 ## Overview
 
 Build autonomous, reliable, self-improving AI agents without hardcoding workflows. Define your goal through conversation with a coding agent, and the framework generates a node graph with dynamically created connection code. When things break, the framework captures failure data, evolves the agent through the coding agent, and redeploys. Built-in human-in-the-loop nodes, credential management, and real-time monitoring give you control without sacrificing adaptability.
