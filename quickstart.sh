@@ -77,11 +77,11 @@ prompt_choice() {
 
 clear
 echo ""
-echo -e "${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}"
+echo -e "${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}"
 echo ""
 echo -e "${BOLD}          A D E N   H I V E${NC}"
 echo ""
-echo -e "${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}"
+echo -e "${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}${DIM}⬡${NC}${YELLOW}⬢${NC}"
 echo ""
 echo -e "${DIM}     Goal-driven AI agent framework${NC}"
 echo ""
@@ -305,7 +305,7 @@ if [ "$USE_ASSOC_ARRAYS" = true ]; then
     declare -A DEFAULT_MODELS=(
         ["anthropic"]="claude-sonnet-4-5-20250929"
         ["openai"]="gpt-4o"
-        ["gemini"]="gemini-3.0-flash-preview"
+        ["gemini"]="gemini-1.5-flash"
         ["groq"]="moonshotai/kimi-k2-instruct-0905"
         ["cerebras"]="zai-glm-4.7"
         ["mistral"]="mistral-large-latest"
@@ -333,7 +333,7 @@ else
 
     # Default models by provider id (parallel arrays)
     MODEL_PROVIDER_IDS=(anthropic openai gemini groq cerebras mistral together_ai deepseek)
-    MODEL_DEFAULTS=("claude-sonnet-4-5-20250929" "gpt-4o" "gemini-3.0-flash-preview" "moonshotai/kimi-k2-instruct-0905" "zai-glm-4.7" "mistral-large-latest" "meta-llama/Llama-3.3-70B-Instruct-Turbo" "deepseek-chat")
+    MODEL_DEFAULTS=("claude-sonnet-4-5-20250929" "gpt-4o" "gemini-1.5-flash" "moonshotai/kimi-k2-instruct-0905" "zai-glm-4.7" "mistral-large-latest" "meta-llama/Llama-3.3-70B-Instruct-Turbo" "deepseek-chat")
 
     # Helper: get provider display name for an env var
     get_provider_name() {
@@ -445,8 +445,8 @@ fi
 set -e
 
 # Find all available API keys
-FOUND_PROVIDERS=()      # Display names for UI
-FOUND_ENV_VARS=()       # Corresponding env var names
+FOUND_PROVIDERS=()       # Display names for UI
+FOUND_ENV_VARS=()        # Corresponding env var names
 SELECTED_PROVIDER_ID="" # Will hold the chosen provider ID
 SELECTED_ENV_VAR=""     # Will hold the chosen env var
 
@@ -758,8 +758,8 @@ if echo "$PATH" | grep -q "$HOME/.local/bin"; then
     echo -e "${GREEN}  ✓ ~/.local/bin is in PATH${NC}"
 else
     echo -e "${YELLOW}  ⚠ Add ~/.local/bin to your PATH:${NC}"
-    echo -e "     ${DIM}echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc${NC}"
-    echo -e "     ${DIM}source ~/.bashrc${NC}"
+    echo -e "      ${DIM}echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc${NC}"
+    echo -e "      ${DIM}source ~/.bashrc${NC}"
 fi
 
 echo ""
@@ -798,19 +798,19 @@ fi
 echo -e "${BOLD}Build a New Agent:${NC}"
 echo ""
 echo -e "  1. Open Claude Code in this directory:"
-echo -e "     ${CYAN}claude${NC}"
+echo -e "      ${CYAN}claude${NC}"
 echo ""
 echo -e "  2. Build a new agent:"
-echo -e "     ${CYAN}/hive${NC}"
+echo -e "      ${CYAN}/hive${NC}"
 echo ""
 echo -e "  3. Test an existing agent:"
-echo -e "     ${CYAN}/hive-test${NC}"
+echo -e "      ${CYAN}/hive-test${NC}"
 echo ""
 echo -e "${BOLD}Run an Agent:${NC}"
 echo ""
 echo -e "  Launch the interactive dashboard to browse and run agents:"
 echo -e "  You can start a example agent or an agent built by yourself:"
-echo -e "     ${CYAN}hive tui${NC}"
+echo -e "      ${CYAN}hive tui${NC}"
 echo ""
 # Show shell sourcing reminder if we added environment variables
 if [ -n "$SELECTED_PROVIDER_ID" ] || [ -n "$HIVE_CREDENTIAL_KEY" ]; then
