@@ -40,6 +40,7 @@ Credential categories:
 - github.py: GitHub API credentials
 - hubspot.py: HubSpot CRM credentials
 - slack.py: Slack workspace credentials
+- google_maps.py: Google Maps Platform credentials
 
 Note: Tools that don't need credentials simply omit the 'credentials' parameter
 from their register_tools() function. This convention is enforced by CI tests.
@@ -55,6 +56,7 @@ from .base import CredentialError, CredentialSpec
 from .browser import get_aden_auth_url, get_aden_setup_url, open_browser
 from .email import EMAIL_CREDENTIALS
 from .github import GITHUB_CREDENTIALS
+from .google_maps import GOOGLE_MAPS_CREDENTIALS
 from .health_check import HealthCheckResult, check_credential_health
 from .hubspot import HUBSPOT_CREDENTIALS
 from .llm import LLM_CREDENTIALS
@@ -75,6 +77,7 @@ CREDENTIAL_SPECS = {
     **EMAIL_CREDENTIALS,
     **APOLLO_CREDENTIALS,
     **GITHUB_CREDENTIALS,
+    **GOOGLE_MAPS_CREDENTIALS,
     **HUBSPOT_CREDENTIALS,
     **SLACK_CREDENTIALS,
 }
@@ -105,6 +108,7 @@ __all__ = [
     "SEARCH_CREDENTIALS",
     "EMAIL_CREDENTIALS",
     "GITHUB_CREDENTIALS",
+    "GOOGLE_MAPS_CREDENTIALS",
     "HUBSPOT_CREDENTIALS",
     "SLACK_CREDENTIALS",
     "APOLLO_CREDENTIALS",
