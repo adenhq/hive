@@ -32,6 +32,7 @@ from framework.graph.node import (
 from framework.graph.output_cleaner import CleansingConfig, OutputCleaner
 from framework.graph.validator import OutputValidator
 from framework.llm.provider import LLMProvider, Tool
+from framework.observability import set_trace_context
 from framework.runtime.core import Runtime
 
 
@@ -221,6 +222,9 @@ class GraphExecutor:
         Returns:
             ExecutionResult with output and metrics
         """
+        # Add agent_id to trace context for correlation
+        set_trace_context(agent_id=graph.id)
+
         # Validate graph
         errors = graph.validate()
         if errors:
@@ -289,7 +293,6 @@ class GraphExecutor:
 
         if self.runtime_logger:
             # Extract session_id from storage_path if available (for unified sessions)
-            # storage_path format: base_path/sessions/{session_id}/
             session_id = ""
             if self._storage_path and self._storage_path.name.startswith("session_"):
                 session_id = self._storage_path.name
