@@ -305,7 +305,7 @@ if [ "$USE_ASSOC_ARRAYS" = true ]; then
     declare -A DEFAULT_MODELS=(
         ["anthropic"]="claude-sonnet-4-5-20250929"
         ["openai"]="gpt-4o"
-        ["gemini"]="gemini-3.0-flash-preview"
+        ["gemini"]="gemini-2.5-flash"
         ["groq"]="moonshotai/kimi-k2-instruct-0905"
         ["cerebras"]="zai-glm-4.7"
         ["mistral"]="mistral-large-latest"
@@ -333,7 +333,7 @@ else
 
     # Default models by provider id (parallel arrays)
     MODEL_PROVIDER_IDS=(anthropic openai gemini groq cerebras mistral together_ai deepseek)
-    MODEL_DEFAULTS=("claude-sonnet-4-5-20250929" "gpt-4o" "gemini-3.0-flash-preview" "moonshotai/kimi-k2-instruct-0905" "zai-glm-4.7" "mistral-large-latest" "meta-llama/Llama-3.3-70B-Instruct-Turbo" "deepseek-chat")
+    MODEL_DEFAULTS=("claude-sonnet-4-5-20250929" "gpt-4o" "gemini-2.5-flash" "moonshotai/kimi-k2-instruct-0905" "zai-glm-4.7" "mistral-large-latest" "meta-llama/Llama-3.3-70B-Instruct-Turbo" "deepseek-chat")
 
     # Helper: get provider display name for an env var
     get_provider_name() {
