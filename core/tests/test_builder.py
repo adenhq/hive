@@ -11,6 +11,9 @@ import pytest
 
 from framework import BuilderQuery, Runtime
 from framework.schemas.run import RunStatus
+from framework.builder.query import PatternAnalysis
+from framework.builder.query import FailureAnalysis
+
 
 # Mark all tests in this module as skipped - they rely on deprecated FileStorage
 pytestmark = pytest.mark.skip(reason="Tests rely on deprecated FileStorage backend")
@@ -137,6 +140,44 @@ class TestBuilderQueryBasics:
         for f in failures:
             assert f.status == RunStatus.FAILED
 
+    def test_pattern_analysis_to_dict(self):
+        analysis = PatternAnalysis(
+            goal_id="goal_123",
+            run_count=10,
+            success_rate=0.7,
+            common_failures=[("timeout", 3), ("bad_input", 2)],
+            problematic_nodes=[("node_a", 0.4)],
+            decision_patterns={"choice": "A"},
+        )
+
+        result = analysis.to_dict()
+
+        assert result == {
+            "goal_id": "goal_123",
+            "run_count": 10,
+            "success_rate": 0.7,
+            "common_failures": [("timeout", 3), ("bad_input", 2)],
+            "problematic_nodes": [("node_a", 0.4)],
+            "decision_patterns": {"choice": "A"},
+        }
+
+    def test_pattern_analysis_str_contains_key_info(self):
+        analysis = PatternAnalysis(
+            goal_id="goal_123",
+            run_count=10,
+            success_rate=0.7,
+            common_failures=[("timeout", 3)],
+            problematic_nodes=[("node_a", 0.4)],
+            decision_patterns={},
+        )
+
+        text = str(analysis)
+
+        assert "goal_123" in text
+        assert "Runs Analyzed: 10" in text
+        assert "timeout" in text
+        assert "node_a" in text
+
 
 class TestFailureAnalysis:
     """Test failure analysis capabilities."""
@@ -189,6 +230,49 @@ class TestFailureAnalysis:
         assert len(trace) == 2
         assert "search-node" in trace[0]
         assert "process-node" in trace[1]
+    
+    def test_failure_analysis_to_dict(self):
+        """Test dictionary from Failure Analysis"""
+        analysis = FailureAnalysis(
+            run_id="run_1234",
+            failure_point="failure_point_1234",
+            root_cause="root_cause_1234",
+            decision_chain=["chain_1", "chain_2", "chain_3"],
+            problems=["sdvsdvs", "svsvs"],
+            suggestions=[]
+
+        )
+
+        result = analysis.to_dict()
+
+        assert result == {
+            "run_id":"run_1234",
+            "failure_point": "failure_point_1234",
+            "root_cause": "root_cause_1234",
+            "decision_chain": ["chain_1", "chain_2" , "chain_3"],
+            "problems" : ["sdvsdvs", "svsvs"],
+            "suggestions": []
+        }
+
+    def test_failure_analysis_str_contains_key_info(self):
+        analysis = FailureAnalysis(
+            run_id="run_1234",
+            failure_point="failure_point",
+            root_cause="root_cause",
+            decision_chain=["a", "b"],
+            problems=["problem1"],
+            suggestions=["fix1"],
+        )
+
+        text = str(analysis)
+
+        assert "run_1234" in text
+        assert "Failure Point:" in text
+        assert "root_cause" in text
+        assert "1. a" in text
+        assert "problem1" in text
+        assert "fix1" in text
+
 
 
 class TestPatternAnalysis:
@@ -251,6 +335,118 @@ class TestPatternAnalysis:
         assert comparison["run_2"]["status"] == "failed"
         assert len(comparison["differences"]) > 0
 
+    def test_compare_runs_with_conditions(self , tmp_path: Path) -> str:
+        """Test comparing two runs for some conditions"""
+        runtime = Runtime(tmp_path)
+        run_id = runtime.start_run("goal_id", f"Test goal: {"goal_id"}")
+
+        runtime.set_node("search-node")
+        d1 = runtime.decide(
+            intent="Search",
+            options=[{"id": "web", "description": "Web"}],
+            chosen="web",
+            reasoning="Search",
+        )
+        runtime.record_outcome(d1, success=True)
+
+        runtime.set_node("extra-node")  # 👈 this is the key difference
+        d2 = runtime.decide(
+            intent="Extra step",
+            options=[{"id": "x", "description": "Extra"}],
+            chosen="x",
+            reasoning="Extra",
+        )
+        runtime.record_outcome(d2, success=True)
+
+        runtime.end_run(success=True)
+
+        query = BuilderQuery(tmp_path)
+
+        run1 = create_successful_run(runtime)
+        comparison = query.compare_runs(run1, run_id)
+
+        diffs = comparison["differences"]
+
+        assert any("Nodes only in run 1" in d for d in diffs)
+        assert any("Nodes only in run 2" in d for d in diffs)
+
+    def  test_compare_runs_different_len(self , tmp_path: Path):
+        """Test comparing two runs having different lengths"""
+        runtime = Runtime(tmp_path)
+        run_id = runtime.start_run("goal_id", f"Test goal: {"goal_id"}")
+
+        runtime.set_node("only-node")
+        d1 = runtime.decide(
+            intent="Only step",
+            options=[{"id": "x", "description": "Only option"}],
+            chosen="x",
+            reasoning="Only decision",
+        )
+        runtime.record_outcome(d1, success=True)
+
+        runtime.end_run(success=True)
+        query = BuilderQuery(tmp_path)
+
+        run1 = create_successful_run(runtime)
+
+        comparison = query.compare_runs(run1, run_id)
+
+        diffs = comparison["differences"]
+
+        assert any(
+        "Decision count:" in d
+        for d in diffs
+        )
+
+    def test_compare_empty_run(self , tmp_path:Path):
+        """Test comparing run when one of them is empty"""
+        query = BuilderQuery(tmp_path)
+
+        comparison = query.compare_runs("" , "")
+
+        assert comparison is not None
+        assert "error" in comparison
+        assert "not found" in comparison["error"].lower()
+
+
+    def test_compare_run_nodes(self, tmp_path: Path):
+        """"Test analyze feature when two nodes aren't equal"""
+        runtime = Runtime(tmp_path)
+        run_id = runtime.start_run("goal_id", f"Test goal: {"goal_id"}")
+
+        runtime.set_node("decision-node")
+        d1 = runtime.decide(
+            intent="Choose source",
+            options=[
+                {"id": "a", "description": "Option A"},
+                {"id": "b", "description": "Option B"},
+            ],
+            chosen="a",
+            reasoning="Picked A",
+            constraints=["must_be_fast", "low_memory"],
+        )
+
+        runtime.record_outcome(
+            d1,
+            success=False,
+            error="Choice failed",
+        )
+
+        runtime.end_run(success=False, narrative="Failure with alternatives")
+
+        query = BuilderQuery(tmp_path)
+        analysis = query.analyze_failure(run_id)
+
+        assert analysis is not None
+        assert len(analysis.suggestions) > 0
+
+        assert any(
+            "Consider alternative" in s
+            for s in analysis.suggestions
+        )
+
+
+
 
 class TestImprovementSuggestions:
     """Test improvement suggestion generation."""
@@ -299,6 +495,14 @@ class TestImprovementSuggestions:
         assert perf["success_rate"] == 1.0
         assert perf["total_tokens"] == 100  # 50 tokens per run
 
+    def test_suggest_improvements_returns_empty_when_no_runs(self, tmp_path: Path):
+        query = BuilderQuery(tmp_path)
+
+        suggestions = query.suggest_improvements("non_existent_goal")
+
+        assert suggestions == []
+
+
 
 class TestBuilderWorkflow:
     """Test complete Builder workflows."""
@@ -340,3 +544,4 @@ class TestBuilderWorkflow:
         # Step 6: Check node performance
         perf = query.get_node_performance("process-node")
         assert perf["success_rate"] < 1.0  # process-node fails in failed runs
+
