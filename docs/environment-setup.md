@@ -27,15 +27,29 @@ This will:
 
 Windows users should use **WSL (Windows Subsystem for Linux)** to set up and run agents.
 
-1. [Install WSL 2](https://learn.microsoft.com/en-us/windows/wsl/install) if you haven't already:
-   ```powershell
-   wsl --install
-   ```
-2. Open your WSL terminal, clone the repo, and run the quickstart script:
-   ```bash
-   ./quickstart.sh
-   ```
+## Remote Development Setup (SSH)
+If you are developing inside a Virtual Machine (e.g., VirtualBox) and experience mouse lag or UI latency, it is strongly recommended to use a Remote SSH connection for a more responsive development experience.
 
+1. Configure the Virtual Machine (Guest)
+Run the automated remote setup script inside your Ubuntu/Linux terminal:
+
+2. Configure Port Forwarding
+To allow your Host (Windows/Mac) to communicate with the VM, set up a tunnel in your virtualization software:
+
+  a) Open VirtualBox Settings → Network → Advanced → Port Forwarding.
+
+  b) Add a new rule with the following details:
+
+3. IDE Connection
+Connect your IDE (VS Code, Cursor, or PyCharm) using the following configuration:
+
+  Host: 127.0.0.1
+
+  Port: 2222
+
+  User: your Ubuntu username
+
+  Pro Tip: For VS Code users, install the Remote - SSH extension by Microsoft. Once installed, press F1, type Remote-SSH: Connect to Host..., and enter ssh username@127.0.0.1 -p 2222.
 ## Alpine Linux Setup
 
 If you are using Alpine Linux (e.g., inside a Docker container), you must install system dependencies and use a virtual environment before running the setup script:
