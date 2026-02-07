@@ -3,6 +3,12 @@
 import json
 import logging
 import os
+import logging
+from dataclasses import dataclass, field
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+from typing import TYPE_CHECKING, Callable, Any
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1259,8 +1265,9 @@ Respond with JSON only:
                     reasoning=data.get("reasoning", ""),
                     estimated_steps=data.get("estimated_steps"),
                 )
-        except Exception:
+        except Exception as e:
             # Fall back to keyword matching on error
+            logger.warning(f"      ⚠ Capability evaluation failed: {e}")
             pass
 
         return self._keyword_capability_check(request)
