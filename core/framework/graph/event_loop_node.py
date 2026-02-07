@@ -824,6 +824,8 @@ class EventLoopNode(NodeProtocol):
 
         Returns True if input arrived, False if shutdown was signaled.
         """
+        self._input_ready.clear()
+
         if self._event_bus:
             await self._event_bus.emit_client_input_requested(
                 stream_id=ctx.node_id,
@@ -831,7 +833,6 @@ class EventLoopNode(NodeProtocol):
                 prompt="",
             )
 
-        self._input_ready.clear()
         await self._input_ready.wait()
         return not self._shutdown
 
