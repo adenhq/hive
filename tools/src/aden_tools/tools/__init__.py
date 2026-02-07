@@ -43,6 +43,7 @@ from .file_system_toolkits.write_to_file import register_tools as register_write
 from .github_tool import register_tools as register_github
 from .hubspot_tool import register_tools as register_hubspot
 from .pdf_read_tool import register_tools as register_pdf_read
+from .trello_tool import register_tools as register_trello
 from .runtime_logs_tool import register_tools as register_runtime_logs
 from .slack_tool import register_tools as register_slack
 from .web_scrape_tool import register_tools as register_web_scrape
@@ -77,6 +78,7 @@ def register_all_tools(
     # email supports multiple providers (Resend) with auto-detection
     register_email(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
+    register_trello(mcp, credentials=credentials)
     register_apollo(mcp, credentials=credentials)
     register_slack(mcp, credentials=credentials)
 
@@ -148,6 +150,15 @@ def register_all_tools(
         "hubspot_get_deal",
         "hubspot_create_deal",
         "hubspot_update_deal",
+        "trello_list_boards",
+        "trello_get_member",
+        "trello_list_lists",
+        "trello_list_cards",
+        "trello_create_card",
+        "trello_move_card",
+        "trello_update_card",
+        "trello_add_comment",
+        "trello_add_attachment",
         "query_runtime_logs",
         "query_runtime_log_details",
         "query_runtime_log_raw",
