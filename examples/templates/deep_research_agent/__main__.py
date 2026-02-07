@@ -34,18 +34,17 @@ def cli():
 
 @cli.command()
 @click.option("--topic", "-t", type=str, required=True, help="Research topic")
-@click.option("--mock", is_flag=True, help="Run in mock mode")
 @click.option("--quiet", "-q", is_flag=True, help="Only output result JSON")
 @click.option("--verbose", "-v", is_flag=True, help="Show execution details")
 @click.option("--debug", is_flag=True, help="Show debug logging")
-def run(topic, mock, quiet, verbose, debug):
+def run(topic, quiet, verbose, debug):
     """Execute research on a topic."""
     if not quiet:
         setup_logging(verbose=verbose, debug=debug)
 
     context = {"topic": topic}
 
-    result = asyncio.run(default_agent.run(context, mock_mode=mock))
+    result = asyncio.run(default_agent.run(context))
 
     output_data = {
         "success": result.success,
@@ -60,17 +59,18 @@ def run(topic, mock, quiet, verbose, debug):
 
 
 @cli.command()
-@click.option("--mock", is_flag=True, help="Run in mock mode")
 @click.option("--verbose", "-v", is_flag=True, help="Show execution details")
 @click.option("--debug", is_flag=True, help="Show debug logging")
-def tui(mock, verbose, debug):
+def tui(verbose, debug):
     """Launch the TUI dashboard for interactive research."""
     setup_logging(verbose=verbose, debug=debug)
 
     try:
         from framework.tui.app import AdenTUI
     except ImportError:
-        click.echo("TUI requires the 'textual' package. Install with: pip install textual")
+        click.echo(
+            "TUI requires the 'textual' package. Install with: pip install textual"
+        )
         sys.exit(1)
 
     from pathlib import Path
@@ -88,20 +88,18 @@ def tui(mock, verbose, debug):
         agent._event_bus = EventBus()
         agent._tool_registry = ToolRegistry()
 
-        storage_path = Path.home() / ".hive" / "deep_research_agent"
+        storage_path = Path.home() / ".hive" / "agents" / "deep_research_agent"
         storage_path.mkdir(parents=True, exist_ok=True)
 
         mcp_config_path = Path(__file__).parent / "mcp_servers.json"
         if mcp_config_path.exists():
             agent._tool_registry.load_mcp_config(mcp_config_path)
 
-        llm = None
-        if not mock:
-            llm = LiteLLMProvider(
-                model=agent.config.model,
-                api_key=agent.config.api_key,
-                api_base=agent.config.api_base,
-            )
+        llm = LiteLLMProvider(
+            model=agent.config.model,
+            api_key=agent.config.api_key,
+            api_base=agent.config.api_base,
+        )
 
         tools = list(agent._tool_registry.get_tools().values())
         tool_executor = agent._tool_registry.get_executor()
@@ -216,7 +214,9 @@ async def _interactive_shell(verbose=False):
                     if "references" in output:
                         click.echo("--- References ---\n")
                         for ref in output.get("references", []):
-                            click.echo(f"  [{ref.get('number', '?')}] {ref.get('title', '')} - {ref.get('url', '')}")
+                            click.echo(
+                                f"  [{ref.get('number', '?')}] {ref.get('title', '')} - {ref.get('url', '')}"
+                            )
                         click.echo("\n")
                 else:
                     click.echo(f"\nResearch failed: {result.error}\n")
@@ -227,6 +227,7 @@ async def _interactive_shell(verbose=False):
             except Exception as e:
                 click.echo(f"Error: {e}", err=True)
                 import traceback
+
                 traceback.print_exc()
     finally:
         await agent.stop()
