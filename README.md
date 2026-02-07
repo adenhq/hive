@@ -55,11 +55,19 @@ Build reliable, self-improving AI agents without hardcoding workflows. Define yo
 
 Visit [adenhq.com](https://adenhq.com) for complete documentation, examples, and guides.
 
+<p align="center">
+  <video width="100%" controls>
+    <source src="https://github.com/user-attachments/assets/846c0cc7-ffd6-47fa-b4b7-495494857a55" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+</p>
+
 ## What is Aden
 
 <p align="center">
   <img width="100%" alt="Aden Architecture" src="docs/assets/aden-architecture-diagram.jpg" />
 </p>
+
 
 Aden is a platform for building, deploying, operating, and adapting AI agents:
 
