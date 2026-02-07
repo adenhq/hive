@@ -244,8 +244,6 @@ class NodeSpec(BaseModel):
 class MemoryWriteError(Exception):
     """Raised when an invalid value is written to memory."""
 
-    pass
-
 
 @dataclass
 class SharedMemory:
