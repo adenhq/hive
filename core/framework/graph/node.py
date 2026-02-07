@@ -915,6 +915,7 @@ Keep the same JSON structure but with shorter content values.
                     system=system,
                     tools=ctx.available_tools,
                     tool_executor=executor,
+                    timeout=30,  # Prevent indefinite hangs
                     max_tokens=ctx.max_tokens,
                 )
             else:
@@ -934,6 +935,7 @@ Keep the same JSON structure but with shorter content values.
                     messages=messages,
                     system=system,
                     json_mode=use_json_mode,
+                    timeout=30,  # Prevent indefinite hangs
                     max_tokens=ctx.max_tokens,
                 )
 
@@ -1471,6 +1473,7 @@ Do NOT fabricate data or return empty objects."""
                 messages=[{"role": "user", "content": prompt}],
                 system="Extract JSON from text. Output only valid JSON.",
                 json_mode=True,
+                timeout=30,  # Prevent indefinite hangs
             )
 
             cleaned = result.content.strip() if result.content else ""
@@ -1806,6 +1809,7 @@ Respond with ONLY a JSON object:
                 system=ctx.node_spec.system_prompt
                 or "You are a routing agent. Respond with JSON only.",
                 max_tokens=150,
+                timeout=30,  # Prevent indefinite hangs
             )
 
             # Parse response using balanced brace matching
