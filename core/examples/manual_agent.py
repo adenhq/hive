@@ -31,6 +31,11 @@ def uppercase(greeting: str) -> str:
 
 
 async def main():
+    # Force UTF-8 encoding for Windows terminals to prevent UnicodeEncodeError
+    import sys
+    import io
+    if sys.platform == "win32":
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     print("🚀 Setting up Manual Agent...")
 
     # 2. Define the Goal
