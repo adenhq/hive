@@ -68,6 +68,62 @@ Use Hive when you need:
 - Multi-agent coordination
 - A framework that evolves with your goals
 
+## How Hive Works
+
+Hive follows a simple, adaptive workflow that turns goals into self-improving agents:
+
+```
+┌─────────────────┐
+│  Define Goal    │  You describe what you want to achieve
+│  & Criteria     │  (in natural language)
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Auto-Generate   │  Framework creates node graph with
+│ Agent Graph     │  dynamically generated connection code
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐       ┌──────────────────┐
+│ Execute Tasks   │◄──────┤ Human Oversight  │
+│ Autonomously    │       │ (When Needed)    │
+└────────┬────────┘       └──────────────────┘
+         │
+         ▼
+    ┌────────┐
+    │Success?│
+    └───┬────┘
+        │
+     ┌──┴───┐
+    Yes     No
+     │       │
+     │       ▼
+     │  ┌──────────────────┐
+     │  │ Capture Failure  │  System logs what went wrong,
+     │  │ & Diagnose       │  which criteria missed, why
+     │  └────────┬─────────┘
+     │           │
+     │           ▼
+     │  ┌──────────────────┐
+     │  │ Evolve & Improve │  Coding agent analyzes failure,
+     │  │ (Auto-Regenerate)│  modifies graph, redeploys
+     │  └────────┬─────────┘
+     │           │
+     └───────────┴─────────► Next Generation (More Reliable)
+```
+
+**Key Steps:**
+
+1. **Define Your Goal** - Specify what you want to achieve with weighted success criteria and constraints
+2. **Auto-Generate Agent** - Framework creates a node graph and generates the connection code to achieve your goal
+3. **Execute Autonomously** - Agent runs tasks, makes decisions, calls tools, and self-corrects in real-time
+4. **Human-in-the-Loop** - You can step in at critical decision points with approval gates and live monitoring
+5. **Capture & Analyze Failures** - System logs exactly what failed, which criteria weren't met, and why
+6. **Evolve Automatically** - Coding agent improves the graph based on failure data and redeploys the next generation
+
+With each iteration, the agent becomes more reliable by learning to handle edge cases it previously failed on.
+
 ## Quick Links
 
 - **[Documentation](https://docs.adenhq.com/)** - Complete guides and API reference
