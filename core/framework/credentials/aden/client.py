@@ -139,18 +139,15 @@ class AdenCredentialResponse:
     metadata: dict[str, Any] = field(default_factory=dict)
     """Additional integration-specific metadata."""
 
-
     @classmethod
     def from_dict(
         cls, data: dict[str, Any], integration_id: str | None = None
-    ) -> "AdenCredentialResponse":
+    ) -> AdenCredentialResponse:
         """Create from API response dictionary or normalized credential dict."""
 
         expires_at = None
         if data.get("expires_at"):
-            expires_at = datetime.fromisoformat(
-                data["expires_at"].replace("Z", "+00:00")
-            )
+            expires_at = datetime.fromisoformat(data["expires_at"].replace("Z", "+00:00"))
 
         resolved_integration_id = (
             integration_id
@@ -159,10 +156,7 @@ class AdenCredentialResponse:
             or data.get("provider", "")
         )
 
-        resolved_integration_type = (
-            data.get("integration_type")
-            or data.get("provider", "")
-            )
+        resolved_integration_type = data.get("integration_type") or data.get("provider", "")
         metadata = data.get("metadata")
         if metadata is None and data.get("email"):
             metadata = {"email": data.get("email")}
@@ -178,7 +172,6 @@ class AdenCredentialResponse:
             scopes=data.get("scopes", []),
             metadata=metadata,
         )
-
 
 
 @dataclass
