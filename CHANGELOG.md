@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - tools: Fixed web_scrape tool attempting to parse non-HTML content (PDF, JSON) as HTML (#487)
+- core: Fixed `AgentRunner` initialization for local LLMs (e.g., Ollama) where no API key is required
 
 ### Security
 - N/A
