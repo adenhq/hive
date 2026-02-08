@@ -1,7 +1,5 @@
 """
-CLI entry point for Deep Research Agent.
-
-Uses AgentRuntime for multi-entrypoint support with HITL pause/resume.
+Improved CLI Entry Point for Deep Research Agent
 """
 
 import asyncio
@@ -9,233 +7,254 @@ import json
 import logging
 import sys
 import click
+import os
+from datetime import datetime
 
 from .agent import default_agent, DeepResearchAgent
 
 
-def setup_logging(verbose=False, debug=False):
-    """Configure logging for execution visibility."""
-    if debug:
-        level, fmt = logging.DEBUG, "%(asctime)s %(name)s: %(message)s"
-    elif verbose:
-        level, fmt = logging.INFO, "%(message)s"
-    else:
-        level, fmt = logging.WARNING, "%(levelname)s: %(message)s"
-    logging.basicConfig(level=level, format=fmt, stream=sys.stderr)
-    logging.getLogger("framework").setLevel(level)
+# --------------------------
+# Global Settings
+# --------------------------
 
+DEFAULT_TIMEOUT = 300   # 5 minutes
+MAX_RETRIES = 2
+SAVE_DIR = "research_results"
+
+
+# --------------------------
+# Logging
+# --------------------------
+
+def setup_logging(level="warning"):
+
+    levels = {
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+    }
+
+    logging.basicConfig(
+        level=levels.get(level, logging.WARNING),
+        format="%(asctime)s | %(levelname)s | %(message)s",
+        stream=sys.stderr,
+    )
+
+
+# --------------------------
+# Helpers
+# --------------------------
+
+def validate_topic(topic):
+
+    if not topic:
+        raise ValueError("Topic cannot be empty")
+
+    if len(topic) < 3:
+        raise ValueError("Topic is too short")
+
+    return topic.strip()
+
+
+def save_result(data):
+
+    os.makedirs(SAVE_DIR, exist_ok=True)
+
+    name = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    file = f"{SAVE_DIR}/result_{name}.json"
+
+    with open(file, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+    return file
+
+
+async def safe_run(agent, context, mock):
+
+    for attempt in range(MAX_RETRIES + 1):
+
+        try:
+            return await asyncio.wait_for(
+                agent.run(context, mock_mode=mock),
+                timeout=DEFAULT_TIMEOUT
+            )
+
+        except asyncio.TimeoutError:
+            print("⏳ Timeout... Retrying")
+
+        except Exception as e:
+            print(f"⚠️ Error: {e}")
+
+    raise RuntimeError("Failed after retries")
+
+
+# --------------------------
+# CLI
+# --------------------------
 
 @click.group()
-@click.version_option(version="1.0.0")
+@click.version_option(version="2.0.0")
 def cli():
-    """Deep Research Agent - Interactive, rigorous research with TUI conversation."""
+    """Deep Research Agent CLI"""
     pass
 
 
+# --------------------------
+# RUN COMMAND
+# --------------------------
+
 @cli.command()
-@click.option("--topic", "-t", type=str, required=True, help="Research topic")
-@click.option("--mock", is_flag=True, help="Run in mock mode")
-@click.option("--quiet", "-q", is_flag=True, help="Only output result JSON")
-@click.option("--verbose", "-v", is_flag=True, help="Show execution details")
-@click.option("--debug", is_flag=True, help="Show debug logging")
-def run(topic, mock, quiet, verbose, debug):
-    """Execute research on a topic."""
-    if not quiet:
-        setup_logging(verbose=verbose, debug=debug)
+@click.option("--topic", "-t", required=True)
+@click.option("--mock", is_flag=True)
+@click.option("--log", default="warning")
+def run(topic, mock, log):
+
+    """Run research"""
+
+    setup_logging(log)
+
+    try:
+        topic = validate_topic(topic)
+
+    except ValueError as e:
+        click.echo(f"❌ {e}")
+        sys.exit(1)
+
+    click.echo("🔍 Starting research...")
 
     context = {"topic": topic}
 
-    result = asyncio.run(default_agent.run(context, mock_mode=mock))
-
-    output_data = {
-        "success": result.success,
-        "steps_executed": result.steps_executed,
-        "output": result.output,
-    }
-    if result.error:
-        output_data["error"] = result.error
-
-    click.echo(json.dumps(output_data, indent=2, default=str))
-    sys.exit(0 if result.success else 1)
-
-
-@cli.command()
-@click.option("--mock", is_flag=True, help="Run in mock mode")
-@click.option("--verbose", "-v", is_flag=True, help="Show execution details")
-@click.option("--debug", is_flag=True, help="Show debug logging")
-def tui(mock, verbose, debug):
-    """Launch the TUI dashboard for interactive research."""
-    setup_logging(verbose=verbose, debug=debug)
+    agent = default_agent
 
     try:
-        from framework.tui.app import AdenTUI
-    except ImportError:
-        click.echo(
-            "TUI requires the 'textual' package. Install with: pip install textual"
-        )
+        result = asyncio.run(safe_run(agent, context, mock))
+
+        output = {
+            "success": result.success,
+            "steps": result.steps_executed,
+            "output": result.output,
+            "error": result.error,
+        }
+
+        file = save_result(output)
+
+        click.echo("✅ Research complete")
+        click.echo(f"📁 Saved: {file}")
+
+        click.echo(json.dumps(output, indent=2))
+
+    except Exception as e:
+        click.echo(f"❌ Failed: {e}")
         sys.exit(1)
 
-    from pathlib import Path
 
-    from framework.llm import LiteLLMProvider
-    from framework.runner.tool_registry import ToolRegistry
-    from framework.runtime.agent_runtime import create_agent_runtime
-    from framework.runtime.event_bus import EventBus
-    from framework.runtime.execution_stream import EntryPointSpec
-
-    async def run_with_tui():
-        agent = DeepResearchAgent()
-
-        # Build graph and tools
-        agent._event_bus = EventBus()
-        agent._tool_registry = ToolRegistry()
-
-        storage_path = Path.home() / ".hive" / "agents" / "deep_research_agent"
-        storage_path.mkdir(parents=True, exist_ok=True)
-
-        mcp_config_path = Path(__file__).parent / "mcp_servers.json"
-        if mcp_config_path.exists():
-            agent._tool_registry.load_mcp_config(mcp_config_path)
-
-        llm = None
-        if not mock:
-            llm = LiteLLMProvider(
-                model=agent.config.model,
-                api_key=agent.config.api_key,
-                api_base=agent.config.api_base,
-            )
-
-        tools = list(agent._tool_registry.get_tools().values())
-        tool_executor = agent._tool_registry.get_executor()
-        graph = agent._build_graph()
-
-        runtime = create_agent_runtime(
-            graph=graph,
-            goal=agent.goal,
-            storage_path=storage_path,
-            entry_points=[
-                EntryPointSpec(
-                    id="start",
-                    name="Start Research",
-                    entry_node="intake",
-                    trigger_type="manual",
-                    isolation_level="isolated",
-                ),
-            ],
-            llm=llm,
-            tools=tools,
-            tool_executor=tool_executor,
-        )
-
-        await runtime.start()
-
-        try:
-            app = AdenTUI(runtime)
-            await app.run_async()
-        finally:
-            await runtime.stop()
-
-    asyncio.run(run_with_tui())
-
+# --------------------------
+# INTERACTIVE MODE
+# --------------------------
 
 @cli.command()
-@click.option("--json", "output_json", is_flag=True)
-def info(output_json):
-    """Show agent information."""
-    info_data = default_agent.info()
-    if output_json:
-        click.echo(json.dumps(info_data, indent=2))
-    else:
-        click.echo(f"Agent: {info_data['name']}")
-        click.echo(f"Version: {info_data['version']}")
-        click.echo(f"Description: {info_data['description']}")
-        click.echo(f"\nNodes: {', '.join(info_data['nodes'])}")
-        click.echo(f"Client-facing: {', '.join(info_data['client_facing_nodes'])}")
-        click.echo(f"Entry: {info_data['entry_node']}")
-        click.echo(f"Terminal: {', '.join(info_data['terminal_nodes'])}")
+def shell():
+
+    """Interactive mode"""
+
+    asyncio.run(run_shell())
 
 
-@cli.command()
-def validate():
-    """Validate agent structure."""
-    validation = default_agent.validate()
-    if validation["valid"]:
-        click.echo("Agent is valid")
-        if validation["warnings"]:
-            for warning in validation["warnings"]:
-                click.echo(f"  WARNING: {warning}")
-    else:
-        click.echo("Agent has errors:")
-        for error in validation["errors"]:
-            click.echo(f"  ERROR: {error}")
-    sys.exit(0 if validation["valid"] else 1)
+async def run_shell():
 
-
-@cli.command()
-@click.option("--verbose", "-v", is_flag=True)
-def shell(verbose):
-    """Interactive research session (CLI, no TUI)."""
-    asyncio.run(_interactive_shell(verbose))
-
-
-async def _interactive_shell(verbose=False):
-    """Async interactive shell."""
-    setup_logging(verbose=verbose)
-
-    click.echo("=== Deep Research Agent ===")
-    click.echo("Enter a topic to research (or 'quit' to exit):\n")
+    setup_logging("info")
 
     agent = DeepResearchAgent()
     await agent.start()
 
+    print("=== Research Shell ===")
+    print("Type 'quit' to exit\n")
+
     try:
+
         while True:
+
+            topic = input("Topic> ").strip()
+
+            if topic.lower() in ["quit", "exit"]:
+                break
+
             try:
-                topic = await asyncio.get_event_loop().run_in_executor(
-                    None, input, "Topic> "
+                topic = validate_topic(topic)
+
+            except ValueError as e:
+                print(f"❌ {e}")
+                continue
+
+            print("🔄 Working...\n")
+
+            try:
+
+                result = await safe_run(
+                    agent,
+                    {"topic": topic},
+                    False
                 )
-                if topic.lower() in ["quit", "exit", "q"]:
-                    click.echo("Goodbye!")
-                    break
-
-                if not topic.strip():
-                    continue
-
-                click.echo("\nResearching...\n")
-
-                result = await agent.trigger_and_wait("start", {"topic": topic})
-
-                if result is None:
-                    click.echo("\n[Execution timed out]\n")
-                    continue
 
                 if result.success:
-                    output = result.output
-                    if "report_content" in output:
-                        click.echo("\n--- Report ---\n")
-                        click.echo(output["report_content"])
-                        click.echo("\n")
-                    if "references" in output:
-                        click.echo("--- References ---\n")
-                        for ref in output.get("references", []):
-                            click.echo(
-                                f"  [{ref.get('number', '?')}] {ref.get('title', '')} - {ref.get('url', '')}"
-                            )
-                        click.echo("\n")
+                    print("✅ Done\n")
+                    print(json.dumps(result.output, indent=2))
+
                 else:
-                    click.echo(f"\nResearch failed: {result.error}\n")
+                    print(f"❌ Failed: {result.error}")
 
-            except KeyboardInterrupt:
-                click.echo("\nGoodbye!")
-                break
             except Exception as e:
-                click.echo(f"Error: {e}", err=True)
-                import traceback
+                print(f"⚠️ Error: {e}")
 
-                traceback.print_exc()
     finally:
         await agent.stop()
+        print("👋 Goodbye")
 
+
+# --------------------------
+# INFO
+# --------------------------
+
+@cli.command()
+def info():
+
+    """Show agent info"""
+
+    data = default_agent.info()
+
+    print("\nAgent Info\n----------")
+
+    for k, v in data.items():
+        print(f"{k}: {v}")
+
+
+# --------------------------
+# VALIDATE
+# --------------------------
+
+@cli.command()
+def validate():
+
+    """Validate agent"""
+
+    result = default_agent.validate()
+
+    if result["valid"]:
+        print("✅ Agent is valid")
+
+    else:
+        print("❌ Errors found:")
+
+        for e in result["errors"]:
+            print("-", e)
+
+    sys.exit(0 if result["valid"] else 1)
+
+
+# --------------------------
+# MAIN
+# --------------------------
 
 if __name__ == "__main__":
     cli()
