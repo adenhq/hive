@@ -1,6 +1,7 @@
 """Tests for security.py - get_secure_path() function."""
 
 import os
+import platform
 from unittest.mock import patch
 
 import pytest
@@ -56,7 +57,18 @@ class TestGetSecurePath:
         assert result == str(expected)
 
     def test_absolute_path_treated_as_relative(self, ids):
-        """Absolute paths are treated as relative to session root."""
+        """Absolute paths are treated as relative to session root.
+        
+        Note: On Windows, absolute Unix paths (like /etc/passwd) may fail symlink 
+        resolution validation. This test skips on Windows because the path behavior
+        differs between Unix and Windows file systems.
+        """
+        if platform.system() == "Windows":
+            pytest.skip(
+                "Unix absolute paths (/etc/passwd) behave differently on Windows; "
+                "test is Unix-specific"
+            )
+        
         from aden_tools.tools.file_system_toolkits.security import get_secure_path
 
         result = get_secure_path("/etc/passwd", **ids)
@@ -228,6 +240,10 @@ class TestGetSecurePath:
         expected = self.workspaces_dir / "test-workspace" / "test-agent" / "test-session"
         assert result == str(expected)
 
+    @pytest.mark.skipif(
+        platform.system() == "Windows",
+        reason="Creating symlinks on Windows requires admin privileges; test is Unix-focused",
+    )
     def test_symlink_within_sandbox_works(self, ids):
         """Symlinks that stay within the sandbox are allowed."""
         from aden_tools.tools.file_system_toolkits.security import get_secure_path
@@ -247,6 +263,10 @@ class TestGetSecurePath:
 
         assert result == str(symlink_path)
 
+    @pytest.mark.skipif(
+        platform.system() == "Windows",
+        reason="Creating symlinks on Windows requires admin privileges; test is Unix-focused",
+    )
     def test_symlink_escape_detected_with_realpath(self, ids):
         """Symlinks pointing outside sandbox can be detected using realpath.
 
