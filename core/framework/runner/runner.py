@@ -26,6 +26,71 @@ if TYPE_CHECKING:
     from framework.runner.protocol import AgentMessage, CapabilityResponse
 
 
+logger = logging.getLogger(__name__)
+
+# Configuration paths
+HIVE_CONFIG_FILE = Path.home() / ".hive" / "configuration.json"
+
+
+def _ensure_credential_key_env() -> None:
+    """Load HIVE_CREDENTIAL_KEY from shell config if not already in environment.
+
+    The setup-credentials skill writes the encryption key to ~/.zshrc or ~/.bashrc.
+    If the user hasn't sourced their config in the current shell, this reads it
+    directly so the runner (and any MCP subprocesses it spawns) can unlock the
+    encrypted credential store.
+
+    Only HIVE_CREDENTIAL_KEY is loaded this way — all other secrets (API keys, etc.)
+    come from the credential store itself.
+    """
+    if os.environ.get("HIVE_CREDENTIAL_KEY"):
+        return
+
+    try:
+        from aden_tools.credentials.shell_config import check_env_var_in_shell_config
+
+        found, value = check_env_var_in_shell_config("HIVE_CREDENTIAL_KEY")
+        if found and value:
+            os.environ["HIVE_CREDENTIAL_KEY"] = value
+            logger.debug("Loaded HIVE_CREDENTIAL_KEY from shell config")
+    except ImportError:
+        pass
+
+
+CLAUDE_CREDENTIALS_FILE = Path.home() / ".claude" / ".credentials.json"
+
+
+def get_hive_config() -> dict[str, Any]:
+    """Load hive configuration from ~/.hive/configuration.json."""
+    if not HIVE_CONFIG_FILE.exists():
+        return {}
+    try:
+        with open(HIVE_CONFIG_FILE) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def get_claude_code_token() -> str | None:
+    """
+    Get the OAuth token from Claude Code subscription.
+
+    Reads from ~/.claude/.credentials.json which is created by the
+    Claude Code CLI when users authenticate with their subscription.
+
+    Returns:
+        The access token if available, None otherwise.
+    """
+    if not CLAUDE_CREDENTIALS_FILE.exists():
+        return None
+    try:
+        with open(CLAUDE_CREDENTIALS_FILE) as f:
+            creds = json.load(f)
+        return creds.get("claudeAiOauth", {}).get("accessToken")
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
 @dataclass
 class AgentInfo:
     """Information about an exported agent."""
@@ -121,28 +186,21 @@ def load_agent_export(data: str | dict) -> tuple[GraphSpec, Goal]:
         )
 
     # Build GraphSpec
-    graph_kwargs = {
-        "id": graph_data.get("id", "agent-graph"),
-        "goal_id": graph_data.get("goal_id", ""),
-        "version": graph_data.get("version", "1.0.0"),
-        "entry_node": graph_data.get("entry_node", ""),
-        "entry_points": graph_data.get("entry_points", {}),
-        "async_entry_points": async_entry_points,
-        "terminal_nodes": graph_data.get("terminal_nodes", []),
-        "pause_nodes": graph_data.get("pause_nodes", []),
-        "nodes": nodes,
-        "edges": edges,
-        "max_steps": graph_data.get("max_steps", 100),
-        "max_retries_per_node": graph_data.get("max_retries_per_node", 3),
-        "description": graph_data.get("description", ""),
-    }
-
-    if "default_model" in graph_data:
-        graph_kwargs["default_model"] = graph_data["default_model"]
-    elif "defaultModel" in graph_data:
-        graph_kwargs["default_model"] = graph_data["defaultModel"]
-
-    graph = GraphSpec(**graph_kwargs)
+    graph = GraphSpec(
+        id=graph_data.get("id", "agent-graph"),
+        goal_id=graph_data.get("goal_id", ""),
+        version=graph_data.get("version", "1.0.0"),
+        entry_node=graph_data.get("entry_node", ""),
+        entry_points=graph_data.get("entry_points", {}),  # Support pause/resume architecture
+        async_entry_points=async_entry_points,  # Support multi-entry-point agents
+        terminal_nodes=graph_data.get("terminal_nodes", []),
+        pause_nodes=graph_data.get("pause_nodes", []),  # Support pause/resume architecture
+        nodes=nodes,
+        edges=edges,
+        max_steps=graph_data.get("max_steps", 100),
+        max_retries_per_node=graph_data.get("max_retries_per_node", 3),
+        description=graph_data.get("description", ""),
+    )
 
     # Build Goal
     from framework.graph.goal import Constraint, SuccessCriterion
@@ -224,6 +282,7 @@ class AgentRunner:
         mock_mode: bool = False,
         storage_path: Path | None = None,
         model: str | None = None,
+        enable_tui: bool = False,
     ):
         """
         Initialize the runner (use AgentRunner.load() instead).
@@ -400,19 +459,14 @@ class AgentRunner:
         with open(agent_json_path) as f:
             graph, goal = load_agent_export(f.read())
 
-        effective_model = model if model is not None else graph.default_model
-        if effective_model is None or effective_model.strip() == "":
-            raise ValueError(
-                "No model configured. Set graph.default_model in agent.json or pass --model."
-            )
-
         return cls(
             agent_path=agent_path,
             graph=graph,
             goal=goal,
             mock_mode=mock_mode,
             storage_path=storage_path,
-            model=effective_model,
+            model=model,
+            enable_tui=enable_tui,
         )
 
     def register_tool(
@@ -491,26 +545,8 @@ class AgentRunner:
         return self._tool_registry.register_mcp_server(server_config)
 
     def _load_mcp_servers_from_config(self, config_path: Path) -> None:
-        """
-        Load and register MCP servers from a configuration file.
-
-        Args:
-            config_path: Path to mcp_servers.json file
-        """
-        try:
-            with open(config_path) as f:
-                config = json.load(f)
-
-            servers = config.get("servers", [])
-            for server_config in servers:
-                try:
-                    self._tool_registry.register_mcp_server(server_config)
-                except Exception as e:
-                    print(
-                        f"Warning: Failed to register MCP server '{server_config.get('name', 'unknown')}': {e}"
-                    )
-        except Exception as e:
-            print(f"Warning: Failed to load MCP servers config from {config_path}: {e}")
+        """Load and register MCP servers from a configuration file."""
+        self._tool_registry.load_mcp_config(config_path)
 
     def set_approval_callback(self, callback: Callable) -> None:
         """
@@ -540,16 +576,47 @@ class AgentRunner:
 
         # Create LLM provider
         # Uses LiteLLM which auto-detects the provider from model name
-        if not self.mock_mode:
-            # Detect required API key from model name
-            api_key_env = self._get_api_key_env_var(self.model)
-            if api_key_env and os.environ.get(api_key_env):
-                from framework.llm.litellm import LiteLLMProvider
+        if self.mock_mode:
+            # Use mock LLM for testing without real API calls
+            from framework.llm.mock import MockLLMProvider
 
-                self._llm = LiteLLMProvider(model=self.model)
-            elif api_key_env:
-                print(f"Warning: {api_key_env} not set. LLM calls will fail.")
-                print(f"Set it with: export {api_key_env}=your-api-key")
+            self._llm = MockLLMProvider(model=self.model)
+        else:
+            from framework.llm.litellm import LiteLLMProvider
+
+            # Check if Claude Code subscription is configured
+            config = get_hive_config()
+            llm_config = config.get("llm", {})
+            use_claude_code = llm_config.get("use_claude_code_subscription", False)
+
+            api_key = None
+            if use_claude_code:
+                # Get OAuth token from Claude Code subscription
+                api_key = get_claude_code_token()
+                if not api_key:
+                    print("Warning: Claude Code subscription configured but no token found.")
+                    print("Run 'claude' to authenticate, then try again.")
+
+            if api_key:
+                # Use Claude Code subscription token
+                self._llm = LiteLLMProvider(model=self.model, api_key=api_key)
+            else:
+                # Fall back to environment variable
+                api_key_env = self._get_api_key_env_var(self.model)
+                if api_key_env and os.environ.get(api_key_env):
+                    self._llm = LiteLLMProvider(model=self.model)
+                else:
+                    # Fall back to credential store
+                    api_key = self._get_api_key_from_credential_store()
+                    if api_key:
+                        self._llm = LiteLLMProvider(model=self.model, api_key=api_key)
+                        # Set env var so downstream code (e.g. cleanup LLM in
+                        # node._extract_json) can also find it
+                        if api_key_env:
+                            os.environ[api_key_env] = api_key
+                    elif api_key_env:
+                        print(f"Warning: {api_key_env} not set. LLM calls will fail.")
+                        print(f"Set it with: export {api_key_env}=your-api-key")
 
         # Get tools for executor/runtime
         tools = list(self._tool_registry.get_tools().values())
@@ -574,10 +641,8 @@ class AgentRunner:
             return "OPENAI_API_KEY"
         elif model_lower.startswith("anthropic/") or model_lower.startswith("claude"):
             return "ANTHROPIC_API_KEY"
-        elif model_lower.startswith("google/"):
+        elif model_lower.startswith("gemini/") or model_lower.startswith("google/"):
             return "GOOGLE_API_KEY"
-        elif model_lower.startswith("gemini/"):
-            return "GEMINI_API_KEY"
         elif model_lower.startswith("mistral/"):
             return "MISTRAL_API_KEY"
         elif model_lower.startswith("groq/"):
@@ -1024,22 +1089,58 @@ class AgentRunner:
                 for name, spec in CREDENTIAL_SPECS.items()
             }
 
-            # Check tool credentials (Tier 2)
-            missing_creds = cred_manager.get_missing_for_tools(info.required_tools)
-            for _cred_name, spec in missing_creds:
-                missing_credentials.append(spec.env_var)
-                affected_tools = [t for t in info.required_tools if t in spec.tools]
-                tools_str = ", ".join(affected_tools)
-                warning_msg = f"Missing {spec.env_var} for {tools_str}"
-                if spec.help_url:
-                    warning_msg += f"\n  Get it at: {spec.help_url}"
-                warnings.append(warning_msg)
+            # Only use EncryptedFileStorage if the encryption key is configured;
+            # otherwise just check env vars (avoids generating a throwaway key)
+            storages: list = [EnvVarStorage(env_mapping=env_mapping)]
+            if os.environ.get("HIVE_CREDENTIAL_KEY"):
+                storages.insert(0, EncryptedFileStorage())
+
+            if len(storages) == 1:
+                storage = storages[0]
+            else:
+                storage = CompositeStorage(
+                    primary=storages[0],
+                    fallbacks=storages[1:],
+                )
+            store = CredentialStore(storage=storage)
+
+            # Build reverse mappings
+            tool_to_cred: dict[str, str] = {}
+            node_type_to_cred: dict[str, str] = {}
+            for cred_name, spec in CREDENTIAL_SPECS.items():
+                for tool_name in spec.tools:
+                    tool_to_cred[tool_name] = cred_name
+                for nt in spec.node_types:
+                    node_type_to_cred[nt] = cred_name
+
+            # Check tool credentials
+            checked: set[str] = set()
+            for tool_name in info.required_tools:
+                cred_name = tool_to_cred.get(tool_name)
+                if cred_name is None or cred_name in checked:
+                    continue
+                checked.add(cred_name)
+                spec = CREDENTIAL_SPECS[cred_name]
+                cred_id = spec.credential_id or cred_name
+                if spec.required and not store.is_available(cred_id):
+                    missing_credentials.append(spec.env_var)
+                    affected_tools = [t for t in info.required_tools if t in spec.tools]
+                    tools_str = ", ".join(affected_tools)
+                    warning_msg = f"Missing {spec.env_var} for {tools_str}"
+                    if spec.help_url:
+                        warning_msg += f"\n  Get it at: {spec.help_url}"
+                    warnings.append(warning_msg)
 
             # Check node type credentials (e.g., ANTHROPIC_API_KEY for LLM nodes)
-            node_types = list(set(node.node_type for node in self.graph.nodes))
-            missing_node_creds = cred_manager.get_missing_for_node_types(node_types)
-            for _cred_name, spec in missing_node_creds:
-                if spec.env_var not in missing_credentials:  # Avoid duplicates
+            node_types = list({node.node_type for node in self.graph.nodes})
+            for nt in node_types:
+                cred_name = node_type_to_cred.get(nt)
+                if cred_name is None or cred_name in checked:
+                    continue
+                checked.add(cred_name)
+                spec = CREDENTIAL_SPECS[cred_name]
+                cred_id = spec.credential_id or cred_name
+                if spec.required and not store.is_available(cred_id):
                     missing_credentials.append(spec.env_var)
                     affected_types = [t for t in node_types if t in spec.node_types]
                     types_str = ", ".join(affected_types)
@@ -1052,17 +1153,14 @@ class AgentRunner:
             has_llm_nodes = any(
                 node.node_type in ("llm_generate", "llm_tool_use") for node in self.graph.nodes
             )
-
             if has_llm_nodes:
                 api_key_env = self._get_api_key_env_var(self.model)
-
-                # Some providers (e.g., ollama/) don't require an API key
                 if api_key_env and not os.environ.get(api_key_env):
+                    if api_key_env not in missing_credentials:
+                        missing_credentials.append(api_key_env)
                     warnings.append(
-                        f"Agent has LLM nodes but {api_key_env} not set "
-                        f"(selected model: {self.model})"
+                        f"Agent has LLM nodes but {api_key_env} not set (model: {self.model})"
                     )
-
 
         return ValidationResult(
             valid=len(errors) == 0,
