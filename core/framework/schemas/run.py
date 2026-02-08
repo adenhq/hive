@@ -97,6 +97,9 @@ class Run(BaseModel):
     input_data: dict[str, Any] = Field(default_factory=dict)
     output_data: dict[str, Any] = Field(default_factory=dict)
 
+    # Metadata for tagging and tracking
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
     model_config = {"extra": "allow"}
 
     @computed_field

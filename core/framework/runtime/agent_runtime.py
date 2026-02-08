@@ -141,6 +141,7 @@ class AgentRuntime:
         # State
         self._running = False
         self._lock = asyncio.Lock()
+        self.simulation_mode = False
 
     def register_entry_point(self, spec: EntryPointSpec) -> None:
         """
@@ -210,6 +211,7 @@ class AgentRuntime:
                     llm=self._llm,
                     tools=self._tools,
                     tool_executor=self._tool_executor,
+                    simulation_mode=self.simulation_mode,
                     result_retention_max=self._config.execution_result_max,
                     result_retention_ttl_seconds=self._config.execution_result_ttl_seconds,
                 )

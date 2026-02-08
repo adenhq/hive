@@ -58,6 +58,7 @@ class Runtime:
         self.storage = FileStorage(storage_path)
         self._current_run: Run | None = None
         self._current_node: str = "unknown"
+        self.simulation_mode: bool = False
 
     # === RUN LIFECYCLE ===
 
@@ -86,6 +87,11 @@ class Runtime:
             goal_description=goal_description,
             input_data=input_data or {},
         )
+        
+        # Tag run as simulation if applicable
+        if self.simulation_mode:
+            self._current_run.metadata["is_simulation"] = True
+            logger.info(f"🧪 Started Simulation Run: {run_id}")
 
         return run_id
 

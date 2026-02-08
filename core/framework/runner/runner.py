@@ -71,20 +71,59 @@ def load_agent_export(data: str | dict) -> tuple[GraphSpec, Goal]:
         data = json.loads(data)
 
     # Extract graph and goal
-    graph_data = data.get("graph", {})
+    # Support both old format (top-level nodes/edges) and new format (nested under 'graph')
+    if "graph" in data:
+        graph_data = data["graph"]
+    else:
+        # If 'graph' key is missing, assume nodes/edges are top-level
+        graph_data = data
+        
     goal_data = data.get("goal", {})
 
     # Build NodeSpec objects
     nodes = []
     for node_data in graph_data.get("nodes", []):
+        # Map node_id to id if missing
+        if "id" not in node_data and "node_id" in node_data:
+            node_data["id"] = node_data["node_id"]
+        
+        # Map node_name to name if missing
+        if "name" not in node_data and "node_name" in node_data:
+            node_data["name"] = node_data["node_name"]
+            
+        # Ensure description exists (required by NodeSpec)
+        if "description" not in node_data:
+            node_data["description"] = node_data.get("name", node_data.get("id", "No description"))
+            
         nodes.append(NodeSpec(**node_data))
 
     # Build EdgeSpec objects
     edges = []
+    # Virtual nodes mapping
+    virtual_start_targets = []
+    virtual_end_sources = []
+    
     for edge_data in graph_data.get("edges", []):
+        # Map edge_id to id if missing
+        if "id" not in edge_data and "edge_id" in edge_data:
+            edge_data["id"] = edge_data["edge_id"]
+            
+        edge_source = edge_data["source"]
+        edge_target = edge_data["target"]
+        
+        # Track virtual nodes
+        if edge_source == "START":
+            virtual_start_targets.append(edge_target)
+            continue # Don't add START edges to the graph spec
+            
+        if edge_target == "END":
+            virtual_end_sources.append(edge_source)
+            continue # Don't add END edges to the graph spec
+
         condition_str = edge_data.get("condition", "on_success")
         condition_map = {
             "always": EdgeCondition.ALWAYS,
+            "on_start": EdgeCondition.ALWAYS, # Map on_start to always
             "on_success": EdgeCondition.ON_SUCCESS,
             "on_failure": EdgeCondition.ON_FAILURE,
             "conditional": EdgeCondition.CONDITIONAL,
@@ -92,8 +131,8 @@ def load_agent_export(data: str | dict) -> tuple[GraphSpec, Goal]:
         }
         edge = EdgeSpec(
             id=edge_data["id"],
-            source=edge_data["source"],
-            target=edge_data["target"],
+            source=edge_source,
+            target=edge_target,
             condition=condition_map.get(condition_str, EdgeCondition.ON_SUCCESS),
             condition_expr=edge_data.get("condition_expr"),
             priority=edge_data.get("priority", 0),
@@ -117,52 +156,107 @@ def load_agent_export(data: str | dict) -> tuple[GraphSpec, Goal]:
             )
         )
 
+    # Invalidate missing entry_node and terminal_nodes
+    entry_node = graph_data.get("entry_node")
+    if not entry_node:
+        if virtual_start_targets:
+            entry_node = virtual_start_targets[0]
+        elif nodes:
+            entry_node = nodes[0].id
+        else:
+            entry_node = "unknown"
+
+    terminal_nodes = graph_data.get("terminal_nodes", [])
+    if not terminal_nodes:
+        if virtual_end_sources:
+            terminal_nodes = virtual_end_sources
+        elif nodes:
+            terminal_nodes = [nodes[-1].id]
+
     # Build GraphSpec
     graph = GraphSpec(
-        id=graph_data.get("id", "agent-graph"),
-        goal_id=graph_data.get("goal_id", ""),
+        id=graph_data.get("id", data.get("id", "agent-graph")),
+        goal_id=graph_data.get("goal_id", goal_data.get("goal_id", "")),
         version=graph_data.get("version", "1.0.0"),
-        entry_node=graph_data.get("entry_node", ""),
+        entry_node=entry_node,
         entry_points=graph_data.get("entry_points", {}),  # Support pause/resume architecture
         async_entry_points=async_entry_points,  # Support multi-entry-point agents
-        terminal_nodes=graph_data.get("terminal_nodes", []),
+        terminal_nodes=terminal_nodes,
         pause_nodes=graph_data.get("pause_nodes", []),  # Support pause/resume architecture
         nodes=nodes,
         edges=edges,
         max_steps=graph_data.get("max_steps", 100),
         max_retries_per_node=graph_data.get("max_retries_per_node", 3),
-        description=graph_data.get("description", ""),
+        description=graph_data.get("description", goal_data.get("description", "")),
     )
 
     # Build Goal
     from framework.graph.goal import Constraint, SuccessCriterion
 
     success_criteria = []
-    for sc_data in goal_data.get("success_criteria", []):
+    sc_source = goal_data.get("success_criteria", [])
+    if isinstance(sc_source, str):
+        # Convert simple string to a single Criterion object
         success_criteria.append(
             SuccessCriterion(
-                id=sc_data["id"],
-                description=sc_data["description"],
-                metric=sc_data.get("metric", ""),
-                target=sc_data.get("target", ""),
-                weight=sc_data.get("weight", 1.0),
+                id="criterion_0",
+                description=sc_source,
+                metric="manual",
+                target="success",
             )
         )
+    elif isinstance(sc_source, list):
+        for sc_data in sc_source:
+            # Handle list of strings or list of dicts
+            if isinstance(sc_data, str):
+                success_criteria.append(
+                    SuccessCriterion(
+                        id=f"criterion_{len(success_criteria)}",
+                        description=sc_data,
+                    )
+                )
+            elif isinstance(sc_data, dict):
+                success_criteria.append(
+                    SuccessCriterion(
+                        id=sc_data.get("id", f"criterion_{len(success_criteria)}"),
+                        description=sc_data.get("description", ""),
+                        metric=sc_data.get("metric", ""),
+                        target=sc_data.get("target", ""),
+                        weight=sc_data.get("weight", 1.0),
+                    )
+                )
 
     constraints = []
-    for c_data in goal_data.get("constraints", []):
+    c_source = goal_data.get("constraints", [])
+    if isinstance(c_source, str):
         constraints.append(
             Constraint(
-                id=c_data["id"],
-                description=c_data["description"],
-                constraint_type=c_data.get("constraint_type", "hard"),
-                category=c_data.get("category", "safety"),
-                check=c_data.get("check", ""),
+                id="constraint_0",
+                description=c_source,
             )
         )
+    elif isinstance(c_source, list):
+        for c_data in c_source:
+            if isinstance(c_data, str):
+                constraints.append(
+                    Constraint(
+                        id=f"constraint_{len(constraints)}",
+                        description=c_data,
+                    )
+                )
+            elif isinstance(c_data, dict):
+                constraints.append(
+                    Constraint(
+                        id=c_data.get("id", f"constraint_{len(constraints)}"),
+                        description=c_data.get("description", ""),
+                        constraint_type=c_data.get("constraint_type", "hard"),
+                        category=c_data.get("category", "safety"),
+                        check=c_data.get("check", ""),
+                    )
+                )
 
     goal = Goal(
-        id=goal_data.get("id", ""),
+        id=goal_data.get("id", goal_data.get("goal_id", "default-goal")),
         name=goal_data.get("name", ""),
         description=goal_data.get("description", ""),
         success_criteria=success_criteria,
@@ -203,6 +297,7 @@ class AgentRunner:
         graph: GraphSpec,
         goal: Goal,
         mock_mode: bool = False,
+        simulation_mode: bool = False,
         storage_path: Path | None = None,
         model: str = "cerebras/zai-glm-4.7",
     ):
@@ -214,6 +309,7 @@ class AgentRunner:
             graph: Loaded GraphSpec object
             goal: Loaded Goal object
             mock_mode: If True, use mock LLM responses
+            simulation_mode: If True, use full simulation (LLM mocks + tool mocks)
             storage_path: Path for runtime storage (defaults to temp)
             model: Model to use - any LiteLLM-compatible model name
                    (e.g., "claude-sonnet-4-20250514", "gpt-4o-mini", "gemini/gemini-pro")
@@ -221,7 +317,8 @@ class AgentRunner:
         self.agent_path = agent_path
         self.graph = graph
         self.goal = goal
-        self.mock_mode = mock_mode
+        self.mock_mode = mock_mode or simulation_mode
+        self.simulation_mode = simulation_mode
         self.model = model
 
         # Set up storage
@@ -257,11 +354,20 @@ class AgentRunner:
         if mcp_config_path.exists():
             self._load_mcp_servers_from_config(mcp_config_path)
 
+        # Apply simulation mode to tool registry
+        if self.simulation_mode:
+            self._tool_registry.simulation_mode = True
+            # Attempt to load default simulation config if it exists
+            sim_config = agent_path / "simulation_config.json"
+            if sim_config.exists():
+                self.load_simulation_config(sim_config)
+
     @classmethod
     def load(
         cls,
         agent_path: str | Path,
         mock_mode: bool = False,
+        simulation_mode: bool = False,
         storage_path: Path | None = None,
         model: str = "cerebras/zai-glm-4.7",
     ) -> "AgentRunner":
@@ -271,6 +377,7 @@ class AgentRunner:
         Args:
             agent_path: Path to agent folder (containing agent.json)
             mock_mode: If True, use mock LLM responses
+            simulation_mode: If True, use full simulation
             storage_path: Path for runtime storage (defaults to temp)
             model: LLM model to use (any LiteLLM-compatible model name)
 
@@ -292,9 +399,29 @@ class AgentRunner:
             graph=graph,
             goal=goal,
             mock_mode=mock_mode,
+            simulation_mode=simulation_mode,
             storage_path=storage_path,
             model=model,
         )
+
+    def load_simulation_config(self, config_path: str | Path) -> None:
+        """Load canned tool responses from a JSON file."""
+        config_path = Path(config_path)
+        if not config_path.exists():
+            return
+
+        try:
+            with open(config_path) as f:
+                config = json.load(f)
+            
+            # Expecting format: {"tools": {"tool_name": mock_data}, ...}
+            tool_mocks = config.get("tools", {})
+            for tool_name, response in tool_mocks.items():
+                self._tool_registry.register_mock_response(tool_name, response)
+            
+            print(f"✅ Loaded simulation config: {len(tool_mocks)} tool mocks")
+        except Exception as e:
+            print(f"⚠️ Failed to load simulation config: {e}")
 
     def register_tool(
         self,
@@ -483,6 +610,7 @@ class AgentRunner:
         """Set up legacy single-entry-point execution using GraphExecutor."""
         # Create runtime
         self._runtime = Runtime(storage_path=self._storage_path)
+        self._runtime.simulation_mode = self.simulation_mode
 
         # Create executor
         self._executor = GraphExecutor(
@@ -491,6 +619,7 @@ class AgentRunner:
             tools=tools,
             tool_executor=tool_executor,
             approval_callback=self._approval_callback,
+            simulation_mode=self.simulation_mode,
         )
 
     def _setup_agent_runtime(self, tools: list, tool_executor: Callable | None) -> None:
@@ -520,6 +649,7 @@ class AgentRunner:
             tools=tools,
             tool_executor=tool_executor,
         )
+        self._agent_runtime.simulation_mode = self.simulation_mode
 
     async def run(
         self,

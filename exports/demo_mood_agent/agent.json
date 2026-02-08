@@ -1,0 +1,64 @@
+{
+  "graph": {
+    "id": "demo_mood_agent",
+    "goal_id": "greet-and-suggest-mood",
+    "version": "1.0.0",
+    "entry_node": "mood_getter",
+    "terminal_nodes": [
+      "mood_display"
+    ],
+    "nodes": [
+      {
+        "id": "mood_getter",
+        "name": "Mood Getter",
+        "description": "Determines a random mood based on input",
+        "node_type": "llm_tool_use",
+        "system_prompt": "You are a mood predictor. Use the `get_mood` tool to suggest a mood for the user named {name}. output_keys: [mood]",
+        "input_keys": [
+          "name"
+        ],
+        "output_keys": [
+          "mood"
+        ],
+        "tools": ["get_mood"]
+      },
+      {
+        "id": "mood_display",
+        "name": "Mood Display",
+        "description": "Displays the final mood",
+        "node_type": "llm_tool_use",
+        "system_prompt": "Format the following mood nicely using the `display_mood` tool: {mood}. output_keys: [message]",
+        "input_keys": [
+          "mood"
+        ],
+        "output_keys": [
+          "message"
+        ],
+        "tools": ["display_mood"]
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "mood_getter",
+        "target": "mood_display",
+        "condition": "on_success"
+      }
+    ],
+    "max_steps": 10
+  },
+  "goal": {
+    "id": "greet-and-suggest-mood",
+    "name": "Suggest a Mood",
+    "description": "Predict a user's mood and display it nicely",
+    "success_criteria": [
+      {
+        "id": "mood_displayed",
+        "description": "Mood message is generated",
+        "metric": "existence",
+        "target": "message"
+      }
+    ],
+    "constraints": []
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "agent": {
+    "id": "code_auditor_agent",
+    "name": "Code Auditor",
+    "version": "1.0.0",
+    "description": "Analyzes code files for bugs and generates detailed reports."
+  },
+  "graph": {
+    "id": "code_auditor_graph",
+    "goal_id": "audit-file-goal",
+    "version": "1.0.0",
+    "entry_node": "read_node",
+    "terminal_nodes": [
+      "report_node"
+    ],
+    "nodes": [
+      {
+        "id": "read_node",
+        "name": "File Reader",
+        "description": "Reads the source code from the specified path.",
+        "node_type": "llm_tool_use",
+        "system_prompt": "Use the `read_code_file` tool to get the content of the file at {file_path}. output_keys: [source_code]",
+        "input_keys": ["file_path"],
+        "output_keys": ["source_code"],
+        "tools": ["read_code_file"]
+      },
+      {
+        "id": "audit_node",
+        "name": "Bug Analyzer",
+        "description": "Analyzes the code for logic errors and security flaws.",
+        "node_type": "llm_generate",
+        "system_prompt": "You are a senior security engineer. Analyze the provided `source_code`. Identify potential bugs, logic errors, or security vulnerabilities (SQL injection, XSS, etc.). output_keys: [bugs_list]",
+        "input_keys": ["source_code"],
+        "output_keys": ["bugs_list"]
+      },
+      {
+        "id": "report_node",
+        "name": "Report Generator",
+        "description": "Formats the audit results into a markdown report.",
+        "node_type": "llm_tool_use",
+        "system_prompt": "Take the identified `bugs_list` and format them into a professional markdown report using the `format_audit_report` tool for file {file_path}. output_keys: [final_report]",
+        "input_keys": ["bugs_list", "file_path"],
+        "output_keys": ["final_report"],
+        "tools": ["format_audit_report"]
+      }
+    ],
+    "edges": [
+      {
+        "id": "read_to_audit",
+        "source": "read_node",
+        "target": "audit_node",
+        "condition": "on_success"
+      },
+      {
+        "id": "audit_to_report",
+        "source": "audit_node",
+        "target": "report_node",
+        "condition": "on_success"
+      }
+    ],
+    "max_steps": 5
+  },
+  "goal": {
+    "id": "audit-file-goal",
+    "name": "Audit Code File",
+    "description": "Find bugs in a file and report them",
+    "success_criteria": [
+      {
+        "id": "report_exists",
+        "description": "Final report is generated",
+        "metric": "existence",
+        "target": "final_report"
+      }
+    ]
+  }
+}

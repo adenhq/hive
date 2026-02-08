@@ -58,6 +58,7 @@ uv.lock
 
 # Generated runtime data
 core/data/
+simulations/
 
 # Misc
 *.local
@@ -70,3 +71,15 @@ exports/*
 .agent-builder-sessions/*
 
 .venv
+
+agent_logs/
+core/agent_logs/
+core/builds/
+hive_build_article_summarizer.py
+hive_builder.py
+reproduce_crash.py
+server.pid
+server_log.txt
+tools/mcp_server.out
+REPORT_GENERATION_PROCESS.md
+HIVE_TUTORIAL.md

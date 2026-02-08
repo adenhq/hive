@@ -10,9 +10,12 @@ The executor:
 """
 
 import asyncio
+import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from framework.graph.edge import EdgeSpec, GraphSpec
@@ -46,6 +49,17 @@ class ExecutionResult:
     path: list[str] = field(default_factory=list)  # Node IDs traversed
     paused_at: str | None = None  # Node ID where execution paused for HITL
     session_state: dict[str, Any] = field(default_factory=dict)  # State to resume from
+
+
+@dataclass
+class SimulationTrace:
+    """Trace data for a simulation run."""
+
+    steps: list[dict[str, Any]] = field(default_factory=list)
+    total_tokens: int = 0
+    total_latency: int = 0
+    success: bool = False
+    path: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -107,6 +121,7 @@ class GraphExecutor:
         cleansing_config: CleansingConfig | None = None,
         enable_parallel_execution: bool = True,
         parallel_config: ParallelExecutionConfig | None = None,
+        simulation_mode: bool = False,
     ):
         """
         Initialize the executor.
@@ -121,6 +136,7 @@ class GraphExecutor:
             cleansing_config: Optional output cleansing configuration
             enable_parallel_execution: Enable parallel fan-out execution (default True)
             parallel_config: Configuration for parallel execution behavior
+            simulation_mode: Whether to run in simulation mode
         """
         self.runtime = runtime
         self.llm = llm
@@ -130,6 +146,9 @@ class GraphExecutor:
         self.approval_callback = approval_callback
         self.validator = OutputValidator()
         self.logger = logging.getLogger(__name__)
+
+        self.simulation_mode = simulation_mode
+        self._simulation_trace = SimulationTrace() if simulation_mode else None
 
         # Initialize output cleaner
         self.cleansing_config = cleansing_config or CleansingConfig()
@@ -149,6 +168,10 @@ class GraphExecutor:
         Returns:
             List of error messages (empty if all tools are available)
         """
+        # Skip tool validation in simulation mode as they will be mocked
+        if self.simulation_mode:
+            return []
+
         errors = []
         available_tool_names = {t.name for t in self.tools}
 
@@ -353,6 +376,16 @@ class GraphExecutor:
                 total_tokens += result.tokens_used
                 total_latency += result.latency_ms
 
+                # Record trace if in simulation mode
+                if self.simulation_mode:
+                    self._simulation_trace.steps.append({
+                        "node_id": current_node_id,
+                        "node_name": node_spec.name,
+                        "success": result.success,
+                        "output": result.output,
+                        "next_node": result.next_node or "auto"
+                    })
+
                 # Handle failure
                 if not result.success:
                     # Track retries per node
@@ -518,7 +551,7 @@ class GraphExecutor:
                 # Update input_data for next node
                 input_data = result.output
 
-            # Collect output
+            # Final result collection
             output = memory.read_all()
 
             self.logger.info("\n✓ Execution complete!")
@@ -533,7 +566,7 @@ class GraphExecutor:
                 narrative=f"Executed {steps} steps through path: {' -> '.join(path)}",
             )
 
-            return ExecutionResult(
+            result = ExecutionResult(
                 success=True,
                 output=output,
                 steps_executed=steps,
@@ -541,6 +574,15 @@ class GraphExecutor:
                 total_latency_ms=total_latency,
                 path=path,
             )
+
+            if self.simulation_mode:
+                self._simulation_trace.success = True
+                self._simulation_trace.total_tokens = total_tokens
+                self._simulation_trace.total_latency = total_latency
+                self._simulation_trace.path = path
+                self._write_simulation_report()
+
+            return result
 
         except Exception as e:
             self.runtime.report_problem(
@@ -551,12 +593,47 @@ class GraphExecutor:
                 success=False,
                 narrative=f"Failed at step {steps}: {e}",
             )
+
+            if self.simulation_mode:
+                self._simulation_trace.success = False
+                self._simulation_trace.path = path
+                self._write_simulation_report()
+
             return ExecutionResult(
                 success=False,
                 error=str(e),
                 steps_executed=steps,
                 path=path,
             )
+
+    def _write_simulation_report(self):
+        """Write simulation trace to artifacts directory."""
+        try:
+            run_id = self.runtime.current_run.id if self.runtime.current_run else "unknown"
+            report_dir = Path("simulations")
+            report_dir.mkdir(exist_ok=True)
+
+            report_path = report_dir / f"trace_{run_id}.json"
+
+            report_data = {
+                "run_id": run_id,
+                "timestamp": datetime.now().isoformat(),
+                "trace": {
+                    "steps": self._simulation_trace.steps,
+                    "path": self._simulation_trace.path,
+                    "metrics": {
+                        "tokens": self._simulation_trace.total_tokens,
+                        "latency": self._simulation_trace.total_latency
+                    }
+                }
+            }
+
+            with open(report_path, "w") as f:
+                json.dump(report_data, f, indent=2)
+
+            self.logger.info(f"💾 Simulation trace saved to {report_path}")
+        except Exception as e:
+            self.logger.warning(f"Could not save simulation trace: {e}")
 
     def _build_context(
         self,
@@ -571,6 +648,22 @@ class GraphExecutor:
         available_tools = []
         if node_spec.tools:
             available_tools = [t for t in self.tools if t.name in node_spec.tools]
+
+            # In simulation mode, ensure ALL declared tools are "available" (as mocks)
+            # This allows the LLM to still generate tool calls which we will intercept
+            if self.simulation_mode:
+                from framework.llm.provider import Tool
+
+                found_names = {t.name for t in available_tools}
+                for tool_name in node_spec.tools:
+                    if tool_name not in found_names:
+                        available_tools.append(
+                            Tool(
+                                name=tool_name,
+                                description=f"Mocked tool for simulation: {tool_name}",
+                                parameters={"type": "object", "properties": {}},
+                            )
+                        )
 
         # Create scoped memory view
         scoped_memory = memory.with_permissions(

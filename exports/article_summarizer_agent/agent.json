@@ -1,0 +1,155 @@
+{
+  "agent": {
+    "id": "article_summarizer_agent",
+    "name": "Article Summarizer",
+    "version": "1.0.0",
+    "description": "Fetch article content from a URL and generate a structured summary."
+  },
+  "graph": {
+    "id": "article_summarizer_agent-graph",
+    "goal_id": "summarize-article-goal",
+    "version": "1.0.0",
+    "entry_node": "fetch-article",
+    "entry_points": {
+      "start": "fetch-article"
+    },
+    "pause_nodes": [],
+    "terminal_nodes": [
+      "summarize-article"
+    ],
+    "nodes": [
+      {
+        "id": "fetch-article",
+        "name": "Fetch Content",
+        "description": "Scrapes the article from the provided URL.",
+        "node_type": "llm_tool_use",
+        "input_keys": [
+          "url"
+        ],
+        "output_keys": [
+          "article_data",
+          "raw_content"
+        ],
+        "nullable_output_keys": [],
+        "input_schema": {},
+        "output_schema": {},
+        "system_prompt": "Your goal is to use the `web_scrape` tool to fetch the content of the article at the provided URL. Return the article content in `article_data` and the full content in `raw_content`. output_keys: [article_data, raw_content]",
+        "tools": [
+          "web_scrape"
+        ],
+        "model": null,
+        "function": null,
+        "routes": {},
+        "max_retries": 3,
+        "retry_on": [],
+        "output_model": null,
+        "max_validation_retries": 2
+      },
+      {
+        "id": "summarize-article",
+        "name": "Summarize",
+        "description": "Generates a concise summary from the article data.",
+        "node_type": "llm_generate",
+        "input_keys": [
+          "article_data"
+        ],
+        "output_keys": [
+          "summary",
+          "key_points"
+        ],
+        "nullable_output_keys": [],
+        "input_schema": {},
+        "output_schema": {},
+        "system_prompt": "Create a detailed summary and list of key points from the provided article data. output_keys: [summary, key_points]",
+        "tools": [],
+        "model": null,
+        "function": null,
+        "routes": {},
+        "max_retries": 3,
+        "retry_on": [],
+        "output_model": null,
+        "max_validation_retries": 2
+      }
+    ],
+    "edges": [
+      {
+        "id": "fetch-to-summarize",
+        "source": "fetch-article",
+        "target": "summarize-article",
+        "condition": "on_success",
+        "condition_expr": null,
+        "priority": 0,
+        "input_mapping": {}
+      }
+    ],
+    "max_steps": 100,
+    "max_retries_per_node": 3,
+    "description": "Fetch article content from a URL and generate a structured summary.",
+    "created_at": "2026-02-08T04:12:58.066068"
+  },
+  "goal": {
+    "id": "summarize-article-goal",
+    "name": "Article Summarizer",
+    "description": "Fetch article content from a URL and generate a structured summary.",
+    "status": "draft",
+    "success_criteria": [
+      {
+        "id": "fetch-success",
+        "description": "Article content is successfully retrieved.",
+        "metric": "fetch_completion",
+        "target": "100%",
+        "weight": 0.3,
+        "met": false
+      },
+      {
+        "id": "summary-quality",
+        "description": "The generated summary captures main points.",
+        "metric": "summary_relevance",
+        "target": ">80%",
+        "weight": 0.5,
+        "met": false
+      },
+      {
+        "id": "conciseness",
+        "description": "The summary is brief and relevant.",
+        "metric": "conciseness_score",
+        "target": ">70%",
+        "weight": 0.2,
+        "met": false
+      }
+    ],
+    "constraints": [
+      {
+        "id": "data-privacy",
+        "description": "Avoid processing sensitive PII.",
+        "constraint_type": "security",
+        "category": "data_privacy",
+        "check": ""
+      },
+      {
+        "id": "factual-accuracy",
+        "description": "Summary must be factually accurate.",
+        "constraint_type": "quality",
+        "category": "accuracy",
+        "check": ""
+      }
+    ],
+    "context": {},
+    "required_capabilities": [],
+    "input_schema": {},
+    "output_schema": {},
+    "version": "1.0.0",
+    "parent_version": null,
+    "evolution_reason": null,
+    "created_at": "2026-02-08 04:12:57.692221",
+    "updated_at": "2026-02-08 04:12:57.692222"
+  },
+  "required_tools": [
+    "web_scrape"
+  ],
+  "metadata": {
+    "created_at": "2026-02-08T04:12:58.066079",
+    "node_count": 2,
+    "edge_count": 1
+  }
+}

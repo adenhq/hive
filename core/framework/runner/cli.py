@@ -45,6 +45,17 @@ def register_commands(subparsers: argparse._SubParsersAction) -> None:
         help="Write results to file instead of stdout",
     )
     run_parser.add_argument(
+        "--simulate",
+        "-s",
+        action="store_true",
+        help="Run in full simulation mode (mock LLM + mock tools)",
+    )
+    run_parser.add_argument(
+        "--sim-config",
+        type=str,
+        help="Path to simulation config JSON file with tool mocks",
+    )
+    run_parser.add_argument(
         "--quiet",
         "-q",
         action="store_true",
@@ -172,6 +183,17 @@ def register_commands(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Disable human-in-the-loop approval (auto-approve all steps)",
     )
+    shell_parser.add_argument(
+        "--simulate",
+        "-s",
+        action="store_true",
+        help="Start shell in simulation mode",
+    )
+    shell_parser.add_argument(
+        "--sim-config",
+        type=str,
+        help="Path to simulation config JSON file",
+    )
     shell_parser.set_defaults(func=cmd_shell)
 
 
@@ -210,8 +232,12 @@ def cmd_run(args: argparse.Namespace) -> int:
         runner = AgentRunner.load(
             args.agent_path,
             mock_mode=args.mock,
+            simulation_mode=getattr(args, "simulate", False),
             model=getattr(args, "model", "claude-haiku-4-5-20251001"),
         )
+        # Load external simulation config if provided
+        if getattr(args, "sim_config", None):
+            runner.load_simulation_config(args.sim_config)
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
@@ -270,7 +296,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             if result.success:
                 print("\n--- Results ---")
                 # Show only meaningful output keys (skip internal/intermediate values)
-                meaningful_keys = ["final_response", "response", "result", "answer", "output"]
+                meaningful_keys = ["final_report", "report", "message", "final_response", "response", "result", "answer", "output"]
 
                 # Try to find the most relevant output
                 shown = False
@@ -722,7 +748,13 @@ def cmd_shell(args: argparse.Namespace) -> int:
             return 1
 
     try:
-        runner = AgentRunner.load(agent_path)
+        runner = AgentRunner.load(
+            agent_path, 
+            simulation_mode=getattr(args, "simulate", False)
+        )
+        # Load external simulation config if provided
+        if getattr(args, "sim_config", None):
+            runner.load_simulation_config(args.sim_config)
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
@@ -734,6 +766,25 @@ def cmd_shell(args: argparse.Namespace) -> int:
         print("   Steps marked for approval will pause for your review")
     else:
         print("\n⚠️  Auto-approve mode: all steps will execute without review")
+
+    # Set up interactive mocking for simulation mode
+    if runner.simulation_mode:
+        print("🛠️  Simulation mode active: Tools will use mocks")
+        
+        def interactive_mock(tool_name: str, inputs: dict) -> Any:
+            print(f"\n❓ [SIMULATION] Tool '{tool_name}' called with inputs:")
+            print(json.dumps(inputs, indent=2))
+            print("Enter mock response as JSON (or press Enter for generic string):")
+            try:
+                resp = input("Mock Response: ").strip()
+                if not resp:
+                    return f"mock_{tool_name}_response"
+                return json.loads(resp)
+            except Exception as e:
+                print(f"Invalid JSON: {e}. Using default.")
+                return f"mock_{tool_name}_response"
+
+        runner._tool_registry.set_interactive_mock_callback(interactive_mock)
 
     info = runner.info()
 

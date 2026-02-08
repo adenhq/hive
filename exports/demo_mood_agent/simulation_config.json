@@ -1,0 +1,10 @@
+{
+  "tools": {
+    "get_mood": {
+      "default": "Inspired"
+    },
+    "display_mood": {
+      "default": "Today, you feel: **Inspired**! ✨"
+    }
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "goal": {
+    "goal_id": "market_research",
+    "name": "Market Research Agent",
+    "description": "Analyze market trends and generate reports",
+    "success_criteria": "Successfully retrieved data and generated a summary"
+  },
+  "nodes": [
+    {
+      "node_id": "analyze",
+      "name": "Market Analyzer",
+      "node_type": "llm_generate",
+      "system_prompt": "You are a market analyst. Analyze the user request and extract key topics for research. output_keys: [research_query, focus_area]",
+      "input_keys": ["user_prompt"],
+      "output_keys": ["research_query", "focus_area"]
+    },
+    {
+      "node_id": "search",
+      "name": "Web Searcher",
+      "node_type": "llm_tool_use",
+      "system_prompt": "Use the web_search tool to find latest information about: {research_query}",
+      "tools": ["web_search"],
+      "input_keys": ["research_query"],
+      "output_keys": ["search_results"]
+    },
+    {
+      "node_id": "report",
+      "name": "Report Generator",
+      "node_type": "llm_generate",
+      "system_prompt": "Synthesize the search results into a professional market research report. output_keys: [final_report]",
+      "input_keys": ["search_results", "focus_area"],
+      "output_keys": ["final_report"]
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "start_to_analyze",
+      "source": "START",
+      "target": "analyze",
+      "condition": "on_start"
+    },
+    {
+      "edge_id": "analyze_to_search",
+      "source": "analyze",
+      "target": "search",
+      "condition": "on_success"
+    },
+    {
+      "edge_id": "search_to_report",
+      "source": "search",
+      "target": "report",
+      "condition": "on_success"
+    },
+    {
+      "edge_id": "report_to_end",
+      "source": "report",
+      "target": "END",
+      "condition": "on_success"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "tools": {
+    "web_search": {
+      "default": [
+        {
+          "title": "Cloud Computing Trends 2026",
+          "url": "https://example.com/trends",
+          "snippet": "The cloud computing market is expected to grow by 20% in 2026, driven by edge computing and AI integration."
+        },
+        {
+          "title": "State of Serverless",
+          "url": "https://example.com/serverless",
+          "snippet": "Serverless adoption is reaching an all-time high among enterprise developers."
+        }
+      ]
+    }
+  }
+}

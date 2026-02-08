@@ -1,0 +1,10 @@
+{
+  "tools": {
+    "read_code_file": {
+      "default": "def process_user_data(data):\n    # POTENTIAL BUG: Direct concatenation of unsanitized input into SQL\n    query = \"SELECT * FROM users WHERE id = \" + data['id']\n    execute_sql(query)\n    \n    # POTENTIAL BUG: Improper error handling\n    result = 10 / data['value']\n    return result"
+    },
+    "format_audit_report": {
+      "default": "# Code Audit Report\n\n### 1. SQL Injection\n- **Severity**: Critical\n- **Description**: User data is directly concatenated into a SQL query.\n\n### 2. Zero Division Risk\n- **Severity**: Medium\n- **Description**: Division by 'data[value]' occurs without checking for zero."
+    }
+  }
+}

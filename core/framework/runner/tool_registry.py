@@ -37,6 +37,11 @@ class ToolRegistry:
         self._tools: dict[str, RegisteredTool] = {}
         self._mcp_clients: list[Any] = []  # List of MCPClient instances
         self._session_context: dict[str, Any] = {}  # Auto-injected context for tools
+        
+        # Simulation Mode state
+        self.simulation_mode = False
+        self._mock_responses: dict[str, Any] = {}
+        self._interactive_mock_callback: Callable[[str, dict], Any] | None = None
 
     def register(
         self,
@@ -192,9 +197,51 @@ class ToolRegistry:
         Get unified tool executor function.
 
         Returns a function that dispatches to the appropriate tool executor.
+        When simulation_mode is True, it attempts to return mock responses.
         """
 
         def executor(tool_use: ToolUse) -> ToolResult:
+            # 1. Check for Simulation Mode Mocks
+            if self.simulation_mode:
+                mock_result = self._get_mock_result(tool_use)
+                if mock_result is not None:
+                    logger.info(f"📍 [SIMULATION] Using mock response for tool: {tool_use.name}")
+                    return ToolResult(
+                        tool_use_id=tool_use.id,
+                        content=json.dumps(mock_result) if not isinstance(mock_result, str) else mock_result,
+                        is_error=False,
+                    )
+                
+                # If no mock found and interactive callback exists, try that
+                if self._interactive_mock_callback:
+                    logger.info(f"❓ [SIMULATION] No mock for {tool_use.name}, requesting interactive input...")
+                    interactive_result = self._interactive_mock_callback(tool_use.name, tool_use.input)
+                    if interactive_result is not None:
+                        return ToolResult(
+                            tool_use_id=tool_use.id,
+                            content=json.dumps(interactive_result) if not isinstance(interactive_result, str) else interactive_result,
+                            is_error=False,
+                        )
+
+                # Generate a "Smart Mock" instead of falling back to real execution
+                logger.warning(f"⚠️ [SIMULATION] No mock response for {tool_use.name}. Generating generic mock result.")
+                
+                # Try to generate something that looks relevant based on tool name
+                name_lower = tool_use.name.lower()
+                if "search" in name_lower:
+                    generic_mock = [{"title": "Mock Result", "url": "https://example.com", "snippet": "This is a mock search result."}]
+                elif "scrape" in name_lower or "fetch" in name_lower or "read" in name_lower:
+                    generic_mock = {"content": f"This is mock content retrieved from {tool_use.input.get('url', 'unknown URL')}", "status": 200}
+                else:
+                    generic_mock = {"status": "success", "data": f"Mock result for {tool_use.name}"}
+
+                return ToolResult(
+                    tool_use_id=tool_use.id,
+                    content=json.dumps(generic_mock),
+                    is_error=False,
+                )
+
+            # 2. Real Execution Path
             if tool_use.name not in self._tools:
                 return ToolResult(
                     tool_use_id=tool_use.id,
@@ -220,6 +267,38 @@ class ToolRegistry:
                 )
 
         return executor
+
+    def _get_mock_result(self, tool_use: ToolUse) -> Any | None:
+        """Find a mock response for a tool call."""
+        if tool_use.name not in self._mock_responses:
+            return None
+            
+        mock_data = self._mock_responses[tool_use.name]
+        
+        # If it's a dict, check for specific input-based responses
+        if isinstance(mock_data, dict):
+            # Check for exact input match (simple stringification for lookup)
+            input_key = json.dumps(tool_use.input, sort_keys=True)
+            if input_key in mock_data:
+                return mock_data[input_key]
+                
+            # If input resembles a URL (common pattern), allow URL-only matching
+            if "url" in tool_use.input and tool_use.input["url"] in mock_data:
+                return mock_data[tool_use.input["url"]]
+                
+            # Fallback to "default" key if present
+            return mock_data.get("default")
+            
+        # Otherwise return the mock data as is (static mock)
+        return mock_data
+
+    def register_mock_response(self, tool_name: str, response: Any) -> None:
+        """Register a mock response for a tool."""
+        self._mock_responses[tool_name] = response
+
+    def set_interactive_mock_callback(self, callback: Callable[[str, dict], Any]) -> None:
+        """Set a callback for providing mock responses in real-time."""
+        self._interactive_mock_callback = callback
 
     def get_registered_names(self) -> list[str]:
         """Get list of registered tool names."""
@@ -290,11 +369,16 @@ class ToolRegistry:
                 tool = self._convert_mcp_tool_to_framework_tool(mcp_tool)
 
                 # Create executor that calls the MCP server
-                def make_mcp_executor(client_ref: MCPClient, tool_name: str, registry_ref):
+                def make_mcp_executor(client_ref: MCPClient, tool_name: str, registry_ref, tool_spec: Tool):
                     def executor(inputs: dict) -> Any:
                         try:
-                            # Inject session context for tools that need it
-                            merged_inputs = {**registry_ref._session_context, **inputs}
+                            # Inject session context only for tools that declare these fields
+                            valid_props = tool_spec.parameters.get("properties", {})
+                            merged_inputs = {**inputs}
+                            for key, value in registry_ref._session_context.items():
+                                if key in valid_props:
+                                    merged_inputs[key] = value
+
                             result = client_ref.call_tool(tool_name, merged_inputs)
                             # MCP tools return content array, extract the result
                             if isinstance(result, list) and len(result) > 0:
@@ -311,7 +395,7 @@ class ToolRegistry:
                 self.register(
                     mcp_tool.name,
                     tool,
-                    make_mcp_executor(client, mcp_tool.name, self),
+                    make_mcp_executor(client, mcp_tool.name, self, tool),
                 )
                 count += 1
 
