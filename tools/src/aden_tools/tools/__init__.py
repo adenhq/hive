@@ -38,6 +38,7 @@ from .file_system_toolkits.write_to_file import register_tools as register_write
 from .pdf_read_tool import register_tools as register_pdf_read
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
+from .zendesk_tool import register_tools as register_zendesk
 
 
 def register_all_tools(
@@ -63,6 +64,7 @@ def register_all_tools(
     # Tools that need credentials (pass credentials if provided)
     # web_search supports multiple providers (Google, Brave) with auto-detection
     register_web_search(mcp, credentials=credentials)
+    register_zendesk(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -93,6 +95,10 @@ def register_all_tools(
         "csv_append",
         "csv_info",
         "csv_sql",
+        "zendesk_health_check",
+        "zendesk_ticket_search",
+        "zendesk_ticket_get",
+        "zendesk_ticket_update",
     ]
 
 
