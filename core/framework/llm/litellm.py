@@ -211,7 +211,8 @@ class LiteLLMProvider(LLMProvider):
                         f"Retrying in {wait}s "
                         f"(attempt {attempt + 1}/{RATE_LIMIT_MAX_RETRIES})"
                     )
-                    time.sleep(wait)
+                    loop = asyncio.get_event_loop()
+                    loop.run_in_executor(None, time.sleep, wait)
                     continue
 
                 return response
@@ -241,7 +242,8 @@ class LiteLLMProvider(LLMProvider):
                     f"Retrying in {wait}s "
                     f"(attempt {attempt + 1}/{RATE_LIMIT_MAX_RETRIES})"
                 )
-                time.sleep(wait)
+                loop = asyncio.get_event_loop()
+                loop.run_in_executor(None, time.sleep, wait)
         # unreachable, but satisfies type checker
         raise RuntimeError("Exhausted rate limit retries")
 
