@@ -379,6 +379,38 @@ fi
 HIVE_CONFIG_DIR="$HOME/.hive"
 HIVE_CONFIG_FILE="$HIVE_CONFIG_DIR/configuration.json"
 
+# Detect user's shell rc file
+detect_shell_rc() {
+    local shell_name
+    shell_name=$(basename "$SHELL")
+
+    case "$shell_name" in
+        zsh)
+            if [ -f "$HOME/.zshrc" ]; then
+                echo "$HOME/.zshrc"
+            else
+                echo "$HOME/.zshenv"
+            fi
+            ;;
+        bash)
+            if [ -f "$HOME/.bashrc" ]; then
+                echo "$HOME/.bashrc"
+            elif [ -f "$HOME/.bash_profile" ]; then
+                echo "$HOME/.bash_profile"
+            else
+                echo "$HOME/.profile"
+            fi
+            ;;
+        *)
+            # Fallback to .profile for other shells
+            echo "$HOME/.profile"
+            ;;
+    esac
+}
+
+SHELL_RC_FILE=$(detect_shell_rc)
+SHELL_NAME=$(basename "$SHELL")
+
 # Function to save configuration
 save_configuration() {
     local provider_id="$1"
@@ -404,18 +436,11 @@ print(json.dumps(config, indent=2))
 " 2>/dev/null
 }
 
-# Check for .env files (temporarily disable set -e for robustness on Bash 3.2)
+# Source shell rc file to pick up existing env vars (temporarily disable set -e)
 set +e
-if [ -f "$SCRIPT_DIR/.env" ]; then
-    set -a
-    source "$SCRIPT_DIR/.env" 2>/dev/null
-    set +a
-fi
-
-if [ -f "$HOME/.env" ]; then
-    set -a
-    source "$HOME/.env" 2>/dev/null
-    set +a
+if [ -f "$SHELL_RC_FILE" ]; then
+    # Extract only export statements to avoid running shell config commands
+    eval "$(grep -E '^export [A-Z_]+=' "$SHELL_RC_FILE" 2>/dev/null)"
 fi
 set -e
 
@@ -540,7 +565,7 @@ if [ -z "$SELECTED_PROVIDER_ID" ]; then
             echo -e "${YELLOW}Skipped.${NC} An LLM API key is required to test and use worker agents."
             echo -e "Add your API key later by running:"
             echo ""
-            echo -e "  ${CYAN}echo 'ANTHROPIC_API_KEY=your-key' >> .env${NC}"
+            echo -e "  ${CYAN}echo 'export ANTHROPIC_API_KEY=\"your-key\"' >> $SHELL_RC_FILE${NC}"
             echo ""
             SELECTED_ENV_VAR=""
             SELECTED_PROVIDER_ID=""
@@ -554,15 +579,16 @@ if [ -z "$SELECTED_PROVIDER_ID" ]; then
         read -r -p "Paste your $PROVIDER_NAME API key (or press Enter to skip): " API_KEY
 
         if [ -n "$API_KEY" ]; then
-            # Save to .env
-            echo "" >> "$SCRIPT_DIR/.env"
-            echo "$SELECTED_ENV_VAR=$API_KEY" >> "$SCRIPT_DIR/.env"
+            # Save to shell rc file
+            echo "" >> "$SHELL_RC_FILE"
+            echo "# Hive Agent Framework - $PROVIDER_NAME API key" >> "$SHELL_RC_FILE"
+            echo "export $SELECTED_ENV_VAR=\"$API_KEY\"" >> "$SHELL_RC_FILE"
             export "$SELECTED_ENV_VAR=$API_KEY"
             echo ""
-            echo -e "${GREEN}⬢${NC} API key saved to .env"
+            echo -e "${GREEN}⬢${NC} API key saved to $SHELL_RC_FILE"
         else
             echo ""
-            echo -e "${YELLOW}Skipped.${NC} Add your API key to .env when ready."
+            echo -e "${YELLOW}Skipped.${NC} Add your API key to $SHELL_RC_FILE when ready."
             SELECTED_ENV_VAR=""
             SELECTED_PROVIDER_ID=""
         fi
@@ -581,10 +607,73 @@ fi
 echo ""
 
 # ============================================================
-# Step 4: Verify Setup
+# Step 5: Initialize Credential Store
 # ============================================================
 
-echo -e "${YELLOW}⬢${NC} ${BLUE}${BOLD}Step 4: Verifying installation...${NC}"
+echo -e "${YELLOW}⬢${NC} ${BLUE}${BOLD}Step 5: Initializing credential store...${NC}"
+echo ""
+echo -e "${DIM}The credential store encrypts API keys and secrets for your agents.${NC}"
+echo ""
+
+HIVE_CRED_DIR="$HOME/.hive/credentials"
+
+# Check if HIVE_CREDENTIAL_KEY already exists (from env or shell rc)
+if [ -n "$HIVE_CREDENTIAL_KEY" ]; then
+    echo -e "${GREEN}  ✓ HIVE_CREDENTIAL_KEY already set${NC}"
+else
+    # Generate a new Fernet encryption key
+    echo -n "  Generating encryption key... "
+    GENERATED_KEY=$(uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" 2>/dev/null)
+
+    if [ -z "$GENERATED_KEY" ]; then
+        echo -e "${RED}failed${NC}"
+        echo -e "${YELLOW}  ⚠ Credential store will not be available.${NC}"
+        echo -e "${YELLOW}    You can set HIVE_CREDENTIAL_KEY manually later.${NC}"
+    else
+        echo -e "${GREEN}ok${NC}"
+
+        # Save to shell rc file
+        echo "" >> "$SHELL_RC_FILE"
+        echo "# Encryption key for Hive credential store (~/.hive/credentials)" >> "$SHELL_RC_FILE"
+        echo "export HIVE_CREDENTIAL_KEY=\"$GENERATED_KEY\"" >> "$SHELL_RC_FILE"
+        export HIVE_CREDENTIAL_KEY="$GENERATED_KEY"
+
+        echo -e "${GREEN}  ✓ Encryption key saved to $SHELL_RC_FILE${NC}"
+    fi
+fi
+
+# Create credential store directories
+if [ -n "$HIVE_CREDENTIAL_KEY" ]; then
+    mkdir -p "$HIVE_CRED_DIR/credentials"
+    mkdir -p "$HIVE_CRED_DIR/metadata"
+
+    # Initialize the metadata index
+    if [ ! -f "$HIVE_CRED_DIR/metadata/index.json" ]; then
+        echo '{}' > "$HIVE_CRED_DIR/metadata/index.json"
+    fi
+
+    echo -e "${GREEN}  ✓ Credential store initialized at ~/.hive/credentials/${NC}"
+
+    # Verify the store works
+    echo -n "  Verifying credential store... "
+    if uv run python -c "
+from framework.credentials.storage import EncryptedFileStorage
+storage = EncryptedFileStorage()
+print('ok')
+" 2>/dev/null | grep -q "ok"; then
+        echo -e "${GREEN}ok${NC}"
+    else
+        echo -e "${YELLOW}--${NC}"
+    fi
+fi
+
+echo ""
+
+# ============================================================
+# Step 6: Verify Setup
+# ============================================================
+
+echo -e "${YELLOW}⬢${NC} ${BLUE}${BOLD}Step 6: Verifying installation...${NC}"
 echo ""
 
 ERRORS=0
@@ -628,6 +717,13 @@ else
     echo -e "${YELLOW}--${NC}"
 fi
 
+echo -n "  ⬡ credential store... "
+if [ -n "$HIVE_CREDENTIAL_KEY" ] && [ -d "$HOME/.hive/credentials/credentials" ]; then
+    echo -e "${GREEN}ok${NC}"
+else
+    echo -e "${YELLOW}--${NC}"
+fi
+
 echo ""
 
 if [ $ERRORS -gt 0 ]; then
@@ -635,6 +731,38 @@ if [ $ERRORS -gt 0 ]; then
     echo "Please check the errors above and try again."
     exit 1
 fi
+
+# ============================================================
+# Step 7: Install hive CLI globally
+# ============================================================
+
+echo -e "${YELLOW}⬢${NC} ${BLUE}${BOLD}Step 7: Installing hive CLI...${NC}"
+echo ""
+
+# Ensure ~/.local/bin exists and is in PATH
+mkdir -p "$HOME/.local/bin"
+
+# Create/update symlink
+HIVE_SCRIPT="$SCRIPT_DIR/hive"
+HIVE_LINK="$HOME/.local/bin/hive"
+
+if [ -L "$HIVE_LINK" ] || [ -e "$HIVE_LINK" ]; then
+    rm -f "$HIVE_LINK"
+fi
+
+ln -s "$HIVE_SCRIPT" "$HIVE_LINK"
+echo -e "${GREEN}  ✓ hive CLI installed to ~/.local/bin/hive${NC}"
+
+# Check if ~/.local/bin is in PATH
+if echo "$PATH" | grep -q "$HOME/.local/bin"; then
+    echo -e "${GREEN}  ✓ ~/.local/bin is in PATH${NC}"
+else
+    echo -e "${YELLOW}  ⚠ Add ~/.local/bin to your PATH:${NC}"
+    echo -e "     ${DIM}echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc${NC}"
+    echo -e "     ${DIM}source ~/.bashrc${NC}"
+fi
+
+echo ""
 
 # ============================================================
 # Success!
@@ -659,26 +787,37 @@ if [ -n "$SELECTED_PROVIDER_ID" ]; then
     echo ""
 fi
 
-echo -e "${BOLD}Quick Start:${NC}"
+# Show credential store status
+if [ -n "$HIVE_CREDENTIAL_KEY" ]; then
+    echo -e "${BOLD}Credential Store:${NC}"
+    echo -e "  ${GREEN}⬢${NC} ${DIM}~/.hive/credentials/${NC}  (encrypted)"
+    echo -e "  ${DIM}Set up agent credentials with:${NC} ${CYAN}/setup-credentials${NC}"
+    echo ""
+fi
+
+echo -e "${BOLD}Build a New Agent:${NC}"
 echo ""
 echo -e "  1. Open Claude Code in this directory:"
 echo -e "     ${CYAN}claude${NC}"
 echo ""
 echo -e "  2. Build a new agent:"
-echo -e "     ${CYAN}/agent-workflow${NC}"
+echo -e "     ${CYAN}/hive${NC}"
 echo ""
 echo -e "  3. Test an existing agent:"
-echo -e "     ${CYAN}/testing-agent${NC}"
+echo -e "     ${CYAN}/hive-test${NC}"
 echo ""
-echo -e "${BOLD}Skills:${NC}"
-if [ -d "$SCRIPT_DIR/.claude/skills" ]; then
-    for skill_dir in "$SCRIPT_DIR/.claude/skills"/*/; do
-        skill_name=$(basename "$skill_dir")
-        echo -e "  ⬡ ${CYAN}/$skill_name${NC}"
-    done
+echo -e "${BOLD}Run an Agent:${NC}"
+echo ""
+echo -e "  Launch the interactive dashboard to browse and run agents:"
+echo -e "  You can start a example agent or an agent built by yourself:"
+echo -e "     ${CYAN}hive tui${NC}"
+echo ""
+# Show shell sourcing reminder if we added environment variables
+if [ -n "$SELECTED_PROVIDER_ID" ] || [ -n "$HIVE_CREDENTIAL_KEY" ]; then
+    echo -e "${BOLD}Note:${NC} To use the new environment variables in this shell, run:"
+    echo -e "  ${CYAN}source $SHELL_RC_FILE${NC}"
+    echo ""
 fi
-echo ""
-echo -e "${BOLD}Examples:${NC} ${CYAN}exports/${NC}"
-echo ""
+
 echo -e "${DIM}Run ./quickstart.sh again to reconfigure.${NC}"
 echo ""
