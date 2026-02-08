@@ -35,7 +35,7 @@ Output as raw JSON (no markdown):
   "company_context": "Detailed summary..."
 }}
 """,
-    tools=["web_search_tool"],  # Ideally uses the web search tool
+    tools=["web_search"],  # Ideally uses the web search tool
     max_retries=2,
 )
 
@@ -104,9 +104,64 @@ Output as raw JSON (no markdown):
     max_retries=2,
 )
 
+# ---------------------------------------------------------------------------
+# Node 4: Review Draft (HITL)
+# ---------------------------------------------------------------------------
+review_node = NodeSpec(
+    id="review-draft",
+    name="Review Email Draft",
+    description="Human review of the generated email draft before sending.",
+    node_type="human_input",
+    input_keys=["email_draft", "prospect_name"],
+    output_keys=["feedback", "approved"],
+    system_prompt="""
+Please review the generated email draft for {prospect_name}.
+Draft:
+{email_draft}
+
+Do you approve this draft? (yes/no)
+If no, provide feedback for regeneration.
+""",
+    tools=[],
+)
+
+# ---------------------------------------------------------------------------
+# Node 5: Send Email & Update CRM
+# ---------------------------------------------------------------------------
+send_node = NodeSpec(
+    id="send-email",
+    name="Send Email & CRM Update",
+    description="Simulate sending the email and updating the CRM status.",
+    node_type="llm_generate",
+    input_keys=["email_draft", "prospect_name", "approved"],
+    output_keys=["crm_status", "delivery_status"],
+    system_prompt="""
+You are a CRM Integration System.
+Action: Send Email and Update Status.
+
+Prospect: {prospect_name}
+Email Status: {approved} (If not approved, do not send)
+
+1. If approved: Simulate sending the email.
+2. Update CRM status to "Outreach Sent".
+3. Log the timestamp.
+
+Output as raw JSON:
+{{
+  "crm_status": "Outreach Sent",
+  "delivery_status": "Sent",
+  "timestamp": "2024-..."
+}}
+""",
+    tools=[],
+    max_retries=2,
+)
+
 # All nodes for easy import
 all_nodes = [
     research_node,
     qualify_node,
     outreach_node,
+    review_node,
+    send_node,
 ]

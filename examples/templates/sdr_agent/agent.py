@@ -8,6 +8,7 @@ from framework.graph.edge import GraphSpec
 from framework.graph.executor import GraphExecutor
 from framework.runtime.core import Runtime
 from framework.llm.anthropic import AnthropicProvider
+from framework.runner.tool_registry import ToolRegistry
 
 from .config import default_config, RuntimeConfig
 from .nodes import all_nodes
@@ -69,6 +70,7 @@ goal = Goal(
         "is_qualified": {"type": "boolean"},
         "qualification_reason": {"type": "string"},
         "email_draft": {"type": "string", "optional": True},
+        "crm_status": {"type": "string", "optional": True},
     },
 )
 
@@ -93,6 +95,29 @@ edges = [
         condition_expr="is_qualified == True",
         description="Generate email only if lead is qualified",
     ),
+    # Step 3: Outreach -> Review
+    EdgeSpec(
+        id="outreach-to-review",
+        source="generate-outreach",
+        target="review-draft",
+        condition=EdgeCondition.ON_SUCCESS,
+    ),
+    # Step 4a: Review -> Send (Approved)
+    EdgeSpec(
+        id="review-to-send",
+        source="review-draft",
+        target="send-email",
+        condition=EdgeCondition.CONDITIONAL,
+        condition_expr="approved == 'yes' or approved == True",
+    ),
+    # Step 4b: Review -> Outreach (Rejected)
+    EdgeSpec(
+        id="review-to-outreach",
+        source="review-draft",
+        target="generate-outreach",
+        condition=EdgeCondition.CONDITIONAL,
+        condition_expr="approved != 'yes' and approved != True",
+    ),
 ]
 
 # ---------------------------------------------------------------------------
@@ -100,8 +125,8 @@ edges = [
 # ---------------------------------------------------------------------------
 entry_node = "research-prospect"
 entry_points = {"start": "research-prospect"}
-# It can end at qualify-lead (if disqualified) or generate-outreach
-terminal_nodes = ["qualify-lead", "generate-outreach"] 
+# It can end at qualify-lead (if disqualified) or send-email
+terminal_nodes = ["qualify-lead", "send-email"]
 pause_nodes = []
 nodes = all_nodes
 
@@ -120,6 +145,7 @@ class SDRAgent:
         self.entry_node = entry_node
         self.terminal_nodes = terminal_nodes
         self.executor = None
+        self._tool_registry = None
 
     def _build_graph(self) -> GraphSpec:
         return GraphSpec(
@@ -136,23 +162,42 @@ class SDRAgent:
             description="SDR Research and Outreach Workflow",
         )
 
-    def _create_executor(self):
-        runtime = Runtime(storage_path=Path(self.config.storage_path).expanduser())
+    def _setup(self):
+        storage_path = Path(self.config.storage_path).expanduser()
+        runtime = Runtime(storage_path=storage_path)
         llm = AnthropicProvider(model=self.config.model)
-        self.executor = GraphExecutor(runtime=runtime, llm=llm)
+
+        # Setup tools
+        self._tool_registry = ToolRegistry()
+        mcp_config_path = Path(__file__).parent / "mcp_servers.json"
+        if mcp_config_path.exists():
+            self._tool_registry.load_mcp_config(mcp_config_path)
+
+        tool_executor = self._tool_registry.get_executor()
+        tools = list(self._tool_registry.get_tools().values())
+
+        self.executor = GraphExecutor(
+            runtime=runtime,
+            llm=llm,
+            tools=tools,
+            tool_executor=tool_executor,
+            storage_path=storage_path
+        )
         return self.executor
 
     async def run(self, context: Dict[str, Any], mock_mode: bool = False) -> Dict[str, Any]:
         """Run the agent with the given context."""
         graph = self._build_graph()
-        executor = self._create_executor()
-        
-        result = await executor.execute(
+
+        if not self.executor:
+            self._setup()
+
+        result = await self.executor.execute(
             graph=graph,
             goal=self.goal,
             input_data=context,
         )
-        
+
         return {
             "success": result.success,
             "output": result.output,
