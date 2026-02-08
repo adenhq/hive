@@ -395,3 +395,4 @@ For enterprise inquiries, contact the Aden team through [adenhq.com](https://ade
 <p align="center">
   Made with 🔥 Passion in San Francisco
 </p>
+Minor documentation improvement
