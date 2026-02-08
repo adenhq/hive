@@ -1,0 +1,12 @@
+import React from "react";
+
+function CustomerPLDashboard() {
+  return (
+    <div>
+      <h1>Customer-Level Agentic P&L Dashboard</h1>
+      <p>This is a placeholder for the Customer Health view.</p>
+    </div>
+  );
+}
+
+export default CustomerPLDashboard;
