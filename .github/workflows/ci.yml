@@ -17,13 +17,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup Python & uv
+        uses: ./.github/actions/setup-python-uv
         with:
-          python-version: '3.11'
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
+          python-version: "3.11"
 
       - name: Install dependencies
         run: uv sync --project core --group dev
@@ -41,43 +38,47 @@ jobs:
   test:
     name: Test Python Framework
     runs-on: ${{ matrix.os }}
+
     strategy:
+      fail-fast: true
       matrix:
         os: [ubuntu-latest, windows-latest]
+
+    defaults:
+      run:
+        working-directory: core
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup Python & uv
+        uses: ./.github/actions/setup-python-uv
         with:
-          python-version: '3.11'
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
+          python-version: "3.11"
 
       - name: Install dependencies and run tests
         run: |
-          cd core
           uv sync
           uv run pytest tests/ -v
 
   test-tools:
     name: Test Tools
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: tools
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup Python & uv
+        uses: ./.github/actions/setup-python-uv
         with:
-          python-version: '3.11'
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
+          python-version: "3.11"
 
       - name: Install dependencies and run tests
         run: |
-          cd tools
           uv sync --extra dev
           uv run pytest tests/ -v
 
@@ -85,25 +86,22 @@ jobs:
     name: Validate Agent Exports
     runs-on: ubuntu-latest
     needs: [lint, test, test-tools]
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup Python & uv
+        uses: ./.github/actions/setup-python-uv
         with:
-          python-version: '3.11'
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
+          python-version: "3.11"
 
       - name: Install dependencies
-        run: |
-          cd core
-          uv sync
+        working-directory: core
+        run: uv sync
 
       - name: Validate exported agents
+        shell: bash
         run: |
-          # Check that agent exports have valid structure
           if [ ! -d "exports" ]; then
             echo "No exports/ directory found, skipping validation"
             exit 0
