@@ -131,6 +131,25 @@ hive run exports/my_agent --tui
 
 ```
 
+## Environment Variables
+
+Hive requires certain environment variables to be set before running agents.
+
+### Required (at least one provider)
+- `OPENAI_API_KEY` – API key for OpenAI models
+- `ANTHROPIC_API_KEY` – API key for Anthropic (Claude) models
+- `GEMINI_API_KEY` – API key for Google Gemini models
+
+> Only one provider key is required, depending on the model used.
+
+### Environment
+- `ENV` – Environment name (e.g., `development`, `production`)
+
+### Notes
+- Do not commit real secrets to version control.
+- Use the provided `.env.example` file as a reference.
+
+
 ## API Keys Setup
 
 For running agents with real LLMs:
