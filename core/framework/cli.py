@@ -11,9 +11,9 @@ Usage:
 
 Testing commands:
     python -m core test-run <agent_path> --goal <goal_id>
-    python -m core test-debug <goal_id> <test_id>
-    python -m core test-list <goal_id>
-    python -m core test-stats <goal_id>
+    python -m core test-debug <agent_path> <test_name>
+    python -m core test-list <agent_path>
+    python -m core test-stats <agent_path>
 """
 
 import argparse

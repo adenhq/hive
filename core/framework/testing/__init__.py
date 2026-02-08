@@ -27,7 +27,7 @@ Testing tools are integrated into the main agent_builder_server.py:
 
 ```bash
 python -m framework test-run <agent_path> --goal <goal_id>
-python -m framework test-debug <goal_id> <test_id>
+python -m framework test-debug <agent_path> <test_name>
 python -m framework test-list <agent_path> --goal <goal_id>
 ```
 """
