@@ -43,6 +43,7 @@ from .file_system_toolkits.write_to_file import register_tools as register_write
 from .github_tool import register_tools as register_github
 from .hubspot_tool import register_tools as register_hubspot
 from .pdf_read_tool import register_tools as register_pdf_read
+from .postgres_tool import register_tools as register_postgres
 from .runtime_logs_tool import register_tools as register_runtime_logs
 from .slack_tool import register_tools as register_slack
 from .web_scrape_tool import register_tools as register_web_scrape
@@ -91,6 +92,9 @@ def register_all_tools(
     register_execute_command(mcp)
     register_data_tools(mcp)
     register_csv(mcp)
+
+    # Register database toolkits
+    register_postgres(mcp)
 
     return [
         "example_tool",
@@ -209,6 +213,12 @@ def register_all_tools(
         "slack_kick_user_from_channel",
         "slack_delete_file",
         "slack_get_team_stats",
+
+        "pg_query",
+        "pg_list_schemas",
+        "pg_list_tables",
+        "pg_describe_table",
+        "pg_explain"
     ]
 
 
