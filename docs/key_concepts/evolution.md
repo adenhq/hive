@@ -47,3 +47,17 @@ Evolution can change almost anything about an agent:
 Evolution depends on good data. The runtime captures every decision an agent makes: what it was trying to do, what options it considered, what it chose, and what happened as a result. This isn't overhead — it's the signal that makes evolution possible.
 
 Without decision logging, failure analysis is guesswork. With it, the coding agent can trace a failure back to its root cause and make a targeted fix rather than a blind change.
+
+## Concrete Example: Evolution After a Runtime Failure
+
+Consider a sales outreach worker agent designed to research prospects and draft personalized emails.
+During execution, the agent fails when drafting a message because the research node returns insufficient data about the prospect’s recent activity.
+
+The runtime captures this failure in detail: which node failed, which success criteria were unmet, and the full decision log showing what the agent attempted.
+This diagnostic data is passed to a coding agent along with the current agent configuration.
+
+Based on the diagnosis, the coding agent evolves the worker agent by adding a validation step to check research completeness and introducing a fallback path to gather additional context when data quality is low.
+The updated agent is deployed and resumes operation.
+
+In subsequent runs, the evolved agent handles similar edge cases correctly, producing reliable outreach messages without human intervention.
+Over time, repeated failures and targeted fixes make the agent increasingly robust in real-world conditions.
