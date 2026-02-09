@@ -60,7 +60,7 @@ def main():
     parser.add_argument(
         "--model",
         default="claude-haiku-4-5-20251001",
-        help="Anthropic model to use",
+        help="LLM model to use (LiteLLM-compatible, e.g. 'gpt-4o')",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
