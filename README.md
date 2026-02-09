@@ -416,8 +416,19 @@ Hive focuses on generating agents that run real business processes, rather than 
 
 ---
 ## Beginner Perspective
-Hive helps developers build AI agents that automate business workflows.
-Adding a simple end-to-end business workflow example could help new contributors quickly understand the project.
+
+Hive is a framework for building AI agents that automate real business workflows.
+A simple way to understand Hive is to think of it as a system where you define a goal,
+and the agent plans, executes, and improves its workflow over time.
+
+Example beginner workflow:
+1. Define a business goal (e.g., generate a weekly sales report).
+2. Configure an agent to access required tools or data.
+3. Run the agent to execute the workflow.
+4. Monitor results and refine the goal if needed.
+
+For more detailed setup instructions, see the documentation:
+https://docs.adenhq.com
 
 <p align="center">
   Made with 🔥 Passion in San Francisco
