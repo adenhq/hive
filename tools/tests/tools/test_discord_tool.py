@@ -15,7 +15,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from aden_tools.tools.discord_tool.discord_tool import (
-    DISCORD_API_BASE,
     MAX_MESSAGE_LENGTH,
     MAX_RETRIES,
     _DiscordClient,
