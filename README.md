@@ -419,3 +419,12 @@ Hive focuses on generating agents that run real business processes, rather than 
 <p align="center">
   Made with 🔥 Passion in San Francisco
 </p>
+
+
+## Beginner-Friendly Notes
+
+This section is intended for contributors who are new to AI agents and open-source projects.
+
+- Hive can be explored not only from an engineering perspective, but also from a product and business workflow angle.
+- Beginners can contribute by improving documentation clarity, sharing real-world use cases, and asking structured questions.
+- Non-technical contributors can add value by validating agent workflows and identifying practical business scenarios.
