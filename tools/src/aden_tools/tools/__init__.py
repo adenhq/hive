@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 # Import register_tools from each tool module
 from .apollo_tool import register_tools as register_apollo
 from .csv_tool import register_tools as register_csv
+from .discord_tool import register_tools as register_discord
 from .email_tool import register_tools as register_email
 from .example_tool import register_tools as register_example
 from .file_system_toolkits.apply_diff import register_tools as register_apply_diff
@@ -78,6 +79,7 @@ def register_all_tools(
     register_email(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
     register_apollo(mcp, credentials=credentials)
+    register_discord(mcp, credentials=credentials)
     register_slack(mcp, credentials=credentials)
 
     # Register file system toolkits
@@ -118,6 +120,10 @@ def register_all_tools(
         "apollo_enrich_company",
         "apollo_search_people",
         "apollo_search_companies",
+        "discord_list_guilds",
+        "discord_list_channels",
+        "discord_send_message",
+        "discord_get_messages",
         "github_list_repos",
         "github_get_repo",
         "github_search_repos",
