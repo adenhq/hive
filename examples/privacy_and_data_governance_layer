@@ -1,0 +1,107 @@
+closes #4144
+
+# Privacy-Sensitive Data Handling in Enterprise Agent Workflows
+
+## Context
+Large organizations operate on vast pools of data across multiple systems such as CRM, finance, HR, support, and supply chain platforms. These datasets often contain sensitive and personally identifiable information (PII).
+
+Examples of sensitive data include:
+- Customer names
+- Email addresses
+- Phone numbers
+- Home or office addresses
+- Financial records
+- Salary information
+
+When AI agents interact with these systems, they may unintentionally or intentionally access, process, or expose sensitive data unless proper controls are in place.
+
+## The Core Problem
+AI Agents are designed to:
+- Retrieve data
+- Analyze it
+- Take actions
+- Communicate results
+
+In enterprise environments, this creates several risks:
+- Sensitive fields may be exposed in responses
+- Agents may send confidential data to external tools or APIs
+- Logs and reasoning traces may contain private information
+- Agents may perform actions on sensitive systems without approval
+
+Without clear privacy-aware workflows, organizations may hesitate to adopt autonomous agents for critical processes.
+
+---
+
+## Example Scenario
+Hive has been asked:
+
+"Why did customer churn increase last quarter?"
+
+To answer this, Hive may access:
+- Customer profiles
+- Transaction histories
+- Support interactions
+- Billing records
+
+These systems may contain:
+- Names
+- Emails
+- Phone numbers
+- Payment details
+
+If not properly controlled, the agent (Hive, here) could:
+- Expose personal information in its output
+- Store sensitive data in logs
+- Send private data to external services
+
+---
+
+## Privacy-Aware Agent Behavior
+A privacy-aware agent workflow should:
+
+- Detect when data contains sensitive fields
+- Classify the data based on sensitivity levels:
+   - Public
+   - Internal
+   - Confidential
+   - PII
+- Apply rules before using or exposing the data
+
+Example rules:
+- Mask customer names and contact details
+- Use aggregated or anonymized data when possible
+- Block sending PII to external APIs
+- Require approval for high-risk operations
+
+---
+
+## Example Workflow
+- Agent receives a churn-related query
+- Agent retrieves customer data from internal systems
+- System detects PII fields (name, email, phone)
+- Sensitive fields are masked or removed
+- Agent performs analysis on anonymized data
+- Agent produces a summary insight without exposing personal details
+- Audit log records that sensitive data was accessed and masked => A key factor in audits
+
+---
+
+## Output
+The agent returns:
+- Root-cause insights (e.g., "Churn increased in Segment A due to delayed deliveries.")
+- No exposure of names, emails, or phone numbers
+- A privacy audit trail of the agent’s actions
+
+---
+
+## Why This Matters
+Enterprise adoption of AI agents depends heavily on:
+- Data privacy
+- Compliance
+- Trust
+- Auditability
+
+Privacy-aware agent workflows help:
+- Protect sensitive information
+- Reduce legal and compliance risks
+- Enable safe automation across core business systems
