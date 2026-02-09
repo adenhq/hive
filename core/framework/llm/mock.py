@@ -11,6 +11,7 @@ from framework.llm.stream_events import (
     StreamEvent,
     TextDeltaEvent,
     TextEndEvent,
+    ToolCallEvent,
 )
 
 
