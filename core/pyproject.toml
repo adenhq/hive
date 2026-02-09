@@ -61,4 +61,4 @@ lint.isort.section-order = [
 ]
 
 [dependency-groups]
-dev = ["ty>=0.0.13", "ruff>=0.14.14"]
+dev = ["ty>=0.0.13", "ruff>=0.14.14", "mypy>=1.9.0"]
