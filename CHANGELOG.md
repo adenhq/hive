@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration system via `config.yaml`
 - GitHub Actions CI/CD workflows
 - Comprehensive documentation
+- tools: Twilio integration for SMS and WhatsApp messaging 
+  - `send_sms` tool for sending SMS messages
+  - `send_whatsapp` tool for sending WhatsApp messages
+  - `fetch_history` tool for retrieving message history
+  - `validate_number` tool for phone number validation
+
 
 ### Changed
 - N/A

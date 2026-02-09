@@ -50,4 +50,38 @@ INTEGRATION_CREDENTIALS = {
         credential_id="hubspot",
         credential_key="access_token",
     ),
+
+    # Twilio credentials
+    "twilio_account_sid": CredentialSpec(
+        env_var="TWILIO_ACCOUNT_SID",
+        tools=["send_sms", "send_whatsapp", "fetch_history", "validate_number"],
+        required=True,
+        startup_required=False,
+        help_url="https://www.twilio.com/console",
+        description="Twilio Account SID",
+        credential_id="twilio",
+        credential_key="account_sid",
+    ),
+
+    "twilio_auth_token": CredentialSpec(
+        env_var="TWILIO_AUTH_TOKEN",
+        tools=["send_sms", "send_whatsapp", "fetch_history", "validate_number"],
+        required=True,
+        startup_required=False,
+        help_url="https://www.twilio.com/console",
+        description="Twilio Auth Token",
+        credential_id="twilio",
+        credential_key="auth_token",
+    ),
+
+    "twilio_from_number": CredentialSpec(
+        env_var="TWILIO_FROM_NUMBER",
+        tools=["send_sms", "send_whatsapp"],
+        required=True,
+        startup_required=False,
+        help_url="https://www.twilio.com/console",
+        description="Default Twilio from number (E.164), e.g., +1234567890",
+        credential_id="twilio",
+        credential_key="from_number",
+    ),
 }

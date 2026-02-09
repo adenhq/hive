@@ -9,5 +9,5 @@ lxml
 playwright
 playwright-stealth
 requests
-
+"twilio>=9.0.0"
 # Note: After installing, run `playwright install` to download browser binaries
