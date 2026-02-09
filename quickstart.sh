@@ -765,6 +765,31 @@ fi
 echo ""
 
 # ============================================================
+# Step 8: Configure Claude Code settings
+# ============================================================
+
+echo -e "${YELLOW}⬢${NC} ${BLUE}${BOLD}Step 8: Configuring Claude Code settings...${NC}"
+echo ""
+
+EXAMPLE_SETTINGS="$SCRIPT_DIR/.claude/settings.local.json.example"
+TARGET_SETTINGS="$SCRIPT_DIR/.claude/settings.local.json"
+
+if [ -f "$EXAMPLE_SETTINGS" ]; then
+    MERGE_OUTPUT=$($PYTHON_CMD "$SCRIPT_DIR/scripts/merge_claude_settings.py" \
+        --example "$EXAMPLE_SETTINGS" \
+        --target "$TARGET_SETTINGS" 2>&1) && {
+        echo -e "${GREEN}  ✓ $MERGE_OUTPUT${NC}"
+    } || {
+        echo -e "${YELLOW}  ⚠ Could not merge Claude settings: $MERGE_OUTPUT${NC}"
+        echo -e "${YELLOW}    You can copy .claude/settings.local.json.example manually.${NC}"
+    }
+else
+    echo -e "${YELLOW}  ⚠ No settings template found at $EXAMPLE_SETTINGS${NC}"
+fi
+
+echo ""
+
+# ============================================================
 # Success!
 # ============================================================
 

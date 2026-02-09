@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__agent-builder__*",
+      "mcp__tools__*",
+      "Bash(PYTHONPATH=*)",
+      "Bash(MOCK_MODE=*)",
+      "Bash(cd *)",
+      "Bash(uv run *)",
+      "Bash(uv pip *)",
+      "Bash(uv sync)",
+      "Bash(python *)",
+      "Bash(python3 *)",
+      "Bash(pytest *)",
+      "Bash(ruff *)",
+      "Bash(mkdir *)",
+      "Bash(ls *)",
+      "Bash(export *)",
+      "Bash(gh *)",
+      "Skill(agent-workflow)",
+      "Skill(agent-workflow:*)",
+      "Skill(building-agents-construction)",
+      "Skill(building-agents-construction:*)",
+      "Skill(building-agents-core)",
+      "Skill(building-agents-core:*)",
+      "Skill(building-agents-patterns)",
+      "Skill(building-agents-patterns:*)",
+      "Skill(testing-agent)",
+      "Skill(testing-agent:*)",
+      "Skill(setup-credentials)",
+      "Skill(setup-credentials:*)",
+      "Skill(triage-issue)",
+      "Skill(triage-issue:*)",
+      "WebFetch(domain:github.com)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "agent-builder",
+    "tools"
+  ]
+}
