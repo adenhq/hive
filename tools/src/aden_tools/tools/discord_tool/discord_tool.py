@@ -233,9 +233,7 @@ def register_tools(
         if isinstance(client, dict):
             return client
         try:
-            result = client.get_messages(
-                channel_id, limit=limit, before=before, after=after
-            )
+            result = client.get_messages(channel_id, limit=limit, before=before, after=after)
             if "error" in result:
                 return result
             return {"messages": result, "success": True}

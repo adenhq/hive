@@ -160,9 +160,7 @@ class TestDiscordListGuildsTool:
     def test_list_guilds_success(self, mock_get):
         mock_get.return_value = MagicMock(
             status_code=200,
-            json=MagicMock(
-                return_value=[{"id": "g1", "name": "Test Server"}]
-            ),
+            json=MagicMock(return_value=[{"id": "g1", "name": "Test Server"}]),
         )
         result = self._fn("discord_list_guilds")()
         assert result["success"] is True
