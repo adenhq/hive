@@ -7,7 +7,7 @@ Usage:
     from aden_tools.credentials import CredentialStoreAdapter
 
     mcp = FastMCP("my-server")
-    credentials = CredentialStoreAdapter.with_env_storage()
+    credentials = CredentialStoreAdapter.default()
     register_all_tools(mcp, credentials=credentials)
 """
 
@@ -21,11 +21,13 @@ if TYPE_CHECKING:
     from aden_tools.credentials import CredentialStoreAdapter
 
 # Import register_tools from each tool module
+from .apollo_tool import register_tools as register_apollo
 from .csv_tool import register_tools as register_csv
 from .email_tool import register_tools as register_email
 from .example_tool import register_tools as register_example
 from .file_system_toolkits.apply_diff import register_tools as register_apply_diff
 from .file_system_toolkits.apply_patch import register_tools as register_apply_patch
+from .file_system_toolkits.data_tools import register_tools as register_data_tools
 from .file_system_toolkits.execute_command_tool import (
     register_tools as register_execute_command,
 )
@@ -38,8 +40,11 @@ from .file_system_toolkits.replace_file_content import (
 # Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
+from .github_tool import register_tools as register_github
 from .hubspot_tool import register_tools as register_hubspot
 from .pdf_read_tool import register_tools as register_pdf_read
+from .runtime_logs_tool import register_tools as register_runtime_logs
+from .slack_tool import register_tools as register_slack
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
 
@@ -65,13 +70,17 @@ def register_all_tools(
     register_example(mcp)
     register_web_scrape(mcp)
     register_pdf_read(mcp)
+    register_runtime_logs(mcp)
 
     # Tools that need credentials (pass credentials if provided)
     # web_search supports multiple providers (Google, Brave) with auto-detection
     register_web_search(mcp, credentials=credentials)
+    register_github(mcp, credentials=credentials)
     # email supports multiple providers (Resend) with auto-detection
     register_email(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
+    register_apollo(mcp, credentials=credentials)
+    register_slack(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -82,6 +91,7 @@ def register_all_tools(
     register_apply_patch(mcp)
     register_grep_search(mcp)
     register_execute_command(mcp)
+    register_data_tools(mcp)
     register_csv(mcp)
     register_parquet_tool(mcp)
 
@@ -98,6 +108,10 @@ def register_all_tools(
         "apply_patch",
         "grep_search",
         "execute_command_tool",
+        "load_data",
+        "save_data",
+        "list_data_files",
+        "serve_file_to_user",
         "csv_read",
         "csv_write",
         "csv_append",
