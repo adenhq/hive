@@ -30,7 +30,7 @@
   <img src="https://img.shields.io/badge/OpenAI-supported-412991?style=flat-square&logo=openai" alt="OpenAI" />
   <img src="https://img.shields.io/badge/Anthropic-supported-d4a574?style=flat-square" alt="Anthropic" />
   <img src="https://img.shields.io/badge/Google_Gemini-supported-4285F4?style=flat-square&logo=google" alt="Gemini" />
-  <img src="https://img.shields.io/badge/MCP-19_Tools-00ADD8?style=flat-square" alt="MCP" />
+  <img src="https://img.shields.io/badge/MCP-31_Tools-00ADD8?style=flat-square" alt="MCP" />
 </p>
 
 ## Overview
@@ -230,7 +230,7 @@ Choose other frameworks when you need:
 ```
 hive/
 ├── core/                   # Core framework - Agent runtime, graph executor, protocols
-├── tools/                  # MCP Tools Package - 19 tools for agent capabilities
+├── tools/                  # MCP Tools Package - 31 tools for agent capabilities
 ├── exports/                # Agent packages - Pre-built agents and examples
 ├── docs/                   # Documentation and guides
 ├── scripts/                # Build and utility scripts
