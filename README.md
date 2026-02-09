@@ -228,6 +228,7 @@ See [environment-setup.md](docs/environment-setup.md) for complete setup instruc
 
 - **[Developer Guide](docs/developer-guide.md)** - Comprehensive guide for developers
 - [Getting Started](docs/getting-started.md) - Quick setup instructions
+- [First Evaluation Walkthrough](docs/first-evaluation-walkthrough.md) - What to observe after your first agent run
 - [TUI Guide](docs/tui-selection-guide.md) - Interactive dashboard usage
 - [Configuration Guide](docs/configuration.md) - All configuration options
 - [Architecture Overview](docs/architecture/README.md) - System design and structure
