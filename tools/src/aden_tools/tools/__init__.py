@@ -47,6 +47,7 @@ from .runtime_logs_tool import register_tools as register_runtime_logs
 from .slack_tool import register_tools as register_slack
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
+from .stock_market_tool import register_tools as register_stock_market
 
 
 def register_all_tools(
@@ -69,6 +70,7 @@ def register_all_tools(
     register_web_scrape(mcp)
     register_pdf_read(mcp)
     register_runtime_logs(mcp)
+    register_stock_market(mcp)  # Stock market data (yfinance)
 
     # Tools that need credentials (pass credentials if provided)
     # web_search supports multiple providers (Google, Brave) with auto-detection
@@ -209,6 +211,9 @@ def register_all_tools(
         "slack_kick_user_from_channel",
         "slack_delete_file",
         "slack_get_team_stats",
+        # Stock market tools
+        "stock_get_price",
+        "stock_get_company_info",
     ]
 
 
