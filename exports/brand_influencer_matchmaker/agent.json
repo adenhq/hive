@@ -1,0 +1,344 @@
+{
+  "agent": {
+    "id": "brand_influencer_matchmaker",
+    "name": "Brand-Influencer Matchmaker",
+    "version": "1.0.0",
+    "description": "Autonomous agent that analyzes brand-influencer alignment and generates match scores for partnership evaluation."
+  },
+  "graph": {
+    "id": "brand_influencer_matchmaker-graph",
+    "goal_id": "brand-influencer-match-goal",
+    "version": "1.0.0",
+    "entry_node": "brand-analyst",
+    "entry_points": {
+      "start": "brand-analyst"
+    },
+    "pause_nodes": [],
+    "terminal_nodes": [
+      "output-formatter"
+    ],
+    "nodes": [
+      {
+        "id": "brand-analyst",
+        "name": "Brand Analyst",
+        "description": "Scrapes the brand's website to extract Brand DNA including values, tone, and target audience.",
+        "node_type": "llm_tool_use",
+        "input_keys": [
+          "brand_url"
+        ],
+        "output_keys": [
+          "brand_profile",
+          "brand_values",
+          "brand_tone",
+          "target_audience",
+          "brand_industry"
+        ],
+        "nullable_output_keys": [],
+        "input_schema": {
+          "brand_url": {
+            "type": "string",
+            "description": "URL of the brand's website (e.g., https://www.example.com)"
+          }
+        },
+        "output_schema": {
+          "brand_profile": {
+            "type": "object",
+            "description": "Complete brand profile extracted from website"
+          }
+        },
+        "system_prompt": "You are a Brand Analyst. Your goal is to extract the 'Brand DNA' from the provided website URL.\n\nUse the `web_scrape` tool to fetch content from:\n1. The homepage\n2. The 'About Us' or 'About' page\n3. Any 'Values' or 'Culture' page\n\nFrom the scraped content, extract:\n- **brand_values**: Core values the brand promotes (e.g., sustainability, innovation, authenticity)\n- **brand_tone**: Communication style (e.g., professional, casual, edgy, inspirational)\n- **target_audience**: Who the brand targets (demographics, interests, lifestyle)\n- **brand_industry**: Primary industry/sector\n\nReturn a comprehensive `brand_profile` object summarizing all findings.\n\nIf the primary URL fails, try common variations like /about, /about-us, /company, /values.",
+        "tools": [
+          "web_scrape",
+          "brave_web_search"
+        ],
+        "model": null,
+        "function": null,
+        "routes": {},
+        "max_retries": 3,
+        "retry_on": ["scrape_failed", "timeout"],
+        "output_model": null,
+        "max_validation_retries": 2
+      },
+      {
+        "id": "influencer-discovery",
+        "name": "Influencer Discovery",
+        "description": "Searches for and analyzes the influencer's public content, recent posts, and audience sentiment.",
+        "node_type": "llm_tool_use",
+        "input_keys": [
+          "influencer_handle"
+        ],
+        "output_keys": [
+          "influencer_profile",
+          "content_themes",
+          "audience_sentiment",
+          "recent_controversies",
+          "engagement_quality"
+        ],
+        "nullable_output_keys": ["recent_controversies"],
+        "input_schema": {
+          "influencer_handle": {
+            "type": "string",
+            "description": "Influencer's social media handle or full name"
+          }
+        },
+        "output_schema": {
+          "influencer_profile": {
+            "type": "object",
+            "description": "Complete influencer profile from public data"
+          }
+        },
+        "system_prompt": "You are an Influencer Discovery Specialist. Your goal is to build a comprehensive profile of the given influencer.\n\nUse the `brave_web_search` tool to search for:\n1. \"[influencer_handle] social media\"\n2. \"[influencer_handle] recent posts\"\n3. \"[influencer_handle] brand partnerships\"\n4. \"[influencer_handle] controversy OR scandal\" (to identify red flags)\n\nIf you can access their public profiles, analyze:\n- **content_themes**: Main topics they discuss (e.g., fitness, tech reviews, fashion)\n- **audience_sentiment**: How their audience perceives them (positive, mixed, negative)\n- **recent_controversies**: Any scandals or negative press (important for risk assessment)\n- **engagement_quality**: Quality of engagement (authentic comments vs. bot-like)\n\nSELF-HEALING: If social media profiles are restricted or paywalled:\n- Search for interviews, news articles, or secondary mentions\n- Look for podcasts, YouTube videos, or blog features\n- Gather data from press releases or brand announcements\n\nReturn a comprehensive `influencer_profile` summarizing all findings.",
+        "tools": [
+          "brave_web_search",
+          "web_scrape"
+        ],
+        "model": null,
+        "function": null,
+        "routes": {},
+        "max_retries": 3,
+        "retry_on": ["search_failed", "restricted_content"],
+        "output_model": null,
+        "max_validation_retries": 2
+      },
+      {
+        "id": "reasoning-node",
+        "name": "Match Reasoning Engine",
+        "description": "Compares brand and influencer profiles to calculate alignment score and identify synergies/contradictions.",
+        "node_type": "llm_generate",
+        "input_keys": [
+          "brand_profile",
+          "brand_values",
+          "brand_tone",
+          "target_audience",
+          "influencer_profile",
+          "content_themes",
+          "audience_sentiment",
+          "recent_controversies"
+        ],
+        "output_keys": [
+          "match_score",
+          "alignment_breakdown",
+          "pros",
+          "red_flags",
+          "confidence_level"
+        ],
+        "nullable_output_keys": [],
+        "input_schema": {},
+        "output_schema": {
+          "match_score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Overall match score (0-100)"
+          },
+          "alignment_breakdown": {
+            "type": "object",
+            "description": "Detailed breakdown of alignment by category"
+          }
+        },
+        "system_prompt": "You are an Expert Match Analyst specializing in brand-influencer partnerships.\n\nAnalyze the provided brand profile and influencer profile to calculate a Match Score (0-100).\n\n## Scoring Criteria:\n1. **Values Alignment (30 points)**: Do the influencer's content themes align with brand values?\n2. **Audience Overlap (25 points)**: Does the influencer's audience match the brand's target demographic?\n3. **Tone Compatibility (20 points)**: Is the influencer's communication style compatible with the brand's tone?\n4. **Risk Assessment (15 points)**: Account for any controversies or reputation risks.\n5. **Authenticity Score (10 points)**: Does the influencer have genuine engagement?\n\n## Output Requirements:\n- **match_score**: Overall score 0-100\n- **alignment_breakdown**: Object with scores for each criterion above\n- **pros**: List of specific advantages for this partnership\n- **red_flags**: List of potential risks or concerns\n- **confidence_level**: 'high', 'medium', or 'low' based on data quality\n\n## Scoring Guidelines:\n- 80-100: Excellent Match - Strong recommendation\n- 60-79: Good Match - Proceed with minor considerations\n- 40-59: Moderate Match - Significant considerations needed\n- 20-39: Weak Match - Not recommended without changes\n- 0-19: Poor Match - Strong advise against\n\nBe specific in your pros and red_flags - reference actual content or behaviors observed.",
+        "tools": [],
+        "model": null,
+        "function": null,
+        "routes": {},
+        "max_retries": 2,
+        "retry_on": [],
+        "output_model": null,
+        "max_validation_retries": 2
+      },
+      {
+        "id": "output-formatter",
+        "name": "Sales Brief Generator",
+        "description": "Formats the analysis into a clean, CRM-ready Sales Brief with actionable insights.",
+        "node_type": "llm_generate",
+        "input_keys": [
+          "brand_profile",
+          "influencer_profile",
+          "match_score",
+          "alignment_breakdown",
+          "pros",
+          "red_flags",
+          "confidence_level"
+        ],
+        "output_keys": [
+          "sales_brief",
+          "executive_summary",
+          "recommendation",
+          "next_steps"
+        ],
+        "nullable_output_keys": [],
+        "input_schema": {},
+        "output_schema": {
+          "sales_brief": {
+            "type": "object",
+            "description": "Complete structured sales brief"
+          }
+        },
+        "system_prompt": "You are a Sales Enablement Specialist. Generate a polished Sales Brief for the brand-influencer match analysis.\n\n## Sales Brief Structure:\n\n### Executive Summary (2-3 sentences)\nQuick overview of the match quality and main recommendation.\n\n### Match Score Dashboard\n- Overall Score: [X/100]\n- Confidence: [High/Medium/Low]\n- Recommendation: [Strongly Recommend / Recommend / Proceed with Caution / Not Recommended]\n\n### Brand Profile Summary\nBrief overview of the brand's identity and target audience.\n\n### Influencer Profile Summary  \nBrief overview of the influencer's content focus and audience.\n\n### Partnership Pros\nBulleted list of specific advantages.\n\n### Red Flags & Considerations\nBulleted list of risks (if any).\n\n### Next Steps\nActionable recommendations for the sales team.\n\n## Output Format:\nReturn all content in the `sales_brief` object with proper structure.\nProvide a short `executive_summary` string for quick reference.\nSet `recommendation` to one of: 'strongly_recommend', 'recommend', 'proceed_with_caution', 'not_recommended'.\nList specific `next_steps` the sales team should take.",
+        "tools": [],
+        "model": null,
+        "function": null,
+        "routes": {},
+        "max_retries": 2,
+        "retry_on": [],
+        "output_model": null,
+        "max_validation_retries": 2
+      }
+    ],
+    "edges": [
+      {
+        "id": "brand-to-influencer",
+        "source": "brand-analyst",
+        "target": "influencer-discovery",
+        "condition": "on_success",
+        "condition_expr": null,
+        "priority": 0,
+        "input_mapping": {}
+      },
+      {
+        "id": "influencer-to-reasoning",
+        "source": "influencer-discovery",
+        "target": "reasoning-node",
+        "condition": "on_success",
+        "condition_expr": null,
+        "priority": 0,
+        "input_mapping": {}
+      },
+      {
+        "id": "reasoning-to-output",
+        "source": "reasoning-node",
+        "target": "output-formatter",
+        "condition": "on_success",
+        "condition_expr": null,
+        "priority": 0,
+        "input_mapping": {}
+      }
+    ],
+    "max_steps": 100,
+    "max_retries_per_node": 3,
+    "description": "Autonomous agent for analyzing brand-influencer alignment and generating match scores.",
+    "created_at": "2026-02-09T08:30:00.000000"
+  },
+  "goal": {
+    "id": "brand-influencer-match-goal",
+    "name": "Brand-Influencer Affinity Scorer",
+    "description": "Analyze brand-influencer alignment and generate a comprehensive match score with actionable sales brief.",
+    "status": "ready",
+    "success_criteria": [
+      {
+        "id": "brand-extraction",
+        "description": "Brand DNA successfully extracted from website",
+        "metric": "brand_profile_completeness",
+        "target": ">80%",
+        "weight": 0.25,
+        "met": false
+      },
+      {
+        "id": "influencer-analysis",
+        "description": "Influencer profile with content themes and sentiment captured",
+        "metric": "influencer_profile_completeness",
+        "target": ">80%",
+        "weight": 0.25,
+        "met": false
+      },
+      {
+        "id": "match-scoring",
+        "description": "Valid match score (0-100) with breakdown by criteria",
+        "metric": "scoring_validity",
+        "target": "100%",
+        "weight": 0.25,
+        "met": false
+      },
+      {
+        "id": "actionable-output",
+        "description": "Sales brief is structured and CRM-ready",
+        "metric": "output_structure",
+        "target": "100%",
+        "weight": 0.25,
+        "met": false
+      }
+    ],
+    "constraints": [
+      {
+        "id": "no-pii",
+        "description": "Do not collect or store personal identifiable information beyond public profiles",
+        "constraint_type": "hard",
+        "category": "privacy",
+        "check": ""
+      },
+      {
+        "id": "factual-accuracy",
+        "description": "All claims in the sales brief must be based on observable data",
+        "constraint_type": "hard",
+        "category": "accuracy",
+        "check": ""
+      },
+      {
+        "id": "balanced-assessment",
+        "description": "Include both pros AND potential concerns for every analysis",
+        "constraint_type": "soft",
+        "category": "quality",
+        "check": ""
+      },
+      {
+        "id": "time-limit",
+        "description": "Complete analysis within 2 minutes for real-time sales workflows",
+        "constraint_type": "soft",
+        "category": "performance",
+        "check": ""
+      }
+    ],
+    "context": {
+      "use_case": "Sales and Marketing teams evaluating influencer partnerships",
+      "domain": "Creator Economy / Influencer Marketing",
+      "self_healing": "Agent should pivot to alternative data sources if primary sources are blocked"
+    },
+    "required_capabilities": [
+      "web_scrape",
+      "brave_web_search",
+      "llm_reasoning"
+    ],
+    "input_schema": {
+      "brand_url": {
+        "type": "string",
+        "required": true,
+        "description": "URL of the brand's website"
+      },
+      "influencer_handle": {
+        "type": "string",
+        "required": true,
+        "description": "Influencer's social media handle or name"
+      }
+    },
+    "output_schema": {
+      "match_score": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100
+      },
+      "sales_brief": {
+        "type": "object"
+      },
+      "recommendation": {
+        "type": "string",
+        "enum": ["strongly_recommend", "recommend", "proceed_with_caution", "not_recommended"]
+      }
+    },
+    "version": "1.0.0",
+    "parent_version": null,
+    "evolution_reason": null,
+    "created_at": "2026-02-09T08:30:00.000000",
+    "updated_at": "2026-02-09T08:30:00.000000"
+  },
+  "required_tools": [
+    "web_scrape",
+    "brave_web_search"
+  ],
+  "metadata": {
+    "created_at": "2026-02-09T08:30:00.000000",
+    "node_count": 4,
+    "edge_count": 3,
+    "author": "Samir-atra",
+    "issue_reference": "https://github.com/adenhq/hive/issues/4127"
+  }
+}
