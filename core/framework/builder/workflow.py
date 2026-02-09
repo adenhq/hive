@@ -36,6 +36,7 @@ class BuildPhase(StrEnum):
     ADDING_EDGES = "adding_edges"  # Adding edges
     TESTING = "testing"  # Running tests
     APPROVED = "approved"  # Fully approved
+    OPTIMIZING = "optimizing"  # Running GEPA optimization
     EXPORTED = "exported"  # Exported to file
 
 
@@ -148,6 +149,62 @@ class GraphBuilder:
             )
 
         self._pending_validation: ValidationResult | None = None
+
+    def optimize_node(
+        self,
+        node_id: str,
+        train_examples: list[dict[str, Any]],
+        executor_factory: Callable,
+        **gepa_kwargs,
+    ) -> NodeSpec:
+        """
+        Optimize a specific node using GEPA.
+
+        Args:
+            node_id: ID of the node to optimize
+            train_examples: List of training examples
+            executor_factory: Factory for GraphExecutor
+            **gepa_kwargs: Additional arguments for GEPA
+
+        Returns:
+            Optimized NodeSpec
+        """
+        self._require_phase([BuildPhase.ADDING_NODES, BuildPhase.ADDING_EDGES, BuildPhase.TESTING])
+        
+        # Find the node
+        node_idx = -1
+        for i, n in enumerate(self.session.nodes):
+            if n.id == node_id:
+                node_idx = i
+                break
+        
+        if node_idx == -1:
+            raise ValueError(f"Node '{node_id}' not found")
+        
+        from framework.builder.optimizer import GEPAAgentOptimizer
+        
+        prev_phase = self.session.phase
+        self.session.phase = BuildPhase.OPTIMIZING
+        self._save_session()
+        
+        try:
+            optimizer = GEPAAgentOptimizer(
+                node_spec=self.session.nodes[node_idx],
+                goal=self.session.goal,
+                storage_path=str(self.storage_path.parent),  # Assuming hierarchy
+                executor_factory=executor_factory,
+            )
+            
+            optimized_node = optimizer.optimize(train_examples, **gepa_kwargs)
+            
+            # Update session with optimized node
+            self.session.nodes[node_idx] = optimized_node
+            self._save_session()
+            
+            return optimized_node
+        finally:
+            self.session.phase = prev_phase
+            self._save_session()
 
     # =========================================================================
     # PHASE 1: GOAL

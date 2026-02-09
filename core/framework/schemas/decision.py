@@ -179,3 +179,17 @@ class Decision(BaseModel):
         chosen = self.chosen_option
         action = chosen.description if chosen else "unknown action"
         return f"{status} [{self.node_id}] {self.intent} → {action}{quality}"
+
+    def to_trajectory_segment(self) -> dict[str, Any]:
+        """Convert decision to a segment for GEPA trajectories."""
+        return {
+            "role": "assistant",
+            "content": (
+                f"Intent: {self.intent}\n"
+                f"Reasoning: {self.reasoning}\n"
+                f"Chosen Option: {self.chosen_option_id}\n"
+                f"Outcome: {'Success' if self.was_successful else 'Failure'}\n"
+                f"Error: {self.outcome.error if self.outcome else 'N/A'}\n"
+                f"Evaluation: {self.evaluation.explanation if self.evaluation else 'N/A'}"
+            ),
+        }
