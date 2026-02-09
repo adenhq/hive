@@ -5,9 +5,15 @@ Send messages and interact with Discord servers via the Discord API.
 ## Supported Actions
 
 - **discord_list_guilds** – List guilds (servers) the bot is a member of
-- **discord_list_channels** – List channels for a guild
-- **discord_send_message** – Send a message to a channel
+- **discord_list_channels** – List channels for a guild (optional `text_only` filter)
+- **discord_send_message** – Send a message to a channel (validates 2000-char limit)
 - **discord_get_messages** – Get recent messages from a channel
+
+## Limits & Validation
+
+- **Message length**: Max 2000 characters (validated before sending)
+- **Rate limits**: Returns clear error with `retry_after` on 429
+- **Channel filtering**: `discord_list_channels` defaults to text channels only; use `text_only=False` for all types
 
 ## Setup
 
