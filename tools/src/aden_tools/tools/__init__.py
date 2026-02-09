@@ -47,6 +47,7 @@ from .runtime_logs_tool import register_tools as register_runtime_logs
 from .slack_tool import register_tools as register_slack
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
+from .google_analytics_tool import register_google_analytics
 
 
 def register_all_tools(
@@ -79,6 +80,7 @@ def register_all_tools(
     register_hubspot(mcp, credentials=credentials)
     register_apollo(mcp, credentials=credentials)
     register_slack(mcp, credentials=credentials)
+    register_google_analytics(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -209,6 +211,11 @@ def register_all_tools(
         "slack_kick_user_from_channel",
         "slack_delete_file",
         "slack_get_team_stats",
+        # Google Analytics tools
+        "ga_run_report",
+        "ga_get_realtime",
+        "ga_get_top_pages",
+        "ga_get_traffic_sources",
     ]
 
 
