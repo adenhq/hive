@@ -19,6 +19,9 @@ if TYPE_CHECKING:
     from aden_tools.credentials import CredentialStoreAdapter
 
 DISCORD_API_BASE = "https://discord.com/api/v10"
+MAX_MESSAGE_LENGTH = 2000  # Discord API limit
+# Channel types: 0 = GUILD_TEXT, 5 = GUILD_ANNOUNCEMENT (both support messages)
+TEXT_CHANNEL_TYPES = (0, 5)
 
 
 class _DiscordClient:
@@ -39,6 +42,20 @@ class _DiscordClient:
         if response.status_code == 204:
             return {"success": True}
 
+        if response.status_code == 429:
+            try:
+                data = response.json()
+                retry_after = data.get("retry_after", 60)
+                message = data.get("message", "Rate limit exceeded")
+            except Exception:
+                retry_after = 60
+                message = "Rate limit exceeded"
+            return {
+                "error": f"Discord rate limit exceeded. Retry after {retry_after}s",
+                "retry_after": retry_after,
+                "message": message,
+            }
+
         if response.status_code != 200:
             try:
                 data = response.json()
@@ -58,14 +75,19 @@ class _DiscordClient:
         )
         return self._handle_response(response)
 
-    def list_channels(self, guild_id: str) -> dict[str, Any]:
-        """List channels for a guild."""
+    def list_channels(self, guild_id: str, text_only: bool = True) -> dict[str, Any]:
+        """List channels for a guild. Optionally filter to text channels only."""
         response = httpx.get(
             f"{DISCORD_API_BASE}/guilds/{guild_id}/channels",
             headers=self._headers,
             timeout=30.0,
         )
-        return self._handle_response(response)
+        result = self._handle_response(response)
+        if isinstance(result, dict) and "error" in result:
+            return result
+        if text_only:
+            result = [c for c in result if c.get("type") in TEXT_CHANNEL_TYPES]
+        return result
 
     def send_message(
         self,
@@ -160,13 +182,15 @@ def register_tools(
             return {"error": f"Network error: {e}"}
 
     @mcp.tool()
-    def discord_list_channels(guild_id: str) -> dict:
+    def discord_list_channels(guild_id: str, text_only: bool = True) -> dict:
         """
         List channels for a Discord guild (server).
 
         Args:
             guild_id: Guild (server) ID. Enable Developer Mode in Discord and
                        right-click the server to copy ID. Or use discord_list_guilds.
+            text_only: If True (default), return only text channels (type 0 and 5).
+                       Set False to include voice, category, and other channel types.
 
         Returns:
             Dict with list of channels or error
@@ -175,7 +199,7 @@ def register_tools(
         if isinstance(client, dict):
             return client
         try:
-            result = client.list_channels(guild_id)
+            result = client.list_channels(guild_id, text_only=text_only)
             if "error" in result:
                 return result
             return {"channels": result, "success": True}
@@ -197,6 +221,12 @@ def register_tools(
         Returns:
             Dict with message details or error
         """
+        if len(content) > MAX_MESSAGE_LENGTH:
+            return {
+                "error": f"Message exceeds {MAX_MESSAGE_LENGTH} character limit",
+                "max_length": MAX_MESSAGE_LENGTH,
+                "provided": len(content),
+            }
         client = _get_client()
         if isinstance(client, dict):
             return client
