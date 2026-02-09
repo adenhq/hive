@@ -53,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Empty memory on resume by ensuring session_state["memory"] is properly populated
 
 ### Security
-- N/A
+- Fixed SSRF vulnerability in web_scrape_tool by enforcing blocklist for internal network addresses and preventing DNS rebinding at the transport layer (#309)
 
 ## [0.1.0] - 2025-01-13
 
