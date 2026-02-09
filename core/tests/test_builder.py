@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from framework import BuilderQuery, Runtime
-from framework.schemas.run import RunStatus
+from framework.schemas import RunStatus
 
 # Mark all tests in this module as skipped - they rely on deprecated FileStorage
 pytestmark = pytest.mark.skip(reason="Tests rely on deprecated FileStorage backend")

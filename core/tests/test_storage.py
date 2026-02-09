@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from framework.schemas.run import Run, RunMetrics, RunStatus
+from framework.schemas import Run, RunMetrics, RunStatus
 from framework.storage.backend import FileStorage
 from framework.storage.concurrent import CacheEntry, ConcurrentStorage
 

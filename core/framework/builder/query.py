@@ -12,8 +12,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from framework.schemas.decision import Decision
-from framework.schemas.run import Run, RunStatus, RunSummary
+from framework.schemas import Decision, Run, RunStatus, RunSummary
 from framework.storage.backend import FileStorage
 
 
