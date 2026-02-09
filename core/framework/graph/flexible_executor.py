@@ -68,11 +68,6 @@ class FlexibleGraphExecutor:
         )
 
         result = await executor.execute_plan(plan, goal, context)
-
-        if result.status == ExecutionStatus.NEEDS_REPLAN:
-            # External planner should create new plan using result.feedback
-            new_plan = external_planner.replan(result.feedback_context)
-            result = await executor.execute_plan(new_plan, goal, result.feedback_context)
     """
 
     def __init__(
@@ -98,7 +93,6 @@ class FlexibleGraphExecutor:
             judge: Custom judge (defaults to HybridJudge with default rules)
             config: Executor configuration
             approval_callback: Callback for human-in-the-loop approval.
-                If None, steps requiring approval will pause execution.
         """
         self.runtime = runtime
         self.llm = llm
@@ -138,6 +132,11 @@ class FlexibleGraphExecutor:
         Returns:
             PlanExecutionResult with status and feedback
         """
+        # --- ELITE RESILIENCE INJECTION (Correct Object & Placement) ---
+        from core.runtime.crash_safe_state import enable_crash_safe_state
+        persist = enable_crash_safe_state(self.runtime)
+        # ---------------------------------------------------------------
+
         context = context or {}
         context.update(plan.context)  # Merge plan's accumulated context
 
@@ -176,11 +175,8 @@ class FlexibleGraphExecutor:
                             total_latency=total_latency,
                         )
 
-                # Execute next step (for now, sequential; could be parallel)
+                # Execute next step (for now, sequential)
                 step = ready_steps[0]
-                # Debug: show ready steps
-                # ready_ids = [s.id for s in ready_steps]
-                # print(f"  [DEBUG] Ready steps: {ready_ids}, executing: {step.id}")
 
                 # APPROVAL CHECK - before execution
                 if step.requires_approval:
@@ -222,8 +218,6 @@ class FlexibleGraphExecutor:
                         if approval_result.modifications:
                             self._apply_modifications(step, approval_result.modifications)
 
-                    # APPROVE - continue to execution
-
                 step.status = StepStatus.IN_PROGRESS
                 step.started_at = datetime.now()
                 step.attempts += 1
@@ -254,6 +248,11 @@ class FlexibleGraphExecutor:
                     total_tokens=total_tokens,
                     total_latency=total_latency,
                 )
+
+                # --- SOVEREIGN CHECKPOINT ONLY AFTER SUCCESSFUL JUDGMENT ---
+                if judgment.action == JudgmentAction.ACCEPT:
+                    persist()
+                # ----------------------------------------------------------
 
                 if result is not None:
                     # Judgment resulted in early return (replan/escalate)
@@ -314,8 +313,6 @@ class FlexibleGraphExecutor:
     ) -> PlanExecutionResult | None:
         """
         Handle judgment and return result if execution should stop.
-
-        Returns None to continue execution, or PlanExecutionResult to stop.
         """
         if judgment.action == JudgmentAction.ACCEPT:
             # Step succeeded - update state and continue
@@ -323,20 +320,15 @@ class FlexibleGraphExecutor:
             step.completed_at = datetime.now()
             step.result = work_result.outputs
 
-            # Map outputs to expected output keys
-            # If output has generic "result" key but step expects specific keys, map it
+            # Map outputs
             outputs_to_store = work_result.outputs.copy()
             if step.expected_outputs and "result" in outputs_to_store:
                 result_value = outputs_to_store["result"]
-                # For each expected output key that's not in outputs, map from "result"
                 for expected_key in step.expected_outputs:
                     if expected_key not in outputs_to_store:
                         outputs_to_store[expected_key] = result_value
 
-            # Update context with mapped outputs
             context.update(outputs_to_store)
-
-            # Store in plan context for replanning feedback
             plan.context[step.id] = outputs_to_store
 
             return None  # Continue execution
@@ -358,7 +350,7 @@ class FlexibleGraphExecutor:
 
                 return None  # Continue (step will be retried)
             else:
-                # Max retries exceeded - escalate to replan
+                # Max retries exceeded
                 step.status = StepStatus.FAILED
                 step.error = f"Max retries ({step.max_retries}) exceeded: {judgment.feedback}"
 
@@ -447,8 +439,6 @@ class FlexibleGraphExecutor:
     ) -> ApprovalResult | None:
         """
         Request human approval for a step.
-
-        Returns None if no callback is set (execution should pause).
         """
         if self.approval_callback is None:
             return None
@@ -459,7 +449,6 @@ class FlexibleGraphExecutor:
             preview_parts.append(f"Tool: {step.action.tool_name}")
             if step.action.tool_args:
                 import json
-
                 args_preview = json.dumps(step.action.tool_args, indent=2, default=str)
                 if len(args_preview) > 500:
                     args_preview = args_preview[:500] + "..."
@@ -472,10 +461,9 @@ class FlexibleGraphExecutor:
             )
             preview_parts.append(f"Prompt: {prompt_preview}")
 
-        # Include step inputs resolved from context (what will be sent/used)
+        # Include step inputs resolved from context
         relevant_context = {}
         for input_key, input_value in step.inputs.items():
-            # Resolve variable references like "$email_sequence"
             if isinstance(input_value, str) and input_value.startswith("$"):
                 context_key = input_value[1:]  # Remove $ prefix
                 if context_key in context:
@@ -540,8 +528,6 @@ async def execute_plan(
 ) -> PlanExecutionResult:
     """
     Execute a plan with default configuration.
-
-    Convenience function for simple use cases.
     """
     executor = FlexibleGraphExecutor(
         runtime=runtime,
