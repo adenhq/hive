@@ -659,8 +659,13 @@ class GraphExecutor:
                         node_retry_counts.get(current_node_id, 0) + 1
                     )
 
-                    # [CORRECTED] Use node_spec.max_retries instead of hardcoded 3
-                    max_retries = getattr(node_spec, "max_retries", 3)
+                    # Use node-level max_retries, fallback to graph-level, then default to 3
+                    node_max_retries = getattr(node_spec, "max_retries", None)
+                    max_retries = (
+                        node_max_retries
+                        if node_max_retries is not None
+                        else graph.max_retries_per_node
+                    )
 
                     # Event loop nodes handle retry internally via judge —
                     # executor retry is catastrophic (retry multiplication)
@@ -1478,7 +1483,11 @@ class GraphExecutor:
                 branch.error = f"Node {branch.node_id} not found in graph"
                 return branch, RuntimeError(branch.error)
 
-            effective_max_retries = node_spec.max_retries
+            effective_max_retries = (
+                node_spec.max_retries
+                if node_spec.max_retries is not None
+                else graph.max_retries_per_node
+            )
             if node_spec.node_type == "event_loop":
                 if effective_max_retries > 1:
                     self.logger.warning(

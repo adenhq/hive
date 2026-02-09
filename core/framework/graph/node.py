@@ -207,7 +207,12 @@ class NodeSpec(BaseModel):
     )
 
     # Retry behavior
-    max_retries: int = Field(default=3)
+    max_retries: int | None = Field(
+        default=None,
+        description=(
+            "Max retry attempts. If None, inherits from graph.max_retries_per_node (default 3)"
+        ),
+    )
     retry_on: list[str] = Field(default_factory=list, description="Error types to retry on")
 
     # Visit limits (for feedback/callback edges)

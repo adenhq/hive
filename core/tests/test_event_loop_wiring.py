@@ -262,8 +262,8 @@ def test_existing_node_types_unchanged():
     spec = NodeSpec(id="x", name="X", description="x")
     assert spec.node_type == "llm_tool_use"
 
-    # Default max_retries is still 3
-    assert spec.max_retries == 3
+    # Default max_retries is None (inherits from graph)
+    assert spec.max_retries is None
 
     # Default client_facing is False
     assert spec.client_facing is False

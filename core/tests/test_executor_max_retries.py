@@ -158,19 +158,19 @@ async def test_executor_respects_custom_max_retries_low(runtime):
 @pytest.mark.asyncio
 async def test_executor_respects_default_max_retries(runtime):
     """
-    Test that executor uses default max_retries=3 when not specified.
+    Test that executor uses graph.max_retries_per_node when node max_retries is None (default).
     """
-    # Create node without specifying max_retries (should default to 3)
+    # Create node without specifying max_retries (defaults to None)
     node_spec = NodeSpec(
         id="default_node",
         name="Default Node",
         description="A node using default retry settings",
-        # max_retries not specified, should default to 3
+        # max_retries not specified, defaults to None
         node_type="function",
         output_keys=["result"],
     )
 
-    # Create graph
+    # Create graph with default max_retries_per_node=3
     graph = GraphSpec(
         id="test_graph",
         goal_id="test_goal",
@@ -179,6 +179,7 @@ async def test_executor_respects_default_max_retries(runtime):
         nodes=[node_spec],
         edges=[],
         terminal_nodes=["default_node"],
+        # max_retries_per_node defaults to 3
     )
 
     # Create goal
@@ -192,7 +193,7 @@ async def test_executor_respects_default_max_retries(runtime):
     # Execute
     result = await executor.execute(graph, goal, {})
 
-    # Should fail after default 3 total attempts (max_retries=N means N total attempts)
+    # Should fail after default 3 total attempts (from graph.max_retries_per_node)
     assert not result.success
     assert failing_node.attempt_count == 3  # 3 total attempts
     assert "failed after 3 attempts" in result.error
@@ -272,3 +273,49 @@ async def test_executor_different_nodes_different_max_retries(runtime):
     # The actual value varies per node as expected
     assert node1_spec.max_retries == 2
     assert node2_spec.max_retries == 5
+
+
+@pytest.mark.asyncio
+async def test_executor_uses_graph_level_max_retries_when_node_unset(runtime):
+    """
+    Test that executor falls back to graph.max_retries_per_node when node max_retries is None.
+
+    This verifies the fix for Issue #4135.
+    """
+    # Create node with max_retries=None (should use graph-level)
+    node_spec = NodeSpec(
+        id="graph_default_node",
+        name="Graph Default Node",
+        description="A node that should use graph-level max_retries",
+        node_type="function",
+        output_keys=["result"],
+        max_retries=None,  # Explicitly None to use graph-level
+    )
+
+    # Create graph with max_retries_per_node=5
+    graph = GraphSpec(
+        id="test_graph",
+        goal_id="test_goal",
+        name="Test Graph",
+        entry_node="graph_default_node",
+        nodes=[node_spec],
+        edges=[],
+        terminal_nodes=["graph_default_node"],
+        max_retries_per_node=5,  # Graph-level setting
+    )
+
+    goal = Goal(
+        id="test_goal", name="Test Goal", description="Test graph-level max_retries fallback"
+    )
+
+    # Create executor with node that fails 4 times, succeeds on 5th
+    executor = GraphExecutor(runtime=runtime)
+    flaky_node = FlakyTestNode(fail_times=4)
+    executor.register_node("graph_default_node", flaky_node)
+
+    # Execute
+    result = await executor.execute(graph, goal, {})
+
+    # Should succeed because 4 failures < 5 graph-level max_retries
+    assert result.success
+    assert flaky_node.attempt_count == 5  # 4 failures + 1 success
