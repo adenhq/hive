@@ -288,6 +288,7 @@ if [ "$USE_ASSOC_ARRAYS" = true ]; then
         ["MISTRAL_API_KEY"]="Mistral"
         ["TOGETHER_API_KEY"]="Together AI"
         ["DEEPSEEK_API_KEY"]="DeepSeek"
+        ["OLLAMA_API_KEY"]="Ollama (Local)"
     )
 
     declare -A PROVIDER_IDS=(
@@ -300,6 +301,7 @@ if [ "$USE_ASSOC_ARRAYS" = true ]; then
         ["MISTRAL_API_KEY"]="mistral"
         ["TOGETHER_API_KEY"]="together"
         ["DEEPSEEK_API_KEY"]="deepseek"
+        ["OLLAMA_API_KEY"]="ollama"
     )
 
     declare -A DEFAULT_MODELS=(
@@ -311,6 +313,7 @@ if [ "$USE_ASSOC_ARRAYS" = true ]; then
         ["mistral"]="mistral-large-latest"
         ["together_ai"]="meta-llama/Llama-3.3-70B-Instruct-Turbo"
         ["deepseek"]="deepseek-chat"
+        ["ollama"]="ollama/llama3"
     )
 
     # Helper functions for Bash 4+
@@ -327,13 +330,13 @@ if [ "$USE_ASSOC_ARRAYS" = true ]; then
     }
 else
     # Bash 3.2 - use parallel indexed arrays
-    PROVIDER_ENV_VARS=(ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY GROQ_API_KEY CEREBRAS_API_KEY MISTRAL_API_KEY TOGETHER_API_KEY DEEPSEEK_API_KEY)
-    PROVIDER_DISPLAY_NAMES=("Anthropic (Claude)" "OpenAI (GPT)" "Google Gemini" "Google AI" "Groq" "Cerebras" "Mistral" "Together AI" "DeepSeek")
-    PROVIDER_ID_LIST=(anthropic openai gemini google groq cerebras mistral together deepseek)
+    PROVIDER_ENV_VARS=(ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY GROQ_API_KEY CEREBRAS_API_KEY MISTRAL_API_KEY TOGETHER_API_KEY DEEPSEEK_API_KEY OLLAMA_API_KEY)
+    PROVIDER_DISPLAY_NAMES=("Anthropic (Claude)" "OpenAI (GPT)" "Google Gemini" "Google AI" "Groq" "Cerebras" "Mistral" "Together AI" "DeepSeek" "Ollama (Local)")
+    PROVIDER_ID_LIST=(anthropic openai gemini google groq cerebras mistral together deepseek ollama)
 
     # Default models by provider id (parallel arrays)
-    MODEL_PROVIDER_IDS=(anthropic openai gemini groq cerebras mistral together_ai deepseek)
-    MODEL_DEFAULTS=("claude-sonnet-4-5-20250929" "gpt-4o" "gemini-3.0-flash-preview" "moonshotai/kimi-k2-instruct-0905" "zai-glm-4.7" "mistral-large-latest" "meta-llama/Llama-3.3-70B-Instruct-Turbo" "deepseek-chat")
+    MODEL_PROVIDER_IDS=(anthropic openai gemini groq cerebras mistral together_ai deepseek ollama)
+    MODEL_DEFAULTS=("claude-sonnet-4-5-20250929" "gpt-4o" "gemini-3.0-flash-preview" "moonshotai/kimi-k2-instruct-0905" "zai-glm-4.7" "mistral-large-latest" "meta-llama/Llama-3.3-70B-Instruct-Turbo" "deepseek-chat" "ollama/llama3")
 
     # Helper: get provider display name for an env var
     get_provider_name() {
@@ -415,8 +418,7 @@ SHELL_NAME=$(basename "$SHELL")
 save_configuration() {
     local provider_id="$1"
     local env_var="$2"
-    local model
-    model="$(get_default_model "$provider_id")"
+    local model="${3:-$(get_default_model "$provider_id")}"
 
     mkdir -p "$HIVE_CONFIG_DIR"
 
@@ -434,6 +436,89 @@ with open('$HIVE_CONFIG_FILE', 'w') as f:
     json.dump(config, f, indent=2)
 print(json.dumps(config, indent=2))
 " 2>/dev/null
+}
+
+# Specialized setup for Ollama
+setup_ollama() {
+    echo ""
+    echo -e "${YELLOW}⬢${NC} ${BLUE}${BOLD}Ollama (Local) Setup...${NC}"
+    echo ""
+
+    # Check if ollama is installed
+    if ! command -v ollama &> /dev/null; then
+        echo -e "${RED}  ✗ ollama command not found.${NC}"
+        echo "    Please install Ollama from https://ollama.com"
+        echo "    Then run this script again."
+        return 1
+    fi
+    echo -e "${GREEN}  ✓ ollama command detected${NC}"
+
+    # Check if ollama server is running (default port 11434)
+    if ! curl -s http://localhost:11434/api/tags &> /dev/null; then
+        echo -e "${RED}  ✗ Ollama server is not running.${NC}"
+        echo "    Please start the Ollama application and try again."
+        return 1
+    fi
+    echo -e "${GREEN}  ✓ Ollama server is running${NC}"
+
+    # Extract model name from default config
+    local full_model_name
+    full_model_name="$(get_default_model "ollama")"
+    local model_name="${full_model_name#ollama/}"
+
+    # 1. Capture local models once
+    mapfile -t LOCAL_MODELS < <(ollama list | tail -n +2 | awk "{print \$1}")
+
+    # Check if default model exists in local models
+    local found=false
+    for m in "${LOCAL_MODELS[@]}"; do
+        if [[ "$m" == "$model_name" ]] || [[ "$m" == "${model_name}:latest" ]]; then
+            found=true
+            break
+        fi
+    done
+
+    if [ "$found" = true ]; then
+        echo -e "  Checking for $model_name model... ${GREEN}ok${NC}"
+        SELECTED_MODEL="ollama/$model_name"
+    else
+        echo -e "  Checking for $model_name model... ${YELLOW}missing${NC}"
+        if prompt_yes_no "  Should I pull the $model_name model now?"; then
+            echo ""
+            ollama pull "$model_name"
+            echo ""
+            SELECTED_MODEL="ollama/$model_name"
+        else
+            echo -e "${YELLOW}  ⚠ Skipping $model_name download.${NC}"
+
+            if [ ${#LOCAL_MODELS[@]} -gt 0 ]; then
+                echo ""
+                prompt_choice "Select an alternative model from your local Ollama:" "${LOCAL_MODELS[@]}" "Cancel"
+                local choice=$PROMPT_CHOICE
+
+                if [ $choice -ge ${#LOCAL_MODELS[@]} ]; then
+                    echo -e "${YELLOW}  ⚠ Ollama setup cancelled.${NC}"
+                    return 1
+                fi
+
+                SELECTED_MODEL="ollama/${LOCAL_MODELS[$choice]}"
+                echo -e "${GREEN}  ✓ Selected: $SELECTED_MODEL${NC}"
+            else
+                echo -e "${RED}  ✗ No local models found. Please pull a model manually.${NC}"
+                return 1
+            fi
+        fi
+    fi
+
+    SELECTED_PROVIDER_ID="ollama"
+    SELECTED_ENV_VAR="" # No env var needed for Ollama local
+
+    echo ""
+    echo -e "${GREEN}⬢${NC} Ollama configured successfully."
+
+    # Save configuration
+    save_configuration "$SELECTED_PROVIDER_ID" "$SELECTED_ENV_VAR" "$SELECTED_MODEL" > /dev/null
+    return 0
 }
 
 # Source shell rc file to pick up existing env vars (temporarily disable set -e)
@@ -526,6 +611,7 @@ if [ -z "$SELECTED_PROVIDER_ID" ]; then
         "Google Gemini - Free tier available" \
         "Groq - Fast, free tier" \
         "Cerebras - Fast, free tier" \
+        "Ollama (Local)" \
         "Skip for now"
      choice=$PROMPT_CHOICE
 
@@ -561,6 +647,12 @@ if [ -z "$SELECTED_PROVIDER_ID" ]; then
             SIGNUP_URL="https://cloud.cerebras.ai/"
             ;;
         5)
+            if ! setup_ollama; then
+                SELECTED_PROVIDER_ID=""
+                SELECTED_ENV_VAR=""
+            fi
+            ;;
+        6)
             echo ""
             echo -e "${YELLOW}Skipped.${NC} An LLM API key is required to test and use worker agents."
             echo -e "Add your API key later by running:"
