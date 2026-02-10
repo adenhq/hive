@@ -2,6 +2,9 @@
 
 This guide will help you set up the Aden Agent Framework and build your first agent.
 
+> [!NOTE]
+> **Aden vs. Hive:** **Hive** is an open-source framework and CLI for building and running AI agents. **Aden** is the company behind Hive, providing the platform and tools to evolve your agent development.
+
 ## Prerequisites
 
 - **Python 3.11+** ([Download](https://www.python.org/downloads/)) - Python 3.12 or 3.13 recommended
@@ -153,6 +156,9 @@ Get your API keys:
 ```bash
 # Using Claude Code
 claude> /hive-test
+
+# Using CLI
+hive test-run exports/my_agent
 
 # Or manually
 PYTHONPATH=exports uv run python -m my_agent test

@@ -176,7 +176,13 @@ if ($importErrors -eq 0) {
     Write-Host "**************************************************" -ForegroundColor Green
     Write-Host "Your environment is ready!"
     Write-Host "LLM: $($selected.ID)"
-    Write-Host "Next: Run 'hive tui'"
+    Write-Host "`nNext Steps (Terminal):" -ForegroundColor Cyan
+    Write-Host "  . Run 'hive tui' to launch the dashboard"
+    Write-Host "  . Run 'hive run <agent_path>' to execute an agent"
+    Write-Host "`nNext Steps (Claude Code):" -ForegroundColor Cyan
+    Write-Host "  . Open Claude: 'claude'"
+    Write-Host "  . Build agent: '/hive'"
+    Write-Host "  . Test agent:  '/hive-test'"
 }
 else {
     Write-Host "Final verification failed." -ForegroundColor Red
