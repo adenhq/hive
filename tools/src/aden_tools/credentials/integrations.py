@@ -50,4 +50,20 @@ INTEGRATION_CREDENTIALS = {
         credential_id="hubspot",
         credential_key="access_token",
     ),
+    "newsdata": CredentialSpec(
+        env_var="NEWSDATA_API_KEY",
+        tools=["news_search", "news_headlines", "news_by_company"],
+        required=True,
+        startup_required=False,
+        help_url="https://newsdata.io/",
+        description="API key for NewsData.io news search",
+    ),
+    "finlight": CredentialSpec(
+        env_var="FINLIGHT_API_KEY",
+        tools=["news_sentiment"],
+        required=True,
+        startup_required=False,
+        help_url="https://finlight.me/",
+        description="API key for Finlight news sentiment analysis",
+    ),
 }
