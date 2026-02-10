@@ -405,8 +405,11 @@ class ToolRegistry:
                             return result
                         except Exception as e:
                             logger.error(f"MCP tool '{tool_name}' execution failed: {e}")
-                            return {"error": str(e)}
-
+                            return(
+                                  f"TOOL_EXECUTION_FAILURE: The tool '{tool_name}' failed to run.\n"
+                                  f"Error: {str(e)}\n"
+                                  "Check your arguments and try again."
+                                  )
                     return executor
 
                 tool_params = set(mcp_tool.input_schema.get("properties", {}).keys())
