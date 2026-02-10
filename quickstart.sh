@@ -302,6 +302,18 @@ if [ "$USE_ASSOC_ARRAYS" = true ]; then
         ["DEEPSEEK_API_KEY"]="deepseek"
     )
 
+    declare -A PROVIDER_SIGNUP_URLS=(
+        ["ANTHROPIC_API_KEY"]="https://console.anthropic.com/settings/keys"
+        ["OPENAI_API_KEY"]="https://platform.openai.com/api-keys"
+        ["GEMINI_API_KEY"]="https://aistudio.google.com/apikey"
+        ["GOOGLE_API_KEY"]="https://aistudio.google.com/apikey"
+        ["GROQ_API_KEY"]="https://console.groq.com/keys"
+        ["CEREBRAS_API_KEY"]="https://cloud.cerebras.ai/"
+        ["MISTRAL_API_KEY"]="https://console.mistral.ai/api-keys/"
+        ["TOGETHER_API_KEY"]="https://api.together.xyz/settings/api-keys"
+        ["DEEPSEEK_API_KEY"]="https://platform.deepseek.com/api_keys"
+    )
+
     declare -A DEFAULT_MODELS=(
         ["anthropic"]="claude-opus-4-6"
         ["openai"]="gpt-5.2"
@@ -400,11 +412,17 @@ if [ "$USE_ASSOC_ARRAYS" = true ]; then
     get_model_choice_maxtokens() {
         echo "${MODEL_CHOICES_MAXTOKENS[$1:$2]}"
     }
+
+    get_provider_signup_url() {
+        echo "${PROVIDER_SIGNUP_URLS[$1]}"
+    }
 else
     # Bash 3.2 - use parallel indexed arrays
     PROVIDER_ENV_VARS=(ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY GOOGLE_API_KEY GROQ_API_KEY CEREBRAS_API_KEY MISTRAL_API_KEY TOGETHER_API_KEY DEEPSEEK_API_KEY)
     PROVIDER_DISPLAY_NAMES=("Anthropic (Claude)" "OpenAI (GPT)" "Google Gemini" "Google AI" "Groq" "Cerebras" "Mistral" "Together AI" "DeepSeek")
     PROVIDER_ID_LIST=(anthropic openai gemini google groq cerebras mistral together deepseek)
+    PROVIDER_SIGNUP_URLS=("https://console.anthropic.com/settings/keys" "https://platform.openai.com/api-keys" "https://aistudio.google.com/apikey" "https://aistudio.google.com/apikey" "https://console.groq.com/keys" "https://cloud.cerebras.ai/" "https://console.mistral.ai/api-keys/" "https://api.together.xyz/settings/api-keys" "https://platform.deepseek.com/api_keys")
+
 
     # Default models by provider id (parallel arrays)
     MODEL_PROVIDER_IDS=(anthropic openai gemini groq cerebras mistral together_ai deepseek)
@@ -520,6 +538,19 @@ else
                     return
                 fi
                 count=$((count + 1))
+            fi
+            i=$((i + 1))
+        done
+    }
+
+    # Helper: get provider signup URL for an env var
+    get_provider_signup_url() {
+        local env_var="$1"
+        local i=0
+        while [ $i -lt ${#PROVIDER_ENV_VARS[@]} ]; do
+            if [ "${PROVIDER_ENV_VARS[$i]}" = "$env_var" ]; then
+                echo "${PROVIDER_SIGNUP_URLS[$i]}"
+                return
             fi
             i=$((i + 1))
         done
@@ -744,57 +775,57 @@ fi
 
 if [ -z "$SELECTED_PROVIDER_ID" ]; then
     echo ""
-    prompt_choice "Select your LLM provider:" \
-        "Anthropic (Claude) - Recommended" \
-        "OpenAI (GPT)" \
-        "Google Gemini - Free tier available" \
-        "Groq - Fast, free tier" \
-        "Cerebras - Fast, free tier" \
-        "Skip for now"
-     choice=$PROMPT_CHOICE
-
-    case $choice in
-        0)
-            SELECTED_ENV_VAR="ANTHROPIC_API_KEY"
-            SELECTED_PROVIDER_ID="anthropic"
-            PROVIDER_NAME="Anthropic"
-            SIGNUP_URL="https://console.anthropic.com/settings/keys"
-            ;;
-        1)
-            SELECTED_ENV_VAR="OPENAI_API_KEY"
-            SELECTED_PROVIDER_ID="openai"
-            PROVIDER_NAME="OpenAI"
-            SIGNUP_URL="https://platform.openai.com/api-keys"
-            ;;
-        2)
-            SELECTED_ENV_VAR="GEMINI_API_KEY"
-            SELECTED_PROVIDER_ID="gemini"
-            PROVIDER_NAME="Google Gemini"
-            SIGNUP_URL="https://aistudio.google.com/apikey"
-            ;;
-        3)
-            SELECTED_ENV_VAR="GROQ_API_KEY"
-            SELECTED_PROVIDER_ID="groq"
-            PROVIDER_NAME="Groq"
-            SIGNUP_URL="https://console.groq.com/keys"
-            ;;
-        4)
-            SELECTED_ENV_VAR="CEREBRAS_API_KEY"
-            SELECTED_PROVIDER_ID="cerebras"
-            PROVIDER_NAME="Cerebras"
-            SIGNUP_URL="https://cloud.cerebras.ai/"
-            ;;
-        5)
-            echo ""
-            echo -e "${YELLOW}Skipped.${NC} An LLM API key is required to test and use worker agents."
-            echo -e "Add your API key later by running:"
-            echo ""
-            echo -e "  ${CYAN}echo 'export ANTHROPIC_API_KEY=\"your-key\"' >> $SHELL_RC_FILE${NC}"
-            echo ""
-            SELECTED_ENV_VAR=""
-            SELECTED_PROVIDER_ID=""
-            ;;
-    esac
+    
+    # Build provider menu dynamically from centralized configuration
+    PROVIDER_MENU_OPTIONS=()
+    PROVIDER_MENU_ENV_VARS=()
+    
+    # Define quick menu providers in preferred order (subset of all available providers)
+    QUICK_MENU_PROVIDERS=("ANTHROPIC_API_KEY" "OPENAI_API_KEY" "GEMINI_API_KEY" "GROQ_API_KEY" "CEREBRAS_API_KEY")
+    
+    # Build menu options with labels
+    for env_var in "${QUICK_MENU_PROVIDERS[@]}"; do
+        display_name=$(get_provider_name "$env_var")
+        
+        # Add special annotations for certain providers
+        case "$env_var" in
+            ANTHROPIC_API_KEY)
+                display_name="$display_name - Recommended"
+                ;;
+            GEMINI_API_KEY|GROQ_API_KEY|CEREBRAS_API_KEY)
+                display_name="$display_name - Free tier available"
+                ;;
+        esac
+        
+        PROVIDER_MENU_OPTIONS+=("$display_name")
+        PROVIDER_MENU_ENV_VARS+=("$env_var")
+    done
+    
+    # Add "Skip for now" option
+    PROVIDER_MENU_OPTIONS+=("Skip for now")
+    
+    # Show menu
+    prompt_choice "Select your LLM provider:" "${PROVIDER_MENU_OPTIONS[@]}"
+    choice=$PROMPT_CHOICE
+    
+    # Handle choice
+    if [ $choice -lt ${#PROVIDER_MENU_ENV_VARS[@]} ]; then
+        # User selected a provider
+        SELECTED_ENV_VAR="${PROVIDER_MENU_ENV_VARS[$choice]}"
+        SELECTED_PROVIDER_ID=$(get_provider_id "$SELECTED_ENV_VAR")
+        PROVIDER_NAME=$(get_provider_name "$SELECTED_ENV_VAR")
+        SIGNUP_URL=$(get_provider_signup_url "$SELECTED_ENV_VAR")
+    else
+        # User selected "Skip for now"
+        echo ""
+        echo -e "${YELLOW}Skipped.${NC} An LLM API key is required to test and use worker agents."
+        echo -e "Add your API key later by running:"
+        echo ""
+        echo -e "  ${CYAN}echo 'export ANTHROPIC_API_KEY=\"your-key\"' >> $SHELL_RC_FILE${NC}"
+        echo ""
+        SELECTED_ENV_VAR=""
+        SELECTED_PROVIDER_ID=""
+    fi
 
     if [ -n "$SELECTED_ENV_VAR" ] && [ -z "${!SELECTED_ENV_VAR}" ]; then
         echo ""
