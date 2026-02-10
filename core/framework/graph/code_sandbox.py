@@ -167,9 +167,11 @@ def _run_in_process(
     preload_modules = preload_modules or []
     
     importer = RestrictedImporter(allowed_modules)
+    builtins_copy = dict(safe_builtins)
+    builtins_copy["__import__"] = importer
+    
     namespace = {
-        "__builtins__": dict(safe_builtins),
-        "__import__": importer,
+        "__builtins__": builtins_copy,
     }
 
     # Preload requested modules (check allowance first)
