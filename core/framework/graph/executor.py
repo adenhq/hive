@@ -9,6 +9,8 @@ The executor:
 5. Returns the final result
 """
 
+from core.framework.errors import HiveError, ToolExecutionError
+
 import asyncio
 import logging
 import warnings
@@ -353,17 +355,30 @@ class GraphExecutor:
                         current_node_id = graph.get_entry_point(session_state)
 
             except Exception as e:
-                self.logger.error(
-                    f"Failed to load checkpoint {checkpoint_id}: {e}, "
-                    f"resuming from normal entry point"
+                hive_error = HiveError(
+                    f"Failed to load checkpoint {checkpoint_id}",
+                    node_id=checkpoint_id,
+                    original_exception=e,
                 )
-                # Check if resuming from paused_at (fallback to session state)
+
+                self.logger.error(
+                    "Checkpoint load failed, resuming from fallback",
+                    extra={
+                        "error_type": hive_error.error_type,
+                        "retryable": hive_error.retryable,
+                        "checkpoint_id": checkpoint_id,
+                    },
+                    exc_info=e,
+                )
+
+                #Preserving original fallback behavior
                 paused_at = session_state.get("paused_at") if session_state else None
                 if paused_at and graph.get_node(paused_at) is not None:
                     current_node_id = paused_at
                     self.logger.info(f"🔄 Resuming from paused node: {paused_at}")
                 else:
                     current_node_id = graph.get_entry_point(session_state)
+                    
         else:
             # Check if resuming from paused_at (session state resume)
             paused_at = session_state.get("paused_at") if session_state else None
@@ -1026,30 +1041,43 @@ class GraphExecutor:
 
         except Exception as e:
             import traceback
+            from core.framework.errors import HiveError
 
             stack_trace = traceback.format_exc()
 
-            self.runtime.report_problem(
-                severity="critical",
-                description=str(e),
-            )
-            self.runtime.end_run(
-                success=False,
-                narrative=f"Failed at step {steps}: {e}",
+            hive_error = (
+                e
+                if isinstance(e, HiveError)
+                else HiveError(
+                    message="Unhandled fatal execution error",
+                    node_id=node_spec.id if node_spec else None,
+                    original_exception=e,
+                )
             )
 
-            # Log the crashing node to L2 with full stack trace
+            #Report critical failure
+            self.runtime.report_problem(
+                severity="critical",
+                description=hive_error.args[0],
+            )
+
+            self.runtime.end_run(
+                success=False,
+                narrative=f"Failed at step {steps}: {hive_error.args[0]}",
+            )
+
+            #Log crashing node with structured error data
             if self.runtime_logger and node_spec is not None:
                 self.runtime_logger.ensure_node_logged(
                     node_id=node_spec.id,
                     node_name=node_spec.name,
                     node_type=node_spec.node_type,
                     success=False,
-                    error=str(e),
+                    error=hive_error.args[0],
                     stacktrace=stack_trace,
                 )
 
-            # Calculate quality metrics even for exceptions
+            #Calculate quality metrics even for exceptions
             total_retries_count = sum(node_retry_counts.values())
             nodes_failed = list(node_retry_counts.keys())
 
@@ -1061,7 +1089,7 @@ class GraphExecutor:
                     execution_quality="failed",
                 )
 
-            # Save memory and state for potential resume
+            #Save memory 
             saved_memory = memory.read_all()
             session_state_out: dict[str, Any] = {
                 "memory": saved_memory,
@@ -1069,12 +1097,11 @@ class GraphExecutor:
                 "node_visit_counts": dict(node_visit_counts),
             }
 
-            # Mark latest checkpoint for resume on failure
+            #Mark latest checkpoint 
             if checkpoint_store:
                 try:
                     checkpoints = await checkpoint_store.list_checkpoints()
                     if checkpoints:
-                        # Find latest clean checkpoint
                         index = await checkpoint_store.load_index()
                         if index:
                             latest_clean = index.get_latest_clean_checkpoint()
@@ -1089,11 +1116,13 @@ class GraphExecutor:
                                     f"💾 Marked checkpoint for resume: {latest_clean.checkpoint_id}"
                                 )
                 except Exception as checkpoint_err:
-                    self.logger.warning(f"Failed to mark checkpoint for resume: {checkpoint_err}")
+                    self.logger.warning(
+                        f"Failed to mark checkpoint for resume: {checkpoint_err}"
+                    )
 
             return ExecutionResult(
                 success=False,
-                error=str(e),
+                error=hive_error.args[0],
                 output=saved_memory,
                 steps_executed=steps,
                 path=path,
@@ -1105,6 +1134,7 @@ class GraphExecutor:
                 node_visit_counts=dict(node_visit_counts),
                 session_state=session_state_out,
             )
+
 
         finally:
             if _ctx_token is not None:
@@ -1479,7 +1509,7 @@ class GraphExecutor:
             if node_spec is None:
                 branch.status = "failed"
                 branch.error = f"Node {branch.node_id} not found in graph"
-                return branch, RuntimeError(branch.error)
+                return branch, HiveError(message=branch.error, node_id=branch.node_id, )
 
             effective_max_retries = node_spec.max_retries
             if node_spec.node_type == "event_loop":
@@ -1594,24 +1624,40 @@ class GraphExecutor:
 
             except Exception as e:
                 import traceback
+                from core.framework.errors import HiveError
 
                 stack_trace = traceback.format_exc()
-                branch.status = "failed"
-                branch.error = str(e)
-                self.logger.error(f"      ✗ Branch {branch.node_id}: exception - {e}")
 
-                # Log the crashing branch node to L2 with full stack trace
+                hive_error = (
+                    e
+                    if isinstance(e, HiveError)
+                    else HiveError(
+                        message="Branch execution failed",
+                        node_id=branch.node_id,
+                        original_exception=e,
+                    )
+                )
+
+                branch.status = "failed"
+                branch.error = hive_error.args[0]
+
+                self.logger.error(
+                    f"      ✗ Branch {branch.node_id}: exception - {hive_error.args[0]}"
+                )
+
+                #Log the crashing branch node to L2 with full stack trace
                 if self.runtime_logger and node_spec is not None:
                     self.runtime_logger.ensure_node_logged(
                         node_id=node_spec.id,
                         node_name=node_spec.name,
                         node_type=node_spec.node_type,
                         success=False,
-                        error=str(e),
+                        error=hive_error.args[0],
                         stacktrace=stack_trace,
                     )
 
-                return branch, e
+                return branch, hive_error
+
 
         # Execute all branches concurrently
         tasks = [execute_single_branch(b) for b in branches.values()]
