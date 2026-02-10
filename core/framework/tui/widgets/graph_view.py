@@ -132,6 +132,95 @@ class GraphOverview(Vertical):
             display.write("")
             display.write(f"[dim]Path:[/dim] {' → '.join(self.execution_path[-5:])}")
 
+    def show_diff(self, old_graph: "GraphSpec", new_graph: "GraphSpec") -> None:
+        """Display a visual diff between two graph states."""
+        self.runtime.graph = new_graph  # Update runtime to new graph
+        display = self.query_one("#graph-display", RichLog)
+        display.clear()
+        display.write(f"[bold cyan]Agent Graph Evolved:[/bold cyan] {old_graph.id} -> {new_graph.id}\n")
+
+        # 1. Calculate Node Diffs
+        old_nodes = {n.id for n in old_graph.nodes}
+        new_nodes = {n.id for n in new_graph.nodes}
+        added_nodes = new_nodes - old_nodes
+        removed_nodes = old_nodes - new_nodes
+        persisted_nodes = old_nodes & new_nodes
+
+        # 2. Calculate Edge Diffs
+        old_edges = {(e.source, e.target) for e in old_graph.edges}
+        new_edges = {(e.source, e.target) for e in new_graph.edges}
+        added_edges = new_edges - old_edges
+        removed_edges = old_edges - new_edges
+
+        # Helper to render node lines with diff colors
+        def render_diff_node(node_id: str, status: str) -> str:
+            if status == "added":
+                sym = "[bold green]+[/bold green]"
+                name = f"[bold green]{node_id}[/bold green]"
+                suffix = " [italic green](new)[/italic green]"
+            elif status == "removed":
+                sym = "[bold red]-[/bold red]"
+                name = f"[strike red]{node_id}[/strike red]"
+                suffix = " [italic red](removed)[/italic red]"
+            else:
+                sym = "○"
+                name = node_id
+                suffix = ""
+            return f"  {sym} {name}{suffix}"
+
+        # Helper to render edge lines with diff colors
+        def render_diff_edges(node_id: str) -> list[str]:
+            # Show edges FROM this node
+            lines = []
+            
+            # 1. Current Edges (New + Persisted)
+            current_edges = [e for e in new_graph.edges if e.source == node_id]
+            for i, edge in enumerate(current_edges):
+                is_new = (edge.source, edge.target) in added_edges
+                connector = "└" if i == len(current_edges) - 1 else "├"
+                arrow = "──▶"
+                target = edge.target
+                style = ""
+                
+                if is_new:
+                    connector = f"[green]{connector}[/green]"
+                    arrow = f"[green]{arrow}[/green]"
+                    target = f"[green]{target}[/green]"
+                    style = " [italic green](new link)[/italic green]"
+                
+                lines.append(f"  {connector}{arrow} {target}{style}")
+
+            # 2. Removed Edges (Ghost links)
+            deleted_edges = [e for e in old_graph.edges if e.source == node_id]
+            for edge in deleted_edges:
+                if (edge.source, edge.target) in removed_edges:
+                    lines.append(f"  [red]x  ..▶ {edge.target} (link removed)[/red]")
+            
+            return lines
+
+        # Render Logic
+        # We need a union topological sort to show where things were/are
+        # For simplicity, we'll use the NEW graph's topology + appended removed nodes
+        
+        # A. Render New/Persisted Nodes in Topological Order
+        idx = 0
+        ordered = self._topo_order() # Based on new graph
+        for node_id in ordered:
+            status = "added" if node_id in added_nodes else "persisted"
+            display.write(render_diff_node(node_id, status))
+            for line in render_diff_edges(node_id):
+                display.write(line)
+        
+        # B. Render Removed Nodes at the bottom
+        if removed_nodes:
+            display.write("\n[bold red]Removed Components:[/bold red]")
+            for node_id in sorted(removed_nodes):
+                display.write(render_diff_node(node_id, "removed"))
+                # Show where they utilized to go
+                old_out_edges = [e for e in old_graph.edges if e.source == node_id]
+                for edge in old_out_edges:
+                     display.write(f"  [dim red]└..▶ {edge.target}[/dim red]")
+
     def update_active_node(self, node_id: str) -> None:
         """Update the currently active node."""
         self.active_node = node_id

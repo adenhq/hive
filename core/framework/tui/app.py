@@ -430,6 +430,15 @@ class AdenTUI(App):
                     event.node_id or "",
                     event.data.get("reason", ""),
                 )
+            
+            # --- Graph Evolution Events ---
+            elif et == EventType.STATE_CHANGED:
+                if event.data.get("subtype") == "graph_evolved":
+                    old_graph = event.data.get("old_graph")
+                    new_graph = event.data.get("new_graph")
+                    if old_graph and new_graph:
+                        self.graph_view.show_diff(old_graph, new_graph)
+                        self.notify("Agent Graph Evolved!", severity="information", timeout=5)
 
             if et == EventType.TOOL_CALL_STARTED:
                 self.graph_view.handle_tool_call(
