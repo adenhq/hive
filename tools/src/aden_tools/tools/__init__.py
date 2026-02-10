@@ -46,6 +46,7 @@ from .runtime_logs_tool import register_tools as register_runtime_logs
 from .slack_tool import register_tools as register_slack
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
+from .salesforce_tool import register_tools as register_salesforce
 
 
 def register_all_tools(
@@ -77,6 +78,7 @@ def register_all_tools(
     register_email(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
     register_slack(mcp, credentials=credentials)
+    register_salesforce(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -203,6 +205,12 @@ def register_all_tools(
         "slack_kick_user_from_channel",
         "slack_delete_file",
         "slack_get_team_stats",
+        # Salesforce tools
+        "salesforce_soql_query",
+        "salesforce_get_record",
+        "salesforce_create_record",
+        "salesforce_update_record",
+        "salesforce_get_limits",
     ]
 
 
