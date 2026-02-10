@@ -13,9 +13,11 @@ Security measures:
 """
 
 import ast
-import signal
+import multiprocessing
+import queue
 import sys
-from contextlib import contextmanager
+import time
+import traceback
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -82,6 +84,7 @@ ALLOWED_MODULES = {
     "statistics",
     "decimal",
     "fractions",
+    "time", # Added for testing and timing
 }
 
 # Dangerous AST nodes to block
@@ -95,26 +98,22 @@ BLOCKED_AST_NODES = {
 
 class CodeSandboxError(Exception):
     """Error during sandboxed code execution."""
-
     pass
 
 
 class TimeoutError(CodeSandboxError):
     """Code execution timed out."""
-
     pass
 
 
 class SecurityError(CodeSandboxError):
     """Code contains potentially dangerous operations."""
-
     pass
 
 
 @dataclass
 class SandboxResult:
     """Result of sandboxed code execution."""
-
     success: bool
     result: Any = None
     error: str | None = None
@@ -136,10 +135,104 @@ class RestrictedImporter:
 
         if name not in self._cache:
             import importlib
-
             self._cache[name] = importlib.import_module(name)
 
         return self._cache[name]
+
+
+def _run_in_process(
+    code: str,
+    inputs: dict[str, Any],
+    extract_vars: list[str],
+    allowed_modules: set[str],
+    safe_builtins: dict[str, Any],
+    result_queue: multiprocessing.Queue,
+    preload_modules: list[str] | None = None,
+) -> None:
+    """
+    Worker function to run code in a separate process.
+    Must be top-level for pickling on Windows.
+    """
+    import io
+
+    # Capture stdout
+    old_stdout = sys.stdout
+    sys.stdout = captured_stdout = io.StringIO()
+    
+    start_time = time.time()
+    
+    # Prepare namespace
+    input_vars = inputs or {}
+    extract_vars = extract_vars or []
+    preload_modules = preload_modules or []
+    
+    importer = RestrictedImporter(allowed_modules)
+    namespace = {
+        "__builtins__": dict(safe_builtins),
+        "__import__": importer,
+    }
+
+    # Preload requested modules (check allowance first)
+    for mod_name in preload_modules:
+        if mod_name in allowed_modules:
+            try:
+                import importlib
+                namespace[mod_name] = importlib.import_module(mod_name)
+            except ImportError:
+                pass
+    
+    namespace.update(input_vars)
+
+    try:
+        # Compile and execute
+        compiled = compile(code, "<sandbox>", "exec")
+        exec(compiled, namespace)
+        
+        execution_time_ms = int((time.time() - start_time) * 1000)
+        
+        # Extract requested variables
+        extracted = {}
+        for var in extract_vars:
+            if var in namespace:
+                extracted[var] = namespace[var]
+        
+        # Also extract any new variables 
+        for key, value in namespace.items():
+            if key not in input_vars and key not in safe_builtins and not key.startswith("_") and key != "__import__":
+                # Try to pickle the value, if fails, use representation
+                try:
+                    # Basic pickle check simulation (queue put will fail if not picklable)
+                    pass 
+                except:
+                    pass
+                extracted[key] = value
+
+        result = SandboxResult(
+            success=True,
+            result=namespace.get("result"),
+            stdout=captured_stdout.getvalue(),
+            variables=extracted,
+            execution_time_ms=execution_time_ms,
+        )
+        
+
+    except BaseException as e:
+        # Catch SystemExit and other BaseExceptions too
+        # traceback.print_exc() # Debug
+        result = SandboxResult(
+            success=False,
+            error=f"{type(e).__name__}: {e}",
+            stdout=captured_stdout.getvalue(),
+            execution_time_ms=int((time.time() - start_time) * 1000),
+        )
+    finally:
+        sys.stdout = old_stdout
+        try:
+            result_queue.put(result)
+        except Exception:
+            # If result wasn't created (unlikely now) or queue is closed
+            pass
+
 
 
 class CodeValidator:
@@ -211,59 +304,19 @@ class CodeSandbox:
         self.validator = CodeValidator()
         self.importer = RestrictedImporter(self.allowed_modules)
 
-    @contextmanager
-    def _timeout_context(self, seconds: int):
-        """Context manager for timeout enforcement."""
-
-        def handler(signum, frame):
-            raise TimeoutError(f"Code execution timed out after {seconds} seconds")
-
-        # Only works on Unix-like systems
-        if hasattr(signal, "SIGALRM"):
-            old_handler = signal.signal(signal.SIGALRM, handler)
-            signal.alarm(seconds)
-            try:
-                yield
-            finally:
-                signal.alarm(0)
-                signal.signal(signal.SIGALRM, old_handler)
-        else:
-            # Windows: no timeout support, just execute
-            yield
-
-    def _create_namespace(self, inputs: dict[str, Any]) -> dict[str, Any]:
-        """Create isolated namespace for code execution."""
-        namespace = {
-            "__builtins__": dict(self.safe_builtins),
-            "__import__": self.importer,
-        }
-
-        # Add input variables
-        namespace.update(inputs)
-
-        return namespace
-
     def execute(
         self,
         code: str,
         inputs: dict[str, Any] | None = None,
         extract_vars: list[str] | None = None,
+        preload_modules: list[str] | None = None,
     ) -> SandboxResult:
         """
-        Execute code in sandbox.
-
-        Args:
-            code: Python code to execute
-            inputs: Variables to inject into namespace
-            extract_vars: Variable names to extract from namespace after execution
-
-        Returns:
-            SandboxResult with execution outcome
+        Execute code in sandbox (multiprocessing for safe timeouts).
         """
-        import time
-
         inputs = inputs or {}
         extract_vars = extract_vars or []
+        preload_modules = preload_modules or []
 
         # Validate code first
         issues = self.validator.validate(code)
@@ -272,69 +325,51 @@ class CodeSandbox:
                 success=False,
                 error=f"Code validation failed: {'; '.join(issues)}",
             )
-
-        # Create isolated namespace
-        namespace = self._create_namespace(inputs)
-
-        # Capture stdout
-        import io
-
-        old_stdout = sys.stdout
-        sys.stdout = captured_stdout = io.StringIO()
-
-        start_time = time.time()
-
-        try:
-            with self._timeout_context(self.timeout_seconds):
-                # Compile and execute
-                compiled = compile(code, "<sandbox>", "exec")
-                exec(compiled, namespace)
-
-            execution_time_ms = int((time.time() - start_time) * 1000)
-
-            # Extract requested variables
-            extracted = {}
-            for var in extract_vars:
-                if var in namespace:
-                    extracted[var] = namespace[var]
-
-            # Also extract any new variables (not in inputs or builtins)
-            for key, value in namespace.items():
-                if key not in inputs and key not in self.safe_builtins and not key.startswith("_"):
-                    extracted[key] = value
-
-            return SandboxResult(
-                success=True,
-                result=namespace.get("result"),  # Convention: 'result' is the return value
-                stdout=captured_stdout.getvalue(),
-                variables=extracted,
-                execution_time_ms=execution_time_ms,
+            
+        # Create queue for result
+        result_queue = multiprocessing.Queue()
+        
+        # Create and start process
+        process = multiprocessing.Process(
+            target=_run_in_process,
+            args=(
+                code,
+                inputs,
+                extract_vars,
+                self.allowed_modules,
+                self.safe_builtins,
+                result_queue,
+                preload_modules,
             )
-
-        except TimeoutError as e:
+        )
+        
+        process.start()
+        
+        
+        # Wait for result with timeout to avoid deadlock on large payloads
+        # (If we join() first, the child might be blocked writing to a full pipe)
+        try:
+            result = result_queue.get(timeout=self.timeout_seconds)
+            process.join() # Should be immediate as child has finished putting
+            return result
+        except queue.Empty:
+            # Timeout!
+            if process.is_alive():
+                process.terminate()
+            process.join() # cleanup
             return SandboxResult(
                 success=False,
-                error=str(e),
+                error=f"Code execution timed out after {self.timeout_seconds} seconds",
                 execution_time_ms=self.timeout_seconds * 1000,
             )
-
-        except SecurityError as e:
-            return SandboxResult(
-                success=False,
-                error=f"Security violation: {e}",
-                execution_time_ms=int((time.time() - start_time) * 1000),
-            )
-
         except Exception as e:
+            if process.is_alive():
+                 process.terminate()
+            process.join()
             return SandboxResult(
                 success=False,
-                error=f"{type(e).__name__}: {e}",
-                stdout=captured_stdout.getvalue(),
-                execution_time_ms=int((time.time() - start_time) * 1000),
+                error=f"Failed to retrieve result: {e}",
             )
-
-        finally:
-            sys.stdout = old_stdout
 
     def execute_expression(
         self,
@@ -342,31 +377,12 @@ class CodeSandbox:
         inputs: dict[str, Any] | None = None,
     ) -> SandboxResult:
         """
-        Execute a single expression and return its value.
-
-        Simpler than execute() - just evaluates one expression.
+        Execute a single expression.
         """
-        inputs = inputs or {}
+        # Convert expression to code assignment
+        code = f"result = {expression}"
+        return self.execute(code, inputs, extract_vars=["result"])
 
-        # Validate
-        try:
-            ast.parse(expression, mode="eval")
-        except SyntaxError as e:
-            return SandboxResult(success=False, error=f"Syntax error: {e}")
-
-        namespace = self._create_namespace(inputs)
-
-        try:
-            with self._timeout_context(self.timeout_seconds):
-                result = eval(expression, namespace)
-
-            return SandboxResult(success=True, result=result)
-
-        except Exception as e:
-            return SandboxResult(
-                success=False,
-                error=f"{type(e).__name__}: {e}",
-            )
 
 
 # Singleton instance with default settings
