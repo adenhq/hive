@@ -295,6 +295,52 @@ class AgentRunner:
             model=model,
         )
 
+    @classmethod
+    def from_file(
+        cls,
+        path: str | Path,
+        mock_mode: bool = False,
+        storage_path: Path | None = None,
+        model: str = "cerebras/zai-glm-4.7",
+    ) -> "AgentRunner":
+        """
+        Load an agent from an exported agent.json file on disk.
+
+        This is a convenience method for cases where you already have the path
+        to a specific export file. It supports:
+        - passing a directory (will load `<dir>/agent.json`)
+        - Windows-friendly UTF-8 BOM files via `encoding="utf-8-sig"`
+
+        Args:
+            path: Path to `agent.json` or to its containing agent folder
+            mock_mode: If True, use mock LLM responses
+            storage_path: Path for runtime storage (defaults to temp)
+            model: LLM model to use (any LiteLLM-compatible model name)
+
+        Returns:
+            AgentRunner instance ready to run
+        """
+        p = Path(path)
+        agent_json_path = (p / "agent.json") if p.is_dir() else p
+
+        if not agent_json_path.exists():
+            raise FileNotFoundError(
+                f"agent.json not found at {agent_json_path.resolve()}"
+            )
+
+        agent_path = agent_json_path.parent
+        with open(agent_json_path, encoding="utf-8-sig") as f:
+            graph, goal = load_agent_export(f.read())
+
+        return cls(
+            agent_path=agent_path,
+            graph=graph,
+            goal=goal,
+            mock_mode=mock_mode,
+            storage_path=storage_path,
+            model=model,
+        )
+
     def register_tool(
         self,
         name: str,

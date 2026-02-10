@@ -344,16 +344,18 @@ PYTHONPATH=core:exports python -m agent_name test --fail-fast
 import pytest
 from framework.runner import AgentRunner
 
-def test_ticket_categorization():
+@pytest.mark.asyncio
+async def test_ticket_categorization():
     """Test that tickets are categorized correctly"""
-    runner = AgentRunner.from_file("exports/my_agent/agent.json")
+    runner = AgentRunner.from_file("exports/my_agent/agent.json", mock_mode=True)
 
-    result = runner.run({
+    execution = await runner.run({
         "ticket_content": "I can't log in to my account"
     })
 
-    assert result["category"] == "authentication"
-    assert result["priority"] in ["high", "medium", "low"]
+    assert execution.success is True
+    assert execution.output.get("category") == "authentication"
+    assert execution.output.get("priority") in ["high", "medium", "low"]
 ```
 
 ---
