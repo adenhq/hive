@@ -118,7 +118,7 @@ async def test_direct_key_access_in_conditional_edge():
         terminal_nodes=["high_score_node"],
     )
 
-    runtime = SimpleRuntime(storage_path="/tmp/test")
+    runtime = SimpleRuntime(storage_path=str(Path(tempfile.gettempdir()) / "hive_test"))
     executor = GraphExecutor(runtime=runtime)
     executor.register_node("score_node", ScoreNode())
     executor.register_node("high_score_node", HighScoreNode())
@@ -186,7 +186,7 @@ async def test_backward_compatibility_output_syntax():
         terminal_nodes=["consumer_node"],
     )
 
-    runtime = SimpleRuntime(storage_path="/tmp/test")
+    runtime = SimpleRuntime(storage_path=str(Path(tempfile.gettempdir()) / "hive_test"))
     executor = GraphExecutor(runtime=runtime)
     executor.register_node("score_node", ScoreNode())
     executor.register_node("consumer_node", ConsumerNode())
@@ -254,7 +254,7 @@ async def test_multiple_keys_in_expression():
         terminal_nodes=["consumer_node"],
     )
 
-    runtime = SimpleRuntime(storage_path="/tmp/test")
+    runtime = SimpleRuntime(storage_path=str(Path(tempfile.gettempdir()) / "hive_test"))
     executor = GraphExecutor(runtime=runtime)
     executor.register_node("multi_key_node", MultiKeyNode())
     executor.register_node("consumer_node", ConsumerNode())
@@ -328,7 +328,7 @@ async def test_negative_case_condition_false():
         terminal_nodes=["high_score_handler"],
     )
 
-    runtime = SimpleRuntime(storage_path="/tmp/test")
+    runtime = SimpleRuntime(storage_path=str(Path(tempfile.gettempdir()) / "hive_test"))
     executor = GraphExecutor(runtime=runtime)
     executor.register_node("low_score_node", LowScoreNode())
     executor.register_node("high_score_handler", HighScoreNode())

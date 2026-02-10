@@ -202,5 +202,12 @@ def _copy_to_clipboard(text: str) -> None:
                 check=True,
                 timeout=5,
             )
+        elif sys.platform == "win32":
+            subprocess.run(
+                ["clip"],
+                input=text.encode(),
+                check=True,
+                timeout=5,
+            )
     except (subprocess.SubprocessError, FileNotFoundError):
         pass
