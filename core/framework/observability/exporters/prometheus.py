@@ -118,17 +118,15 @@ class PrometheusExporter:
         pass  # No metric on start — measured on complete
 
     async def on_node_complete(self, event: NodeCompleteEvent) -> None:
-        self._node_duration.labels(
-            node_id=event.node_id, node_type=event.node_type
-        ).observe(event.latency_ms / 1000.0)
+        self._node_duration.labels(node_id=event.node_id, node_type=event.node_type).observe(
+            event.latency_ms / 1000.0
+        )
 
         if event.tokens_used:
             self._tokens_total.labels(node_id=event.node_id).inc(event.tokens_used)
 
     async def on_node_error(self, event: NodeErrorEvent) -> None:
-        self._node_errors_total.labels(
-            node_id=event.node_id, node_type=event.node_type
-        ).inc()
+        self._node_errors_total.labels(node_id=event.node_id, node_type=event.node_type).inc()
 
     async def on_decision_made(self, event: DecisionEvent) -> None:
         self._decisions_total.inc()

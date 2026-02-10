@@ -9,8 +9,7 @@ Tests cover:
 
 from __future__ import annotations
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -29,7 +28,6 @@ from framework.observability.types import (
     RunStartEvent,
     ToolCallEvent,
 )
-
 
 # ---------------------------------------------------------------------------
 # Event type tests
@@ -142,14 +140,10 @@ class TestNoOpHooks:
             NodeStartEvent(run_id="r", node_id="n", node_name="N", node_type="t")
         )
         await hooks.on_node_complete(
-            NodeCompleteEvent(
-                run_id="r", node_id="n", node_name="N", node_type="t", success=True
-            )
+            NodeCompleteEvent(run_id="r", node_id="n", node_name="N", node_type="t", success=True)
         )
         await hooks.on_node_error(
-            NodeErrorEvent(
-                run_id="r", node_id="n", node_name="N", node_type="t", error="err"
-            )
+            NodeErrorEvent(run_id="r", node_id="n", node_name="N", node_type="t", error="err")
         )
         await hooks.on_decision_made(
             DecisionEvent(
@@ -161,9 +155,7 @@ class TestNoOpHooks:
                 reasoning="r",
             )
         )
-        await hooks.on_tool_call(
-            ToolCallEvent(run_id="r", node_id="n", tool_name="t")
-        )
+        await hooks.on_tool_call(ToolCallEvent(run_id="r", node_id="n", tool_name="t"))
         await hooks.on_run_complete(RunCompleteEvent(run_id="r", status="success"))
 
     def test_satisfies_protocol(self):
@@ -219,14 +211,10 @@ class TestCompositeHooks:
             NodeStartEvent(run_id="r", node_id="n", node_name="N", node_type="t")
         )
         await composite.on_node_complete(
-            NodeCompleteEvent(
-                run_id="r", node_id="n", node_name="N", node_type="t", success=True
-            )
+            NodeCompleteEvent(run_id="r", node_id="n", node_name="N", node_type="t", success=True)
         )
         await composite.on_node_error(
-            NodeErrorEvent(
-                run_id="r", node_id="n", node_name="N", node_type="t", error="e"
-            )
+            NodeErrorEvent(run_id="r", node_id="n", node_name="N", node_type="t", error="e")
         )
         await composite.on_decision_made(
             DecisionEvent(
@@ -238,9 +226,7 @@ class TestCompositeHooks:
                 reasoning="r",
             )
         )
-        await composite.on_tool_call(
-            ToolCallEvent(run_id="r", node_id="n", tool_name="t")
-        )
+        await composite.on_tool_call(ToolCallEvent(run_id="r", node_id="n", tool_name="t"))
         await composite.on_run_complete(RunCompleteEvent(run_id="r", status="success"))
 
         # All 7 methods should have been called

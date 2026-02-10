@@ -92,9 +92,7 @@ class Runtime:
             return
         exc = task.exception()
         if exc is not None:
-            logger.debug(
-                "Observability hook failed (non-fatal): %s", exc, exc_info=exc
-            )
+            logger.debug("Observability hook failed (non-fatal): %s", exc, exc_info=exc)
 
     # === RUN LIFECYCLE ===
 
@@ -135,9 +133,7 @@ class Runtime:
         # Emit observability hook
         self._emit_hook_safe(
             self._hooks.on_run_start(
-                RunStartEvent(
-                    run_id=run_id, goal_id=goal_id, input_data=input_data or {}
-                )
+                RunStartEvent(run_id=run_id, goal_id=goal_id, input_data=input_data or {})
             )
         )
 

@@ -56,71 +56,92 @@ class FileExporter:
                 f.write(line + "\n")
 
     async def on_run_start(self, event: RunStartEvent) -> None:
-        self._write_event("run_start", {
-            "run_id": event.run_id,
-            "goal_id": event.goal_id,
-            "input_data": event.input_data,
-            "timestamp": event.timestamp,
-        })
+        self._write_event(
+            "run_start",
+            {
+                "run_id": event.run_id,
+                "goal_id": event.goal_id,
+                "input_data": event.input_data,
+                "timestamp": event.timestamp,
+            },
+        )
 
     async def on_run_complete(self, event: RunCompleteEvent) -> None:
-        self._write_event("run_complete", {
-            "run_id": event.run_id,
-            "status": event.status,
-            "duration_ms": event.duration_ms,
-            "total_nodes_executed": event.total_nodes_executed,
-            "total_tokens": event.total_tokens,
-            "timestamp": event.timestamp,
-        })
+        self._write_event(
+            "run_complete",
+            {
+                "run_id": event.run_id,
+                "status": event.status,
+                "duration_ms": event.duration_ms,
+                "total_nodes_executed": event.total_nodes_executed,
+                "total_tokens": event.total_tokens,
+                "timestamp": event.timestamp,
+            },
+        )
 
     async def on_node_start(self, event: NodeStartEvent) -> None:
-        self._write_event("node_start", {
-            "run_id": event.run_id,
-            "node_id": event.node_id,
-            "node_name": event.node_name,
-            "node_type": event.node_type,
-            "timestamp": event.timestamp,
-        })
+        self._write_event(
+            "node_start",
+            {
+                "run_id": event.run_id,
+                "node_id": event.node_id,
+                "node_name": event.node_name,
+                "node_type": event.node_type,
+                "timestamp": event.timestamp,
+            },
+        )
 
     async def on_node_complete(self, event: NodeCompleteEvent) -> None:
-        self._write_event("node_complete", {
-            "run_id": event.run_id,
-            "node_id": event.node_id,
-            "node_name": event.node_name,
-            "success": event.success,
-            "latency_ms": event.latency_ms,
-            "tokens_used": event.tokens_used,
-            "timestamp": event.timestamp,
-        })
+        self._write_event(
+            "node_complete",
+            {
+                "run_id": event.run_id,
+                "node_id": event.node_id,
+                "node_name": event.node_name,
+                "success": event.success,
+                "latency_ms": event.latency_ms,
+                "tokens_used": event.tokens_used,
+                "timestamp": event.timestamp,
+            },
+        )
 
     async def on_node_error(self, event: NodeErrorEvent) -> None:
-        self._write_event("node_error", {
-            "run_id": event.run_id,
-            "node_id": event.node_id,
-            "node_name": event.node_name,
-            "error": event.error,
-            "stacktrace": event.stacktrace,
-            "timestamp": event.timestamp,
-        })
+        self._write_event(
+            "node_error",
+            {
+                "run_id": event.run_id,
+                "node_id": event.node_id,
+                "node_name": event.node_name,
+                "error": event.error,
+                "stacktrace": event.stacktrace,
+                "timestamp": event.timestamp,
+            },
+        )
 
     async def on_decision_made(self, event: DecisionEvent) -> None:
-        self._write_event("decision", {
-            "run_id": event.run_id,
-            "decision_id": event.decision_id,
-            "node_id": event.node_id,
-            "intent": event.intent,
-            "chosen": event.chosen,
-            "reasoning": event.reasoning,
-            "options_count": event.options_count,
-            "timestamp": event.timestamp,
-        })
+        self._write_event(
+            "decision",
+            {
+                "run_id": event.run_id,
+                "decision_id": event.decision_id,
+                "node_id": event.node_id,
+                "intent": event.intent,
+                "chosen": event.chosen,
+                "reasoning": event.reasoning,
+                "options_count": event.options_count,
+                "timestamp": event.timestamp,
+            },
+        )
 
     async def on_tool_call(self, event: ToolCallEvent) -> None:
-        self._write_event("tool_call", {
-            "run_id": event.run_id,
-            "node_id": event.node_id,
-            "tool_name": event.tool_name,
-            "is_error": event.is_error,
-            "latency_ms": event.latency_ms,
-            "timestamp": event.timestamp,
-        })
+        self._write_event(
+            "tool_call",
+            {
+                "run_id": event.run_id,
+                "node_id": event.node_id,
+                "tool_name": event.tool_name,
+                "is_error": event.is_error,
+                "latency_ms": event.latency_ms,
+                "timestamp": event.timestamp,
+            },
+        )

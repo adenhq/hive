@@ -598,7 +598,9 @@ class GraphExecutor:
                 try:
                     await self._hooks.on_node_start(
                         NodeStartEvent(
-                            run_id=self.runtime._current_run.id if self.runtime._current_run else "",
+                            run_id=(
+                                self.runtime._current_run.id if self.runtime._current_run else ""
+                            ),
                             node_id=node_spec.id,
                             node_name=node_spec.name,
                             node_type=node_spec.node_type,
