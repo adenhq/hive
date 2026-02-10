@@ -77,6 +77,30 @@ Use Hive when you need:
 - **[Report Issues](https://github.com/adenhq/hive/issues)** - Bug reports and feature requests
 - **[Contributing](CONTRIBUTING.md)** - How to contribute and submit PRs
 
+## Try Hive First
+
+Before building your own agent, run a pre-built template to see Hive in action:
+
+```bash
+# Clone and setup (one-time)
+git clone https://github.com/adenhq/hive.git
+cd hive
+./quickstart.sh
+
+# Run a template agent
+hive tui
+# Or run directly with input
+# hive run examples/templates/<agent_name> --input '{"your": "input"}'
+```
+
+The interactive TUI dashboard lets you:
+- Browse available template agents
+- Run agents with live monitoring
+- View execution graphs and logs in real-time
+- Test human-in-the-loop workflows
+
+This gives you an immediate feel for Hive's orchestration capabilities before diving into agent creation.
+
 ## Quick Start
 
 ### Prerequisites
