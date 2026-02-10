@@ -22,7 +22,13 @@ class HITLInputType(StrEnum):
 
 @dataclass
 class HITLQuestion:
-    """A single question to ask the human."""
+    """
+    A single question to ask the human.
+
+    Validates configuration upon initialization:
+    - If input_type is SELECTION, 'options' must be provided.
+    - If input_type is STRUCTURED, 'fields' must be provided.
+    """
 
     id: str
     question: str
@@ -37,6 +43,14 @@ class HITLQuestion:
     # Metadata
     required: bool = True
     help_text: str = ""
+
+    def __post_init__(self):
+        """Validate input type configuration."""
+        if self.input_type == HITLInputType.SELECTION and not self.options:
+            raise ValueError("The 'options' field must be provided for SELECTION input types.")
+
+        if self.input_type == HITLInputType.STRUCTURED and not self.fields:
+            raise ValueError("The 'fields' field must be provided for STRUCTURED input types.")
 
 
 @dataclass
