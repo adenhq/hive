@@ -460,10 +460,6 @@ class LiteLLMProvider(LLMProvider):
         Yields StreamEvent objects as chunks arrive from the provider.
         Tool call arguments are accumulated across chunks and yielded as
         a single ToolCallEvent with fully parsed JSON when complete.
-
-        Empty responses (e.g. Gemini stealth rate-limits that return 200
-        with no content) are retried with exponential backoff, mirroring
-        the retry behaviour of ``_completion_with_rate_limit_retry``.
         """
         from framework.llm.stream_events import (
             FinishEvent,
@@ -493,143 +489,71 @@ class LiteLLMProvider(LLMProvider):
         if tools:
             kwargs["tools"] = [self._tool_to_openai_format(t) for t in tools]
 
-        for attempt in range(RATE_LIMIT_MAX_RETRIES + 1):
-            # Post-stream events (ToolCall, TextEnd, Finish) are buffered
-            # because they depend on the full stream.  TextDeltaEvents are
-            # yielded immediately so callers see tokens in real time.
-            tail_events: list[StreamEvent] = []
-            accumulated_text = ""
-            tool_calls_acc: dict[int, dict[str, str]] = {}
-            input_tokens = 0
-            output_tokens = 0
+        accumulated_text = ""
+        tool_calls_acc: dict[int, dict[str, Any]] = {}
 
-            try:
-                response = await litellm.acompletion(**kwargs)  # type: ignore[union-attr]
+        try:
+            response = await litellm.acompletion(**kwargs)  # type: ignore[union-attr]
 
-                async for chunk in response:
-                    choice = chunk.choices[0] if chunk.choices else None
-                    if not choice:
-                        continue
+            async for chunk in response:
+                choice = chunk.choices[0] if chunk.choices else None
+                if not choice:
+                    continue
 
-                    delta = choice.delta
+                delta = choice.delta
 
-                    # --- Text content — yield immediately for real-time streaming ---
-                    if delta and delta.content:
-                        accumulated_text += delta.content
-                        yield TextDeltaEvent(
-                            content=delta.content,
-                            snapshot=accumulated_text,
-                        )
-
-                    # --- Tool calls (accumulate across chunks) ---
-                    if delta and delta.tool_calls:
-                        for tc in delta.tool_calls:
-                            idx = tc.index if hasattr(tc, "index") and tc.index is not None else 0
-                            if idx not in tool_calls_acc:
-                                tool_calls_acc[idx] = {"id": "", "name": "", "arguments": ""}
-                            if tc.id:
-                                tool_calls_acc[idx]["id"] = tc.id
-                            if tc.function:
-                                if tc.function.name:
-                                    tool_calls_acc[idx]["name"] = tc.function.name
-                                if tc.function.arguments:
-                                    tool_calls_acc[idx]["arguments"] += tc.function.arguments
-
-                    # --- Finish ---
-                    if choice.finish_reason:
-                        for _idx, tc_data in sorted(tool_calls_acc.items()):
-                            try:
-                                parsed_args = json.loads(tc_data["arguments"])
-                            except (json.JSONDecodeError, KeyError):
-                                parsed_args = {"_raw": tc_data.get("arguments", "")}
-                            tail_events.append(
-                                ToolCallEvent(
-                                    tool_use_id=tc_data["id"],
-                                    tool_name=tc_data["name"],
-                                    tool_input=parsed_args,
-                                )
-                            )
-
-                        if accumulated_text:
-                            tail_events.append(TextEndEvent(full_text=accumulated_text))
-
-                        usage = getattr(chunk, "usage", None)
-                        if usage:
-                            input_tokens = getattr(usage, "prompt_tokens", 0) or 0
-                            output_tokens = getattr(usage, "completion_tokens", 0) or 0
-
-                        tail_events.append(
-                            FinishEvent(
-                                stop_reason=choice.finish_reason,
-                                input_tokens=input_tokens,
-                                output_tokens=output_tokens,
-                                model=self.model,
-                            )
-                        )
-
-                # Check whether the stream produced any real content.
-                # (If text deltas were yielded above, has_content is True
-                # and we skip the retry path — nothing was yielded in vain.)
-                has_content = accumulated_text or tool_calls_acc
-                if not has_content and attempt < RATE_LIMIT_MAX_RETRIES:
-                    # If the conversation ends with an assistant or tool
-                    # message, an empty stream is expected — the LLM has
-                    # nothing new to say.  Don't burn retries on this;
-                    # let the caller (EventLoopNode) decide what to do.
-                    # Typical case: client_facing node where the LLM set
-                    # all outputs via set_output tool calls, and the tool
-                    # results are the last messages.
-                    last_role = next(
-                        (m["role"] for m in reversed(full_messages) if m.get("role") != "system"),
-                        None,
+                # Text content
+                if delta and delta.content:
+                    accumulated_text += delta.content
+                    yield TextDeltaEvent(
+                        content=delta.content,
+                        snapshot=accumulated_text,
                     )
-                    if last_role in ("assistant", "tool"):
-                        logger.debug(
-                            "[stream] Empty response after %s message — expected, not retrying.",
-                            last_role,
+
+                # Tool calls
+                if delta and delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index if hasattr(tc, "index") and tc.index is not None else 0
+                        if idx not in tool_calls_acc:
+                            tool_calls_acc[idx] = {"id": "", "name": "", "arguments": ""}
+                        if tc.id:
+                            tool_calls_acc[idx]["id"] = tc.id
+                        if tc.function:
+                            if tc.function.name:
+                                tool_calls_acc[idx]["name"] = tc.function.name
+                            if tc.function.arguments:
+                                tool_calls_acc[idx]["arguments"] += tc.function.arguments
+
+                # Finish
+                if choice.finish_reason:
+                    # Yield collected tool calls
+                    for _idx, tc_data in sorted(tool_calls_acc.items()):
+                        try:
+                            parsed_args = json.loads(tc_data["arguments"])
+                        except (json.JSONDecodeError, KeyError):
+                            parsed_args = {"_raw": tc_data.get("arguments", "")}
+
+                        yield ToolCallEvent(
+                            tool_use_id=tc_data["id"],
+                            tool_input=parsed_args,
+                            tool_name=tc_data["name"],
                         )
-                        for event in tail_events:
-                            yield event
-                        return
-                    wait = RATE_LIMIT_BACKOFF_BASE * (2**attempt)
-                    token_count, token_method = _estimate_tokens(
-                        self.model,
-                        full_messages,
-                    )
-                    dump_path = _dump_failed_request(
+
+                    # Yield text end if we had text
+                    if accumulated_text:
+                        yield TextEndEvent(full_text=accumulated_text)
+
+                    # Yield finish event
+                    usage = getattr(chunk, "usage", None)
+                    input_tokens = getattr(usage, "prompt_tokens", 0) or 0
+                    output_tokens = getattr(usage, "completion_tokens", 0) or 0
+
+                    yield FinishEvent(
+                        stop_reason=choice.finish_reason,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
                         model=self.model,
-                        kwargs=kwargs,
-                        error_type="empty_stream",
-                        attempt=attempt,
                     )
-                    logger.warning(
-                        f"[stream-retry] {self.model} returned empty stream — "
-                        f"~{token_count} tokens ({token_method}). "
-                        f"Request dumped to: {dump_path}. "
-                        f"Retrying in {wait}s "
-                        f"(attempt {attempt + 1}/{RATE_LIMIT_MAX_RETRIES})"
-                    )
-                    await asyncio.sleep(wait)
-                    continue
 
-                # Success (or final attempt) — flush remaining events.
-                for event in tail_events:
-                    yield event
-                return
-
-            except RateLimitError as e:
-                if attempt < RATE_LIMIT_MAX_RETRIES:
-                    wait = RATE_LIMIT_BACKOFF_BASE * (2**attempt)
-                    logger.warning(
-                        f"[stream-retry] {self.model} rate limited (429): {e!s}. "
-                        f"Retrying in {wait}s "
-                        f"(attempt {attempt + 1}/{RATE_LIMIT_MAX_RETRIES})"
-                    )
-                    await asyncio.sleep(wait)
-                    continue
-                yield StreamErrorEvent(error=str(e), recoverable=False)
-                return
-
-            except Exception as e:
-                yield StreamErrorEvent(error=str(e), recoverable=False)
-                return
+        except Exception as e:
+            yield StreamErrorEvent(error=str(e), recoverable=False)
