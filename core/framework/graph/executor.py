@@ -541,7 +541,7 @@ class GraphExecutor:
 
                 # Log actual input data being read
                 if node_spec.input_keys:
-                    self.logger.info("   Reading from memory:")
+                    self.logger.debug("   Reading from memory:")
                     for key in node_spec.input_keys:
                         value = memory.read(key)
                         if value is not None:
@@ -549,7 +549,7 @@ class GraphExecutor:
                             value_str = str(value)
                             if len(value_str) > 200:
                                 value_str = value_str[:200] + "..."
-                            self.logger.info(f"      {key}: {value_str}")
+                            self.logger.debug(f"      {key}: {value_str}")
 
                 # Get or create node implementation
                 node_impl = self._get_node_implementation(node_spec, graph.cleanup_llm_model)
@@ -651,12 +651,12 @@ class GraphExecutor:
 
                     # Log what was written to memory (detailed view)
                     if result.output:
-                        self.logger.info("   Written to memory:")
+                        self.logger.debug("   Written to memory:")
                         for key, value in result.output.items():
                             value_str = str(value)
                             if len(value_str) > 200:
                                 value_str = value_str[:200] + "..."
-                            self.logger.info(f"      {key}: {value_str}")
+                            self.logger.debug(f"      {key}: {value_str}")
 
                     # Write node outputs to memory BEFORE edge evaluation
                     # This enables direct key access in conditional expressions (e.g., "score > 80")
@@ -884,11 +884,11 @@ class GraphExecutor:
 
                         # Continue from fan-in node
                         if fan_in_node:
-                            self.logger.info(f"   ⑃ Fan-in: converging at {fan_in_node}")
+                            self.logger.debug(f"   ⑃ Fan-in: converging at {fan_in_node}")
                             current_node_id = fan_in_node
                         else:
                             # No convergence point - branches are terminal
-                            self.logger.info("   → Parallel branches completed (no convergence)")
+                            self.logger.debug("   → Parallel branches completed (no convergence)")
                             break
                     else:
                         # Sequential: follow single edge (existing logic via _follow_edges)
