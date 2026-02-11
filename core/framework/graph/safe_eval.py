@@ -2,6 +2,14 @@ import ast
 import operator
 from typing import Any
 
+
+def _safe_pow(base: Any, exp: Any) -> Any:
+    """Guarded power operator to prevent CPU/memory exhaustion from large exponents."""
+    if isinstance(exp, (int, float)) and abs(exp) > 1000:
+        raise ValueError(f"Exponent too large: {exp}. Maximum allowed is 1000.")
+    return base ** exp
+
+
 # Safe operators whitelist
 SAFE_OPERATORS = {
     ast.Add: operator.add,
@@ -10,7 +18,7 @@ SAFE_OPERATORS = {
     ast.Div: operator.truediv,
     ast.FloorDiv: operator.floordiv,
     ast.Mod: operator.mod,
-    ast.Pow: operator.pow,
+    ast.Pow: lambda base, exp: _safe_pow(base, exp),
     ast.LShift: operator.lshift,
     ast.RShift: operator.rshift,
     ast.BitOr: operator.or_,
@@ -115,11 +123,20 @@ class SafeEvalVisitor(ast.NodeVisitor):
         return True
 
     def visit_BoolOp(self, node: ast.BoolOp) -> Any:
-        values = [self.visit(v) for v in node.values]
         if isinstance(node.op, ast.And):
-            return all(values)
+            result = True
+            for v in node.values:
+                result = self.visit(v)
+                if not result:
+                    return result
+            return result
         elif isinstance(node.op, ast.Or):
-            return any(values)
+            result = False
+            for v in node.values:
+                result = self.visit(v)
+                if result:
+                    return result
+            return result
         raise ValueError(f"Boolean operator {type(node.op).__name__} is not allowed")
 
     def visit_IfExp(self, node: ast.IfExp) -> Any:
@@ -145,7 +162,7 @@ class SafeEvalVisitor(ast.NodeVisitor):
 
     def visit_Attribute(self, node: ast.Attribute) -> Any:
         # value.attr
-        # STIRCT CHECK: No access to private attributes (starting with _)
+        # STRICT CHECK: No access to private attributes (starting with _)
         if node.attr.startswith("_"):
             raise ValueError(f"Access to private attribute '{node.attr}' is not allowed")
 
