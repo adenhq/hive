@@ -178,9 +178,6 @@ class FlexibleGraphExecutor:
 
                 # Execute next step (for now, sequential; could be parallel)
                 step = ready_steps[0]
-                # Debug: show ready steps
-                # ready_ids = [s.id for s in ready_steps]
-                # print(f"  [DEBUG] Ready steps: {ready_ids}, executing: {step.id}")
 
                 # APPROVAL CHECK - before execution
                 if step.requires_approval:
