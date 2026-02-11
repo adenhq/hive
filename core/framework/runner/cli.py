@@ -7,6 +7,23 @@ import sys
 from pathlib import Path
 
 
+def _no_agents_hint(directory: str | Path | None = None) -> str:
+    """Return a helpful hint message when no agents are found."""
+    if directory:
+        header = f"No agents found in {directory}"
+    else:
+        header = "No agents found in exports/ or examples/templates/"
+    return (
+        f"{header}\n"
+        "\n"
+        "To get started:\n"
+        "  Copy a template:    cp -r examples/templates/deep_research_agent exports/my_agent\n"
+        "  Run minimal demo:   uv run python core/examples/manual_agent.py\n"
+        "  Build with Claude:  claude /hive\n"
+        "  See docs:           docs/getting-started.md\n"
+    )
+
+
 def register_commands(subparsers: argparse._SubParsersAction) -> None:
     """Register runner commands with the main CLI."""
 
@@ -710,7 +727,7 @@ def cmd_list(args: argparse.Namespace) -> int:
     directory = Path(args.directory)
     if not directory.exists():
         # FIX: Handle missing directory gracefully on fresh install
-        print(f"No agents found in {directory}")
+        print(_no_agents_hint(directory))
         return 0
 
     agents = []
@@ -740,7 +757,7 @@ def cmd_list(args: argparse.Namespace) -> int:
                 )
 
     if not agents:
-        print(f"No agents found in {directory}")
+        print(_no_agents_hint(directory))
         return 0
 
     print(f"Agents in {directory}:\n")
@@ -793,7 +810,7 @@ def cmd_dispatch(args: argparse.Namespace) -> int:
                 agent_paths.append((path.name, path))
 
     if not agent_paths:
-        print(f"No agents found in {agents_dir}", file=sys.stderr)
+        print(_no_agents_hint(agents_dir), file=sys.stderr)
         return 1
 
     # Register agents
@@ -1241,7 +1258,7 @@ def cmd_tui(args: argparse.Namespace) -> int:
     has_examples = _has_agents(examples_dir)
 
     if not has_exports and not has_examples:
-        print("No agents found in exports/ or examples/templates/", file=sys.stderr)
+        print(_no_agents_hint(), file=sys.stderr)
         return 1
 
     # Determine which directory to browse
@@ -1449,7 +1466,7 @@ def _select_agent(agents_dir: Path) -> str | None:
             agents.append(path)
 
     if not agents:
-        print(f"No agents found in {agents_dir}", file=sys.stderr)
+        print(_no_agents_hint(agents_dir), file=sys.stderr)
         return None
 
     # Pagination setup
@@ -1588,7 +1605,7 @@ def _interactive_multi(agents_dir: Path) -> int:
                 print(f"Warning: Failed to register {path.name}: {e}")
 
     if agent_count == 0:
-        print(f"No agents found in {agents_dir}", file=sys.stderr)
+        print(_no_agents_hint(agents_dir), file=sys.stderr)
         return 1
 
     print(f"\n{'=' * 60}")
