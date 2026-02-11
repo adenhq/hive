@@ -31,6 +31,17 @@ You may submit PRs without prior assignment for:
   | Typos & Documentation & Linting | Refactoring for "clean code" |
   | No logic/API/DB changes | New features (even tiny ones) |
 
+## Contributor Journey Map
+
+Not sure where to start? Find the path that fits your goals:
+
+| Goal | Path | Time Needed | Prerequisite |
+| :--- | :--- | :--- | :--- |
+| **"I want to fix a typo or clarify docs"** | **Docs Contributor** | ~15 mins | GitHub Account |
+| **"I want to build my first agent"** | **Agent Builder** | ~30 mins | Python, [Quickstart Guide](docs/getting-started/your-first-agent.md) |
+| **"I want to add a new tool or integration"** | **Tools Developer** | ~2 hours | Python, MCP basics |
+| **"I want to improve the core framework"** | **Core Engineer** | Days+ | Deep Python, AsyncIO |
+
 ## Getting Started
 
 1. Fork the repository
@@ -140,6 +151,7 @@ feat(component): add new feature description
 make check
 
 # Run core framework tests (mirrors CI test job)
+# Note: These use the MockLLMProvider by default, so NO API KEYS are required.
 make test
 
 # Or run tests directly
@@ -148,9 +160,19 @@ cd core && pytest tests/ -v
 # Run tools package tests (when contributing to tools/)
 cd tools && uv run pytest tests/ -v
 
-# Run tests for a specific agent
+# Run tests for a specific agent (requires API keys if agent calls real LLMs)
 PYTHONPATH=exports uv run python -m agent_name test
 ```
+
+### Testing Without API Keys (Mock Provider)
+
+The core framework tests use `MockLLMProvider` to simulate LLM responses, allowing you to run the full test suite without spending money or exposing API keys.
+
+To run these tests:
+1. Ensure you are in the root directory.
+2. Run `make test`.
+
+This is the recommended first step for all code contributions to verify your environment is set up correctly.
 
 > **CI also validates** that all exported agent JSON files (`exports/*/agent.json`) are well-formed JSON. Ensure your agent exports are valid before submitting.
 
