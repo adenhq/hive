@@ -14,7 +14,6 @@ VECTOR_DB_CREDENTIALS = {
             "vector_search",
             "vector_delete",
             "vector_count",
-            "vector_chunk_text",
         ],
         required=False,  # Can use defaults
         startup_required=False,

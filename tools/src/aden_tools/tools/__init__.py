@@ -42,6 +42,7 @@ if TYPE_CHECKING:
 
 # Import register_tools from each tool module
 from .apollo_tool import register_tools as register_apollo
+from .chunking_tool import register_tools as register_chunking
 from .csv_tool import register_tools as register_csv
 from .email_tool import register_tools as register_email
 from .example_tool import register_tools as register_example
@@ -126,6 +127,8 @@ def register_all_tools(
     # Supports: upsert, search, delete, count, chunk_text
     # Credentials: CHROMA_PERSIST_DIR, CHROMA_COLLECTION_NAME env vars (optional)
     register_vector_db(mcp, credentials=credentials)
+    # Text Chunking Tool - Pure logic, no credentials needed
+    register_chunking(mcp)
 
     return [
         "example_tool",

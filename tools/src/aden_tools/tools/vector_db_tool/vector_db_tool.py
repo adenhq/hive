@@ -188,33 +188,3 @@ def register_tools(
             return store.count()
         except Exception as e:
             return {"error": f"Vector DB count failed: {e}"}
-
-    @mcp.tool()
-    def vector_chunk_text(
-        text: str,
-        chunk_size: int = 1000,
-        chunk_overlap: int = 200,
-        separator: str = "\n\n",
-    ) -> dict:
-        """
-        Split text into chunks for efficient vector storage and retrieval.
-
-        Args:
-            text: Input text to chunk
-            chunk_size: Maximum characters per chunk (default 1000)
-            chunk_overlap: Number of overlapping characters between chunks (default 200)
-            separator: Primary separator to use for splitting (default "\\n\\n")
-
-        Returns:
-            Dict with list of text chunks
-        """
-        from aden_tools.tools.vector_db_tool.chunking import chunk_text
-
-        if not text:
-            return {"error": "text is required"}
-
-        try:
-            chunks = chunk_text(text, chunk_size, chunk_overlap, separator)
-            return {"success": True, "chunks": chunks, "count": len(chunks)}
-        except Exception as e:
-            return {"error": f"Text chunking failed: {e}"}
