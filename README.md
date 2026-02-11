@@ -44,7 +44,7 @@ Visit [adenhq.com](https://adenhq.com) for complete documentation, examples, and
 
 https://github.com/user-attachments/assets/846c0cc7-ffd6-47fa-b4b7-495494857a55
 
-## Who Is Hive For?
+## Who Is Hive For ?
 
 Hive is designed for developers and teams who want to build **production-grade AI agents** without manually wiring complex workflows.
 
