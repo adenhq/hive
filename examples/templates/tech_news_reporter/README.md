@@ -93,11 +93,27 @@ from framework.runner import AgentRunner
 runner = AgentRunner.load("examples/templates/tech_news_reporter")
 
 # Run with input
-result = await runner.run({"input_key": "value"})
+result = await runner.run({"query": "General tech and AI roundup for the past week."})
 
 # Access results
 print(result.output)
 print(result.status)
+```
+
+### Example Input/Output
+
+Example input passed to the entry point:
+
+```python
+{"query": "Focus on LLMs and robotics, plus any major AI product launches."}
+```
+
+Example output shape after the report is generated:
+
+```json
+{
+  "report_file": "tech_news_report.html"
+}
 ```
 
 ### Input Schema
