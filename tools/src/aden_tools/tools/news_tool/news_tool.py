@@ -21,7 +21,8 @@ if TYPE_CHECKING:
     from aden_tools.credentials import CredentialStoreAdapter
 
 NEWSDATA_URL = "https://newsdata.io/api/1/news"
-FINLIGHT_URL = "https://api.finlight.me/v1/news"
+NEWSDATA_ARCHIVE_URL = "https://newsdata.io/api/1/archive"
+FINLIGHT_URL = "https://api.finlight.me/v2/articles"
 
 
 def register_tools(
@@ -65,7 +66,11 @@ def register_tools(
         if response.status_code == 429:
             return {"error": "NewsData rate limit exceeded. Try again later."}
         if response.status_code == 422:
-            return {"error": "Invalid NewsData parameters"}
+            try:
+                detail = response.json().get("results", {}).get("message", response.text)
+            except Exception:
+                detail = response.text
+            return {"error": f"Invalid NewsData parameters: {detail}"}
         return {"error": f"NewsData request failed: HTTP {response.status_code}"}
 
     def _finlight_error(response: httpx.Response) -> dict:
@@ -75,7 +80,11 @@ def register_tools(
         if response.status_code == 429:
             return {"error": "Finlight rate limit exceeded. Try again later."}
         if response.status_code == 422:
-            return {"error": "Invalid Finlight parameters"}
+            try:
+                detail = response.json().get("message", response.text)
+            except Exception:
+                detail = response.text
+            return {"error": f"Invalid Finlight parameters: {detail}"}
         return {"error": f"Finlight request failed: HTTP {response.status_code}"}
 
     def _format_article(
@@ -117,7 +126,7 @@ def register_tools(
         include_sentiment: bool = False,
     ) -> list[dict]:
         """Parse Finlight results into normalized articles."""
-        raw_results = data.get("data") or data.get("results") or []
+        raw_results = data.get("articles") or data.get("data") or data.get("results") or []
         results = []
         for item in raw_results:
             sentiment_value = None
@@ -127,8 +136,8 @@ def register_tools(
                 _format_article(
                     title=item.get("title", ""),
                     source=item.get("source", ""),
-                    published_at=item.get("published_at", ""),
-                    url=item.get("url", ""),
+                    published_at=item.get("publishDate", "") or item.get("published_at", ""),
+                    url=item.get("link", "") or item.get("url", ""),
                     snippet=item.get("summary", "") or item.get("description", ""),
                     sentiment=sentiment_value,
                 )
@@ -147,12 +156,14 @@ def register_tools(
         api_key: str,
     ) -> dict:
         """Search NewsData API."""
+        use_archive = bool(from_date or to_date)
+        url = NEWSDATA_ARCHIVE_URL if use_archive else NEWSDATA_URL
         params = _clean_params(
             {
                 "apikey": api_key,
                 "q": query,
-                "from_date": from_date,
-                "to_date": to_date,
+                "from_date": from_date if use_archive else None,
+                "to_date": to_date if use_archive else None,
                 "language": language,
                 "category": category,
                 "country": country,
@@ -162,7 +173,7 @@ def register_tools(
         if sources:
             params["sources"] = sources
 
-        response = httpx.get(NEWSDATA_URL, params=params, timeout=30.0)
+        response = httpx.get(url, params=params, timeout=30.0)
         if response.status_code != 200:
             return _newsdata_error(response)
 
@@ -187,24 +198,25 @@ def register_tools(
         include_sentiment: bool = False,
     ) -> dict:
         """Search Finlight API."""
-        params = _clean_params(
-            {
-                "query": query,
-                "from_date": from_date,
-                "to_date": to_date,
-                "language": language,
-                "category": category,
-                "country": country,
-                "limit": limit,
-            }
-        )
+        if not query and category:
+            query = category
+        body: dict[str, object] = {
+            "query": query,
+            "from": from_date,
+            "to": to_date,
+            "language": language,
+            "pageSize": limit,
+            "page": 1,
+        }
         if sources:
-            params["sources"] = sources
+            body["sources"] = [source.strip() for source in sources.split(",") if source.strip()]
+        if country:
+            body["countries"] = [country.upper()]
 
-        response = httpx.get(
+        response = httpx.post(
             FINLIGHT_URL,
-            params=params,
-            headers={"Authorization": f"Bearer {api_key}"},
+            json={key: value for key, value in body.items() if value not in (None, "", [])},
+            headers={"X-API-KEY": api_key, "Accept": "application/json"},
             timeout=30.0,
         )
         if response.status_code != 200:

@@ -72,15 +72,18 @@ class TestNewsSearch:
         def mock_get(url: str, params=None, timeout=30.0, headers=None):
             if "newsdata.io" in url:
                 return DummyResponse(401, {})
+            return DummyResponse(500, {})
+
+        def mock_post(url: str, json=None, timeout=30.0, headers=None):
             return DummyResponse(
                 200,
                 {
-                    "data": [
+                    "articles": [
                         {
                             "title": "Market Update",
                             "source": "finlight",
-                            "published_at": "2026-02-02",
-                            "url": "https://example.com/fin",
+                            "publishDate": "2026-02-02",
+                            "link": "https://example.com/fin",
                             "summary": "Markets moved today.",
                         }
                     ]
@@ -88,6 +91,7 @@ class TestNewsSearch:
             )
 
         monkeypatch.setattr(httpx, "get", mock_get)
+        monkeypatch.setattr(httpx, "post", mock_post)
 
         result = news_tools["news_search"].fn(query="markets")
 
