@@ -22,12 +22,14 @@ def csv_tools(mcp: FastMCP, tmp_path: Path):
     """Register all CSV tools and return them as a dict."""
     with patch("aden_tools.tools.file_system_toolkits.security.WORKSPACES_DIR", str(tmp_path)):
         register_tools(mcp)
+        # Access the raw function from the tool manager
         yield {
             "csv_read": mcp._tool_manager._tools["csv_read"].fn,
             "csv_write": mcp._tool_manager._tools["csv_write"].fn,
             "csv_append": mcp._tool_manager._tools["csv_append"].fn,
             "csv_info": mcp._tool_manager._tools["csv_info"].fn,
             "csv_sql": mcp._tool_manager._tools["csv_sql"].fn,
+            "csv_inspect": mcp._tool_manager._tools["csv_inspect"].fn,
         }
 
 
@@ -890,3 +892,43 @@ class TestCsvSql:
         assert result["success"] is True
         assert result["row_count"] == 1
         assert result["rows"][0]["名前"] == "商品B"
+
+
+class TestCsvInspect:
+    """Tests for new csv_inspect function (Nicolas implementation)."""
+
+    @pytest.fixture
+    def mixed_types_csv(self, session_dir: Path) -> Path:
+        """Create a CSV with various data types."""
+        csv_file = session_dir / "mixed.csv"
+        # name (string), age (int), active (bool), score (float)
+        csv_file.write_text(
+            "name,age,active,score\n"
+            "Alice,30,true,95.5\n"
+            "Bob,25,false,88.0\n"
+            "Charlie,35,true,92.5\n"
+        )
+        return csv_file
+
+    def test_inspect_types(self, csv_tools, mixed_types_csv, tmp_path):
+        """Inspect infers correct data types."""
+        with patch("aden_tools.tools.file_system_toolkits.security.WORKSPACES_DIR", str(tmp_path)):
+            result = csv_tools["csv_inspect"](
+                path="mixed.csv",
+                workspace_id=TEST_WORKSPACE_ID,
+                agent_id=TEST_AGENT_ID,
+                session_id=TEST_SESSION_ID,
+            )
+
+        assert result["success"] is True
+        schema = result["schema"]
+        
+        # Verify inferred types
+        assert schema["name"] == "string"
+        assert schema["age"] == "integer"
+        assert schema["active"] == "boolean"
+        assert schema["score"] == "float"
+        
+        # Verify samples
+        assert len(result["sample_data"]) == 3
+        assert result["sample_data"][0]["name"] == "Alice"
