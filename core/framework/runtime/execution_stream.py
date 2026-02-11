@@ -491,6 +491,17 @@ class ExecutionStream:
                 else:
                     await self._write_session_state(execution_id, ctx, error="Execution cancelled")
 
+                # End run so the trace context opened by start_run() is closed.
+                # Without this, observability data for the run is silently lost.
+                try:
+                    runtime_adapter.end_run(
+                        success=False,
+                        narrative="Execution cancelled",
+                        output_data={},
+                    )
+                except Exception:
+                    pass  # Don't let end_run errors mask the cancellation
+
                 # Don't re-raise - we've handled it and saved state
 
             except Exception as e:
