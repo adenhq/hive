@@ -105,23 +105,91 @@ This sets up:
 - **LLM provider** - Interactive default model configuration
 - All required Python dependencies with `uv`
 
-### Build Your First Agent
+## Build Your First Agent
 
+### Prerequisites
+- Python 3.11+ installed
+- Git installed
+- Claude Code (optional, for AI-assisted building) or CLI commands
+
+### Step 1: Setup Environment
+
+**For all users:**
 ```bash
-# Build an agent using Claude Code
-claude> /hive
+# Clone the repository
+git clone https://github.com/adenhq/hive.git
+cd hive
 
-# Test your agent
-claude> /hive-debugger
-
-# (at separate terminal) Launch the interactive dashboard
-hive tui
-
-# Or run directly
-hive run exports/your_agent_name --input '{"key": "value"}'
+# Run automated setup
+./quickstart.sh
 ```
 
-**[📖 Complete Setup Guide](docs/environment-setup.md)** - Detailed instructions for agent development
+**Windows users:** Use WSL (Windows Subsystem for Linux) or Git Bash for best compatibility.
+
+### Step 2: Choose Your Build Method
+
+You have two options to build your agent:
+
+#### Option A: Using Claude Code (Recommended for beginners)
+
+Claude Code provides an AI-assisted workflow:
+```bash
+# Start Claude Code
+claude
+
+# In Claude Code, use the /hive command
+claude> /hive
+```
+
+Follow the interactive prompts to:
+- Define your agent's goal
+- Design the workflow (nodes and edges)
+- Generate the agent package
+- Test the agent
+
+#### Option B: Using CLI Commands (For experienced users)
+
+Build your agent manually with CLI tools:
+```bash
+# Create agent directory
+mkdir -p exports/my_agent
+cd exports/my_agent
+
+# Create agent structure (see developer-guide.md for details)
+# - agent.json (agent graph specification)
+# - tools.py (custom tool implementations)
+# - README.md (agent documentation)
+```
+
+### Step 3: Validate Your Agent
+```bash
+# Validate agent structure
+PYTHONPATH=exports uv run python -m my_agent validate
+
+# Show agent information
+PYTHONPATH=exports uv run python -m my_agent info
+```
+
+### Step 4: Test Your Agent
+```bash
+# Run agent with test input
+PYTHONPATH=exports uv run python -m my_agent run --input '{"task": "Your test input here"}'
+
+# Run in mock mode (no LLM calls, useful for testing)
+PYTHONPATH=exports uv run python -m my_agent run --mock
+```
+
+### Step 5: Run Your Agent in Production
+```bash
+# Run with actual data
+PYTHONPATH=exports uv run python -m my_agent run --input '{"task": "Your actual task"}'
+```
+
+### Need Help?
+- [Full Documentation](https://docs.adenhq.com)
+- [Developer Guide](./docs/developer-guide.md)
+- [Discord Community](https://discord.com/invite/MXE49hrKDk)
+- [Report Issues](https://github.com/adenhq/hive/issues)
 
 ## Features
 
