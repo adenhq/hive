@@ -43,6 +43,7 @@ from .file_system_toolkits.write_to_file import register_tools as register_write
 from .github_tool import register_tools as register_github
 from .hubspot_tool import register_tools as register_hubspot
 from .pdf_read_tool import register_tools as register_pdf_read
+from .razorpay_tool import register_tools as register_razorpay
 from .runtime_logs_tool import register_tools as register_runtime_logs
 from .serpapi_tool import register_tools as register_serpapi
 from .slack_tool import register_tools as register_slack
@@ -81,6 +82,7 @@ def register_all_tools(
     register_apollo(mcp, credentials=credentials)
     register_serpapi(mcp, credentials=credentials)
     register_slack(mcp, credentials=credentials)
+    register_razorpay(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -153,6 +155,13 @@ def register_all_tools(
         "query_runtime_logs",
         "query_runtime_log_details",
         "query_runtime_log_raw",
+        # Razorpay tools
+        "razorpay_list_payments",
+        "razorpay_get_payment",
+        "razorpay_create_payment_link",
+        "razorpay_list_invoices",
+        "razorpay_get_invoice",
+        "razorpay_create_refund",
         # SerpAPI tools (Google Scholar & Patents)
         "scholar_search",
         "scholar_get_citations",
