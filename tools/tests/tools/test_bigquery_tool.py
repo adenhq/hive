@@ -32,7 +32,7 @@ def mock_credentials():
     """Create mock credentials for testing."""
     return CredentialStoreAdapter.for_testing(
         {
-            "bigquery_credentials": "/path/to/service-account.json",
+            "bigquery": "/path/to/service-account.json",
             "bigquery_project": "test-project",
         }
     )
@@ -392,14 +392,14 @@ class TestCredentialResolution:
         """Should use credentials from CredentialStoreAdapter."""
         mock_creds = CredentialStoreAdapter.for_testing(
             {
-                "bigquery_credentials": "/custom/path/credentials.json",
+                "bigquery": "/custom/path/credentials.json",
                 "bigquery_project": "custom-project",
             }
         )
         register_tools(mcp, credentials=mock_creds)
 
         # Verify credentials are accessible (actual usage tested in other tests)
-        assert mock_creds.get("bigquery_credentials") == "/custom/path/credentials.json"
+        assert mock_creds.get("bigquery") == "/custom/path/credentials.json"
         assert mock_creds.get("bigquery_project") == "custom-project"
 
     def test_falls_back_to_env_vars(self, mcp):

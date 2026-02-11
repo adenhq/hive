@@ -109,9 +109,17 @@ def register_tools(
     def _get_credentials() -> dict[str, str | None]:
         """Get BigQuery credentials from credential store or environment."""
         if credentials is not None:
+            try:
+                creds_path = credentials.get("bigquery")
+            except KeyError:
+                creds_path = None
+            try:
+                project = credentials.get("bigquery_project")
+            except KeyError:
+                project = None
             return {
-                "credentials_path": credentials.get("bigquery_credentials"),
-                "project_id": credentials.get("bigquery_project"),
+                "credentials_path": creds_path,
+                "project_id": project,
             }
         return {
             "credentials_path": os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),
@@ -130,6 +138,12 @@ def register_tools(
         """
         creds = _get_credentials()
         effective_project = project_id or creds["project_id"]
+
+        # Set credentials path in environment if provided from credential store
+        credentials_path = creds.get("credentials_path")
+        if credentials_path:
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+
         return _create_bigquery_client(effective_project)
 
     @mcp.tool()
@@ -234,7 +248,10 @@ def register_tools(
             error_msg = str(e)
 
             # Provide helpful messages for common errors
-            if "Could not automatically determine credentials" in error_msg:
+            if (
+                "Could not automatically determine credentials" in error_msg
+                or "default credentials were not found" in error_msg.lower()
+            ):  # noqa: E501
                 return {
                     "error": "BigQuery authentication failed",
                     "help": "Set GOOGLE_APPLICATION_CREDENTIALS to your service account JSON path, "
@@ -345,7 +362,10 @@ def register_tools(
         except Exception as e:
             error_msg = str(e)
 
-            if "Could not automatically determine credentials" in error_msg:
+            if (
+                "Could not automatically determine credentials" in error_msg
+                or "default credentials were not found" in error_msg.lower()
+            ):  # noqa: E501
                 return {
                     "error": "BigQuery authentication failed",
                     "help": "Set GOOGLE_APPLICATION_CREDENTIALS to your service account JSON path, "
