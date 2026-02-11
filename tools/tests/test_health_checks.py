@@ -7,6 +7,7 @@ import httpx
 from aden_tools.credentials.health_check import (
     HEALTH_CHECKERS,
     AnthropicHealthChecker,
+    DiscordHealthChecker,
     GitHubHealthChecker,
     GoogleSearchHealthChecker,
     ResendHealthChecker,
@@ -37,6 +38,11 @@ class TestHealthCheckerRegistry:
         assert "resend" in HEALTH_CHECKERS
         assert isinstance(HEALTH_CHECKERS["resend"], ResendHealthChecker)
 
+    def test_discord_registered(self):
+        """DiscordHealthChecker is registered in HEALTH_CHECKERS."""
+        assert "discord" in HEALTH_CHECKERS
+        assert isinstance(HEALTH_CHECKERS["discord"], DiscordHealthChecker)
+
     def test_all_expected_checkers_registered(self):
         """All expected health checkers are in the registry."""
         expected = {
@@ -47,6 +53,7 @@ class TestHealthCheckerRegistry:
             "github",
             "resend",
             "slack",
+            "discord",
         }
         assert set(HEALTH_CHECKERS.keys()) == expected
 
