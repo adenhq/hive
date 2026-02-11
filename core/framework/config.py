@@ -26,7 +26,18 @@ def get_hive_config() -> dict[str, Any]:
     try:
         with open(HIVE_CONFIG_FILE) as f:
             return json.load(f)
-    except (json.JSONDecodeError, OSError):
+    except json.JSONDecodeError as e:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            f"Invalid JSON in {HIVE_CONFIG_FILE}: {e}. Using defaults. "
+            f"Fix the syntax to apply your configuration."
+        )
+        return {}
+    except OSError as e:
+        import logging
+
+        logging.getLogger(__name__).warning(f"Could not read {HIVE_CONFIG_FILE}: {e}")
         return {}
 
 

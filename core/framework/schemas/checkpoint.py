@@ -5,7 +5,7 @@ Checkpoints capture the execution state at strategic points (node boundaries,
 iterations) to enable crash recovery and resume-from-failure scenarios.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -77,7 +77,7 @@ class Checkpoint(BaseModel):
         Returns:
             New Checkpoint instance
         """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         checkpoint_id = f"cp_{checkpoint_type}_{current_node}_{timestamp}"
 
         if not description:
@@ -87,7 +87,7 @@ class Checkpoint(BaseModel):
             checkpoint_id=checkpoint_id,
             checkpoint_type=checkpoint_type,
             session_id=session_id,
-            created_at=datetime.now().isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
             current_node=current_node,
             next_node=next_node,
             execution_path=execution_path,

@@ -9,7 +9,10 @@
 # 4. Verifies everything works
 #
 
-set -e
+# Note: set -e is intentionally NOT used here. Each critical step has
+# its own explicit error handling so that transient or non-critical
+# failures produce clear messages instead of silently aborting the
+# entire setup wizard.
 
 # Detect Bash version for compatibility
 BASH_MAJOR_VERSION="${BASH_VERSINFO[0]}"
@@ -649,13 +652,11 @@ print(json.dumps(config, indent=2))
 " 2>/dev/null
 }
 
-# Source shell rc file to pick up existing env vars (temporarily disable set -e)
-set +e
+# Source shell rc file to pick up existing env vars
 if [ -f "$SHELL_RC_FILE" ]; then
     # Extract only export statements to avoid running shell config commands
-    eval "$(grep -E '^export [A-Z_]+=' "$SHELL_RC_FILE" 2>/dev/null)"
+    eval "$(grep -E '^export [A-Z_]+=' "$SHELL_RC_FILE" 2>/dev/null)" || true
 fi
-set -e
 
 # Find all available API keys
 FOUND_PROVIDERS=()      # Display names for UI

@@ -8,7 +8,7 @@ Handles reading and writing session state to the new unified structure:
 import asyncio
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from framework.schemas.session_state import SessionState
@@ -49,7 +49,7 @@ class SessionStore:
         Returns:
             Session ID string (e.g., "session_20260206_143022_abc12345")
         """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         short_uuid = uuid.uuid4().hex[:8]
         return f"session_{timestamp}_{short_uuid}"
 

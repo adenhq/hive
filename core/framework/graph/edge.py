@@ -451,12 +451,17 @@ class GraphSpec(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _resolve_max_tokens(cls, values: Any) -> Any:
-        """Resolve max_tokens from the global config store when not explicitly set."""
-        if isinstance(values, dict) and values.get("max_tokens") is None:
-            from framework.config import get_max_tokens
+    def _resolve_defaults(cls, values: Any) -> Any:
+        """Resolve default_model and max_tokens from the global config store when not explicitly set."""
+        if isinstance(values, dict):
+            if values.get("default_model") is None or values.get("default_model") == "claude-haiku-4-5-20251001":
+                from framework.config import get_preferred_model
 
-            values["max_tokens"] = get_max_tokens()
+                values["default_model"] = get_preferred_model()
+            if values.get("max_tokens") is None:
+                from framework.config import get_max_tokens
+
+                values["max_tokens"] = get_max_tokens()
         return values
 
     def get_node(self, node_id: str) -> Any | None:

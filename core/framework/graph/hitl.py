@@ -164,19 +164,19 @@ class HITLProtocol:
         if not request.questions:
             return response
 
-        # Try to use Haiku for intelligent parsing
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not use_haiku or not api_key:
+        if not use_haiku:
             # Simple fallback: treat as answer to first question
             if request.questions:
                 response.answers[request.questions[0].id] = raw_input
             return response
 
-        # Use Haiku to extract answers
+        # Use LLM provider to extract answers
         try:
             import json
+            import re
 
-            import anthropic
+            from framework.config import get_preferred_model
+            from framework.llm.litellm import LiteLLMProvider
 
             questions_str = "\n".join(
                 [f"{i + 1}. {q.question} (id: {q.id})" for i, q in enumerate(request.questions)]
@@ -195,17 +195,14 @@ Extract the answer for each question. Output JSON with question IDs as keys.
 Example format:
 {{"question-1": "answer here", "question-2": "answer here"}}"""
 
-            client = anthropic.Anthropic(api_key=api_key)
-            message = client.messages.create(
-                model="claude-3-5-haiku-20241022",
-                max_tokens=500,
+            llm = LiteLLMProvider(model=get_preferred_model())
+            llm_response = llm.complete(
                 messages=[{"role": "user", "content": prompt}],
+                system="Parse user responses into structured JSON.",
+                max_tokens=500,
             )
 
-            # Parse Haiku's response
-            import re
-
-            response_text = message.content[0].text.strip()
+            response_text = llm_response.content.strip()
             json_match = re.search(r"\{[^{}]*\}", response_text, re.DOTALL)
 
             if json_match:

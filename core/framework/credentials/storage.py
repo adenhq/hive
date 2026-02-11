@@ -168,8 +168,12 @@ class EncryptedFileStorage(CredentialStorage):
 
     def _cred_path(self, credential_id: str) -> Path:
         """Get the file path for a credential."""
-        # Sanitize credential_id to prevent path traversal
-        safe_id = credential_id.replace("/", "_").replace("\\", "_").replace("..", "_")
+        # Sanitize credential_id to prevent path traversal — allowlist approach
+        import re
+
+        safe_id = re.sub(r"[^a-zA-Z0-9_-]", "_", credential_id)
+        if not safe_id:
+            raise ValueError(f"Invalid credential ID: {credential_id!r}")
         return self.base_path / "credentials" / f"{safe_id}.enc"
 
     def save(self, credential: CredentialObject) -> None:

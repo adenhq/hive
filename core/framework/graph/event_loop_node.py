@@ -1625,7 +1625,8 @@ class EventLoopNode(NodeProtocol):
             )
 
         try:
-            response = ctx.llm.complete(
+            response = await asyncio.to_thread(
+                ctx.llm.complete,
                 messages=[{"role": "user", "content": prompt}],
                 system=(
                     "Summarize conversations concisely. Always preserve the tool history section."

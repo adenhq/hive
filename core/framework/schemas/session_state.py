@@ -5,7 +5,7 @@ This schema consolidates data from Run, ExecutionResult, and runtime logs
 into a single source of truth for session status and resumability.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
@@ -182,7 +182,7 @@ class SessionState(BaseModel):
     ) -> "SessionState":
         """Create SessionState from ExecutionResult."""
 
-        now = datetime.now().isoformat()
+        now = datetime.now(UTC).isoformat()
 
         # Determine status based on execution result
         if result.paused_at:
@@ -237,7 +237,7 @@ class SessionState(BaseModel):
         """Create SessionState from legacy Run object."""
         from framework.schemas.run import RunStatus
 
-        now = datetime.now().isoformat()
+        now = datetime.now(UTC).isoformat()
 
         # Map RunStatus to SessionStatus
         status_mapping = {

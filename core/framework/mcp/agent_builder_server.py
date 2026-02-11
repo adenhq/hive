@@ -11,7 +11,7 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -58,15 +58,15 @@ class BuildSession:
     """Build session with persistence support."""
 
     def __init__(self, name: str, session_id: str | None = None):
-        self.id = session_id or f"build_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.id = session_id or f"build_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}"
         self.name = name
         self.goal: Goal | None = None
         self.nodes: list[NodeSpec] = []
         self.edges: list[EdgeSpec] = []
         self.mcp_servers: list[dict] = []  # MCP server configurations
         self.loop_config: dict = {}  # LoopConfig parameters for EventLoopNodes
-        self.created_at = datetime.now().isoformat()
-        self.last_modified = datetime.now().isoformat()
+        self.created_at = datetime.now(UTC).isoformat()
+        self.last_modified = datetime.now(UTC).isoformat()
 
     def to_dict(self) -> dict:
         """Serialize session to dictionary."""
@@ -144,7 +144,7 @@ def _save_session(session: BuildSession):
     _ensure_sessions_dir()
 
     # Update last modified
-    session.last_modified = datetime.now().isoformat()
+    session.last_modified = datetime.now(UTC).isoformat()
 
     # Save session file
     session_file = SESSIONS_DIR / f"{session.id}.json"
@@ -1522,7 +1522,7 @@ def _generate_readme(session: BuildSession, export_data: dict, all_tools: set) -
 
 **Version**: 1.0.0
 **Type**: Multi-node agent
-**Created**: {datetime.now().strftime("%Y-%m-%d")}
+**Created**: {datetime.now(UTC).strftime("%Y-%m-%d")}
 
 ## Overview
 
@@ -1633,7 +1633,7 @@ Terminal nodes: {", ".join(f"`{t}`" for t in export_data["graph"]["terminal_node
 
 ## Version History
 
-- **1.0.0** ({datetime.now().strftime("%Y-%m-%d")}): Initial release
+- **1.0.0** ({datetime.now(UTC).strftime("%Y-%m-%d")}): Initial release
   - {len(nodes)} nodes, {len(edges)} edges
   - Goal: {goal.name}
 """
@@ -1763,7 +1763,7 @@ def export_graph() -> str:
         "max_steps": 100,
         "max_retries_per_node": 3,
         "description": session.goal.description,
-        "created_at": datetime.now().isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
     }
 
     # Include loop config if configured
@@ -1787,7 +1787,7 @@ def export_graph() -> str:
         "goal": session.goal.model_dump(),
         "required_tools": list(all_tools),
         "metadata": {
-            "created_at": datetime.now().isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "node_count": len(session.nodes),
             "edge_count": len(edges_list),
         },
@@ -2700,7 +2700,7 @@ def create_plan(
         "steps": steps_list,
         "context": context_dict,
         "revision": 1,
-        "created_at": datetime.now().isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
     }
 
     return json.dumps(

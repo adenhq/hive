@@ -480,7 +480,7 @@ class AdenTUI(App):
         Returns:
             Path to the saved SVG file.
         """
-        from datetime import datetime
+        from datetime import UTC, datetime
         from pathlib import Path
 
         # Create screenshots directory
@@ -489,7 +489,7 @@ class AdenTUI(App):
 
         # Generate filename if not provided
         if filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
             filename = f"tui_screenshot_{timestamp}.svg"
 
         # Ensure .svg extension

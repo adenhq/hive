@@ -524,26 +524,11 @@ class NodeResult:
         if not self.output:
             return "✓ Completed (no output)"
 
-        # Use Haiku to generate intelligent summary
-        import os
-
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-
-        if not api_key:
-            # Fallback: simple key-value listing
-            parts = [f"✓ Completed with {len(self.output)} outputs:"]
-            for key, value in list(self.output.items())[:5]:  # Limit to 5 keys
-                value_str = str(value)[:100]
-                if len(str(value)) > 100:
-                    value_str += "..."
-                parts.append(f"  • {key}: {value_str}")
-            return "\n".join(parts)
-
-        # Use Haiku to generate intelligent summary
         try:
             import json
 
-            import anthropic
+            from framework.config import get_preferred_model
+            from framework.llm.litellm import LiteLLMProvider
 
             node_context = ""
             if node_spec:
@@ -558,14 +543,14 @@ class NodeResult:
                 "understand. Focus on the key information produced."
             )
 
-            client = anthropic.Anthropic(api_key=api_key)
-            message = client.messages.create(
-                model="claude-3-5-haiku-20241022",
-                max_tokens=200,
+            llm = LiteLLMProvider(model=get_preferred_model())
+            response = llm.complete(
                 messages=[{"role": "user", "content": prompt}],
+                system="Summarize concisely.",
+                max_tokens=200,
             )
 
-            summary = message.content[0].text.strip()
+            summary = response.content.strip()
             return f"✓ {summary}"
 
         except Exception:
@@ -1560,12 +1545,9 @@ Do NOT fabricate data or return empty objects."""
                     parts.append(f"{key}: {value}")
             return "\n".join(parts) if parts else str(ctx.input_data)
 
-        # Use Haiku to intelligently extract relevant data
-        import os
-
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            # Fallback to simple formatting if no API key
+        # Use LLM provider to intelligently extract relevant data
+        if not ctx.llm:
+            # Fallback to simple formatting if no LLM provider
             parts = []
             for key in ctx.node_spec.input_keys:
                 value = ctx.memory.read(key)
@@ -1596,17 +1578,13 @@ Do NOT fabricate data or return empty objects."""
         )
 
         try:
-            import anthropic
-
-            client = anthropic.Anthropic(api_key=api_key)
-            message = client.messages.create(
-                model="claude-3-5-haiku-20241022",
-                max_tokens=1000,
+            response = ctx.llm.complete(
                 messages=[{"role": "user", "content": prompt}],
+                system="Extract clean values from memory context. Output JSON only.",
+                max_tokens=1000,
             )
 
-            # Parse Haiku's response
-            response_text = message.content[0].text.strip()
+            response_text = response.content.strip()
 
             # Try to extract JSON using balanced brace matching
             json_str = find_json_object(response_text)
@@ -1619,7 +1597,7 @@ Do NOT fabricate data or return empty objects."""
 
         except Exception as e:
             # Fallback to simple formatting on error
-            logger.warning(f"Haiku formatting failed: {e}, falling back to simple format")
+            logger.warning(f"LLM formatting failed: {e}, falling back to simple format")
 
         # Fallback: simple key-value formatting
         parts = []

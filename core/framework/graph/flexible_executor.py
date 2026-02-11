@@ -17,7 +17,7 @@ This keeps planning external while execution/evaluation is internal.
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from framework.graph.code_sandbox import CodeSandbox
@@ -225,7 +225,7 @@ class FlexibleGraphExecutor:
                     # APPROVE - continue to execution
 
                 step.status = StepStatus.IN_PROGRESS
-                step.started_at = datetime.now()
+                step.started_at = datetime.now(UTC)
                 step.attempts += 1
 
                 # WORK
@@ -320,7 +320,7 @@ class FlexibleGraphExecutor:
         if judgment.action == JudgmentAction.ACCEPT:
             # Step succeeded - update state and continue
             step.status = StepStatus.COMPLETED
-            step.completed_at = datetime.now()
+            step.completed_at = datetime.now(UTC)
             step.result = work_result.outputs
 
             # Map outputs to expected output keys

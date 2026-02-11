@@ -14,7 +14,7 @@ import uuid
 from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from framework.graph.checkpoint_config import CheckpointConfig
@@ -428,7 +428,7 @@ class ExecutionStream:
                 )
 
                 # Update context
-                ctx.completed_at = datetime.now()
+                ctx.completed_at = datetime.now(UTC)
                 ctx.status = "completed" if result.success else "failed"
                 if result.paused_at:
                     ctx.status = "paused"
@@ -475,9 +475,20 @@ class ExecutionStream:
                 # Update context status based on result
                 if has_result and result.paused_at:
                     ctx.status = "paused"
-                    ctx.completed_at = datetime.now()
+                    ctx.completed_at = datetime.now(UTC)
                 else:
                     ctx.status = "cancelled"
+
+                # Close observability trace for this execution
+                try:
+                    status = "paused" if (has_result and result.paused_at) else "cancelled"
+                    runtime_adapter.end_run(
+                        success=False,
+                        narrative=f"Execution {status}",
+                        output_data=result.output if has_result else {},
+                    )
+                except Exception:
+                    pass
 
                 # Clean up executor reference
                 self._active_executors.pop(execution_id, None)
@@ -600,7 +611,7 @@ class ExecutionStream:
                 # Create initial state
                 from framework.schemas.session_state import SessionTimestamps
 
-                now = datetime.now().isoformat()
+                now = datetime.now(UTC).isoformat()
                 state = SessionState(
                     session_id=execution_id,
                     stream_id=self.stream_id,

@@ -9,7 +9,7 @@ handles all the structured logging.
 import logging
 import uuid
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -79,7 +79,7 @@ class Runtime:
         Returns:
             The run ID
         """
-        run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+        run_id = f"run_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
         trace_id = uuid.uuid4().hex
         execution_id = uuid.uuid4().hex  # 32 hex, OTel/W3C-aligned for logs
 

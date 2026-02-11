@@ -75,6 +75,11 @@ def register_commands(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         help="Resume from a specific checkpoint (requires --resume-session)",
     )
+    run_parser.add_argument(
+        "--mock",
+        action="store_true",
+        help="Use MockLLMProvider instead of a real API (no API calls)",
+    )
     run_parser.set_defaults(func=cmd_run)
 
     # info command
@@ -417,6 +422,15 @@ def cmd_run(args: argparse.Namespace) -> int:
             print(f"Error reading input file: {e}", file=sys.stderr)
             return 1
 
+    # Set up mock LLM if requested
+    mock_llm = None
+    if getattr(args, "mock", False):
+        from framework.llm.mock import MockLLMProvider
+
+        mock_llm = MockLLMProvider()
+        if not args.quiet:
+            print("Using MockLLMProvider (no real API calls)")
+
     # Run the agent (with TUI or standard)
     if getattr(args, "tui", False):
         from framework.tui.app import AdenTUI
@@ -472,6 +486,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             runner = AgentRunner.load(
                 args.agent_path,
                 model=args.model,
+                mock_mode=getattr(args, "mock", False),
             )
         except CredentialError as e:
             print(f"\n{e}", file=sys.stderr)

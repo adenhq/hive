@@ -44,9 +44,9 @@ class LLMJudge:
         Priority: OpenAI -> Anthropic.
         """
         if os.environ.get("OPENAI_API_KEY"):
-            from framework.llm.openai import OpenAIProvider
+            from framework.llm.litellm import LiteLLMProvider
 
-            return OpenAIProvider(model="gpt-4o-mini")
+            return LiteLLMProvider(model="gpt-4o-mini")
 
         if os.environ.get("ANTHROPIC_API_KEY"):
             from framework.llm.anthropic import AnthropicProvider

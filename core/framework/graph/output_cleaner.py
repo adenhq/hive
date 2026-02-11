@@ -48,13 +48,16 @@ def _heuristic_repair(text: str) -> dict | None:
         try:
             return json.loads(candidate)
         except json.JSONDecodeError:
-            # 5. Advanced: Try swapping single quotes if double quotes fail
-            # This is risky but effective for simple dicts
+            # 5. Try ast.literal_eval for Python-dict-like strings (handles
+            #    mixed quotes, apostrophes, and other Python literal syntax
+            #    that naive single-to-double quote swapping would corrupt).
             try:
-                if "'" in candidate and '"' not in candidate:
-                    candidate_swapped = candidate.replace("'", '"')
-                    return json.loads(candidate_swapped)
-            except json.JSONDecodeError:
+                import ast
+
+                parsed = ast.literal_eval(candidate)
+                if isinstance(parsed, dict):
+                    return parsed
+            except (ValueError, SyntaxError):
                 pass
 
     return None

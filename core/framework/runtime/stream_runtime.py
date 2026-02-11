@@ -9,7 +9,7 @@ executions within the same stream without collision.
 import asyncio
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from framework.observability import set_trace_context
@@ -118,7 +118,7 @@ class StreamRuntime:
         Returns:
             The run ID
         """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         run_id = f"run_{self.stream_id}_{timestamp}_{uuid.uuid4().hex[:8]}"
         trace_id = uuid.uuid4().hex
         otel_execution_id = uuid.uuid4().hex  # 32 hex, OTel/W3C-aligned for logs

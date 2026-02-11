@@ -7,7 +7,7 @@ for session resumability.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from framework.schemas.checkpoint import Checkpoint, CheckpointIndex, CheckpointSummary
@@ -214,7 +214,7 @@ class CheckpointStore:
             return 0
 
         # Calculate cutoff datetime
-        cutoff = datetime.now() - timedelta(days=max_age_days)
+        cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
 
         # Find old checkpoints
         old_checkpoints = []

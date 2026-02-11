@@ -10,9 +10,11 @@ See: https://docs.litellm.ai/docs/providers
 import asyncio
 import json
 import logging
+import random
+import re
 import time
 from collections.abc import AsyncIterator, Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -50,6 +52,20 @@ def _estimate_tokens(model: str, messages: list[dict]) -> tuple[int, str]:
     return total_chars // 4, "estimate"
 
 
+_SECRET_PATTERN = re.compile(
+    r'(sk-[a-zA-Z0-9]{20,}|Bearer\s+[a-zA-Z0-9_\-\.]{20,}|'
+    r'api[_-]?key["\s:=]+["\']?[a-zA-Z0-9_\-]{16,})',
+    re.IGNORECASE,
+)
+
+
+def _redact_secrets(messages: list[dict]) -> list[dict]:
+    """Redact potential secrets from message content before writing to disk."""
+    serialized = json.dumps(messages, default=str)
+    sanitized = _SECRET_PATTERN.sub("[REDACTED]", serialized)
+    return json.loads(sanitized)
+
+
 def _dump_failed_request(
     model: str,
     kwargs: dict[str, Any],
@@ -59,20 +75,20 @@ def _dump_failed_request(
     """Dump failed request to a file for debugging. Returns the file path."""
     FAILED_REQUESTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%f")
     filename = f"{error_type}_{model.replace('/', '_')}_{timestamp}.json"
     filepath = FAILED_REQUESTS_DIR / filename
 
     # Build dump data
     messages = kwargs.get("messages", [])
     dump_data = {
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "model": model,
         "error_type": error_type,
         "attempt": attempt,
         "estimated_tokens": _estimate_tokens(model, messages),
         "num_messages": len(messages),
-        "messages": messages,
+        "messages": _redact_secrets(messages),
         "tools": kwargs.get("tools"),
         "max_tokens": kwargs.get("max_tokens"),
         "temperature": kwargs.get("temperature"),
@@ -203,12 +219,13 @@ class LiteLLMProvider(LLMProvider):
                         )
                         return response
                     wait = RATE_LIMIT_BACKOFF_BASE * (2**attempt)
+                    wait *= 0.5 + random.random()  # jitter to avoid thundering herd
                     logger.warning(
                         f"[retry] {model} returned empty response "
                         f"(finish_reason={finish_reason}, "
                         f"choices={len(response.choices) if response.choices else 0}) — "
                         f"likely rate limited or quota exceeded. "
-                        f"Retrying in {wait}s "
+                        f"Retrying in {wait:.1f}s "
                         f"(attempt {attempt + 1}/{RATE_LIMIT_MAX_RETRIES})"
                     )
                     time.sleep(wait)
@@ -234,11 +251,12 @@ class LiteLLMProvider(LLMProvider):
                     )
                     raise
                 wait = RATE_LIMIT_BACKOFF_BASE * (2**attempt)
+                wait *= 0.5 + random.random()  # jitter to avoid thundering herd
                 logger.warning(
                     f"[retry] {model} rate limited (429): {e!s}. "
                     f"~{token_count} tokens ({token_method}). "
                     f"Full request dumped to: {dump_path}. "
-                    f"Retrying in {wait}s "
+                    f"Retrying in {wait:.1f}s "
                     f"(attempt {attempt + 1}/{RATE_LIMIT_MAX_RETRIES})"
                 )
                 time.sleep(wait)
@@ -592,6 +610,7 @@ class LiteLLMProvider(LLMProvider):
                             yield event
                         return
                     wait = RATE_LIMIT_BACKOFF_BASE * (2**attempt)
+                    wait *= 0.5 + random.random()  # jitter to avoid thundering herd
                     token_count, token_method = _estimate_tokens(
                         self.model,
                         full_messages,
@@ -606,7 +625,7 @@ class LiteLLMProvider(LLMProvider):
                         f"[stream-retry] {self.model} returned empty stream — "
                         f"~{token_count} tokens ({token_method}). "
                         f"Request dumped to: {dump_path}. "
-                        f"Retrying in {wait}s "
+                        f"Retrying in {wait:.1f}s "
                         f"(attempt {attempt + 1}/{RATE_LIMIT_MAX_RETRIES})"
                     )
                     await asyncio.sleep(wait)
@@ -620,9 +639,10 @@ class LiteLLMProvider(LLMProvider):
             except RateLimitError as e:
                 if attempt < RATE_LIMIT_MAX_RETRIES:
                     wait = RATE_LIMIT_BACKOFF_BASE * (2**attempt)
+                    wait *= 0.5 + random.random()  # jitter to avoid thundering herd
                     logger.warning(
                         f"[stream-retry] {self.model} rate limited (429): {e!s}. "
-                        f"Retrying in {wait}s "
+                        f"Retrying in {wait:.1f}s "
                         f"(attempt {attempt + 1}/{RATE_LIMIT_MAX_RETRIES})"
                     )
                     await asyncio.sleep(wait)

@@ -55,15 +55,20 @@ class AgentOrchestrator:
     def __init__(
         self,
         llm: LLMProvider | None = None,
-        model: str = "claude-haiku-4-5-20251001",
+        model: str | None = None,
     ):
         """
         Initialize the orchestrator.
 
         Args:
             llm: LLM provider for routing decisions (auto-creates if None)
-            model: Model to use for routing
+            model: Model to use for routing (uses configured default if None)
         """
+        if model is None:
+            from framework.config import get_preferred_model
+
+            model = get_preferred_model()
+
         self._agents: dict[str, RegisteredAgent] = {}
         self._llm = llm
         self._model = model

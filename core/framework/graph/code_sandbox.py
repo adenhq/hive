@@ -228,8 +228,24 @@ class CodeSandbox:
                 signal.alarm(0)
                 signal.signal(signal.SIGALRM, old_handler)
         else:
-            # Windows: no timeout support, just execute
-            yield
+            # Windows fallback: use threading.Timer to enforce timeouts
+            import ctypes
+            import threading
+
+            target_tid = threading.current_thread().ident
+
+            def _interrupt_target():
+                ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                    ctypes.c_ulong(target_tid),
+                    ctypes.py_object(TimeoutError),
+                )
+
+            timer = threading.Timer(seconds, _interrupt_target)
+            timer.start()
+            try:
+                yield
+            finally:
+                timer.cancel()
 
     def _create_namespace(self, inputs: dict[str, Any]) -> dict[str, Any]:
         """Create isolated namespace for code execution."""

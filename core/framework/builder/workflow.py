@@ -14,7 +14,7 @@ You cannot skip steps or bypass validation.
 """
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -143,7 +143,7 @@ class GraphBuilder:
             self.session = self._load_session(session_id)
         else:
             self.session = BuildSession(
-                id=f"build_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                id=f"build_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}",
                 name=name,
             )
 
@@ -528,7 +528,7 @@ class GraphBuilder:
             {
                 "phase": self.session.phase.value,
                 "comment": comment,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "validation": self._pending_validation.model_dump(),
             }
         )
@@ -569,7 +569,7 @@ class GraphBuilder:
             {
                 "phase": "final",
                 "comment": comment,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
         )
 
@@ -644,7 +644,7 @@ class GraphBuilder:
         lines = [
             '"""',
             f"Generated agent: {self.session.name}",
-            f"Generated at: {datetime.now().isoformat()}",
+            f"Generated at: {datetime.now(UTC).isoformat()}",
             '"""',
             "",
             "from framework.graph import (",
@@ -727,7 +727,7 @@ class GraphBuilder:
 
     def _save_session(self) -> None:
         """Save session to disk."""
-        self.session.updated_at = datetime.now()
+        self.session.updated_at = datetime.now(UTC)
         path = self.storage_path / f"{self.session.id}.json"
         path.write_text(self.session.model_dump_json(indent=2))
 

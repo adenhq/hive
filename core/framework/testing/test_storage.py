@@ -6,7 +6,7 @@ storing tests as JSON files with indexes for efficient querying.
 """
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from framework.testing.test_case import ApprovalStatus, Test, TestType
@@ -121,7 +121,7 @@ class TestStorage:
             self._add_to_index("by_approval", test.approval_status.value, test.id)
 
         # Update timestamp
-        test.updated_at = datetime.now()
+        test.updated_at = datetime.now(UTC)
 
         # Save
         self.save_test(test)

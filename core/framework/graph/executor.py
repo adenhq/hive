@@ -395,6 +395,7 @@ class GraphExecutor:
                 current_node_id = graph.get_entry_point(session_state)
 
         steps = 0
+        node_spec = None
 
         if session_state and current_node_id != graph.entry_node:
             self.logger.info(f"🔄 Resuming from: {current_node_id}")
@@ -1630,7 +1631,7 @@ class GraphExecutor:
 
         # Execute all branches concurrently
         tasks = [execute_single_branch(b) for b in branches.values()]
-        results = await asyncio.gather(*tasks, return_exceptions=False)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Process results
         total_tokens = 0
@@ -1638,7 +1639,14 @@ class GraphExecutor:
         branch_results: dict[str, NodeResult] = {}
         failed_branches: list[ParallelBranch] = []
 
-        for branch, result in results:
+        for entry in results:
+            # With return_exceptions=True, an entry may be a raw exception
+            # if something escaped execute_single_branch's error handling
+            if isinstance(entry, BaseException):
+                self.logger.error(f"      ✗ Branch task raised: {entry}")
+                continue
+
+            branch, result = entry
             path.append(branch.node_id)
 
             if isinstance(result, Exception):
