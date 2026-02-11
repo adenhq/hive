@@ -282,24 +282,39 @@ class WorkerNode:
                     prompt = prompt.format(**inputs)
                 except (KeyError, ValueError):
                     pass  # Keep original prompt if formatting fails
-
             # Always append context data so LLM can personalize
             # This ensures the LLM has access to lead info, company context, etc.
             if inputs:
                 context_section = "\n\n--- Context Data ---\n"
                 for key, value in inputs.items():
+                    # Identify external data sources that need sanitization
+                    external_data_keys = [
+                        'scraped_content', 'scraped_data', 'content',
+                        'pdf_content', 'pdf_text', 'document_content',
+                        'file_content', 'file_data', 'file_text',
+                        'search_results', 'search_content',
+                        'email_body', 'email_content',
+                        'document_text', 'page_content',
+                        'extracted_text', 'raw_content'
+                    ]
+                    
+                    # Check if this key suggests external data
+                    is_external = any(ext_key in key.lower() for ext_key in external_data_keys)
+                    
+                    if is_external and isinstance(value, str):
+                        # Sanitize and wrap external data to prevent prompt injection
+                        value = sanitize_external_data(
+                            value,
+                            source=key,
+                            wrap_xml=True,
+                            max_length=10000
+                        )
+                    
                     if isinstance(value, (dict, list)):
                         context_section += f"{key}: {json.dumps(value, indent=2)}\n"
                     else:
                         context_section += f"{key}: {value}\n"
                 prompt = prompt + context_section
-
-            messages = [{"role": "user", "content": prompt}]
-
-            response = self.llm.complete(
-                messages=messages,
-                system=action.system_prompt,
-            )
 
             # Try to parse JSON from LLM response
             # LLMs often return JSON wrapped in markdown code blocks
