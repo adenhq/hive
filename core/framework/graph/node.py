@@ -262,6 +262,7 @@ class SharedMemory:
     _data: dict[str, Any] = field(default_factory=dict)
     _allowed_read: set[str] = field(default_factory=set)
     _allowed_write: set[str] = field(default_factory=set)
+    _schemas: dict[str, type[BaseModel]] = field(default_factory=dict)
     # Locks for thread-safe parallel execution
     _lock: asyncio.Lock | None = field(default=None, repr=False)
     _key_locks: dict[str, asyncio.Lock] = field(default_factory=dict, repr=False)
@@ -277,6 +278,25 @@ class SharedMemory:
             raise PermissionError(f"Node not allowed to read key: {key}")
         return self._data.get(key)
 
+    def _validate_schema(self, key: str, value: Any) -> Any:
+        """Validate value against schema if one exists for the key."""
+        schema = self._schemas.get(key)
+        if not schema:
+            return value
+
+        # Validate and convert to model first
+        try:
+            if isinstance(value, schema):
+                model = value
+            else:
+                model = schema.model_validate(value)
+            
+            # Return raw dict (or primitive) for internal storage
+            # This ensures backward compatibility with code expecting dicts
+            return model.model_dump()
+        except Exception as e:
+            raise MemoryWriteError(f"Schema validation failed for key '{key}': {e}") from e
+
     def write(self, key: str, value: Any, validate: bool = True) -> None:
         """
         Write a value to shared memory.
@@ -284,19 +304,18 @@ class SharedMemory:
         Args:
             key: The memory key to write to
             value: The value to write
-            validate: If True, check for suspicious content (default True)
+            validate: If True, check for suspicious content and schema (default True)
 
         Raises:
             PermissionError: If node doesn't have write permission
-            MemoryWriteError: If value appears to be hallucinated content
+            MemoryWriteError: If value appears to be hallucinated or fails schema validation
         """
         if self._allowed_write and key not in self._allowed_write:
             raise PermissionError(f"Node not allowed to write key: {key}")
 
-        if validate and isinstance(value, str):
-            # Check for obviously hallucinated content
-            if len(value) > 5000:
-                # Long strings that look like code are suspicious
+        if validate:
+            # 1. Hallucination check for strings
+            if isinstance(value, str) and len(value) > 5000:
                 if self._contains_code_indicators(value):
                     logger.warning(
                         f"⚠ Suspicious write to key '{key}': appears to be code "
@@ -307,6 +326,9 @@ class SharedMemory:
                         f"appears to be hallucinated code ({len(value)} chars). "
                         "If this is intentional, use validate=False."
                     )
+            
+            # 2. Schema validation
+            value = self._validate_schema(key, value)
 
         self._data[key] = value
 
@@ -320,11 +342,11 @@ class SharedMemory:
         Args:
             key: The memory key to write to
             value: The value to write
-            validate: If True, check for suspicious content (default True)
+            validate: If True, check for suspicious content and schema (default True)
 
         Raises:
             PermissionError: If node doesn't have write permission
-            MemoryWriteError: If value appears to be hallucinated content
+            MemoryWriteError: If value appears to be hallucinated or fails schema validation
         """
         # Check permissions first (no lock needed)
         if self._allowed_write and key not in self._allowed_write:
@@ -338,8 +360,9 @@ class SharedMemory:
 
         # Acquire per-key lock and write
         async with self._key_locks[key]:
-            if validate and isinstance(value, str):
-                if len(value) > 5000:
+            if validate:
+                # 1. Hallucination check
+                if isinstance(value, str) and len(value) > 5000:
                     if self._contains_code_indicators(value):
                         logger.warning(
                             f"⚠ Suspicious write to key '{key}': appears to be code "
@@ -350,6 +373,10 @@ class SharedMemory:
                             f"appears to be hallucinated code ({len(value)} chars). "
                             "If this is intentional, use validate=False."
                         )
+                
+                # 2. Schema validation
+                value = self._validate_schema(key, value)
+
             self._data[key] = value
 
     def _contains_code_indicators(self, value: str) -> bool:
@@ -433,6 +460,7 @@ class SharedMemory:
             _data=self._data,
             _allowed_read=set(read_keys) if read_keys else set(),
             _allowed_write=set(write_keys) if write_keys else set(),
+            _schemas=self._schemas,  # Share schemas
             _lock=self._lock,  # Share lock for thread safety
             _key_locks=self._key_locks,  # Share key locks
         )
