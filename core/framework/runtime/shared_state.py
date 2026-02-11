@@ -208,8 +208,10 @@ class SharedStateManager:
         if isolation == IsolationLevel.ISOLATED:
             scope = StateScope.EXECUTION
 
-        # SYNCHRONIZED requires locks for stream/global writes
-        if isolation == IsolationLevel.SYNCHRONIZED and scope != StateScope.EXECUTION:
+        #Both SHARED states(SYNCHRONIZED or SHARED) requires locks for stream/global writes 
+        #ISOLATED mode writes directly to execution-private state(no race possible)
+
+        if isolation != IsolationLevel.ISOLATED and scope != StateScope.EXECUTION:
             await self._write_with_lock(key, value, execution_id, stream_id, scope)
         else:
             await self._write_direct(key, value, execution_id, stream_id, scope)
