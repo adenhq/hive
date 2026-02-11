@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 # Import register_tools from each tool module
 from .apollo_tool import register_tools as register_apollo
+from .airtable_tool import register_tools as register_airtable
 from .csv_tool import register_tools as register_csv
 from .email_tool import register_tools as register_email
 from .example_tool import register_tools as register_example
@@ -79,6 +80,7 @@ def register_all_tools(
     register_hubspot(mcp, credentials=credentials)
     register_apollo(mcp, credentials=credentials)
     register_slack(mcp, credentials=credentials)
+    register_airtable(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -209,6 +211,11 @@ def register_all_tools(
         "slack_kick_user_from_channel",
         "slack_delete_file",
         "slack_get_team_stats",
+        "airtable_list_bases",
+        "airtable_list_tables",
+        "airtable_list_records",
+        "airtable_create_record",
+        "airtable_update_record",
     ]
 
 
