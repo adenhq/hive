@@ -37,6 +37,7 @@ Credential categories:
 - search.py: Search tool credentials (brave_search, google_search, etc.)
 - email.py: Email provider credentials (resend, google/gmail)
 - apollo.py: Apollo.io API credentials
+- calendly.py: Calendly scheduling credentials
 - github.py: GitHub API credentials
 - hubspot.py: HubSpot CRM credentials
 - slack.py: Slack workspace credentials
@@ -53,6 +54,7 @@ To add a new credential:
 from .apollo import APOLLO_CREDENTIALS
 from .base import CredentialError, CredentialSpec
 from .browser import get_aden_auth_url, get_aden_setup_url, open_browser
+from .calendly import CALENDLY_CREDENTIALS
 from .email import EMAIL_CREDENTIALS
 from .github import GITHUB_CREDENTIALS
 from .health_check import HealthCheckResult, check_credential_health
@@ -77,6 +79,7 @@ CREDENTIAL_SPECS = {
     **GITHUB_CREDENTIALS,
     **HUBSPOT_CREDENTIALS,
     **SLACK_CREDENTIALS,
+    **CALENDLY_CREDENTIALS,
 }
 
 __all__ = [
@@ -108,4 +111,5 @@ __all__ = [
     "HUBSPOT_CREDENTIALS",
     "SLACK_CREDENTIALS",
     "APOLLO_CREDENTIALS",
+    "CALENDLY_CREDENTIALS",
 ]
