@@ -93,7 +93,14 @@ from framework.runner import AgentRunner
 runner = AgentRunner.load("examples/templates/tech_news_reporter")
 
 # Run with input
-result = await runner.run({"query": "General tech and AI roundup for the past week."})
+# Start the run (agent will pause to ask the user for a focus area)
+result = await runner.run({})
+
+# Resume after the intake node asks its question
+result = await runner.run(
+    {"query": "General tech and AI roundup for the past week."},
+    session_state=result.session_state,
+)
 
 # Access results
 print(result.output)
@@ -102,7 +109,7 @@ print(result.status)
 
 ### Example Input/Output
 
-Example input passed to the entry point:
+Example input passed when resuming after the intake prompt:
 
 ```python
 {"query": "Focus on LLMs and robotics, plus any major AI product launches."}
