@@ -50,9 +50,7 @@ To add a new credential:
 3. If new category, import and merge it in this __init__.py
 """
 
-from .base import CredentialError, CredentialSpec
-from .browser import get_aden_auth_url, get_aden_setup_url, open_browser
-from .email import EMAIL_CREDENTIALS
+
 from .gcp_vision import GCP_VISION_CREDENTIALS
 from .apollo import APOLLO_CREDENTIALS
 from .base import CredentialError, CredentialSpec
@@ -77,7 +75,6 @@ CREDENTIAL_SPECS = {
     **LLM_CREDENTIALS,
     **SEARCH_CREDENTIALS,
     **EMAIL_CREDENTIALS,
-    **INTEGRATION_CREDENTIALS,
     **GCP_VISION_CREDENTIALS,
     **APOLLO_CREDENTIALS,
     **GITHUB_CREDENTIALS,
@@ -110,7 +107,6 @@ __all__ = [
     "LLM_CREDENTIALS",
     "SEARCH_CREDENTIALS",
     "EMAIL_CREDENTIALS",
-    "INTEGRATION_CREDENTIALS",
     "GCP_VISION_CREDENTIALS",
     "GITHUB_CREDENTIALS",
     "HUBSPOT_CREDENTIALS",
