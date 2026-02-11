@@ -21,13 +21,136 @@ if TYPE_CHECKING:
     from aden_tools.credentials import CredentialStoreAdapter
 
 
-def register_tools(
-    mcp: FastMCP,
-    credentials: CredentialStoreAdapter | None = None,
-) -> None:
-    """Register email tools with the MCP server."""
+class EmailClient:
+    """Standalone email client for direct usage (e.g. by agents)."""
+
+    def __init__(self, credentials: dict | None = None):
+        """
+        Initialize EmailClient.
+
+        Args:
+            credentials: Optional dictionary or CredentialStoreAdapter-like object
+                       containing credentials.
+        """
+        self._credentials = credentials
+        self._use_env_vars = credentials is None
+
+        # These are now accessed dynamically via properties
+        self._resend_api_key = None
+        self._gmail_access_token = None
+        self._smtp_config = None
+
+        # Backward compatibility for direct dict usage (if users passed a dict with keys)
+        if isinstance(credentials, dict):
+            self._resend_api_key = credentials.get("resend")
+            self._gmail_access_token = credentials.get("google")
+            self._smtp_config = credentials.get("smtp")
+
+    @property
+    def resend_api_key(self) -> str | None:
+        if self._use_env_vars:
+            return os.getenv("RESEND_API_KEY")
+
+        # Check explicit dict value first
+        if self._resend_api_key:
+            return self._resend_api_key
+
+        # Try dynamic lookup from adapter
+        if self._credentials and hasattr(self._credentials, "get"):
+            try:
+                return self._credentials.get("resend")
+            except Exception:
+                pass
+        return None
+
+    @property
+    def gmail_access_token(self) -> str | None:
+        if self._use_env_vars:
+            return os.getenv("GOOGLE_ACCESS_TOKEN")
+
+        if self._gmail_access_token:
+            return self._gmail_access_token
+
+        if self._credentials and hasattr(self._credentials, "get"):
+            try:
+                return self._credentials.get("google")
+            except Exception:
+                pass
+        return None
+
+    @property
+    def smtp_config(self) -> dict | None:
+        if self._use_env_vars:
+            host = os.getenv("SMTP_HOST")
+            port = int(os.getenv("SMTP_PORT", "587"))
+            username = os.getenv("SMTP_USERNAME")
+            password = os.getenv("SMTP_PASSWORD")
+            if host and password:
+                return {
+                    "host": host,
+                    "port": port,
+                    "username": username,
+                    "password": password,
+                }
+            return None
+
+        if self._smtp_config:
+            return self._smtp_config
+
+        if self._credentials and hasattr(self._credentials, "get"):
+            try:
+                val = self._credentials.get("smtp")
+                if val and isinstance(val, dict):
+                    return val
+            except Exception:
+                pass
+        return None
+
+    def _resolve_from_email(self, from_email: str | None) -> str | None:
+        if from_email:
+            return from_email
+        smtp_user = self.smtp_config.get("username") if self.smtp_config else None
+        return os.getenv("EMAIL_FROM") or smtp_user
+
+    def _send_via_smtp(
+        self,
+        to: list[str],
+        subject: str,
+        html: str,
+        from_email: str,
+        cc: list[str] | None = None,
+        bcc: list[str] | None = None,
+    ) -> dict:
+        """Send email using SMTP (e.g. Gmail App Password)."""
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+
+        if not self.smtp_config["host"] or not self.smtp_config["password"]:
+            return {"error": "SMTP server/password not configured"}
+
+        msg = MIMEMultipart("alternative")
+        msg["From"] = from_email
+        msg["To"] = ", ".join(to)
+        msg["Subject"] = subject
+        if cc:
+            msg["Cc"] = ", ".join(cc)
+        if bcc:
+            msg["Bcc"] = ", ".join(bcc)
+        msg.attach(MIMEText(html, "html"))
+
+        try:
+            with smtplib.SMTP(self.smtp_config["host"], self.smtp_config["port"]) as server:
+                server.starttls()
+                server.login(self.smtp_config["username"], self.smtp_config["password"])
+                server.send_message(msg)
+
+            return {"success": True, "provider": "smtp", "to": to, "subject": subject}
+        except Exception as e:
+            return {"error": f"SMTP send failed: {e}"}
 
     def _send_via_resend(
+        self,
         api_key: str,
         to: list[str],
         subject: str,
@@ -61,6 +184,7 @@ def register_tools(
             return {"error": f"Resend API error: {e}"}
 
     def _send_via_gmail(
+        self,
         access_token: str,
         to: list[str],
         subject: str,
@@ -69,7 +193,7 @@ def register_tools(
         cc: list[str] | None = None,
         bcc: list[str] | None = None,
     ) -> dict:
-        """Send email using Gmail API (Bearer token pattern, same as HubSpot)."""
+        """Send email using Gmail API."""
         import base64
         from email.mime.multipart import MIMEMultipart
         from email.mime.text import MIMEText
@@ -116,28 +240,7 @@ def register_tools(
             "subject": subject,
         }
 
-    def _get_credentials() -> dict:
-        """Get available email credentials."""
-        if credentials is not None:
-            return {
-                "resend_api_key": credentials.get("resend"),
-                "gmail_access_token": credentials.get("google"),  # Google OAuth for Gmail
-            }
-        return {
-            "resend_api_key": os.getenv("RESEND_API_KEY"),
-            "gmail_access_token": os.getenv("GOOGLE_ACCESS_TOKEN"),
-        }
-
-    def _resolve_from_email(from_email: str | None) -> str | None:
-        """Resolve sender address: explicit param > EMAIL_FROM env var."""
-        if from_email:
-            return from_email
-        return os.getenv("EMAIL_FROM")
-
-    def _normalize_recipients(
-        value: str | list[str] | None,
-    ) -> list[str] | None:
-        """Normalize a recipient value to a list or None."""
+    def _normalize_recipients(self, value: str | list[str] | None) -> list[str] | None:
         if value is None:
             return None
         if isinstance(value, str):
@@ -145,19 +248,20 @@ def register_tools(
         filtered = [v for v in value if isinstance(v, str) and v.strip()]
         return filtered if filtered else None
 
-    def _send_email_impl(
+    def send_email(
+        self,
         to: str | list[str],
         subject: str,
         html: str,
         from_email: str | None = None,
-        provider: Literal["auto", "resend", "gmail"] = "auto",
+        provider: Literal["auto", "resend", "gmail", "smtp"] = "auto",
         cc: str | list[str] | None = None,
         bcc: str | list[str] | None = None,
     ) -> dict:
-        """Core email sending logic, callable by other tools."""
-        from_email = _resolve_from_email(from_email)
+        """Core email sending logic."""
+        from_email = self._resolve_from_email(from_email)
 
-        to_list = _normalize_recipients(to)
+        to_list = self._normalize_recipients(to)
         if not to_list:
             return {"error": "At least one recipient email is required"}
         if not subject or len(subject) > 998:
@@ -165,11 +269,9 @@ def register_tools(
         if not html:
             return {"error": "Email body (html) is required"}
 
-        cc_list = _normalize_recipients(cc)
-        bcc_list = _normalize_recipients(bcc)
+        cc_list = self._normalize_recipients(cc)
+        bcc_list = self._normalize_recipients(bcc)
 
-        # Testing override: redirect all recipients to a single address.
-        # Set EMAIL_OVERRIDE_TO=you@example.com to intercept all outbound mail.
         override_to = os.getenv("EMAIL_OVERRIDE_TO")
         if override_to:
             original_to = to_list
@@ -178,72 +280,91 @@ def register_tools(
             bcc_list = None
             subject = f"[TEST -> {', '.join(original_to)}] {subject}"
 
-        creds = _get_credentials()
-        gmail_available = bool(creds["gmail_access_token"])
-        resend_available = bool(creds["resend_api_key"])
+        gmail_available = bool(self.gmail_access_token)
+        resend_available = bool(self.resend_api_key)
+        smtp_available = False
+        if self.smtp_config:
+            smtp_available = bool(self.smtp_config.get("host") and self.smtp_config.get("password"))
 
-        # Gmail doesn't require from_email (defaults to authenticated user).
-        # Resend always requires it.
-        needs_from_email = provider == "resend" or (
-            provider == "auto" and not gmail_available and resend_available
-        )
-        if not from_email and needs_from_email:
-            return {
-                "error": "Sender email is required",
-                "help": "Pass from_email or set EMAIL_FROM environment variable",
-            }
+        # Requirements check
+        if provider == "resend" and not from_email:
+            return {"error": "Sender email is required for Resend"}
+
+        if not from_email and not gmail_available and (resend_available or smtp_available):
+            # Try to resolve from SMTP username if available
+            if self.smtp_config:
+                from_email = self.smtp_config.get("username")
+            if not from_email:
+                return {
+                    "error": "Sender email is required",
+                    "help": "Set EMAIL_FROM env var or provide from_email argument",
+                }
 
         try:
+            # 1. Explicit Provider
             if provider == "gmail":
                 if not gmail_available:
                     return {
                         "error": "Gmail credentials not configured",
-                        "help": "Connect Gmail via hive.adenhq.com",
+                        "help": "Set GOOGLE_ACCESS_TOKEN or run `aden auth login`",
                     }
-                return _send_via_gmail(
-                    creds["gmail_access_token"],
-                    to_list,
-                    subject,
-                    html,
-                    from_email,
-                    cc_list,
-                    bcc_list,
+                return self._send_via_gmail(
+                    self.gmail_access_token, to_list, subject, html, from_email, cc_list, bcc_list
                 )
 
             if provider == "resend":
                 if not resend_available:
                     return {
                         "error": "Resend credentials not configured",
-                        "help": "Set RESEND_API_KEY environment variable. "
-                        "Get a key at https://resend.com/api-keys",
+                        "help": "Set RESEND_API_KEY environment variable",
                     }
-                return _send_via_resend(
-                    creds["resend_api_key"], to_list, subject, html, from_email, cc_list, bcc_list
+                return self._send_via_resend(
+                    self.resend_api_key, to_list, subject, html, from_email, cc_list, bcc_list
                 )
 
-            # auto: Gmail first (user's own identity), then Resend
+            if provider == "smtp":
+                if not smtp_available:
+                    return {"error": "SMTP credentials not configured"}
+                return self._send_via_smtp(to_list, subject, html, from_email, cc_list, bcc_list)
+
+            # 2. Auto Provider
             if gmail_available:
-                return _send_via_gmail(
-                    creds["gmail_access_token"],
-                    to_list,
-                    subject,
-                    html,
-                    from_email,
-                    cc_list,
-                    bcc_list,
+                return self._send_via_gmail(
+                    self.gmail_access_token, to_list, subject, html, from_email, cc_list, bcc_list
                 )
+
             if resend_available:
-                return _send_via_resend(
-                    creds["resend_api_key"], to_list, subject, html, from_email, cc_list, bcc_list
+                return self._send_via_resend(
+                    self.resend_api_key, to_list, subject, html, from_email, cc_list, bcc_list
                 )
+
+            if smtp_available:
+                return self._send_via_smtp(to_list, subject, html, from_email, cc_list, bcc_list)
 
             return {
                 "error": "No email credentials configured",
-                "help": "Connect Gmail via hive.adenhq.com or set RESEND_API_KEY",
+                "help": "Set RESEND_API_KEY, GOOGLE_ACCESS_TOKEN, or SMTP_xyz vars",
             }
 
         except Exception as e:
             return {"error": f"Email send failed: {e}"}
+
+
+def register_tools(
+    mcp: FastMCP,
+    credentials: CredentialStoreAdapter | None = None,
+) -> None:
+    """Register email tools with the MCP server."""
+
+    # Initialize client (will capture env vars if credentials is None)
+    creds_dict = None
+    if credentials:
+        creds_dict = {
+            "resend": credentials.get("resend"),
+            "google": credentials.get("google"),
+        }
+
+    client = EmailClient(creds_dict)
 
     @mcp.tool()
     def send_email(
@@ -251,7 +372,7 @@ def register_tools(
         subject: str,
         html: str,
         from_email: str | None = None,
-        provider: Literal["auto", "resend", "gmail"] = "auto",
+        provider: Literal["auto", "resend", "gmail", "smtp"] = "auto",
         cc: str | list[str] | None = None,
         bcc: str | list[str] | None = None,
     ) -> dict:
@@ -259,9 +380,10 @@ def register_tools(
         Send an email.
 
         Supports multiple email providers:
-        - "auto": Tries Gmail first, then Resend (default)
-        - "gmail": Use Gmail API (requires Gmail OAuth2 via Aden)
-        - "resend": Use Resend API (requires RESEND_API_KEY)
+        - "auto": Tries Gmail -> Resend -> SMTP (default)
+        - "gmail": Use Gmail API
+        - "resend": Use Resend API
+        - "smtp": Use SMTP (e.g. Gmail App Password)
 
         Args:
             to: Recipient email address(es). Single string or list of strings.
@@ -277,7 +399,7 @@ def register_tools(
             Dict with send result including provider used and message ID,
             or error dict with "error" and optional "help" keys.
         """
-        return _send_email_impl(to, subject, html, from_email, provider, cc, bcc)
+        return client.send_email(to, subject, html, from_email, provider, cc, bcc)
 
     @mcp.tool()
     def send_budget_alert_email(
@@ -339,7 +461,7 @@ def register_tools(
         </div>
         """
 
-        return _send_email_impl(
+        return client.send_email(
             to=to,
             subject=subject,
             html=html,

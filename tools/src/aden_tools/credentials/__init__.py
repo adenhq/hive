@@ -67,6 +67,7 @@ from .shell_config import (
 )
 from .slack import SLACK_CREDENTIALS
 from .store_adapter import CredentialStoreAdapter
+from .vector_db import VECTOR_DB_CREDENTIALS
 
 # Merged registry of all credentials
 CREDENTIAL_SPECS = {
@@ -77,6 +78,7 @@ CREDENTIAL_SPECS = {
     **GITHUB_CREDENTIALS,
     **HUBSPOT_CREDENTIALS,
     **SLACK_CREDENTIALS,
+    **VECTOR_DB_CREDENTIALS,
 }
 
 __all__ = [
@@ -108,4 +110,5 @@ __all__ = [
     "HUBSPOT_CREDENTIALS",
     "SLACK_CREDENTIALS",
     "APOLLO_CREDENTIALS",
+    "VECTOR_DB_CREDENTIALS",
 ]
