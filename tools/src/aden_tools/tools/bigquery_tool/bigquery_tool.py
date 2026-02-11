@@ -243,7 +243,10 @@ def register_tools(
             }
 
         except ImportError as e:
-            return {"error": str(e)}
+            return {
+                "error": str(e),
+                "help": "Install the dependency by running: pip install google-cloud-bigquery",
+            }
         except Exception as e:
             error_msg = str(e)
 
@@ -358,7 +361,10 @@ def register_tools(
             }
 
         except ImportError as e:
-            return {"error": str(e)}
+            return {
+                "error": str(e),
+                "help": "Install the dependency by running: pip install google-cloud-bigquery",
+            }
         except Exception as e:
             error_msg = str(e)
 
