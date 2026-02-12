@@ -32,14 +32,14 @@ from .file_system_toolkits.execute_command_tool import (
     register_tools as register_execute_command,
 )
 from .file_system_toolkits.grep_search import register_tools as register_grep_search
-from .file_system_toolkits.list_dir import register_tools as register_list_dir
-from .file_system_toolkits.replace_file_content import (
-    register_tools as register_replace_file_content,
-)
 
 # Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
+from .file_system_toolkits.list_dir import register_tools as register_list_dir
+from .file_system_toolkits.replace_file_content import (
+    register_tools as register_replace_file_content,
+)
 from .github_tool import register_tools as register_github
 from .hubspot_tool import register_tools as register_hubspot
 from .pdf_read_tool import register_tools as register_pdf_read
@@ -48,6 +48,9 @@ from .serpapi_tool import register_tools as register_serpapi
 from .slack_tool import register_tools as register_slack
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
+
+# Web and PDF tools
+from .wikipedia_tool import register_tools as register_wikipedia
 
 
 def register_all_tools(
@@ -70,6 +73,7 @@ def register_all_tools(
     register_web_scrape(mcp)
     register_pdf_read(mcp)
     register_runtime_logs(mcp)
+    register_wikipedia(mcp)
 
     # Tools that need credentials (pass credentials if provided)
     # web_search supports multiple providers (Google, Brave) with auto-detection
@@ -99,6 +103,7 @@ def register_all_tools(
         "web_search",
         "web_scrape",
         "pdf_read",
+        "search_wikipedia",
         "view_file",
         "write_to_file",
         "list_dir",
