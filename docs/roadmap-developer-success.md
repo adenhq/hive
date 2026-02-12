@@ -98,7 +98,7 @@ Marketing is often the most time-consuming "distraction" for a CEO. You provide 
 - [Social Media Management](../examples/recipes/social_media_management/): Scheduling posts, replying to comments, and monitoring trends.
 - [News Jacking](../examples/recipes/news_jacking/): Personalized outreach triggered by real-time company news (funding, hires, press mentions).
 - [Newsletter Production](../examples/recipes/newsletter_production/): Taking your raw ideas or voice memos and turning them into a polished weekly email.
-- [CRM Update Agent](../examples/recipes/crm_hygiene/): Ensuring every lead has a follow-up date and a status update.
+- [CRM Update Agent](../examples/recipes/crm_update/): Ensuring every lead has a follow-up date and a status update.
 
 ### 2. Customer Success
 You shouldn't be the one answering "How do I reset my password?" but you should be the one closing $10k deals.

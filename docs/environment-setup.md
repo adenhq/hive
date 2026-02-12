@@ -538,7 +538,7 @@ Run the quickstart script in the root directory:
 
 - **Framework Documentation:** [core/README.md](../core/README.md)
 - **Tools Documentation:** [tools/README.md](../tools/README.md)
-- **Example Agents:** [exports/](../exports/)
+- **Example Agents:** [examples/](../examples/)
 - **Agent Building Guide:** [.claude/skills/hive-create/SKILL.md](../.claude/skills/hive-create/SKILL.md)
 - **Testing Guide:** [.claude/skills/hive-test/SKILL.md](../.claude/skills/hive-test/SKILL.md)
 
