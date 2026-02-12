@@ -16,12 +16,14 @@ Protocol:
 """
 
 import asyncio
+import copy
 import inspect
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -247,6 +249,24 @@ class MemoryWriteError(Exception):
     pass
 
 
+class MemoryMergeConflictError(Exception):
+    """Raised when parallel branches write conflicting values to the same memory key."""
+
+    pass
+
+
+class MemoryMergeStrategy(StrEnum):
+    """Strategy for merging memory from parallel branches.
+
+    Controls how conflicting writes (multiple branches writing to the same key)
+    are resolved when parallel fan-out branches are merged back.
+    """
+
+    LAST_WINS = "last_wins"  # Last branch to complete overwrites earlier values
+    FIRST_WINS = "first_wins"  # First branch to complete keeps its value
+    ERROR = "error"  # Raise MemoryMergeConflictError on conflicting writes
+
+
 @dataclass
 class SharedMemory:
     """
@@ -418,6 +438,102 @@ class SharedMemory:
         if self._allowed_read:
             return {k: v for k, v in self._data.items() if k in self._allowed_read}
         return dict(self._data)
+
+    def deep_copy(self) -> "SharedMemory":
+        """Create an independent deep copy of this memory.
+
+        The copy has its own data dict, locks, and permission sets.
+        Writes to the copy do not affect the original and vice-versa.
+        Used to give parallel fan-out branches isolated memory snapshots.
+
+        Returns:
+            A new SharedMemory with copied data and fresh locks.
+        """
+        return SharedMemory(
+            _data=copy.deepcopy(self._data),
+            _allowed_read=set(self._allowed_read),
+            _allowed_write=set(self._allowed_write),
+            _lock=asyncio.Lock(),
+            _key_locks={},
+        )
+
+    def merge_from(
+        self,
+        branch_memories: list["SharedMemory"],
+        strategy: MemoryMergeStrategy = MemoryMergeStrategy.LAST_WINS,
+        branch_labels: list[str] | None = None,
+    ) -> dict[str, list[str]]:
+        """Merge data from parallel branch memories back into this memory.
+
+        Only keys that were *changed* by a branch (compared to this memory's
+        current snapshot) are considered. This prevents branches from
+        "writing" keys they merely inherited from the pre-branch state.
+
+        Args:
+            branch_memories: List of SharedMemory instances from completed branches.
+            strategy: How to resolve conflicts when multiple branches write the
+                same key. See MemoryMergeStrategy.
+            branch_labels: Optional labels for branches (for error messages).
+                Must be the same length as branch_memories if provided.
+
+        Returns:
+            Dict mapping each written key to the list of branch labels that
+            wrote it. Useful for logging and diagnostics.
+
+        Raises:
+            MemoryMergeConflictError: If strategy is ERROR and multiple branches
+                wrote different values to the same key.
+        """
+        if branch_labels and len(branch_labels) != len(branch_memories):
+            raise ValueError(
+                f"branch_labels length ({len(branch_labels)}) must match "
+                f"branch_memories length ({len(branch_memories)})"
+            )
+        labels = branch_labels or [f"branch_{i}" for i in range(len(branch_memories))]
+
+        # Snapshot of the pre-branch state for change detection
+        baseline = self._data.copy()
+
+        # Collect writes: key -> [(branch_index, value)]
+        writes: dict[str, list[tuple[int, Any]]] = {}
+        for idx, branch_mem in enumerate(branch_memories):
+            for key, value in branch_mem._data.items():
+                # Only count as a write if the value differs from baseline
+                baseline_val = baseline.get(key)
+                if key not in baseline or value != baseline_val:
+                    writes.setdefault(key, []).append((idx, value))
+
+        # key -> list of branch labels that wrote it
+        write_map: dict[str, list[str]] = {}
+
+        for key, branch_writes in writes.items():
+            write_map[key] = [labels[idx] for idx, _ in branch_writes]
+
+            if len(branch_writes) == 1:
+                # Only one branch modified this key — no conflict
+                _, value = branch_writes[0]
+                self._data[key] = value
+            else:
+                # Multiple branches wrote to the same key.
+                # Check if all branches wrote the *same* value (not a real conflict).
+                all_values = [val for _, val in branch_writes]
+                values_agree = all(v == all_values[0] for v in all_values[1:])
+
+                if strategy == MemoryMergeStrategy.ERROR and not values_agree:
+                    conflicting = [f"{labels[idx]}={repr(val)!s:.80}" for idx, val in branch_writes]
+                    raise MemoryMergeConflictError(
+                        f"Parallel branches wrote conflicting values to key '{key}': "
+                        f"{', '.join(conflicting)}"
+                    )
+                elif strategy == MemoryMergeStrategy.FIRST_WINS:
+                    _, value = branch_writes[0]
+                    self._data[key] = value
+                else:
+                    # LAST_WINS (default): last branch in the list wins
+                    _, value = branch_writes[-1]
+                    self._data[key] = value
+
+        return write_map
 
     def with_permissions(
         self,

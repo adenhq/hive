@@ -12,6 +12,7 @@ Covers:
 - Single-edge paths unaffected
 """
 
+import asyncio
 from unittest.mock import MagicMock
 
 import pytest
@@ -19,7 +20,15 @@ import pytest
 from framework.graph.edge import EdgeCondition, EdgeSpec, GraphSpec
 from framework.graph.executor import GraphExecutor, ParallelExecutionConfig
 from framework.graph.goal import Goal
-from framework.graph.node import NodeContext, NodeProtocol, NodeResult, NodeSpec
+from framework.graph.node import (
+    MemoryMergeConflictError,
+    MemoryMergeStrategy,
+    NodeContext,
+    NodeProtocol,
+    NodeResult,
+    NodeSpec,
+    SharedMemory,
+)
 from framework.runtime.core import Runtime
 
 # --- Test node implementations ---
@@ -74,6 +83,33 @@ class TimingNode(NodeProtocol):
         self.order_tracker.append(self.label)
         return NodeResult(
             success=True, output={f"{self.label}_done": True}, tokens_used=1, latency_ms=1
+        )
+
+
+class OverlappingWriteNode(NodeProtocol):
+    """Writes to a shared key AND a unique key with a small delay.
+
+    Used to verify that parallel branches get isolated memory copies
+    and that the merge strategy is applied correctly.
+    """
+
+    def __init__(self, label: str, shared_value: str, unique_key: str, unique_value: str):
+        self.label = label
+        self.shared_value = shared_value
+        self.unique_key = unique_key
+        self.unique_value = unique_value
+
+    async def execute(self, ctx: NodeContext) -> NodeResult:
+        # Yield to event loop to maximize chance of interleaving
+        await asyncio.sleep(0)
+        return NodeResult(
+            success=True,
+            output={
+                "shared_key": self.shared_value,
+                self.unique_key: self.unique_value,
+            },
+            tokens_used=5,
+            latency_ms=2,
         )
 
 
@@ -488,3 +524,297 @@ async def test_parallel_disabled_uses_sequential(runtime, goal):
     # Only one branch should have executed (sequential follows first edge)
     executed_count = sum([b1_impl.executed, b2_impl.executed])
     assert executed_count == 1
+
+
+# ====================================================================
+# SharedMemory unit tests — deep_copy and merge_from
+# ====================================================================
+
+
+class TestSharedMemoryDeepCopy:
+    """Tests for SharedMemory.deep_copy() isolation."""
+
+    @pytest.mark.asyncio
+    async def test_deep_copy_creates_independent_data(self):
+        """Writes to a copy must not affect the original."""
+        mem = SharedMemory()
+        await mem.write_async("key1", "original")
+
+        copy = mem.deep_copy()
+        await copy.write_async("key1", "modified")
+        await copy.write_async("key2", "new_key")
+
+        assert mem.read("key1") == "original"
+        assert mem.read("key2") is None
+        assert copy.read("key1") == "modified"
+        assert copy.read("key2") == "new_key"
+
+    @pytest.mark.asyncio
+    async def test_deep_copy_has_independent_locks(self):
+        """Copy should have its own lock objects."""
+        mem = SharedMemory()
+        copy = mem.deep_copy()
+
+        assert mem._lock is not copy._lock
+        assert mem._key_locks is not copy._key_locks
+
+    @pytest.mark.asyncio
+    async def test_deep_copy_preserves_existing_data(self):
+        """Copy should start with the same data as the original."""
+        mem = SharedMemory()
+        await mem.write_async("a", "1")
+        await mem.write_async("b", "2")
+
+        copy = mem.deep_copy()
+
+        assert copy.read("a") == "1"
+        assert copy.read("b") == "2"
+
+
+class TestSharedMemoryMerge:
+    """Tests for SharedMemory.merge_from() strategies."""
+
+    def test_merge_non_conflicting_keys(self):
+        """Non-overlapping writes from different branches should all be applied."""
+        mem = SharedMemory()
+        mem._data = {"baseline": "x"}
+
+        branch_a = SharedMemory()
+        branch_a._data = {"baseline": "x", "from_a": "value_a"}
+
+        branch_b = SharedMemory()
+        branch_b._data = {"baseline": "x", "from_b": "value_b"}
+
+        write_map = mem.merge_from(
+            [branch_a, branch_b],
+            strategy=MemoryMergeStrategy.LAST_WINS,
+            branch_labels=["a", "b"],
+        )
+
+        assert mem.read("from_a") == "value_a"
+        assert mem.read("from_b") == "value_b"
+        assert mem.read("baseline") == "x"
+        assert write_map["from_a"] == ["a"]
+        assert write_map["from_b"] == ["b"]
+
+    def test_merge_last_wins_strategy(self):
+        """LAST_WINS: last branch in the list should win on conflict."""
+        mem = SharedMemory()
+        mem._data = {"baseline": "x"}
+
+        branch_a = SharedMemory()
+        branch_a._data = {"baseline": "x", "shared": "from_a"}
+
+        branch_b = SharedMemory()
+        branch_b._data = {"baseline": "x", "shared": "from_b"}
+
+        mem.merge_from(
+            [branch_a, branch_b],
+            strategy=MemoryMergeStrategy.LAST_WINS,
+        )
+
+        assert mem.read("shared") == "from_b"
+
+    def test_merge_first_wins_strategy(self):
+        """FIRST_WINS: first branch in the list should win on conflict."""
+        mem = SharedMemory()
+        mem._data = {"baseline": "x"}
+
+        branch_a = SharedMemory()
+        branch_a._data = {"baseline": "x", "shared": "from_a"}
+
+        branch_b = SharedMemory()
+        branch_b._data = {"baseline": "x", "shared": "from_b"}
+
+        mem.merge_from(
+            [branch_a, branch_b],
+            strategy=MemoryMergeStrategy.FIRST_WINS,
+        )
+
+        assert mem.read("shared") == "from_a"
+
+    def test_merge_error_strategy_raises_on_conflict(self):
+        """ERROR: should raise MemoryMergeConflictError on conflicting writes."""
+        mem = SharedMemory()
+        mem._data = {"baseline": "x"}
+
+        branch_a = SharedMemory()
+        branch_a._data = {"baseline": "x", "shared": "from_a"}
+
+        branch_b = SharedMemory()
+        branch_b._data = {"baseline": "x", "shared": "from_b"}
+
+        with pytest.raises(MemoryMergeConflictError, match="shared"):
+            mem.merge_from(
+                [branch_a, branch_b],
+                strategy=MemoryMergeStrategy.ERROR,
+                branch_labels=["a", "b"],
+            )
+
+    def test_merge_error_strategy_allows_same_value(self):
+        """ERROR: should NOT raise when branches write the same value to the same key."""
+        mem = SharedMemory()
+        mem._data = {"baseline": "x"}
+
+        branch_a = SharedMemory()
+        branch_a._data = {"baseline": "x", "shared": "same_value"}
+
+        branch_b = SharedMemory()
+        branch_b._data = {"baseline": "x", "shared": "same_value"}
+
+        # Same value is not a conflict — both agree
+        write_map = mem.merge_from(
+            [branch_a, branch_b],
+            strategy=MemoryMergeStrategy.ERROR,
+            branch_labels=["a", "b"],
+        )
+
+        assert mem.read("shared") == "same_value"
+        # Both branches wrote it, but with the same value (still tracked)
+        assert write_map["shared"] == ["a", "b"]
+
+    def test_merge_ignores_unchanged_baseline_keys(self):
+        """Keys that branches inherited unchanged from baseline should not be treated as writes."""
+        mem = SharedMemory()
+        mem._data = {"baseline": "original", "keep": "intact"}
+
+        branch_a = SharedMemory()
+        branch_a._data = {"baseline": "original", "keep": "intact", "a_out": "new"}
+
+        mem.merge_from([branch_a], strategy=MemoryMergeStrategy.LAST_WINS)
+
+        assert mem.read("baseline") == "original"
+        assert mem.read("keep") == "intact"
+        assert mem.read("a_out") == "new"
+
+    def test_merge_returns_write_map_with_labels(self):
+        """merge_from should return {key: [list of branch labels that wrote it]}."""
+        mem = SharedMemory()
+        mem._data = {}
+
+        branch_a = SharedMemory()
+        branch_a._data = {"x": "1", "y": "2"}
+
+        branch_b = SharedMemory()
+        branch_b._data = {"y": "3", "z": "4"}
+
+        write_map = mem.merge_from(
+            [branch_a, branch_b],
+            strategy=MemoryMergeStrategy.LAST_WINS,
+            branch_labels=["a", "b"],
+        )
+
+        assert write_map["x"] == ["a"]
+        assert set(write_map["y"]) == {"a", "b"}
+        assert write_map["z"] == ["b"]
+
+
+# ====================================================================
+# Executor-level integration tests — branch memory isolation
+# ====================================================================
+
+
+@pytest.mark.asyncio
+async def test_branches_get_isolated_memory(runtime, goal):
+    """Each fan-out branch should write to isolated memory, not shared state."""
+    b1 = NodeSpec(
+        id="b1",
+        name="B1",
+        description="branch 1",
+        node_type="function",
+        output_keys=["shared_key", "b1_unique"],
+    )
+    b2 = NodeSpec(
+        id="b2",
+        name="B2",
+        description="branch 2",
+        node_type="function",
+        output_keys=["shared_key", "b2_unique"],
+    )
+
+    graph = _make_fanout_graph([b1, b2])
+
+    executor = GraphExecutor(runtime=runtime, enable_parallel_execution=True)
+    executor.register_node("source", SuccessNode({"data": "x"}))
+    executor.register_node("b1", OverlappingWriteNode("b1", "val_from_b1", "b1_unique", "only_b1"))
+    executor.register_node("b2", OverlappingWriteNode("b2", "val_from_b2", "b2_unique", "only_b2"))
+
+    result = await executor.execute(graph, goal, {})
+
+    assert result.success
+    # Both unique keys should be in the final output (non-conflicting merge)
+    assert result.output.get("b1_unique") == "only_b1"
+    assert result.output.get("b2_unique") == "only_b2"
+    # shared_key should be deterministic (last_wins = last branch in list)
+    assert result.output.get("shared_key") in ("val_from_b1", "val_from_b2")
+
+
+@pytest.mark.asyncio
+async def test_error_strategy_raises_on_conflicting_branch_writes(runtime, goal):
+    """With memory_conflict_strategy=ERROR, conflicting writes should raise."""
+    b1 = NodeSpec(
+        id="b1",
+        name="B1",
+        description="branch 1",
+        node_type="function",
+        output_keys=["shared_key"],
+    )
+    b2 = NodeSpec(
+        id="b2",
+        name="B2",
+        description="branch 2",
+        node_type="function",
+        output_keys=["shared_key"],
+    )
+
+    graph = _make_fanout_graph([b1, b2])
+
+    config = ParallelExecutionConfig(memory_conflict_strategy=MemoryMergeStrategy.ERROR)
+    executor = GraphExecutor(
+        runtime=runtime, enable_parallel_execution=True, parallel_config=config
+    )
+    executor.register_node("source", SuccessNode({"data": "x"}))
+    executor.register_node("b1", OverlappingWriteNode("b1", "val_from_b1", "b1_extra", "x"))
+    executor.register_node("b2", OverlappingWriteNode("b2", "val_from_b2", "b2_extra", "y"))
+
+    result = await executor.execute(graph, goal, {})
+
+    # Should fail because both branches wrote different values to "shared_key"
+    assert not result.success
+    assert "conflicting" in result.error.lower() or "shared_key" in result.error.lower()
+
+
+@pytest.mark.asyncio
+async def test_first_wins_strategy_keeps_first_branch_value(runtime, goal):
+    """With memory_conflict_strategy=FIRST_WINS, the first branch's value should win."""
+    b1 = NodeSpec(
+        id="b1",
+        name="B1",
+        description="branch 1",
+        node_type="function",
+        output_keys=["shared_key", "b1_unique"],
+    )
+    b2 = NodeSpec(
+        id="b2",
+        name="B2",
+        description="branch 2",
+        node_type="function",
+        output_keys=["shared_key", "b2_unique"],
+    )
+
+    graph = _make_fanout_graph([b1, b2])
+
+    config = ParallelExecutionConfig(memory_conflict_strategy=MemoryMergeStrategy.FIRST_WINS)
+    executor = GraphExecutor(
+        runtime=runtime, enable_parallel_execution=True, parallel_config=config
+    )
+    executor.register_node("source", SuccessNode({"data": "x"}))
+    executor.register_node("b1", OverlappingWriteNode("b1", "val_from_b1", "b1_unique", "only_b1"))
+    executor.register_node("b2", OverlappingWriteNode("b2", "val_from_b2", "b2_unique", "only_b2"))
+
+    result = await executor.execute(graph, goal, {})
+
+    assert result.success
+    # Both unique keys should be present (no conflict)
+    assert result.output.get("b1_unique") == "only_b1"
+    assert result.output.get("b2_unique") == "only_b2"

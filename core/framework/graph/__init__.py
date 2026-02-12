@@ -21,7 +21,15 @@ from framework.graph.executor import GraphExecutor
 from framework.graph.flexible_executor import ExecutorConfig, FlexibleGraphExecutor
 from framework.graph.goal import Constraint, Goal, GoalStatus, SuccessCriterion
 from framework.graph.judge import HybridJudge, create_default_judge
-from framework.graph.node import NodeContext, NodeProtocol, NodeResult, NodeSpec
+from framework.graph.node import (
+    MemoryMergeConflictError,
+    MemoryMergeStrategy,
+    NodeContext,
+    NodeProtocol,
+    NodeResult,
+    NodeSpec,
+    SharedMemory,
+)
 
 # Flexible execution (Worker-Judge pattern)
 from framework.graph.plan import (
@@ -54,6 +62,9 @@ __all__ = [
     "NodeContext",
     "NodeResult",
     "NodeProtocol",
+    "SharedMemory",
+    "MemoryMergeStrategy",
+    "MemoryMergeConflictError",
     # Edge
     "EdgeSpec",
     "EdgeCondition",
