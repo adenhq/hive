@@ -1,0 +1,41 @@
+{
+  "name": "Blog Writer Agent",
+  "version": "1.0.0",
+  "description": "Generate SEO-optimized blog posts by researching topics, creating structured outlines, and producing polished markdown with citations.",
+  "entry_point": "blog_writer_agent",
+  "author": "siddiquiaffan",
+  "tags": ["content", "seo", "blog", "writing", "research"],
+  "category": "content-generation",
+  "pipeline": {
+    "nodes": [
+      "analyze-topic",
+      "research-topic",
+      "fetch-sources",
+      "create-outline",
+      "write-draft",
+      "seo-optimize",
+      "quality-check",
+      "save-blog"
+    ],
+    "entry": "analyze-topic",
+    "terminal": "save-blog"
+  },
+  "tools": ["web_search", "web_scrape", "write_to_file"],
+  "input_schema": {
+    "topic": {
+      "type": "string",
+      "description": "The blog topic to research and write about",
+      "required": true
+    }
+  },
+  "output_schema": {
+    "final_content": {
+      "type": "string",
+      "description": "The complete blog post in markdown format"
+    },
+    "file_path": {
+      "type": "string",
+      "description": "Path where the blog post was saved"
+    }
+  }
+}
