@@ -11,7 +11,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -76,7 +76,7 @@ class AgentEvent:
     node_id: str | None = None  # Which node emitted this event
     execution_id: str | None = None
     data: dict[str, Any] = field(default_factory=dict)
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     correlation_id: str | None = None  # For tracking related events
 
     def to_dict(self) -> dict:

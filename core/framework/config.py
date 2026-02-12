@@ -72,3 +72,10 @@ class RuntimeConfig:
     max_tokens: int = field(default_factory=get_max_tokens)
     api_key: str | None = field(default_factory=get_api_key)
     api_base: str | None = None
+
+    def __repr__(self) -> str:
+        masked = f"****{self.api_key[-4:]}" if self.api_key and len(self.api_key) >= 4 else "****"
+        return (
+            f"RuntimeConfig(model={self.model!r}, temperature={self.temperature}, "
+            f"max_tokens={self.max_tokens}, api_key={masked!r}, api_base={self.api_base!r})"
+        )

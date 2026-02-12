@@ -17,7 +17,7 @@ class TestSharedMemoryHallucinationDetection:
     def test_detects_code_at_start(self):
         """Code at the start of the string should be detected."""
         memory = SharedMemory()
-        code_content = "```python\nimport os\ndef hack(): pass\n```" + "A" * 6000
+        code_content = "import os\ndef hack(): pass\nexcept:\n    class Foo: pass" + "A" * 6000
 
         with pytest.raises(MemoryWriteError) as exc_info:
             memory.write("output", code_content)
@@ -27,9 +27,8 @@ class TestSharedMemoryHallucinationDetection:
     def test_detects_code_in_middle(self):
         """Code in the middle of the string should be detected (was previously missed)."""
         memory = SharedMemory()
-        # 600 chars of padding, then code, then more padding to exceed 5000 chars
         padding_start = "A" * 600
-        code = "\n```python\nimport os\ndef malicious(): pass\n```\n"
+        code = "\nimport os\ndef malicious(): pass\ntry:\n    except: pass\n"
         padding_end = "B" * 5000
         content = padding_start + code + padding_end
 
@@ -42,7 +41,7 @@ class TestSharedMemoryHallucinationDetection:
         """Code at the end of the string should be detected (was previously missed)."""
         memory = SharedMemory()
         padding = "A" * 5500
-        code = "\n```python\nclass Exploit:\n    pass\n```"
+        code = "\nclass Exploit:\n    def run(self):\n        import subprocess\n"
         content = padding + code
 
         with pytest.raises(MemoryWriteError) as exc_info:
@@ -51,7 +50,7 @@ class TestSharedMemoryHallucinationDetection:
         assert "hallucinated code" in str(exc_info.value)
 
     def test_detects_javascript_code(self):
-        """JavaScript code patterns should be detected."""
+        """JavaScript code patterns should be detected via strict indicator."""
         memory = SharedMemory()
         padding = "A" * 600
         code = "\nfunction malicious() { require('child_process'); }\n"
@@ -109,21 +108,18 @@ class TestSharedMemoryHallucinationDetection:
     def test_validate_false_bypasses_check(self):
         """Using validate=False should bypass the check."""
         memory = SharedMemory()
-        code_content = "```python\nimport os\n```" + "A" * 6000
+        code_content = "import os\ndef hack():\n    try: pass\n    except: pass" + "A" * 6000
 
-        # Should not raise when validate=False
         memory.write("output", code_content, validate=False)
         assert memory.read("output") == code_content
 
     def test_sampling_for_very_long_strings(self):
         """Very long strings (>10KB) should be sampled at multiple positions."""
         memory = SharedMemory()
-        # Create a 50KB string with code at the 75% mark
         size = 50000
         code_position = int(size * 0.75)
-        content = (
-            "A" * code_position + "def hidden_code(): pass" + "B" * (size - code_position - 25)
-        )
+        code = "def hidden(): pass\nimport os\nclass X: pass\n"
+        content = "A" * code_position + code + "B" * (size - code_position - len(code))
 
         with pytest.raises(MemoryWriteError) as exc_info:
             memory.write("output", content)
@@ -147,12 +143,10 @@ class TestOutputValidatorHallucinationDetection:
         assert isinstance(result, ValidationResult)
 
     def test_contains_code_indicators_full_check(self):
-        """_contains_code_indicators should check the entire string."""
+        """_contains_code_indicators should detect multiple code patterns."""
         validator = OutputValidator()
-
-        # Code at position 600 (was previously missed with [:500] check)
         padding = "A" * 600
-        code = "import os"
+        code = "import os\ndef run():\n    try: pass"
         content = padding + code
 
         assert validator._contains_code_indicators(content) is True
@@ -160,11 +154,10 @@ class TestOutputValidatorHallucinationDetection:
     def test_contains_code_indicators_sampling(self):
         """_contains_code_indicators should sample for very long strings."""
         validator = OutputValidator()
-
-        # 50KB string with code at 75% position
         size = 50000
         code_position = int(size * 0.75)
-        content = "A" * code_position + "class HiddenClass:" + "B" * (size - code_position - 18)
+        code = "class Hidden:\n    def run(self):\n        import os"
+        content = "A" * code_position + code + "B" * (size - code_position - len(code))
 
         assert validator._contains_code_indicators(content) is True
 
@@ -181,17 +174,21 @@ class TestOutputValidatorHallucinationDetection:
         """Should detect code patterns from multiple programming languages."""
         validator = OutputValidator()
 
-        test_cases = [
-            "function test() {}",  # JavaScript
-            "const x = 5;",  # JavaScript
-            "SELECT * FROM users",  # SQL
-            "DROP TABLE data",  # SQL
-            "<script>",  # HTML
-            "<?php",  # PHP
+        # Strict indicators: single match is enough
+        strict_cases = [
+            "SELECT * FROM users",
+            "DROP TABLE data",
+            "<script>",
+            "<?php",
+            "async def foo(): pass",
+            "require('fs')",
         ]
-
-        for code in test_cases:
+        for code in strict_cases:
             assert validator._contains_code_indicators(code) is True, f"Failed to detect: {code}"
+
+        # Contextual indicators: need 3+ to trigger
+        multi_indicator = "def foo():\n    import os\n    from sys import argv"
+        assert validator._contains_code_indicators(multi_indicator) is True
 
 
 class TestEdgeCases:
@@ -228,7 +225,8 @@ class TestEdgeCases:
     def test_5001_chars_triggers_validation(self):
         """String of 5001 chars with code should trigger validation."""
         memory = SharedMemory()
-        content = "def code(): pass" + "A" * (5001 - 16)  # 5001 chars
+        code = "def code(): pass\nimport os\nclass X: pass"
+        content = code + "A" * (5001 - len(code))
 
         with pytest.raises(MemoryWriteError):
             memory.write("output", content)

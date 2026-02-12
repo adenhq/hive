@@ -34,65 +34,40 @@ class OutputValidator:
     """
 
     def _contains_code_indicators(self, value: str) -> bool:
-        """
-        Check for code patterns in a string using sampling for efficiency.
-
-        For strings under 10KB, checks the entire content.
-        For longer strings, samples at strategic positions to balance
-        performance with detection accuracy.
-
-        Args:
-            value: The string to check for code indicators
-
-        Returns:
-            True if code indicators are found, False otherwise
-        """
-        code_indicators = [
-            # Python
-            "def ",
-            "class ",
-            "import ",
-            "from ",
-            "if __name__",
-            "async def ",
-            "await ",
-            "try:",
-            "except:",
-            # JavaScript/TypeScript
-            "function ",
-            "const ",
-            "let ",
-            "=> {",
-            "require(",
-            "export ",
-            # SQL
-            "SELECT ",
-            "INSERT ",
-            "UPDATE ",
-            "DELETE ",
-            "DROP ",
-            # HTML/Script injection
-            "<script",
-            "<?php",
-            "<%",
+        """Check for code patterns using tiered detection to reduce false positives."""
+        # Strict indicators: single match = suspicious
+        strict_indicators = [
+            "if __name__", "async def ", "=> {", "require(",
+            "<script", "<?php", "<%",
+            "SELECT ", "INSERT ", "UPDATE ", "DELETE ", "DROP ",
         ]
 
-        # For strings under 10KB, check the entire content
-        if len(value) < 10000:
-            return any(indicator in value for indicator in code_indicators)
+        # Contextual indicators: common in natural language, need multiple matches
+        contextual_indicators = [
+            "def ", "class ", "import ", "from ", "try:", "except:",
+            "await ", "function ", "const ", "let ", "export ",
+        ]
 
-        # For longer strings, sample at strategic positions
+        def _check(text: str) -> bool:
+            if any(ind in text for ind in strict_indicators):
+                return True
+            hits = sum(1 for ind in contextual_indicators if ind in text)
+            return hits >= 3
+
+        if len(value) < 10000:
+            return _check(value)
+
         sample_positions = [
-            0,  # Start
-            len(value) // 4,  # 25%
-            len(value) // 2,  # 50%
-            3 * len(value) // 4,  # 75%
-            max(0, len(value) - 2000),  # Near end
+            0,
+            len(value) // 4,
+            len(value) // 2,
+            3 * len(value) // 4,
+            max(0, len(value) - 2000),
         ]
 
         for pos in sample_positions:
             chunk = value[pos : pos + 2000]
-            if any(indicator in chunk for indicator in code_indicators):
+            if _check(chunk):
                 return True
 
         return False
