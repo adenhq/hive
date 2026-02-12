@@ -22,12 +22,8 @@ try:
 except Exception:
     class VaultError(Exception):
         pass
-    class InvalidPath(VaultError):
-        pass
-    class Forbidden(VaultError):
-        pass
-    class Unauthorized(VaultError):
-        pass
+    InvalidPath = Forbidden = Unauthorized = VaultError
+
 
 logger = logging.getLogger(__name__)
 
