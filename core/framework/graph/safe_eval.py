@@ -32,7 +32,7 @@ SAFE_OPERATORS = {
     ast.Invert: operator.inv,
 }
 
-# Safe functions whitelist
+# Safe functions whitelist (read-only / type introspection; aligned with code_sandbox.SAFE_BUILTINS)
 SAFE_FUNCTIONS = {
     "len": len,
     "int": int,
@@ -50,6 +50,16 @@ SAFE_FUNCTIONS = {
     "round": round,
     "all": all,
     "any": any,
+    "isinstance": isinstance,
+    "issubclass": issubclass,
+    "type": type,
+    "enumerate": enumerate,
+    "filter": filter,
+    "map": map,
+    "range": range,
+    "sorted": sorted,
+    "reversed": reversed,
+    "zip": zip,
 }
 
 
@@ -145,7 +155,7 @@ class SafeEvalVisitor(ast.NodeVisitor):
 
     def visit_Attribute(self, node: ast.Attribute) -> Any:
         # value.attr
-        # STIRCT CHECK: No access to private attributes (starting with _)
+        # STRICT CHECK: No access to private attributes (starting with _)
         if node.attr.startswith("_"):
             raise ValueError(f"Access to private attribute '{node.attr}' is not allowed")
 
