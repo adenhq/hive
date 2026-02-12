@@ -155,6 +155,7 @@ class HumanReadableFormatter(logging.Formatter):
 def configure_logging(
     level: str = "INFO",
     format: str = "auto",  # "json", "human", or "auto"
+    telemetry_exporter: str | None = "auto",  # "console", "otlp", "none", or "auto"
 ) -> None:
     """
     Configure structured logging for the application.
@@ -224,6 +225,21 @@ def configure_logging(
             # Clear existing handlers so records propagate to root and use our formatter there
             logger.handlers.clear()
             logger.propagate = True  # Still propagate to root for consistency
+
+    # Configure telemetry
+    from framework.observability.telemetry import configure_telemetry
+
+    if telemetry_exporter == "auto":
+        # Default to console if ENV=production or LOG_FORMAT=json, else None
+        log_format_env = os.getenv("LOG_FORMAT", "").lower()
+        env = os.getenv("ENV", "development").lower()
+        if log_format_env == "json" or env == "production":
+            telemetry_exporter = "otlp"  # Use OTLP for production if available
+        else:
+            telemetry_exporter = "console"
+
+    if telemetry_exporter != "none":
+        configure_telemetry(exporter_type=telemetry_exporter)
 
 
 def _disable_third_party_colors() -> None:

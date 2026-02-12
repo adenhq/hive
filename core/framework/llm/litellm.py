@@ -25,6 +25,7 @@ except ImportError:
 
 from framework.llm.provider import LLMProvider, LLMResponse, Tool, ToolResult, ToolUse
 from framework.llm.stream_events import StreamEvent
+from framework.observability.telemetry import get_tracer
 
 logger = logging.getLogger(__name__)
 
@@ -292,16 +293,29 @@ class LiteLLMProvider(LLMProvider):
         if response_format:
             kwargs["response_format"] = response_format
 
-        # Make the call
-        response = self._completion_with_rate_limit_retry(**kwargs)
-
-        # Extract content
-        content = response.choices[0].message.content or ""
-
-        # Get usage info
-        usage = response.usage
-        input_tokens = usage.prompt_tokens if usage else 0
-        output_tokens = usage.completion_tokens if usage else 0
+        # Make the call with tracing
+        tracer = get_tracer(__name__)
+        with tracer.start_as_current_span(
+            f"llm.{self.model.replace('/', '.')}.complete",
+            attributes={
+                "llm.model": self.model,
+                "llm.max_tokens": max_tokens,
+                "llm.json_mode": json_mode,
+            }
+        ) as span:
+            response = self._completion_with_rate_limit_retry(**kwargs)
+            
+            # Extract content
+            content = response.choices[0].message.content or ""
+            
+            # Get usage info
+            usage = response.usage
+            input_tokens = usage.prompt_tokens if usage else 0
+            output_tokens = usage.completion_tokens if usage else 0
+            
+            span.set_attribute("llm.input_tokens", input_tokens)
+            span.set_attribute("llm.output_tokens", output_tokens)
+            span.set_attribute("llm.stop_reason", response.choices[0].finish_reason or "")
 
         return LLMResponse(
             content=content,
@@ -349,13 +363,23 @@ class LiteLLMProvider(LLMProvider):
             if self.api_base:
                 kwargs["api_base"] = self.api_base
 
-            response = self._completion_with_rate_limit_retry(**kwargs)
-
-            # Track tokens
-            usage = response.usage
-            if usage:
-                total_input_tokens += usage.prompt_tokens
-                total_output_tokens += usage.completion_tokens
+            tracer = get_tracer(__name__)
+            with tracer.start_as_current_span(
+                f"llm.{self.model.replace('/', '.')}.generation",
+                attributes={
+                    "llm.model": self.model,
+                    "llm.max_tokens": max_tokens,
+                }
+            ) as gen_span:
+                response = self._completion_with_rate_limit_retry(**kwargs)
+                
+                # Track tokens
+                usage = response.usage
+                if usage:
+                    total_input_tokens += usage.prompt_tokens
+                    total_output_tokens += usage.completion_tokens
+                    gen_span.set_attribute("llm.input_tokens", usage.prompt_tokens)
+                    gen_span.set_attribute("llm.output_tokens", usage.completion_tokens)
 
             choice = response.choices[0]
             message = choice.message
@@ -412,7 +436,15 @@ class LiteLLMProvider(LLMProvider):
                     input=args,
                 )
 
-                result = tool_executor(tool_use)
+                with tracer.start_as_current_span(
+                    f"tool.{tool_call.function.name}.execute",
+                    attributes={
+                        "tool.name": tool_call.function.name,
+                        "tool.call_id": tool_call.id,
+                    }
+                ) as tool_span:
+                    result = tool_executor(tool_use)
+                    tool_span.set_attribute("tool.success", not result.is_error)
 
                 # Add tool result message
                 current_messages.append(
@@ -503,133 +535,145 @@ class LiteLLMProvider(LLMProvider):
             input_tokens = 0
             output_tokens = 0
 
-            try:
-                response = await litellm.acompletion(**kwargs)  # type: ignore[union-attr]
+            tracer = get_tracer(__name__)
+            with tracer.start_as_current_span(
+                f"llm.{self.model.replace('/', '.')}.stream",
+                attributes={
+                    "llm.model": self.model,
+                    "llm.max_tokens": max_tokens,
+                }
+            ) as span:
+                try:
+                    response = await litellm.acompletion(**kwargs)  # type: ignore[union-attr]
 
-                async for chunk in response:
-                    choice = chunk.choices[0] if chunk.choices else None
-                    if not choice:
-                        continue
+                    async for chunk in response:
+                        choice = chunk.choices[0] if chunk.choices else None
+                        if not choice:
+                            continue
 
-                    delta = choice.delta
+                        delta = choice.delta
 
-                    # --- Text content — yield immediately for real-time streaming ---
-                    if delta and delta.content:
-                        accumulated_text += delta.content
-                        yield TextDeltaEvent(
-                            content=delta.content,
-                            snapshot=accumulated_text,
-                        )
+                        # --- Text content — yield immediately for real-time streaming ---
+                        if delta and delta.content:
+                            accumulated_text += delta.content
+                            yield TextDeltaEvent(
+                                content=delta.content,
+                                snapshot=accumulated_text,
+                            )
 
-                    # --- Tool calls (accumulate across chunks) ---
-                    if delta and delta.tool_calls:
-                        for tc in delta.tool_calls:
-                            idx = tc.index if hasattr(tc, "index") and tc.index is not None else 0
-                            if idx not in tool_calls_acc:
-                                tool_calls_acc[idx] = {"id": "", "name": "", "arguments": ""}
-                            if tc.id:
-                                tool_calls_acc[idx]["id"] = tc.id
-                            if tc.function:
-                                if tc.function.name:
-                                    tool_calls_acc[idx]["name"] = tc.function.name
-                                if tc.function.arguments:
-                                    tool_calls_acc[idx]["arguments"] += tc.function.arguments
+                        # --- Tool calls (accumulate across chunks) ---
+                        if delta and delta.tool_calls:
+                            for tc in delta.tool_calls:
+                                idx = tc.index if hasattr(tc, "index") and tc.index is not None else 0
+                                if idx not in tool_calls_acc:
+                                    tool_calls_acc[idx] = {"id": "", "name": "", "arguments": ""}
+                                if tc.id:
+                                    tool_calls_acc[idx]["id"] = tc.id
+                                if tc.function:
+                                    if tc.function.name:
+                                        tool_calls_acc[idx]["name"] = tc.function.name
+                                    if tc.function.arguments:
+                                        tool_calls_acc[idx]["arguments"] += tc.function.arguments
 
-                    # --- Finish ---
-                    if choice.finish_reason:
-                        for _idx, tc_data in sorted(tool_calls_acc.items()):
-                            try:
-                                parsed_args = json.loads(tc_data["arguments"])
-                            except (json.JSONDecodeError, KeyError):
-                                parsed_args = {"_raw": tc_data.get("arguments", "")}
+                        # --- Finish ---
+                        if choice.finish_reason:
+                            for _idx, tc_data in sorted(tool_calls_acc.items()):
+                                try:
+                                    parsed_args = json.loads(tc_data["arguments"])
+                                except (json.JSONDecodeError, KeyError):
+                                    parsed_args = {"_raw": tc_data.get("arguments", "")}
+                                tail_events.append(
+                                    ToolCallEvent(
+                                        tool_use_id=tc_data["id"],
+                                        tool_name=tc_data["name"],
+                                        tool_input=parsed_args,
+                                    )
+                                )
+
+                            if accumulated_text:
+                                tail_events.append(TextEndEvent(full_text=accumulated_text))
+
+                            usage = getattr(chunk, "usage", None)
+                            if usage:
+                                input_tokens = getattr(usage, "prompt_tokens", 0) or 0
+                                output_tokens = getattr(usage, "completion_tokens", 0) or 0
+                                span.set_attribute("llm.input_tokens", input_tokens)
+                                span.set_attribute("llm.output_tokens", output_tokens)
+
                             tail_events.append(
-                                ToolCallEvent(
-                                    tool_use_id=tc_data["id"],
-                                    tool_name=tc_data["name"],
-                                    tool_input=parsed_args,
+                                FinishEvent(
+                                    stop_reason=choice.finish_reason,
+                                    input_tokens=input_tokens,
+                                    output_tokens=output_tokens,
+                                    model=self.model,
                                 )
                             )
 
-                        if accumulated_text:
-                            tail_events.append(TextEndEvent(full_text=accumulated_text))
-
-                        usage = getattr(chunk, "usage", None)
-                        if usage:
-                            input_tokens = getattr(usage, "prompt_tokens", 0) or 0
-                            output_tokens = getattr(usage, "completion_tokens", 0) or 0
-
-                        tail_events.append(
-                            FinishEvent(
-                                stop_reason=choice.finish_reason,
-                                input_tokens=input_tokens,
-                                output_tokens=output_tokens,
-                                model=self.model,
+                    # Check whether the stream produced any real content.
+                    # (If text deltas were yielded above, has_content is True
+                    # and we skip the retry path — nothing was yielded in vain.)
+                    has_content = accumulated_text or tool_calls_acc
+                    if not has_content and attempt < RATE_LIMIT_MAX_RETRIES:
+                        # If the conversation ends with an assistant or tool
+                        # message, an empty stream is expected — the LLM has
+                        # nothing new to say.  Don't burn retries on this;
+                        # let the caller (EventLoopNode) decide what to do.
+                        # Typical case: client_facing node where the LLM set
+                        # all outputs via set_output tool calls, and the tool
+                        # results are the last messages.
+                        last_role = next(
+                            (m["role"] for m in reversed(full_messages) if m.get("role") != "system"),
+                            None,
+                        )
+                        if last_role in ("assistant", "tool"):
+                            logger.debug(
+                                "[stream] Empty response after %s message — expected, not retrying.",
+                                last_role,
                             )
+                            for event in tail_events:
+                                yield event
+                            return
+                        wait = RATE_LIMIT_BACKOFF_BASE * (2**attempt)
+                        token_count, token_method = _estimate_tokens(
+                            self.model,
+                            full_messages,
                         )
-
-                # Check whether the stream produced any real content.
-                # (If text deltas were yielded above, has_content is True
-                # and we skip the retry path — nothing was yielded in vain.)
-                has_content = accumulated_text or tool_calls_acc
-                if not has_content and attempt < RATE_LIMIT_MAX_RETRIES:
-                    # If the conversation ends with an assistant or tool
-                    # message, an empty stream is expected — the LLM has
-                    # nothing new to say.  Don't burn retries on this;
-                    # let the caller (EventLoopNode) decide what to do.
-                    # Typical case: client_facing node where the LLM set
-                    # all outputs via set_output tool calls, and the tool
-                    # results are the last messages.
-                    last_role = next(
-                        (m["role"] for m in reversed(full_messages) if m.get("role") != "system"),
-                        None,
-                    )
-                    if last_role in ("assistant", "tool"):
-                        logger.debug(
-                            "[stream] Empty response after %s message — expected, not retrying.",
-                            last_role,
+                        dump_path = _dump_failed_request(
+                            model=self.model,
+                            kwargs=kwargs,
+                            error_type="empty_stream",
+                            attempt=attempt,
                         )
-                        for event in tail_events:
-                            yield event
-                        return
-                    wait = RATE_LIMIT_BACKOFF_BASE * (2**attempt)
-                    token_count, token_method = _estimate_tokens(
-                        self.model,
-                        full_messages,
-                    )
-                    dump_path = _dump_failed_request(
-                        model=self.model,
-                        kwargs=kwargs,
-                        error_type="empty_stream",
-                        attempt=attempt,
-                    )
-                    logger.warning(
-                        f"[stream-retry] {self.model} returned empty stream — "
-                        f"~{token_count} tokens ({token_method}). "
-                        f"Request dumped to: {dump_path}. "
-                        f"Retrying in {wait}s "
-                        f"(attempt {attempt + 1}/{RATE_LIMIT_MAX_RETRIES})"
-                    )
-                    await asyncio.sleep(wait)
-                    continue
+                        logger.warning(
+                            f"[stream-retry] {self.model} returned empty stream — "
+                            f"~{token_count} tokens ({token_method}). "
+                            f"Request dumped to: {dump_path}. "
+                            f"Retrying in {wait}s "
+                            f"(attempt {attempt + 1}/{RATE_LIMIT_MAX_RETRIES})"
+                        )
+                        await asyncio.sleep(wait)
+                        continue
 
-                # Success (or final attempt) — flush remaining events.
-                for event in tail_events:
-                    yield event
-                return
+                    # Success (or final attempt) — flush remaining events.
+                    for event in tail_events:
+                        yield event
+                    return
 
-            except RateLimitError as e:
-                if attempt < RATE_LIMIT_MAX_RETRIES:
-                    wait = RATE_LIMIT_BACKOFF_BASE * (2**attempt)
-                    logger.warning(
-                        f"[stream-retry] {self.model} rate limited (429): {e!s}. "
-                        f"Retrying in {wait}s "
-                        f"(attempt {attempt + 1}/{RATE_LIMIT_MAX_RETRIES})"
-                    )
-                    await asyncio.sleep(wait)
-                    continue
-                yield StreamErrorEvent(error=str(e), recoverable=False)
-                return
+                except RateLimitError as e:
+                    span.record_exception(e)
+                    if attempt < RATE_LIMIT_MAX_RETRIES:
+                        wait = RATE_LIMIT_BACKOFF_BASE * (2**attempt)
+                        logger.warning(
+                            f"[stream-retry] {self.model} rate limited (429): {e!s}. "
+                            f"Retrying in {wait}s "
+                            f"(attempt {attempt + 1}/{RATE_LIMIT_MAX_RETRIES})"
+                        )
+                        await asyncio.sleep(wait)
+                        continue
+                    yield StreamErrorEvent(error=str(e), recoverable=False)
+                    return
 
-            except Exception as e:
-                yield StreamErrorEvent(error=str(e), recoverable=False)
-                return
+                except Exception as e:
+                    span.record_exception(e)
+                    yield StreamErrorEvent(error=str(e), recoverable=False)
+                    return

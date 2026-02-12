@@ -20,6 +20,23 @@ from typing import Any
 from framework.graph.checkpoint_config import CheckpointConfig
 from framework.graph.edge import EdgeCondition, EdgeSpec, GraphSpec
 from framework.graph.goal import Goal
+from framework.observability import set_trace_context
+from framework.observability.telemetry import get_tracer, trace_span
+
+try:
+    from opentelemetry.trace import Status, StatusCode
+except ImportError:
+    # Fallback if OTEL not installed
+    class StatusCode:
+        OK = 0
+        ERROR = 1
+
+    class Status:
+        def __init__(self, code, message=""):
+            self.code = code
+            self.message = message
+
+
 from framework.graph.node import (
     FunctionNode,
     LLMNode,
@@ -209,6 +226,7 @@ class GraphExecutor:
 
         return errors
 
+    @trace_span("graph.execute")
     async def execute(
         self,
         graph: GraphSpec,
@@ -592,7 +610,27 @@ class GraphExecutor:
 
                 # Execute node
                 self.logger.info("   Executing...")
-                result = await node_impl.execute(ctx)
+                
+                tracer = get_tracer(__name__)
+                with tracer.start_as_current_span(
+                    f"node.{node_spec.id}.execute",
+                    attributes={
+                        "node.id": node_spec.id,
+                        "node.name": node_spec.name,
+                        "node.type": node_spec.node_type,
+                    }
+                ) as node_span:
+                    try:
+                        result = await node_impl.execute(ctx)
+                        node_span.set_attribute("node.success", result.success)
+                        node_span.set_attribute("node.tokens_used", result.tokens_used)
+                        node_span.set_attribute("node.latency_ms", result.latency_ms)
+                        if not result.success:
+                            node_span.set_status(Status(StatusCode.ERROR, result.error))
+                    except Exception as e:
+                        node_span.record_exception(e)
+                        node_span.set_status(Status(StatusCode.ERROR, str(e)))
+                        raise
 
                 # Emit node-completed event (skip event_loop nodes)
                 if self._event_bus and node_spec.node_type != "event_loop":
