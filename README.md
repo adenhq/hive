@@ -10,7 +10,8 @@
   <a href="docs/i18n/pt.md">Português</a> |
   <a href="docs/i18n/ja.md">日本語</a> |
   <a href="docs/i18n/ru.md">Русский</a> |
-  <a href="docs/i18n/ko.md">한국어</a>
+  <a href="docs/i18n/ko.md">한국어</a> |
+  <a href="docs/i18n/fr.md">Français</a> 
 </p>
 
 <p align="center">
@@ -119,14 +120,17 @@ hive tui
 # Or run directly
 hive run exports/your_agent_name --input '{"key": "value"}'
 ```
-##  Coding Agent Support
-### Opencode 
+
+## Coding Agent Support
+
+### Opencode
+
 Hive includes native support for [Opencode](https://github.com/opencode-ai/opencode).
 
-1. **Setup:** Run the quickstart script 
+1. **Setup:** Run the quickstart script
 2. **Launch:** Open Opencode in the project root.
 3. **Activate:** Type `/hive` in the chat to switch to the Hive Agent.
-4. **Verify:** Ask the agent *"List your tools"* to confirm the connection.
+4. **Verify:** Ask the agent _"List your tools"_ to confirm the connection.
 
 The agent has access to all Hive skills and can scaffold agents, add tools, and debug workflows directly from the chat.
 
@@ -162,7 +166,6 @@ Hive is built to be model-agnostic and system-agnostic.
 
 - **LLM flexibility** - Hive Framework is designed to support various types of LLMs, including hosted and local models through LiteLLM-compatible providers.
 - **Business system connectivity** - Hive Framework is designed to connect to all kinds of business systems as tools, such as CRM, support, messaging, data, file, and internal APIs via MCP.
-
 
 ## Why Aden
 
