@@ -863,6 +863,10 @@ Keep the same JSON structure but with shorter content values.
         _step_index = 0
         _captured_tool_calls: list[dict] = []
 
+        # Initialize token accumulators at the beginning to track ALL LLM calls
+        total_input_tokens = 0
+        total_output_tokens = 0
+
         try:
             # Build messages
             messages = self._build_messages(ctx)
@@ -920,6 +924,8 @@ Keep the same JSON structure but with shorter content values.
                     tool_executor=executor,
                     max_tokens=ctx.max_tokens,
                 )
+                total_input_tokens += response.input_tokens
+                total_output_tokens += response.output_tokens
             else:
                 # Use JSON mode for llm_generate nodes with output_keys
                 # Skip strict schema validation - just validate keys after parsing
@@ -939,6 +945,8 @@ Keep the same JSON structure but with shorter content values.
                     json_mode=use_json_mode,
                     max_tokens=ctx.max_tokens,
                 )
+                total_input_tokens += response.input_tokens
+                total_output_tokens += response.output_tokens
 
             # Check for truncation and retry with compaction if needed
             expects_json = (
@@ -974,6 +982,8 @@ Keep the same JSON structure but with shorter content values.
                         tool_executor=executor,
                         max_tokens=ctx.max_tokens,
                     )
+                    total_input_tokens += response.input_tokens
+                    total_output_tokens += response.output_tokens
                 else:
                     response = ctx.llm.complete(
                         messages=compaction_messages,
@@ -981,6 +991,8 @@ Keep the same JSON structure but with shorter content values.
                         json_mode=use_json_mode,
                         max_tokens=ctx.max_tokens,
                     )
+                    total_input_tokens += response.input_tokens
+                    total_output_tokens += response.output_tokens
 
             if self._is_truncated(response) and expects_json:
                 logger.warning(
@@ -993,13 +1005,13 @@ Keep the same JSON structure but with shorter content values.
                 ctx.node_spec.max_validation_retries if ctx.node_spec.output_model else 0
             )
             validation_attempt = 0
-            total_input_tokens = 0
-            total_output_tokens = 0
             current_messages = messages.copy()
 
             while True:
-                total_input_tokens += response.input_tokens
-                total_output_tokens += response.output_tokens
+                # Important: Tokens from the initial LLM call (and any compaction retries)
+                # were already accumulated immediately after each call above.
+                # For validation retries, tokens will be accumulated immediately after
+                # the retry call below, so we don't accumulate here to avoid double counting.
 
                 # Log the response
                 response_preview = (
@@ -1063,6 +1075,8 @@ Keep the same JSON structure but with shorter content values.
                                         tool_executor=executor,
                                         max_tokens=ctx.max_tokens,
                                     )
+                                    total_input_tokens += response.input_tokens
+                                    total_output_tokens += response.output_tokens
                                 else:
                                     response = ctx.llm.complete(
                                         messages=current_messages,
@@ -1070,6 +1084,8 @@ Keep the same JSON structure but with shorter content values.
                                         json_mode=use_json_mode,
                                         max_tokens=ctx.max_tokens,
                                     )
+                                    total_input_tokens += response.input_tokens
+                                    total_output_tokens += response.output_tokens
                                 continue  # Retry validation
                             else:
                                 # Max retries exceeded
@@ -1213,8 +1229,8 @@ Keep the same JSON structure but with shorter content values.
                             step_index=_step_index,
                             llm_text=response.content,
                             tool_calls=_captured_tool_calls,
-                            input_tokens=response.input_tokens,
-                            output_tokens=response.output_tokens,
+                            input_tokens=total_input_tokens,
+                            output_tokens=total_output_tokens,
                             latency_ms=latency_ms,
                         )
                         ctx.runtime_logger.log_node_complete(
@@ -1224,9 +1240,9 @@ Keep the same JSON structure but with shorter content values.
                             success=False,
                             error=_extraction_error,
                             total_steps=_step_index + 1,
-                            tokens_used=response.input_tokens + response.output_tokens,
-                            input_tokens=response.input_tokens,
-                            output_tokens=response.output_tokens,
+                            tokens_used=total_input_tokens + total_output_tokens,
+                            input_tokens=total_input_tokens,
+                            output_tokens=total_output_tokens,
                             latency_ms=latency_ms,
                         )
                     return NodeResult(
@@ -1256,8 +1272,8 @@ Keep the same JSON structure but with shorter content values.
                     step_index=_step_index,
                     llm_text=response.content,
                     tool_calls=_captured_tool_calls,
-                    input_tokens=response.input_tokens,
-                    output_tokens=response.output_tokens,
+                    input_tokens=total_input_tokens,
+                    output_tokens=total_output_tokens,
                     latency_ms=latency_ms,
                 )
                 ctx.runtime_logger.log_node_complete(
@@ -1266,9 +1282,9 @@ Keep the same JSON structure but with shorter content values.
                     node_type=ctx.node_spec.node_type,
                     success=True,
                     total_steps=_step_index + 1,
-                    tokens_used=response.input_tokens + response.output_tokens,
-                    input_tokens=response.input_tokens,
-                    output_tokens=response.output_tokens,
+                    tokens_used=total_input_tokens + total_output_tokens,
+                    input_tokens=total_input_tokens,
+                    output_tokens=total_output_tokens,
                     latency_ms=latency_ms,
                 )
 
