@@ -391,7 +391,7 @@ Yes! Hive supports local models through LiteLLM. Simply use the model name forma
 
 **Q: What makes Hive different from other agent frameworks?**
 
-Hive generates your entire agent system from natural language goals using a coding agent—you don't hardcode workflows or manually define graphs. When agents fail, the framework automatically captures failure data, [evolves the agent graph](docs/key_concepts/evolution.md), and redeploys. This self-improving loop is unique to Aden.
+Hive generates your entire agent system from natural language goals using a coding agent—you don't hardcode workflows or manually define graphs. When agents fail, the framework automatically captures failure data and structures it for [evolution](docs/key_concepts/evolution.md). A coding agent or developer then uses that diagnosis to improve and redeploy the agent. This adaptive loop—where failure data directly drives the next version—is unique to Aden. See [Evolution: What Is Automated Today](docs/key_concepts/evolution.md#what-is-automated-today-vs-what-requires-human-action) for details on the current state.
 
 **Q: Is Hive open-source?**
 

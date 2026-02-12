@@ -47,3 +47,23 @@ Evolution can change almost anything about an agent:
 Evolution depends on good data. The runtime captures every decision an agent makes: what it was trying to do, what options it considered, what it chose, and what happened as a result. This isn't overhead — it's the signal that makes evolution possible.
 
 Without decision logging, failure analysis is guesswork. With it, the coding agent can trace a failure back to its root cause and make a targeted fix rather than a blind change.
+
+## What Is Automated Today vs. What Requires Human Action
+
+The evolution concept describes Hive's long-term architecture. In the current open-source release, some stages are fully automated and some require a developer or coding agent to initiate.
+
+| Stage | Status | What Happens |
+|---|---|---|
+| **Execute** | Automated | Worker agents run, produce sessions, decisions, and metrics. |
+| **Evaluate** | Automated | The framework checks outcomes against goal success criteria and constraints. |
+| **Diagnose** | Automated | Structured failure data — which node failed, why, and the full decision log — is captured automatically. |
+| **Regenerate** | Human / Coding Agent | A developer or coding agent (e.g., Claude Code, Cursor) reviews the diagnosis and modifies the agent graph. This step is not yet a fully autonomous loop in OSS. |
+| **Redeploy** | Human / Coding Agent | The updated agent is redeployed by the developer or through the coding agent's workflow. |
+
+### What "self-improving" means in practice
+
+- **The framework is self-observing**: it automatically captures every decision, failure, metric, and evaluation result during execution.
+- **The framework is builder-friendly**: it structures failure data so that a coding agent or developer can make targeted fixes rather than guessing.
+- **The regeneration step currently requires a coding agent or developer**: there is no fully autonomous "fail → mutate graph → redeploy" loop running without human involvement in the OSS release.
+
+As the project matures, the goal is to close this loop further — see the [roadmap](../roadmap.md) for planned work on full adaptiveness.
