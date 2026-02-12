@@ -48,6 +48,7 @@ from .serpapi_tool import register_tools as register_serpapi
 from .slack_tool import register_tools as register_slack
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
+from .x_tool import register_tools as register_x
 
 
 def register_all_tools(
@@ -81,6 +82,7 @@ def register_all_tools(
     register_apollo(mcp, credentials=credentials)
     register_serpapi(mcp, credentials=credentials)
     register_slack(mcp, credentials=credentials)
+    register_x(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -217,6 +219,13 @@ def register_all_tools(
         "slack_kick_user_from_channel",
         "slack_delete_file",
         "slack_get_team_stats",
+        # X (Twitter) tools
+        "x_search_tweets",
+        "x_get_mentions",
+        "x_post_tweet",
+        "x_reply_tweet",
+        "x_delete_tweet",
+        "x_send_dm",
     ]
 
 
