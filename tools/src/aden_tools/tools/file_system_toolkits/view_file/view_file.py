@@ -60,7 +60,7 @@ def register_tools(mcp: FastMCP) -> None:
                 content = f.read()
 
             if len(content.encode(encoding)) > max_size:
-                content = content[:max_size]
+                content = content.encode(encoding)[:max_size].decode(encoding, errors="ignore")
                 content += "\n\n[... Content truncated due to size limit ...]"
 
             return {
