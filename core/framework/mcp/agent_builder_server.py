@@ -9,6 +9,7 @@ Usage:
 
 import json
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
@@ -28,9 +29,22 @@ from framework.testing.prompts import (
 mcp = FastMCP("agent-builder")
 
 
+
 # Session persistence directory
 SESSIONS_DIR = Path(".agent-builder-sessions")
 ACTIVE_SESSION_FILE = SESSIONS_DIR / ".active"
+
+
+def _sanitize_filename(name: str) -> str:
+    """Sanitize a string to be safe for filenames."""
+    if not name:
+        return "unnamed"
+    # Remove any path separators and null bytes
+    name = name.replace("/", "_").replace("\\", "_").replace("\0", "")
+    # Remove any other potentially dangerous characters
+    # Allows alphanumeric, dash, underscore, space, dot
+    name = re.sub(r'[^\w\-. ]', '', name)
+    return name.strip() or "unnamed"
 
 
 # Session storage
@@ -121,10 +135,12 @@ def _save_session(session: BuildSession):
 
     # Update last modified
     session.last_modified = datetime.now().isoformat()
-
-    # Save session file
-    session_file = SESSIONS_DIR / f"{session.id}.json"
-    with open(session_file, "w") as f:
+    
+    # Sanitize ID to prevent path traversal
+    safe_id = _sanitize_filename(session.id)
+    file_path = SESSIONS_DIR / f"{safe_id}.json"
+    
+    with open(file_path, "w") as f:
         json.dump(session.to_dict(), f, indent=2, default=str)
 
     # Update active session pointer
@@ -134,13 +150,18 @@ def _save_session(session: BuildSession):
 
 def _load_session(session_id: str) -> BuildSession:
     """Load session from disk."""
-    session_file = SESSIONS_DIR / f"{session_id}.json"
-    if not session_file.exists():
-        raise ValueError(f"Session '{session_id}' not found")
-
-    with open(session_file, "r") as f:
+    _ensure_sessions_dir()
+    
+    # Sanitize ID to prevent path traversal
+    safe_id = _sanitize_filename(session_id)
+    file_path = SESSIONS_DIR / f"{safe_id}.json"
+    
+    if not file_path.exists():
+        raise FileNotFoundError(f"Session '{session_id}' not found")
+        
+    with open(file_path, "r") as f:
         data = json.load(f)
-
+        
     return BuildSession.from_dict(data)
 
 
@@ -266,7 +287,9 @@ def delete_session(session_id: Annotated[str, "ID of the session to delete"]) ->
     """Delete a saved agent building session."""
     global _session
 
-    session_file = SESSIONS_DIR / f"{session_id}.json"
+    # Sanitize ID to prevent path traversal
+    safe_id = _sanitize_filename(session_id)
+    session_file = SESSIONS_DIR / f"{safe_id}.json"
     if not session_file.exists():
         return json.dumps({
             "success": False,
@@ -1363,7 +1386,9 @@ def export_graph() -> str:
 
     # === WRITE FILES TO DISK ===
     # Create exports directory
-    exports_dir = Path("exports") / session.name
+    # Sanitize name to prevent path traversal
+    safe_name = _sanitize_filename(session.name)
+    exports_dir = Path("exports") / safe_name
     exports_dir.mkdir(parents=True, exist_ok=True)
 
     # Write agent.json
