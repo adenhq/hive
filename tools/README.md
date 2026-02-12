@@ -28,6 +28,7 @@ Some tools require API keys to function. Credentials are managed through the enc
 | `BRAVE_SEARCH_API_KEY` | `web_search` tool (Brave)     | [brave.com/search/api](https://brave.com/search/api/)   |
 | `GOOGLE_API_KEY`       | `web_search` tool (Google)    | [console.cloud.google.com](https://console.cloud.google.com/) |
 | `GOOGLE_CSE_ID`        | `web_search` tool (Google)    | [programmablesearchengine.google.com](https://programmablesearchengine.google.com/) |
+| `NOTION_API_KEY`       | `notion_*` tools              | [notion.so/my-integrations](https://www.notion.so/my-integrations) |
 
 > **Note:** `web_search` supports multiple providers. Set either Brave OR Google credentials. Brave is preferred for backward compatibility.
 
@@ -75,6 +76,12 @@ python mcp_server.py
 | `web_search`           | Search the web (Google or Brave, auto-detected) |
 | `web_scrape`           | Scrape and extract content from webpages       |
 | `pdf_read`             | Read and extract text from PDF files           |
+| `notion_search`        | Search Notion pages and databases              |
+| `notion_get_page`      | Retrieve Notion page with optional content     |
+| `notion_create_page`   | Create Notion page or database entry           |
+| `notion_update_page`   | Update Notion page properties                  |
+| `notion_query_database`| Query Notion database with filters/sorts       |
+| `notion_append_blocks` | Add content blocks to Notion page              |
 
 ## Project Structure
 
