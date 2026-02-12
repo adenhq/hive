@@ -151,7 +151,7 @@ classDef done fill:#9e9e9e,color:#fff,stroke:#757575
     - [x] Gsuite Tools
     - [x] Social Media
       - [ ] Twitter(X)
-      - [x] Github
+      - [x] GitHub
       - [ ] Instagram
     - [ ] SAAS
       - [ ] Hubspot
