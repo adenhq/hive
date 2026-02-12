@@ -54,7 +54,6 @@ __pycache__/
 *.egg-info/
 .eggs/
 *.egg
-uv.lock
 
 # Generated runtime data
 core/data/
@@ -75,3 +74,4 @@ exports/*
 
 docs/github-issues/*
 core/tests/*dumps/*
+screenshots/*
