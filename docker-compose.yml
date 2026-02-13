@@ -1,0 +1,25 @@
+
+
+services:
+  hive:
+    build: .
+    container_name: hive-framework
+    volumes:
+      - .:/app
+      - /app/.venv
+      - /app/core/.venv
+      - /app/tools/.venv
+      - ~/.hive:/root/.hive  # Persist credentials and config
+    environment:
+      # Pass through API keys from host environment or .env file
+      - ANTHROPIC_API_KEY
+      - OPENAI_API_KEY
+      - GEMINI_API_KEY
+      - GROQ_API_KEY
+      - MISTRAL_API_KEY
+      - DEEPSEEK_API_KEY
+    env_file:
+      - .env  # Load environment variables from .env file if it exists
+    stdin_open: true # Equivalent to -i
+    tty: true        # Equivalent to -t
+    command: tui     # Default to running the TUI
