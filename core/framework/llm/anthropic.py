@@ -18,7 +18,7 @@ def _get_api_key_from_credential_store() -> str | None:
     try:
         from aden_tools.credentials import CredentialStoreAdapter
 
-        creds = CredentialStoreAdapter.with_env_storage()
+        creds = CredentialStoreAdapter.default()
         if creds.is_available("anthropic"):
             return creds.get("anthropic")
     except ImportError:
@@ -70,6 +70,7 @@ class AnthropicProvider(LLMProvider):
         max_tokens: int = 1024,
         response_format: dict[str, Any] | None = None,
         json_mode: bool = False,
+        max_retries: int | None = None,
     ) -> LLMResponse:
         """Generate a completion from Claude (via LiteLLM)."""
         return self._provider.complete(
@@ -79,6 +80,7 @@ class AnthropicProvider(LLMProvider):
             max_tokens=max_tokens,
             response_format=response_format,
             json_mode=json_mode,
+            max_retries=max_retries,
         )
 
     def complete_with_tools(
