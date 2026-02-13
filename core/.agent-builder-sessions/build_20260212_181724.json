@@ -1,0 +1,193 @@
+{
+  "session_id": "build_20260212_181724",
+  "name": "local_file_serve",
+  "goal": {
+    "id": "local-file-save-and-serve",
+    "name": "Local File Save and Serve",
+    "description": "Collect user content, save it as a local file, and provide a clickable file link back to the user.",
+    "status": "draft",
+    "success_criteria": [
+      {
+        "id": "file-saved",
+        "description": "Requested content is saved to disk",
+        "metric": "save_success_rate",
+        "target": "100% per run",
+        "weight": 0.4,
+        "met": false
+      },
+      {
+        "id": "file-served",
+        "description": "A valid clickable file link is returned to the user",
+        "metric": "serve_success_rate",
+        "target": "100% per run",
+        "weight": 0.4,
+        "met": false
+      },
+      {
+        "id": "fast-completion",
+        "description": "Complete request quickly",
+        "metric": "time_to_complete",
+        "target": "<30 seconds typical",
+        "weight": 0.2,
+        "met": false
+      }
+    ],
+    "constraints": [
+      {
+        "id": "local-only",
+        "description": "Only save files in agent-managed local data directory",
+        "constraint_type": "functional",
+        "category": "safety",
+        "check": ""
+      },
+      {
+        "id": "no-path-traversal",
+        "description": "Do not accept path traversal in filenames; use safe simple filenames",
+        "constraint_type": "quality",
+        "category": "security",
+        "check": ""
+      },
+      {
+        "id": "confirm-output",
+        "description": "Always return clear status and file link when successful",
+        "constraint_type": "functional",
+        "category": "ux",
+        "check": ""
+      }
+    ],
+    "context": {},
+    "required_capabilities": [],
+    "input_schema": {},
+    "output_schema": {},
+    "version": "1.0.0",
+    "parent_version": null,
+    "evolution_reason": null,
+    "created_at": "2026-02-12 18:18:01.780340",
+    "updated_at": "2026-02-12 18:18:01.780347"
+  },
+  "nodes": [
+    {
+      "id": "intake",
+      "name": "Request Intake",
+      "description": "Collect what to save and desired filename from the user.",
+      "node_type": "event_loop",
+      "input_keys": [
+        "request"
+      ],
+      "output_keys": [
+        "file_brief"
+      ],
+      "nullable_output_keys": [],
+      "input_schema": {},
+      "output_schema": {},
+      "system_prompt": "You help users save text to a local file.\\n\\n**STEP 1 \u2014 Respond to the user (text only, NO tool calls):**\\n1. Read the request.\\n2. Ask only for missing required fields: file content and filename.\\n3. Keep it short and explicit.\\n\\n**STEP 2 \u2014 After the user responds, call set_output:**\\n- set_output(\"file_brief\", \"JSON string with fields: filename, content, label\")",
+      "tools": [],
+      "model": null,
+      "function": null,
+      "routes": {},
+      "max_retries": 3,
+      "retry_on": [],
+      "max_node_visits": 1,
+      "output_model": null,
+      "max_validation_retries": 2,
+      "client_facing": true
+    },
+    {
+      "id": "build_file",
+      "name": "Save and Serve File",
+      "description": "Save the requested content to a local file and generate a clickable file URI.",
+      "node_type": "event_loop",
+      "input_keys": [
+        "file_brief"
+      ],
+      "output_keys": [
+        "served_file_uri",
+        "delivery_status"
+      ],
+      "nullable_output_keys": [],
+      "input_schema": {},
+      "output_schema": {},
+      "system_prompt": "Use the file_brief to save and serve a file.\\n\\nProcess:\\n1. Parse file_brief for filename, content, and optional label.\\n2. Normalize filename to a safe simple filename (no paths).\\n3. Call save_data(filename=<safe filename>, data=<content>).\\n4. Call serve_file_to_user(filename=<same filename>, label=<label or filename>).\\n5. set_output(\"served_file_uri\", \"<returned file_uri>\")\\n6. set_output(\"delivery_status\", \"completed\")\\n\\nIf tools fail, set_output(\"delivery_status\", \"failed\") and explain what failed in normal response text.",
+      "tools": [
+        "save_data",
+        "serve_file_to_user"
+      ],
+      "model": null,
+      "function": null,
+      "routes": {},
+      "max_retries": 3,
+      "retry_on": [],
+      "max_node_visits": 1,
+      "output_model": null,
+      "max_validation_retries": 2,
+      "client_facing": false
+    },
+    {
+      "id": "confirm",
+      "name": "Confirm Delivery",
+      "description": "Return final confirmation and file link to the user.",
+      "node_type": "event_loop",
+      "input_keys": [
+        "served_file_uri",
+        "delivery_status"
+      ],
+      "output_keys": [
+        "final_message"
+      ],
+      "nullable_output_keys": [],
+      "input_schema": {},
+      "output_schema": {},
+      "system_prompt": "If delivery_status == \"completed\", show the served_file_uri clearly and confirm completion.\\nIf failed, provide concise failure summary and next action.\\nThen set_output(\"final_message\", \"Completion summary with status and URI or error\")",
+      "tools": [],
+      "model": null,
+      "function": null,
+      "routes": {},
+      "max_retries": 3,
+      "retry_on": [],
+      "max_node_visits": 1,
+      "output_model": null,
+      "max_validation_retries": 2,
+      "client_facing": true
+    }
+  ],
+  "edges": [
+    {
+      "id": "intake-to-build-file",
+      "source": "intake",
+      "target": "build_file",
+      "condition": "on_success",
+      "condition_expr": null,
+      "input_mapping": {},
+      "priority": 1,
+      "description": ""
+    },
+    {
+      "id": "build-file-to-confirm",
+      "source": "build_file",
+      "target": "confirm",
+      "condition": "on_success",
+      "condition_expr": null,
+      "input_mapping": {},
+      "priority": 1,
+      "description": ""
+    }
+  ],
+  "mcp_servers": [
+    {
+      "name": "hive-tools",
+      "transport": "stdio",
+      "description": "Hive tools MCP server",
+      "command": "uv",
+      "args": [
+        "run",
+        "python",
+        "mcp_server.py",
+        "--stdio"
+      ],
+      "cwd": "/Users/antiarin/Documents/github/hive/tools"
+    }
+  ],
+  "loop_config": {},
+  "created_at": "2026-02-12T18:17:24.131784",
+  "last_modified": "2026-02-12T18:18:13.563206"
+}

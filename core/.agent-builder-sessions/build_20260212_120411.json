@@ -1,0 +1,256 @@
+{
+  "session_id": "build_20260212_120411",
+  "name": "support_triage",
+  "goal": {
+    "id": "support-triage-workflow",
+    "name": "Support Triage and Routing",
+    "description": "Intake inbound support requests, classify urgency and category, propose a response and routing plan, collect human approval, then dispatch the approved response through available channels.",
+    "status": "draft",
+    "success_criteria": [
+      {
+        "id": "accurate-triage",
+        "description": "Classify urgency and category correctly for most tickets",
+        "metric": "triage_accuracy",
+        "target": ">=90% on reviewed tickets",
+        "weight": 0.35,
+        "met": false
+      },
+      {
+        "id": "actionable-plan",
+        "description": "Produce a concrete next-action plan for each ticket",
+        "metric": "plan_completeness",
+        "target": "100% of tickets include owner, action, SLA",
+        "weight": 0.25,
+        "met": false
+      },
+      {
+        "id": "human-approval-gate",
+        "description": "No outbound response is dispatched without explicit approval",
+        "metric": "approval_gate",
+        "target": "100%",
+        "weight": 0.2,
+        "met": false
+      },
+      {
+        "id": "timely-output",
+        "description": "Deliver triage package quickly for operators",
+        "metric": "time_to_triage",
+        "target": "<2 minutes typical",
+        "weight": 0.2,
+        "met": false
+      }
+    ],
+    "constraints": [
+      {
+        "id": "approval-required",
+        "description": "Outbound communication must require explicit approval before dispatch",
+        "constraint_type": "functional",
+        "category": "safety",
+        "check": ""
+      },
+      {
+        "id": "no-fabricated-facts",
+        "description": "Do not invent customer/account context when data is missing",
+        "constraint_type": "quality",
+        "category": "accuracy",
+        "check": ""
+      },
+      {
+        "id": "sensitive-data-minimization",
+        "description": "Avoid exposing unnecessary PII in summaries or outbound drafts",
+        "constraint_type": "quality",
+        "category": "privacy",
+        "check": ""
+      }
+    ],
+    "context": {},
+    "required_capabilities": [],
+    "input_schema": {},
+    "output_schema": {},
+    "version": "1.0.0",
+    "parent_version": null,
+    "evolution_reason": null,
+    "created_at": "2026-02-12 12:05:00.691344",
+    "updated_at": "2026-02-12 12:05:00.691353"
+  },
+  "nodes": [
+    {
+      "id": "intake",
+      "name": "Support Intake",
+      "description": "Collect the incoming support request and normalize required triage context.",
+      "node_type": "event_loop",
+      "input_keys": [
+        "request"
+      ],
+      "output_keys": [
+        "ticket_payload"
+      ],
+      "nullable_output_keys": [],
+      "input_schema": {},
+      "output_schema": {},
+      "system_prompt": "You are a support-intake assistant.\n\n**STEP 1 - Respond to the user (text only, NO tool calls):**\n1. Read the incoming request.\n2. Ask only for missing critical data: customer identifier, impact, urgency, and desired outcome.\n3. Keep the interaction short and operational.\n\n**STEP 2 - After the user responds, call set_output:**\n- set_output(\"ticket_payload\", \"Structured summary with fields: issue_summary, customer_id_or_email, impact, urgency_signal, channel, desired_outcome, constraints\")",
+      "tools": [],
+      "model": null,
+      "function": null,
+      "routes": {},
+      "max_retries": 3,
+      "retry_on": [],
+      "max_node_visits": 1,
+      "output_model": null,
+      "max_validation_retries": 2,
+      "client_facing": true
+    },
+    {
+      "id": "review",
+      "name": "Approval Review",
+      "description": "Present triage outputs and request explicit approval or revision feedback.",
+      "node_type": "event_loop",
+      "input_keys": [
+        "ticket_payload",
+        "triage_result",
+        "response_draft",
+        "routing_plan"
+      ],
+      "output_keys": [
+        "approved",
+        "revision_feedback"
+      ],
+      "nullable_output_keys": [],
+      "input_schema": {},
+      "output_schema": {},
+      "system_prompt": "Present triage results clearly.\n\n**STEP 1 - Respond to the user (text only, NO tool calls):**\n1. Show ticket summary.\n2. Show category, severity, rationale, and confidence.\n3. Show routing plan and response draft.\n4. Ask: approve for dispatch, or request revisions?\n\n**STEP 2 - After user responds, call set_output:**\n- set_output(\"approved\", \"true\") if approved\n- set_output(\"approved\", \"false\") if revisions requested\n- set_output(\"revision_feedback\", \"Specific requested changes or empty string\")",
+      "tools": [],
+      "model": null,
+      "function": null,
+      "routes": {},
+      "max_retries": 3,
+      "retry_on": [],
+      "max_node_visits": 1,
+      "output_model": null,
+      "max_validation_retries": 2,
+      "client_facing": true
+    },
+    {
+      "id": "triage",
+      "name": "Classify and Draft Plan",
+      "description": "Classify severity/category and produce routing plan and response draft.",
+      "node_type": "event_loop",
+      "input_keys": [
+        "ticket_payload",
+        "revision_feedback"
+      ],
+      "output_keys": [
+        "triage_result",
+        "response_draft",
+        "routing_plan"
+      ],
+      "nullable_output_keys": [],
+      "input_schema": {},
+      "output_schema": {},
+      "system_prompt": "You are the triage engine for support operations.\n\nGiven ticket_payload (and optional revision_feedback), do the following:\n1. Determine category (bug/billing/access/feature/how-to/other).\n2. Determine severity (sev1-sev4) and justify with impact + urgency.\n3. Produce routing_plan with owner_role, target_queue, SLA target, and next action.\n4. Write a concise customer-facing response_draft.\n\nUse set_output:\n- set_output(\"triage_result\", \"JSON string with fields: category, severity, rationale, confidence, missing_info\")\n- set_output(\"routing_plan\", \"JSON string with fields: owner_role, target_queue, sla_target, next_action\")\n- set_output(\"response_draft\", \"Short, professional draft response aligned to severity and next action\")\n\nNever fabricate missing data. Mark unknown fields explicitly.",
+      "tools": [],
+      "model": null,
+      "function": null,
+      "routes": {},
+      "max_retries": 3,
+      "retry_on": [],
+      "max_node_visits": 3,
+      "output_model": null,
+      "max_validation_retries": 2,
+      "client_facing": false
+    },
+    {
+      "id": "dispatch",
+      "name": "Dispatch and Record",
+      "description": "Persist approved triage package and present a deliverable artifact.",
+      "node_type": "event_loop",
+      "input_keys": [
+        "ticket_payload",
+        "triage_result",
+        "response_draft",
+        "routing_plan",
+        "approved"
+      ],
+      "output_keys": [
+        "dispatch_status"
+      ],
+      "nullable_output_keys": [],
+      "input_schema": {},
+      "output_schema": {},
+      "system_prompt": "You are responsible for controlled dispatch.\n\nRules:\n- Continue only when approved == \"true\".\n\nFlow:\n1. Build a JSON triage artifact containing ticket_payload, triage_result, routing_plan, and response_draft.\n2. save_data(filename=\"support_triage_result.json\", data=<artifact_json>)\n3. serve_file_to_user(filename=\"support_triage_result.json\", label=\"Support Triage Result\")\n4. Respond with the artifact link and a short operator handoff summary.\n5. set_output(\"dispatch_status\", \"completed\").",
+      "tools": [
+        "save_data",
+        "serve_file_to_user"
+      ],
+      "model": null,
+      "function": null,
+      "routes": {},
+      "max_retries": 3,
+      "retry_on": [],
+      "max_node_visits": 1,
+      "output_model": null,
+      "max_validation_retries": 2,
+      "client_facing": false
+    }
+  ],
+  "edges": [
+    {
+      "id": "intake-to-triage",
+      "source": "intake",
+      "target": "triage",
+      "condition": "on_success",
+      "condition_expr": null,
+      "input_mapping": {},
+      "priority": 1,
+      "description": ""
+    },
+    {
+      "id": "triage-to-review",
+      "source": "triage",
+      "target": "review",
+      "condition": "on_success",
+      "condition_expr": null,
+      "input_mapping": {},
+      "priority": 1,
+      "description": ""
+    },
+    {
+      "id": "review-to-triage-feedback",
+      "source": "review",
+      "target": "triage",
+      "condition": "conditional",
+      "condition_expr": "approved == \"false\"",
+      "input_mapping": {},
+      "priority": -1,
+      "description": ""
+    },
+    {
+      "id": "review-to-dispatch",
+      "source": "review",
+      "target": "dispatch",
+      "condition": "conditional",
+      "condition_expr": "approved == \"true\"",
+      "input_mapping": {},
+      "priority": 2,
+      "description": ""
+    }
+  ],
+  "mcp_servers": [
+    {
+      "name": "hive-tools",
+      "transport": "stdio",
+      "description": "Hive tools MCP server",
+      "command": "uv",
+      "args": [
+        "run",
+        "python",
+        "mcp_server.py",
+        "--stdio"
+      ],
+      "cwd": "/Users/antiarin/Documents/github/hive/tools"
+    }
+  ],
+  "loop_config": {},
+  "created_at": "2026-02-12T12:04:11.666442",
+  "last_modified": "2026-02-12T12:05:46.384581"
+}
