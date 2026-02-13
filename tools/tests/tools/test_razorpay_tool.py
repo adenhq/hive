@@ -2,7 +2,7 @@
 Tests for Razorpay payment tool.
 
 Covers:
-- _RazorpayClient methods (list_payments, get_payment, create_payment_link, list_invoices, 
+- _RazorpayClient methods (list_payments, get_payment, create_payment_link, list_invoices,
   get_invoice, create_refund)
 - Error handling (401, 403, 404, 400, 429, 500, timeout)
 - Credential retrieval (CredentialStoreAdapter vs env var)
