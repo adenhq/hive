@@ -55,6 +55,7 @@ from .base import CredentialError, CredentialSpec
 from .browser import get_aden_auth_url, get_aden_setup_url, open_browser
 from .email import EMAIL_CREDENTIALS
 from .github import GITHUB_CREDENTIALS
+from .google_analytics import GOOGLE_ANALYTICS_CREDENTIALS
 from .health_check import HealthCheckResult, check_credential_health
 from .hubspot import HUBSPOT_CREDENTIALS
 from .llm import LLM_CREDENTIALS
@@ -78,6 +79,7 @@ CREDENTIAL_SPECS = {
     **GITHUB_CREDENTIALS,
     **HUBSPOT_CREDENTIALS,
     **SLACK_CREDENTIALS,
+    **GOOGLE_ANALYTICS_CREDENTIALS,
     **SERPAPI_CREDENTIALS,
 }
 
@@ -110,5 +112,6 @@ __all__ = [
     "HUBSPOT_CREDENTIALS",
     "SLACK_CREDENTIALS",
     "APOLLO_CREDENTIALS",
+    "GOOGLE_ANALYTICS_CREDENTIALS",
     "SERPAPI_CREDENTIALS",
 ]
