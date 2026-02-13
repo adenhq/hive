@@ -48,6 +48,7 @@ from .github_tool import register_tools as register_github
 from .gmail_tool import register_tools as register_gmail
 from .google_maps_tool import register_tools as register_google_maps
 from .hubspot_tool import register_tools as register_hubspot
+from .lusha_tool import register_tools as register_lusha
 from .news_tool import register_tools as register_news
 from .pdf_read_tool import register_tools as register_pdf_read
 from .runtime_logs_tool import register_tools as register_runtime_logs
@@ -93,6 +94,7 @@ def register_all_tools(
     register_hubspot(mcp, credentials=credentials)
     register_news(mcp, credentials=credentials)
     register_apollo(mcp, credentials=credentials)
+    register_lusha(mcp, credentials=credentials)
     register_serpapi(mcp, credentials=credentials)
     register_calendar(mcp, credentials=credentials)
     register_calcom(mcp, credentials=credentials)
@@ -160,6 +162,12 @@ def register_all_tools(
         "calcom_list_schedules",
         "calcom_list_event_types",
         "calcom_get_event_type",
+        "lusha_enrich_person",
+        "lusha_enrich_company",
+        "lusha_search_people",
+        "lusha_search_companies",
+        "lusha_get_signals",
+        "lusha_get_account_usage",
         "github_list_repos",
         "github_get_repo",
         "github_search_repos",
