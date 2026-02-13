@@ -43,10 +43,16 @@ Arguments:
 ### `news_sentiment`
 Get news with sentiment analysis (Finlight provider only).
 
+Each article includes a **normalized sentiment score** in the range `-1.0` (most negative) to `+1.0` (most positive). Numeric API scores are clamped to this range; categorical labels (`positive`, `negative`, `neutral`) are mapped to `1.0`, `-1.0`, `0.0` respectively.
+
 Arguments:
 - `query` (str, required)
 - `from_date` (str, optional, YYYY-MM-DD)
 - `to_date` (str, optional, YYYY-MM-DD)
+
+## Rate Limiting
+
+Both providers implement **exponential backoff** (up to 3 retries with `2^attempt` second delays) on HTTP 429 responses. If the primary provider (NewsData) exhausts retries, the fallback (Finlight) is tried seamlessly. This ensures production-ready resilience during high-traffic sessions.
 
 ## Environment Variables
 

@@ -11,6 +11,7 @@ Auto-detection: Tries NewsData first, then Finlight.
 from __future__ import annotations
 
 import os
+import time
 from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
@@ -121,6 +122,25 @@ def register_tools(
             for item in raw_results
         ]
 
+    def _normalize_sentiment(raw: object) -> float | str | None:
+        """Normalize sentiment to a float in the range -1.0 to +1.0.
+
+        Handles:
+        - Numeric scores already in [-1, 1] range (returned as-is)
+        - Categorical labels mapped to fixed values:
+          positive → 1.0, negative → -1.0, neutral → 0.0
+        - None / unrecognised values → None
+        """
+        if raw is None:
+            return None
+        if isinstance(raw, (int, float)):
+            return max(-1.0, min(1.0, float(raw)))
+        if isinstance(raw, str):
+            label = raw.strip().lower()
+            label_map = {"positive": 1.0, "negative": -1.0, "neutral": 0.0}
+            return label_map.get(label)
+        return None
+
     def _parse_finlight_results(
         data: dict,
         include_sentiment: bool = False,
@@ -131,7 +151,8 @@ def register_tools(
         for item in raw_results:
             sentiment_value = None
             if include_sentiment:
-                sentiment_value = item.get("sentiment") or item.get("sentiment_score")
+                raw_sentiment = item.get("sentiment") or item.get("sentiment_score")
+                sentiment_value = _normalize_sentiment(raw_sentiment)
             results.append(
                 _format_article(
                     title=item.get("title", ""),
@@ -155,7 +176,7 @@ def register_tools(
         country: str | None,
         api_key: str,
     ) -> dict:
-        """Search NewsData API."""
+        """Search NewsData API with exponential backoff on rate limits."""
         use_archive = bool(from_date or to_date)
         url = NEWSDATA_ARCHIVE_URL if use_archive else NEWSDATA_URL
         params = _clean_params(
@@ -173,9 +194,18 @@ def register_tools(
         if sources:
             params["sources"] = sources
 
-        response = httpx.get(url, params=params, timeout=30.0)
-        if response.status_code != 200:
-            return _newsdata_error(response)
+        max_retries = 3
+        for attempt in range(max_retries + 1):
+            response = httpx.get(url, params=params, timeout=30.0)
+
+            if response.status_code == 429 and attempt < max_retries:
+                time.sleep(2**attempt)
+                continue
+
+            if response.status_code != 200:
+                return _newsdata_error(response)
+
+            break
 
         data = response.json()
         results = _parse_newsdata_results(data)
@@ -213,14 +243,21 @@ def register_tools(
         if country:
             body["countries"] = [country.upper()]
 
-        response = httpx.post(
-            FINLIGHT_URL,
-            json={key: value for key, value in body.items() if value not in (None, "", [])},
-            headers={"X-API-KEY": api_key, "Accept": "application/json"},
-            timeout=30.0,
-        )
-        if response.status_code != 200:
-            return _finlight_error(response)
+        json_body = {k: v for k, v in body.items() if v not in (None, "", [])}
+        headers = {"X-API-KEY": api_key, "Accept": "application/json"}
+
+        max_retries = 3
+        for attempt in range(max_retries + 1):
+            response = httpx.post(FINLIGHT_URL, json=json_body, headers=headers, timeout=30.0)
+
+            if response.status_code == 429 and attempt < max_retries:
+                time.sleep(2**attempt)
+                continue
+
+            if response.status_code != 200:
+                return _finlight_error(response)
+
+            break
 
         data = response.json()
         results = _parse_finlight_results(data, include_sentiment=include_sentiment)
@@ -489,13 +526,18 @@ def register_tools(
         """
         Get news with sentiment analysis (Finlight provider).
 
+        Each article includes a normalized sentiment score from -1.0 (most
+        negative) to +1.0 (most positive). Scores of 0.0 indicate neutral
+        sentiment. Use these for quantitative trend analysis across articles.
+
         Args:
             query: Search query
             from_date: Start date (YYYY-MM-DD)
             to_date: End date (YYYY-MM-DD)
 
         Returns:
-            Dict with list of sentiment-scored articles.
+            Dict with list of articles, each containing a normalized
+            ``sentiment`` float in the range [-1.0, +1.0].
         """
         if not query:
             return {"error": "Query is required"}

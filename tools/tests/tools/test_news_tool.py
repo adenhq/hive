@@ -1,5 +1,6 @@
 """Tests for news tool with multi-provider support (FastMCP)."""
 
+import time
 from datetime import date as real_date
 
 import httpx
@@ -128,6 +129,145 @@ class TestNewsByCompany:
         assert captured["params"]["from_date"] == "2026-02-03"
         assert captured["params"]["to_date"] == "2026-02-10"
         assert captured["params"]["q"] == '"Acme"'
+
+
+class TestRateLimiting:
+    """Tests for exponential backoff on 429 responses."""
+
+    def test_newsdata_retries_on_429_then_succeeds(self, news_tools, monkeypatch):
+        """NewsData retries with backoff on 429 and succeeds on next attempt."""
+        monkeypatch.setenv("NEWSDATA_API_KEY", "news-key")
+        monkeypatch.delenv("FINLIGHT_API_KEY", raising=False)
+
+        call_count = 0
+
+        def mock_get(url: str, params=None, timeout=30.0, headers=None):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return DummyResponse(429, {})
+            return DummyResponse(200, {"results": [{"title": "OK", "source_id": "s"}]})
+
+        monkeypatch.setattr(httpx, "get", mock_get)
+        monkeypatch.setattr(time, "sleep", lambda s: None)
+
+        result = news_tools["news_search"].fn(query="test")
+
+        assert call_count == 2
+        assert result["provider"] == "newsdata"
+
+    def test_newsdata_429_exhausts_retries_then_falls_back(self, news_tools, monkeypatch):
+        """NewsData exhausts retries on 429, seamlessly falls back to Finlight."""
+        monkeypatch.setenv("NEWSDATA_API_KEY", "news-key")
+        monkeypatch.setenv("FINLIGHT_API_KEY", "finlight-key")
+
+        def mock_get(url: str, params=None, timeout=30.0, headers=None):
+            return DummyResponse(429, {})
+
+        def mock_post(url: str, json=None, timeout=30.0, headers=None):
+            return DummyResponse(
+                200,
+                {"articles": [{"title": "Fallback", "source": "fin"}]},
+            )
+
+        monkeypatch.setattr(httpx, "get", mock_get)
+        monkeypatch.setattr(httpx, "post", mock_post)
+        monkeypatch.setattr(time, "sleep", lambda s: None)
+
+        result = news_tools["news_search"].fn(query="test")
+
+        assert result["provider"] == "finlight"
+
+    def test_finlight_retries_on_429_then_succeeds(self, news_tools, monkeypatch):
+        """Finlight retries with backoff on 429 and succeeds on next attempt."""
+        monkeypatch.setenv("FINLIGHT_API_KEY", "finlight-key")
+        monkeypatch.delenv("NEWSDATA_API_KEY", raising=False)
+
+        call_count = 0
+
+        def mock_post(url: str, json=None, timeout=30.0, headers=None):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return DummyResponse(429, {})
+            return DummyResponse(
+                200,
+                {"articles": [{"title": "OK", "source": "fin", "sentiment": 0.5}]},
+            )
+
+        monkeypatch.setattr(httpx, "post", mock_post)
+        monkeypatch.setattr(time, "sleep", lambda s: None)
+
+        result = news_tools["news_sentiment"].fn(query="test")
+
+        assert call_count == 2
+        assert result["provider"] == "finlight"
+
+
+class TestSentimentNormalization:
+    """Tests for sentiment score normalization."""
+
+    def test_numeric_sentiment_passed_through(self, news_tools, monkeypatch):
+        """Numeric sentiment scores are kept in [-1, 1] range."""
+        monkeypatch.setenv("FINLIGHT_API_KEY", "finlight-key")
+
+        def mock_post(url: str, json=None, timeout=30.0, headers=None):
+            return DummyResponse(
+                200,
+                {
+                    "articles": [
+                        {"title": "A", "source": "s", "sentiment": 0.75},
+                        {"title": "B", "source": "s", "sentiment": -0.3},
+                    ]
+                },
+            )
+
+        monkeypatch.setattr(httpx, "post", mock_post)
+
+        result = news_tools["news_sentiment"].fn(query="test")
+
+        assert result["results"][0]["sentiment"] == 0.75
+        assert result["results"][1]["sentiment"] == -0.3
+
+    def test_categorical_sentiment_normalized(self, news_tools, monkeypatch):
+        """Categorical labels (positive/negative/neutral) mapped to floats."""
+        monkeypatch.setenv("FINLIGHT_API_KEY", "finlight-key")
+
+        def mock_post(url: str, json=None, timeout=30.0, headers=None):
+            return DummyResponse(
+                200,
+                {
+                    "articles": [
+                        {"title": "A", "source": "s", "sentiment": "positive"},
+                        {"title": "B", "source": "s", "sentiment": "negative"},
+                        {"title": "C", "source": "s", "sentiment": "neutral"},
+                    ]
+                },
+            )
+
+        monkeypatch.setattr(httpx, "post", mock_post)
+
+        result = news_tools["news_sentiment"].fn(query="test")
+
+        assert result["results"][0]["sentiment"] == 1.0
+        assert result["results"][1]["sentiment"] == -1.0
+        assert result["results"][2]["sentiment"] == 0.0
+
+    def test_out_of_range_sentiment_clamped(self, news_tools, monkeypatch):
+        """Numeric scores outside [-1, 1] are clamped."""
+        monkeypatch.setenv("FINLIGHT_API_KEY", "finlight-key")
+
+        def mock_post(url: str, json=None, timeout=30.0, headers=None):
+            return DummyResponse(
+                200,
+                {"articles": [{"title": "A", "source": "s", "sentiment": 5.0}]},
+            )
+
+        monkeypatch.setattr(httpx, "post", mock_post)
+
+        result = news_tools["news_sentiment"].fn(query="test")
+
+        assert result["results"][0]["sentiment"] == 1.0
 
 
 class TestNewsSentiment:
