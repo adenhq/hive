@@ -186,6 +186,55 @@ class GraphExecutor:
         # Pause/resume control
         self._pause_requested = asyncio.Event()
 
+    def _write_progress(
+        self,
+        current_node: str,
+        path: list[str],
+        memory: Any,
+        node_visit_counts: dict[str, int],
+    ) -> None:
+        """Update state.json with live progress at node transitions.
+
+        Reads the existing state.json (written by ExecutionStream at session
+        start) and patches the progress fields in-place.  This keeps
+        state.json as the single source of truth — readers always see
+        current progress, not stale initial values.
+
+        The write is synchronous and best-effort: never blocks execution.
+        """
+        if not self._storage_path:
+            return
+        try:
+            import json as _json
+            from datetime import datetime
+
+            state_path = self._storage_path / "state.json"
+            if state_path.exists():
+                state_data = _json.loads(state_path.read_text(encoding="utf-8"))
+            else:
+                state_data = {}
+
+            # Patch progress fields
+            progress = state_data.setdefault("progress", {})
+            progress["current_node"] = current_node
+            progress["path"] = list(path)
+            progress["node_visit_counts"] = dict(node_visit_counts)
+            progress["steps_executed"] = len(path)
+
+            # Update timestamp
+            timestamps = state_data.setdefault("timestamps", {})
+            timestamps["updated_at"] = datetime.now().isoformat()
+
+            # Persist full memory so state.json is sufficient for resume
+            # even if the process dies before the final write.
+            memory_snapshot = memory.read_all()
+            state_data["memory"] = memory_snapshot
+            state_data["memory_keys"] = list(memory_snapshot.keys())
+
+            state_path.write_text(_json.dumps(state_data, indent=2), encoding="utf-8")
+        except Exception:
+            pass  # Best-effort — never block execution
+
     def _validate_tools(self, graph: GraphSpec) -> list[str]:
         """
         Validate that all tools declared by nodes are available.
@@ -257,6 +306,13 @@ class GraphExecutor:
         # Initialize execution state
         memory = SharedMemory()
 
+        # Continuous conversation mode state
+        is_continuous = getattr(graph, "conversation_mode", "isolated") == "continuous"
+        continuous_conversation = None  # NodeConversation threaded across nodes
+        cumulative_tools: list = []  # Tools accumulate, never removed
+        cumulative_tool_names: set[str] = set()
+        cumulative_output_keys: list[str] = []  # Output keys from all visited nodes
+
         # Initialize checkpoint store if checkpointing is enabled
         checkpoint_store: CheckpointStore | None = None
         if checkpoint_config and checkpoint_config.enabled and self._storage_path:
@@ -273,13 +329,20 @@ class GraphExecutor:
                     f"{type(memory_data).__name__}, expected dict"
                 )
             else:
-                # Restore memory from previous session
+                # Restore memory from previous session.
+                # Skip validation — this data was already validated when
+                # originally written, and research text triggers false
+                # positives on the code-indicator heuristic.
                 for key, value in memory_data.items():
-                    memory.write(key, value)
+                    memory.write(key, value, validate=False)
                 self.logger.info(f"📥 Restored session state with {len(memory_data)} memory keys")
 
-        # Write new input data to memory (each key individually)
-        if input_data:
+        # Write new input data to memory (each key individually).
+        # Skip when resuming from a paused session — restored memory already
+        # contains all state including the original input, and re-writing
+        # input_data would overwrite intermediate results with stale values.
+        _is_resuming = bool(session_state and session_state.get("paused_at"))
+        if input_data and not _is_resuming:
             for key, value in input_data.items():
                 memory.write(key, value)
 
@@ -399,6 +462,13 @@ class GraphExecutor:
         if session_state and current_node_id != graph.entry_node:
             self.logger.info(f"🔄 Resuming from: {current_node_id}")
 
+            # Emit resume event
+            if self._event_bus:
+                await self._event_bus.emit_execution_resumed(
+                    stream_id=self._stream_id,
+                    node_id=current_node_id,
+                )
+
         # Start run
         _run_id = self.runtime.start_run(
             goal_id=goal.id,
@@ -434,6 +504,14 @@ class GraphExecutor:
                 # Check for pause request
                 if self._pause_requested.is_set():
                     self.logger.info("⏸ Pause detected - stopping at node boundary")
+
+                    # Emit pause event
+                    if self._event_bus:
+                        await self._event_bus.emit_execution_paused(
+                            stream_id=self._stream_id,
+                            node_id=current_node_id,
+                            reason="User requested pause (Ctrl+Z)",
+                        )
 
                     # Create session state for pause
                     saved_memory = memory.read_all()
@@ -530,6 +608,17 @@ class GraphExecutor:
                 self.logger.info(f"   Inputs: {node_spec.input_keys}")
                 self.logger.info(f"   Outputs: {node_spec.output_keys}")
 
+                # Continuous mode: accumulate tools and output keys from this node
+                if is_continuous and node_spec.tools:
+                    for t in self.tools:
+                        if t.name in node_spec.tools and t.name not in cumulative_tool_names:
+                            cumulative_tools.append(t)
+                            cumulative_tool_names.add(t.name)
+                if is_continuous and node_spec.output_keys:
+                    for k in node_spec.output_keys:
+                        if k not in cumulative_output_keys:
+                            cumulative_output_keys.append(k)
+
                 # Build context for node
                 ctx = self._build_context(
                     node_spec=node_spec,
@@ -537,6 +626,10 @@ class GraphExecutor:
                     goal=goal,
                     input_data=input_data or {},
                     max_tokens=graph.max_tokens,
+                    continuous_mode=is_continuous,
+                    inherited_conversation=continuous_conversation if is_continuous else None,
+                    override_tools=cumulative_tools if is_continuous else None,
+                    cumulative_output_keys=cumulative_output_keys if is_continuous else None,
                 )
 
                 # Log actual input data being read
@@ -704,6 +797,17 @@ class GraphExecutor:
                         self.logger.info(
                             f"   ↻ Retrying ({node_retry_counts[current_node_id]}/{max_retries})..."
                         )
+
+                        # Emit retry event
+                        if self._event_bus:
+                            await self._event_bus.emit_node_retry(
+                                stream_id=self._stream_id,
+                                node_id=current_node_id,
+                                retry_count=retry_count,
+                                max_retries=max_retries,
+                                error=result.error or "",
+                            )
+
                         _is_retry = True
                         continue
                     else:
@@ -763,6 +867,7 @@ class GraphExecutor:
                                 "memory": saved_memory,
                                 "execution_path": list(path),
                                 "node_visit_counts": dict(node_visit_counts),
+                                "resume_from": current_node_id,
                             }
 
                             return ExecutionResult(
@@ -789,11 +894,22 @@ class GraphExecutor:
                 # This must happen BEFORE determining next node, since pause nodes may have no edges
                 if node_spec.id in graph.pause_nodes:
                     self.logger.info("💾 Saving session state after pause node")
+
+                    # Emit pause event
+                    if self._event_bus:
+                        await self._event_bus.emit_execution_paused(
+                            stream_id=self._stream_id,
+                            node_id=node_spec.id,
+                            reason="HITL pause node",
+                        )
+
                     saved_memory = memory.read_all()
                     session_state_out = {
                         "paused_at": node_spec.id,
                         "resume_from": f"{node_spec.id}_resume",  # Resume key
                         "memory": saved_memory,
+                        "execution_path": list(path),
+                        "node_visit_counts": dict(node_visit_counts),
                         "next_node": None,  # Will resume from entry point
                     }
 
@@ -842,7 +958,18 @@ class GraphExecutor:
                 if result.next_node:
                     # Router explicitly set next node
                     self.logger.info(f"   → Router directing to: {result.next_node}")
+
+                    # Emit edge traversed event for router-directed edge
+                    if self._event_bus:
+                        await self._event_bus.emit_edge_traversed(
+                            stream_id=self._stream_id,
+                            source_node=current_node_id,
+                            target_node=result.next_node,
+                            edge_condition="router",
+                        )
+
                     current_node_id = result.next_node
+                    self._write_progress(current_node_id, path, memory, node_visit_counts)
                 else:
                     # Get all traversable edges for fan-out detection
                     traversable_edges = self._get_all_traversable_edges(
@@ -863,6 +990,18 @@ class GraphExecutor:
                         # Find convergence point (fan-in node)
                         targets = [e.target for e in traversable_edges]
                         fan_in_node = self._find_convergence_node(graph, targets)
+
+                        # Emit edge traversed events for fan-out branches
+                        if self._event_bus:
+                            for edge in traversable_edges:
+                                await self._event_bus.emit_edge_traversed(
+                                    stream_id=self._stream_id,
+                                    source_node=current_node_id,
+                                    target_node=edge.target,
+                                    edge_condition=edge.condition.value
+                                    if hasattr(edge.condition, "value")
+                                    else str(edge.condition),
+                                )
 
                         # Execute branches in parallel
                         (
@@ -886,6 +1025,7 @@ class GraphExecutor:
                         if fan_in_node:
                             self.logger.info(f"   ⑃ Fan-in: converging at {fan_in_node}")
                             current_node_id = fan_in_node
+                            self._write_progress(current_node_id, path, memory, node_visit_counts)
                         else:
                             # No convergence point - branches are terminal
                             self.logger.info("   → Parallel branches completed (no convergence)")
@@ -905,6 +1045,14 @@ class GraphExecutor:
                             break
                         next_spec = graph.get_node(next_node)
                         self.logger.info(f"   → Next: {next_spec.name if next_spec else next_node}")
+
+                        # Emit edge traversed event
+                        if self._event_bus:
+                            await self._event_bus.emit_edge_traversed(
+                                stream_id=self._stream_id,
+                                source_node=current_node_id,
+                                target_node=next_node,
+                            )
 
                         # CHECKPOINT: node_complete (after determining next node)
                         if (
@@ -939,6 +1087,84 @@ class GraphExecutor:
                             )
 
                         current_node_id = next_node
+
+                # Write progress snapshot at node transition
+                self._write_progress(current_node_id, path, memory, node_visit_counts)
+
+                # Continuous mode: thread conversation forward with transition marker
+                if is_continuous and result.conversation is not None:
+                    continuous_conversation = result.conversation
+
+                    # Look up the next node spec for the transition marker
+                    next_spec = graph.get_node(current_node_id)
+                    if next_spec and next_spec.node_type == "event_loop":
+                        from framework.graph.prompt_composer import (
+                            build_narrative,
+                            build_transition_marker,
+                            compose_system_prompt,
+                        )
+
+                        # Build Layer 2 (narrative) from current state
+                        narrative = build_narrative(memory, path, graph)
+
+                        # Compose new system prompt (Layer 1 + 2 + 3)
+                        new_system = compose_system_prompt(
+                            identity_prompt=getattr(graph, "identity_prompt", None),
+                            focus_prompt=next_spec.system_prompt,
+                            narrative=narrative,
+                        )
+                        continuous_conversation.update_system_prompt(new_system)
+
+                        # Switch conversation store to the next node's directory
+                        # so the transition marker and all subsequent messages are
+                        # persisted there instead of the first node's directory.
+                        if self._storage_path:
+                            from framework.storage.conversation_store import (
+                                FileConversationStore,
+                            )
+
+                            next_store_path = self._storage_path / "conversations" / next_spec.id
+                            next_store = FileConversationStore(base_path=next_store_path)
+                            await continuous_conversation.switch_store(next_store)
+
+                        # Insert transition marker into conversation
+                        data_dir = str(self._storage_path / "data") if self._storage_path else None
+                        marker = build_transition_marker(
+                            previous_node=node_spec,
+                            next_node=next_spec,
+                            memory=memory,
+                            cumulative_tool_names=sorted(cumulative_tool_names),
+                            data_dir=data_dir,
+                        )
+                        await continuous_conversation.add_user_message(
+                            marker,
+                            is_transition_marker=True,
+                        )
+
+                        # Set current phase for phase-aware compaction
+                        continuous_conversation.set_current_phase(next_spec.id)
+
+                        # Opportunistic compaction at transition:
+                        # 1. Prune old tool results (free, no LLM call)
+                        # 2. If still over 80%, do a phase-graduated compact
+                        if continuous_conversation.usage_ratio() > 0.5:
+                            await continuous_conversation.prune_old_tool_results(
+                                protect_tokens=2000,
+                            )
+                        if continuous_conversation.needs_compaction():
+                            self.logger.info(
+                                "   Phase-boundary compaction (%.0f%% usage)",
+                                continuous_conversation.usage_ratio() * 100,
+                            )
+                            summary = (
+                                f"Summary of earlier phases (before {next_spec.name}). "
+                                "See transition markers for phase details."
+                            )
+                            await continuous_conversation.compact(
+                                summary,
+                                keep_recent=4,
+                                phase_graduated=True,
+                            )
 
                 # Update input_data for next node
                 input_data = result.output
@@ -993,6 +1219,11 @@ class GraphExecutor:
                 had_partial_failures=len(nodes_failed) > 0,
                 execution_quality=exec_quality,
                 node_visit_counts=dict(node_visit_counts),
+                session_state={
+                    "memory": output,  # output IS memory.read_all()
+                    "execution_path": list(path),
+                    "node_visit_counts": dict(node_visit_counts),
+                },
             )
 
         except asyncio.CancelledError:
@@ -1082,6 +1313,7 @@ class GraphExecutor:
                 "memory": saved_memory,
                 "execution_path": list(path),
                 "node_visit_counts": dict(node_visit_counts),
+                "resume_from": current_node_id,
             }
 
             # Mark latest checkpoint for resume on failure
@@ -1134,12 +1366,20 @@ class GraphExecutor:
         goal: Goal,
         input_data: dict[str, Any],
         max_tokens: int = 4096,
+        continuous_mode: bool = False,
+        inherited_conversation: Any = None,
+        override_tools: list | None = None,
+        cumulative_output_keys: list[str] | None = None,
     ) -> NodeContext:
         """Build execution context for a node."""
         # Filter tools to those available to this node
-        available_tools = []
-        if node_spec.tools:
-            available_tools = [t for t in self.tools if t.name in node_spec.tools]
+        if override_tools is not None:
+            # Continuous mode: use cumulative tool set
+            available_tools = list(override_tools)
+        else:
+            available_tools = []
+            if node_spec.tools:
+                available_tools = [t for t in self.tools if t.name in node_spec.tools]
 
         # Create scoped memory view
         scoped_memory = memory.with_permissions(
@@ -1160,6 +1400,9 @@ class GraphExecutor:
             max_tokens=max_tokens,
             runtime_logger=self.runtime_logger,
             pause_event=self._pause_requested,  # Pass pause event for granular control
+            continuous_mode=continuous_mode,
+            inherited_conversation=inherited_conversation,
+            cumulative_output_keys=cumulative_output_keys or [],
         )
 
     # Valid node types - no ambiguous "llm" type allowed

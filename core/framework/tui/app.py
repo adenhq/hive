@@ -6,7 +6,7 @@ import time
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Footer, Input, Label
+from textual.widgets import Footer, Label
 
 from framework.runtime.agent_runtime import AgentRuntime
 from framework.runtime.event_bus import AgentEvent, EventType
@@ -180,13 +180,13 @@ class AdenTUI(App):
         scrollbar-color: $primary;
     }
 
-    Input {
+    ChatTextArea {
         background: $surface;
         border: tall $primary;
         margin-top: 1;
     }
 
-    Input:focus {
+    ChatTextArea:focus {
         border: tall $accent;
     }
 
@@ -350,6 +350,14 @@ class AdenTUI(App):
         EventType.CONSTRAINT_VIOLATION,
         EventType.STATE_CHANGED,
         EventType.NODE_INPUT_BLOCKED,
+        EventType.CONTEXT_COMPACTED,
+        EventType.NODE_INTERNAL_OUTPUT,
+        EventType.JUDGE_VERDICT,
+        EventType.OUTPUT_KEY_SET,
+        EventType.NODE_RETRY,
+        EventType.EDGE_TRAVERSED,
+        EventType.EXECUTION_PAUSED,
+        EventType.EXECUTION_RESUMED,
     ]
 
     _LOG_PANE_EVENTS = frozenset(_EVENT_TYPES) - {
@@ -408,6 +416,31 @@ class AdenTUI(App):
                     event.node_id or event.data.get("node_id", ""),
                 )
 
+            # Track active node in chat_repl for mid-execution input
+            if et == EventType.NODE_LOOP_STARTED:
+                self.chat_repl.handle_node_started(event.node_id or "")
+            elif et == EventType.NODE_LOOP_COMPLETED:
+                self.chat_repl.handle_node_completed(event.node_id or "")
+
+            # Non-client-facing node output → chat repl
+            if et == EventType.NODE_INTERNAL_OUTPUT:
+                content = event.data.get("content", "")
+                if content.strip():
+                    self.chat_repl.handle_internal_output(event.node_id or "", content)
+
+            # Execution paused/resumed → chat repl
+            if et == EventType.EXECUTION_PAUSED:
+                reason = event.data.get("reason", "")
+                self.chat_repl.handle_execution_paused(event.node_id or "", reason)
+            elif et == EventType.EXECUTION_RESUMED:
+                self.chat_repl.handle_execution_resumed(event.node_id or "")
+
+            # Goal achieved / constraint violation → chat repl
+            if et == EventType.GOAL_ACHIEVED:
+                self.chat_repl.handle_goal_achieved(event.data)
+            elif et == EventType.CONSTRAINT_VIOLATION:
+                self.chat_repl.handle_constraint_violation(event.data)
+
             # --- Graph view events ---
             if et in (
                 EventType.EXECUTION_STARTED,
@@ -444,6 +477,13 @@ class AdenTUI(App):
                     started=False,
                 )
 
+            # Edge traversal → graph view
+            if et == EventType.EDGE_TRAVERSED:
+                self.graph_view.handle_edge_traversed(
+                    event.data.get("source_node", ""),
+                    event.data.get("target_node", ""),
+                )
+
             # --- Status bar events ---
             if et == EventType.EXECUTION_STARTED:
                 entry_node = event.data.get("entry_node") or (
@@ -464,6 +504,24 @@ class AdenTUI(App):
                 self.status_bar.set_node_detail("thinking...")
             elif et == EventType.NODE_STALLED:
                 self.status_bar.set_node_detail(f"stalled: {event.data.get('reason', '')}")
+            elif et == EventType.CONTEXT_COMPACTED:
+                before = event.data.get("usage_before", "?")
+                after = event.data.get("usage_after", "?")
+                self.status_bar.set_node_detail(f"compacted: {before}% \u2192 {after}%")
+            elif et == EventType.JUDGE_VERDICT:
+                action = event.data.get("action", "?")
+                self.status_bar.set_node_detail(f"judge: {action}")
+            elif et == EventType.OUTPUT_KEY_SET:
+                key = event.data.get("key", "?")
+                self.status_bar.set_node_detail(f"set: {key}")
+            elif et == EventType.NODE_RETRY:
+                retry = event.data.get("retry_count", "?")
+                max_r = event.data.get("max_retries", "?")
+                self.status_bar.set_node_detail(f"retry {retry}/{max_r}")
+            elif et == EventType.EXECUTION_PAUSED:
+                self.status_bar.set_node_detail("paused")
+            elif et == EventType.EXECUTION_RESUMED:
+                self.status_bar.set_node_detail("resumed")
 
             # --- Log pane events ---
             if et in self._LOG_PANE_EVENTS:
@@ -504,8 +562,8 @@ class AdenTUI(App):
         original_chat_border = chat_widget.styles.border_left
         chat_widget.styles.border_left = ("none", "transparent")
 
-        # Hide all Input widget borders
-        input_widgets = self.query("Input")
+        # Hide all TextArea widget borders
+        input_widgets = self.query("ChatTextArea")
         original_input_borders = []
         for input_widget in input_widgets:
             original_input_borders.append(input_widget.styles.border)
@@ -575,19 +633,12 @@ class AdenTUI(App):
                 timeout=5,
             )
 
-    def action_show_sessions(self) -> None:
+    async def action_show_sessions(self) -> None:
         """Show sessions list (bound to Ctrl+R)."""
         # Send /sessions command to chat input
         try:
             chat_repl = self.query_one(ChatRepl)
-            chat_input = chat_repl.query_one("#chat-input", Input)
-            chat_input.value = "/sessions"
-            # Trigger submission
-            self.notify(
-                "💡 Type /sessions in the chat to see all sessions",
-                severity="information",
-                timeout=3,
-            )
+            await chat_repl._submit_input("/sessions")
         except Exception:
             self.notify(
                 "Use /sessions command to see all sessions",
