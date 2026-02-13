@@ -60,6 +60,7 @@ from .health_check import HealthCheckResult, check_credential_health
 from .hubspot import HUBSPOT_CREDENTIALS
 from .llm import LLM_CREDENTIALS
 from .search import SEARCH_CREDENTIALS
+from .serpapi import SERPAPI_CREDENTIALS
 from .shell_config import (
     add_env_var_to_shell_config,
     detect_shell,
@@ -79,6 +80,7 @@ CREDENTIAL_SPECS = {
     **HUBSPOT_CREDENTIALS,
     **SLACK_CREDENTIALS,
     **GOOGLE_ANALYTICS_CREDENTIALS,
+    **SERPAPI_CREDENTIALS,
 }
 
 __all__ = [
@@ -111,4 +113,5 @@ __all__ = [
     "SLACK_CREDENTIALS",
     "APOLLO_CREDENTIALS",
     "GOOGLE_ANALYTICS_CREDENTIALS",
+    "SERPAPI_CREDENTIALS",
 ]

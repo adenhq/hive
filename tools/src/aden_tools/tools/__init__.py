@@ -45,6 +45,7 @@ from .google_analytics_tool import register_tools as register_google_analytics
 from .hubspot_tool import register_tools as register_hubspot
 from .pdf_read_tool import register_tools as register_pdf_read
 from .runtime_logs_tool import register_tools as register_runtime_logs
+from .serpapi_tool import register_tools as register_serpapi
 from .slack_tool import register_tools as register_slack
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
@@ -79,6 +80,7 @@ def register_all_tools(
     register_email(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
     register_apollo(mcp, credentials=credentials)
+    register_serpapi(mcp, credentials=credentials)
     register_slack(mcp, credentials=credentials)
     register_google_analytics(mcp, credentials=credentials)
 
@@ -109,6 +111,8 @@ def register_all_tools(
         "execute_command_tool",
         "load_data",
         "save_data",
+        "append_data",
+        "edit_data",
         "list_data_files",
         "serve_file_to_user",
         "csv_read",
@@ -153,6 +157,12 @@ def register_all_tools(
         "query_runtime_logs",
         "query_runtime_log_details",
         "query_runtime_log_raw",
+        # SerpAPI tools (Google Scholar & Patents)
+        "scholar_search",
+        "scholar_get_citations",
+        "scholar_get_author",
+        "patents_search",
+        "patents_get_details",
         "slack_send_message",
         "slack_list_channels",
         "slack_get_channel_history",
