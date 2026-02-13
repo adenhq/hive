@@ -82,6 +82,10 @@ def main():
 
     register_testing_commands(subparsers)
 
+    # Register doctor command (environment diagnostics)
+    from framework.doctor import register_doctor_command
+    register_doctor_command(subparsers)
+
     args = parser.parse_args()
 
     if hasattr(args, "func"):
