@@ -34,7 +34,7 @@ Done. For details, prerequisites, and troubleshooting, read on.
 - [Antigravity IDE](https://antigravity.google/) installed.
 - **Python 3.11+** and project dependencies. If you haven’t set up the repo yet, from repo root run:
   ```bash
-  ./scripts/setup-python.sh
+  ./quickstart.sh
   ```
 - **MCP server dependencies** (one-time). From repo root:
   ```bash
