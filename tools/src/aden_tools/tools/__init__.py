@@ -46,6 +46,7 @@ from .github_tool import register_tools as register_github
 from .gmail_tool import register_tools as register_gmail
 from .google_maps_tool import register_tools as register_google_maps
 from .hubspot_tool import register_tools as register_hubspot
+from .linear_tool import register_tools as register_linear
 from .news_tool import register_tools as register_news
 from .pdf_read_tool import register_tools as register_pdf_read
 from .runtime_logs_tool import register_tools as register_runtime_logs
@@ -97,6 +98,7 @@ def register_all_tools(
     register_vision(mcp, credentials=credentials)
     register_google_maps(mcp, credentials=credentials)
     register_bigquery(mcp, credentials=credentials)
+    register_linear(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -183,6 +185,24 @@ def register_all_tools(
         "hubspot_get_deal",
         "hubspot_create_deal",
         "hubspot_update_deal",
+        "linear_issue_create",
+        "linear_issue_get",
+        "linear_issue_update",
+        "linear_issue_delete",
+        "linear_issue_search",
+        "linear_issue_add_comment",
+        "linear_project_create",
+        "linear_project_get",
+        "linear_project_update",
+        "linear_project_list",
+        "linear_teams_list",
+        "linear_team_get",
+        "linear_workflow_states_get",
+        "linear_label_create",
+        "linear_labels_list",
+        "linear_users_list",
+        "linear_user_get",
+        "linear_viewer",
         "news_search",
         "news_headlines",
         "news_by_company",
