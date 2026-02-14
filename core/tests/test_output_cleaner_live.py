@@ -7,9 +7,9 @@ Demonstrates how OutputCleaner fixes the JSON parsing trap using llama-3.3-70b.
 import json
 import os
 
-from framework.graph.node import NodeSpec
-from framework.graph.output_cleaner import CleansingConfig, OutputCleaner
-from framework.llm.litellm import LiteLLMProvider
+from core.framework.graph.node import NodeSpec
+from core.framework.graph.output_cleaner import CleansingConfig, OutputCleaner
+from core.framework.llm.litellm import LiteLLMProvider
 
 
 def test_cleaning_with_cerebras():
