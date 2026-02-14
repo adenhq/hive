@@ -1659,32 +1659,58 @@ class GraphExecutor:
         graph: GraphSpec,
         parallel_targets: list[str],
     ) -> str | None:
+        """Find where parallel branches meet back up (fan-in node).
+
+        The old version only checked immediate successors which totally
+        broke on anything more than a trivial fork.  Now does a proper
+        BFS from each branch and finds the first node they all reach.
         """
-        Find the common target node where parallel branches converge (fan-in).
+        if not parallel_targets:
+            return None
 
-        Args:
-            graph: The graph specification
-            parallel_targets: List of node IDs that are running in parallel
+        def _reachable_bfs(start: str) -> list[str]:
+            """BFS from start, returns nodes in visit order."""
+            visited: list[str] = []
+            seen: set[str] = set()
+            queue: list[str] = [start]
+            while queue:
+                node = queue.pop(0)
+                if node in seen:
+                    continue
+                seen.add(node)
+                visited.append(node)
+                for edge in graph.get_outgoing_edges(node):
+                    if edge.target not in seen:
+                        queue.append(edge.target)
+            return visited
 
-        Returns:
-            Node ID where all branches converge, or None if no convergence
-        """
-        # Get all nodes that parallel branches lead to
-        next_nodes: dict[str, int] = {}  # node_id -> count of branches leading to it
+        # collect what each branch can reach
+        reachable_sets: list[set[str]] = []
+        first_order: list[str] = []
+        for idx, target in enumerate(parallel_targets):
+            reachable = _reachable_bfs(target)
+            if idx == 0:
+                first_order = reachable
+            reachable_sets.append(set(reachable))
 
-        for target in parallel_targets:
-            outgoing = graph.get_outgoing_edges(target)
-            for edge in outgoing:
-                next_nodes[edge.target] = next_nodes.get(edge.target, 0) + 1
+        # find nodes reachable by ALL branches (skip the starting nodes)
+        skip = set(parallel_targets)
+        common = set.intersection(*reachable_sets) - skip if reachable_sets else set()
 
-        # Convergence node is where ALL branches lead
-        for node_id, count in next_nodes.items():
-            if count == len(parallel_targets):
-                return node_id
+        if common:
+            # pick the nearest one by BFS order from first branch
+            for nid in first_order:
+                if nid in common:
+                    return nid
 
-        # Fallback: return most common target if any
-        if next_nodes:
-            return max(next_nodes.keys(), key=lambda k: next_nodes[k])
+        # fallback: most commonly reachable node (best guess)
+        from collections import Counter
+
+        counts: Counter[str] = Counter()
+        for rs in reachable_sets:
+            counts.update(rs - skip)
+        if counts:
+            return counts.most_common(1)[0][0]
 
         return None
 
