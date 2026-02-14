@@ -35,6 +35,24 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_TOKENS = 8192
 
+# stuff we don't want leaking into logs
+_SENSITIVE_KEY_PATTERNS: frozenset[str] = frozenset(
+    {
+        "key",
+        "token",
+        "secret",
+        "password",
+        "credential",
+        "api_key",
+        "apikey",
+        "auth",
+        "authorization",
+        "access_token",
+        "refresh_token",
+        "private",
+    }
+)
+
 
 class EdgeCondition(StrEnum):
     """When an edge should be traversed."""
@@ -157,6 +175,17 @@ class EdgeSpec(BaseModel):
 
         return False
 
+    @staticmethod
+    def _redact_value(key: str, value: Any) -> str:
+        """Scrub value if key looks sensitive, truncate if too long."""
+        lo = key.lower()
+        if any(pat in lo for pat in _SENSITIVE_KEY_PATTERNS):
+            return "***REDACTED***"
+        text = repr(value)
+        if len(text) > 120:
+            return text[:117] + "..."
+        return text
+
     def _evaluate_condition(
         self,
         output: dict[str, Any],
@@ -182,9 +211,10 @@ class EdgeSpec(BaseModel):
             # Safe evaluation using AST-based whitelist
             result = bool(safe_eval(self.condition_expr, context))
             # Log the evaluation for visibility
-            # Extract the variable names used in the expression for debugging
+            # Extract the variable names used in the expression for debugging,
+            # redacting any sensitive values (API keys, tokens, etc.)
             expr_vars = {
-                k: repr(context[k])
+                k: self._redact_value(k, context[k])
                 for k in context
                 if k not in ("output", "memory", "result", "true", "false")
                 and k in self.condition_expr
