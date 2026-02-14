@@ -153,8 +153,8 @@ classDef done fill:#9e9e9e,color:#fff,stroke:#757575
             - [x] Github
             - [ ] Instagram
         - [ ] SAAS
-            - [ ] Hubspot
-            - [ ] Slack
+            - [x] Hubspot
+            - [x] Slack
             - [ ] Teams
             - [ ] Zoom
             - [ ] Stripe
