@@ -2,6 +2,28 @@ import ast
 import operator
 from typing import Any
 
+# cap these so someone can't do 10**10**10 and kill the worker
+_MAX_EXPONENT = 1000
+_MAX_POW_BASE = 10_000
+
+
+def _safe_pow(base: int | float, exp: int | float) -> int | float:
+    """operator.pow but with sanity limits so we don't OOM."""
+    try:
+        e = abs(exp)
+        b = abs(base)
+    except (TypeError, OverflowError) as exc:
+        raise ValueError(f"bad pow operands: {base!r} ** {exp!r}") from exc
+
+    if e > _MAX_EXPONENT:
+        raise ValueError(f"Exponent {exp} exceeds maximum allowed value of {_MAX_EXPONENT}")
+    if b > _MAX_POW_BASE and e > 2:
+        raise ValueError(
+            f"Base {base} with exponent {exp} would produce an unreasonably large result"
+        )
+    return operator.pow(base, exp)
+
+
 # Safe operators whitelist
 SAFE_OPERATORS = {
     ast.Add: operator.add,
@@ -10,7 +32,7 @@ SAFE_OPERATORS = {
     ast.Div: operator.truediv,
     ast.FloorDiv: operator.floordiv,
     ast.Mod: operator.mod,
-    ast.Pow: operator.pow,
+    ast.Pow: _safe_pow,
     ast.LShift: operator.lshift,
     ast.RShift: operator.rshift,
     ast.BitOr: operator.or_,
