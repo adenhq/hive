@@ -356,23 +356,61 @@ class ConcurrentStorage:
                 logger.error(f"Batch writer error: {e}")
                 # Continue running despite errors
 
-    async def _flush_batch(self, batch: list[tuple[str, Any]]) -> None:
-        """Flush a batch of writes."""
+    async def _flush_batch(
+        self,
+        batch: list[tuple[str, Any]],
+        _max_retries: int = 2,
+    ) -> None:
+        """Flush pending writes.  Retries transient failures a couple times
+        before giving up and logging the item at ERROR so someone can
+        recover it manually.  Previously this just silently dropped stuff
+        which... yeah.
+        """
         if not batch:
             return
 
         logger.debug(f"Flushing batch of {len(batch)} items")
 
-        for item_type, item in batch:
-            try:
-                if item_type == "run":
-                    await self._save_run_locked(item)
-                    # Update cache only after successful batched write
-                    # This fixes the race condition where cache was updated before write completed
-                    self._cache[f"run:{item.id}"] = CacheEntry(item, time.time())
-            except Exception as e:
-                logger.error(f"Failed to save {item_type}: {e}")
-                # Cache is NOT updated on failure - prevents stale/inconsistent cache state
+        remaining = list(batch)
+        for attempt in range(1, _max_retries + 2):  # 1-indexed: 1 .. max_retries+1
+            failed: list[tuple[str, Any]] = []
+            for item_type, item in remaining:
+                try:
+                    if item_type == "run":
+                        await self._save_run_locked(item)
+                        # Update cache only after successful batched write
+                        self._cache[f"run:{item.id}"] = CacheEntry(item, time.time())
+                except Exception as e:
+                    if attempt <= _max_retries:
+                        logger.warning(
+                            "Transient failure saving %s (id=%s), will retry (attempt %d/%d): %s",
+                            item_type,
+                            getattr(item, "id", "?"),
+                            attempt,
+                            _max_retries,
+                            e,
+                        )
+                        failed.append((item_type, item))
+                    else:
+                        # Final attempt failed — dead-letter log so the data
+                        # can be recovered by operators.
+                        logger.error(
+                            "Permanently failed to save %s (id=%s) after %d "
+                            "attempts — DATA DROPPED.  Last error: %s.  "
+                            "Payload: %r",
+                            item_type,
+                            getattr(item, "id", "?"),
+                            _max_retries + 1,
+                            e,
+                            item,
+                        )
+                        # Cache is NOT updated on failure
+
+            if not failed:
+                break
+            remaining = failed
+            # Small async delay before retry to allow transient issues to clear
+            await asyncio.sleep(0.1 * attempt)
 
     async def _flush_pending(self) -> None:
         """Flush all pending writes."""
