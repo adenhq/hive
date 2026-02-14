@@ -47,13 +47,14 @@ class TestApolloClient:
         [
             (401, "Invalid Apollo API key"),
             (403, "Insufficient credits"),
-            (404, "not found"),
+            (404, "Resource not found in Apollo"),
             (422, "Invalid parameters"),
-            (429, "rate limit"),
+            (429, "Apollo rate limit exceeded"),
         ],
     )
     def test_handle_response_errors(self, status_code, expected_substring):
         response = MagicMock()
+        response.is_success = False
         response.status_code = status_code
         response.json.return_value = {"error": "Test error"}
         response.text = "Test error"
@@ -63,11 +64,13 @@ class TestApolloClient:
 
     def test_handle_response_generic_error(self):
         response = MagicMock()
+        response.is_success = False
         response.status_code = 500
         response.json.return_value = {"error": "Internal Server Error"}
         result = self.client._handle_response(response)
         assert "error" in result
         assert "500" in result["error"]
+        assert "Internal Server Error" in result["error"]
 
     @patch("aden_tools.tools.apollo_tool.apollo_tool.httpx.post")
     def test_enrich_person_by_email(self, mock_post):

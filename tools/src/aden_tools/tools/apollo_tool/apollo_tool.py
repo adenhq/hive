@@ -24,6 +24,8 @@ from fastmcp import FastMCP
 if TYPE_CHECKING:
     from aden_tools.credentials import CredentialStoreAdapter
 
+from aden_tools.utils import handle_api_response
+
 APOLLO_API_BASE = "https://api.apollo.io/api/v1"
 
 
@@ -44,30 +46,14 @@ class _ApolloClient:
 
     def _handle_response(self, response: httpx.Response) -> dict[str, Any]:
         """Handle common HTTP error codes."""
-        if response.status_code == 401:
-            return {"error": "Invalid Apollo API key"}
-        if response.status_code == 403:
-            return {
+        apollo_error_map = {
+            401: "Invalid Apollo API key",
+            403: {
                 "error": "Insufficient credits or permissions. Check your Apollo plan.",
                 "help": "Apollo uses export credits for enrichment. Visit https://app.apollo.io/#/settings/plans",
-            }
-        if response.status_code == 404:
-            return {"error": "Resource not found"}
-        if response.status_code == 422:
-            try:
-                detail = response.json().get("error", response.text)
-            except Exception:
-                detail = response.text
-            return {"error": f"Invalid parameters: {detail}"}
-        if response.status_code == 429:
-            return {"error": "Apollo rate limit exceeded. Try again later."}
-        if response.status_code >= 400:
-            try:
-                detail = response.json().get("error", response.text)
-            except Exception:
-                detail = response.text
-            return {"error": f"Apollo API error (HTTP {response.status_code}): {detail}"}
-        return response.json()
+            },
+        }
+        return handle_api_response(response, service_name="Apollo", error_map=apollo_error_map)
 
     def enrich_person(
         self,
