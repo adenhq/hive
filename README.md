@@ -67,6 +67,17 @@ Use Hive when you need:
 - Multi-agent coordination
 - A framework that evolves with your goals
 
+## The Problem Hive Solves
+
+AI agents are powerful, autonomous, and unpredictable. A single logic error, infinite loop, or poorly scoped task can silently consume API tokens, trigger runaway workflows, and incur high operational cost before anyone notices.
+
+Today, most teams only discover these failures **after** money has already been spent.
+
+Hive exists to act as a **governance and safety layer** for self-evolving AI agents. It provides visibility, control, and guardrails that allow teams to safely run autonomous agents in real business environments without the risk of unexpected financial or operational damage.
+
+Before diving into how Hive works, this repository helps you understand **why** such a safety layer is necessary when deploying AI agents in production systems.
+
+
 ## Quick Links
 
 - **[Documentation](https://docs.adenhq.com/)** - Complete guides and API reference
