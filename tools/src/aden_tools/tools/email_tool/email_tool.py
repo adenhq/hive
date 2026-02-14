@@ -30,37 +30,24 @@ def register_tools(
     """Register email tools with the MCP server."""
 
     def _send_via_resend(
-        api_key: str,
-        to: list[str],
-        subject: str,
-        html: str,
-        from_email: str,
-        cc: list[str] | None = None,
-        bcc: list[str] | None = None,
-    ) -> dict:
-        """Send email using Resend API."""
-        resend.api_key = api_key
-        try:
-            payload: dict = {
-                "from": from_email,
-                "to": to,
-                "subject": subject,
-                "html": html,
-            }
-            if cc:
-                payload["cc"] = cc
-            if bcc:
-                payload["bcc"] = bcc
-            email = resend.Emails.send(payload)
-            return {
-                "success": True,
-                "provider": "resend",
-                "id": email.get("id", ""),
-                "to": to,
-                "subject": subject,
-            }
-        except resend.exceptions.ResendError as e:
-            return {"error": f"Resend API error: {e}"}
+    api_key: str,
+    to: list[str],
+    subject: str,
+    html: str,
+    from_email: str,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
+) -> dict:
+    """Send email using Resend API."""
+
+    if resend is None:
+        return {
+            "error": "Resend package not installed",
+            "help": "Install with: pip install resend",
+        }
+
+    resend.api_key = api_key
+
 
     def _send_via_gmail(
         access_token: str,
