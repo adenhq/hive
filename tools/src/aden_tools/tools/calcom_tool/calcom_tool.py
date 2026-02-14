@@ -118,7 +118,6 @@ class _CalcomClient:
             "responses": {
                 "name": name,
                 "email": email,
-                "metadata": metadata or {},
             },
             "timeZone": timezone,
             "language": language,
@@ -246,7 +245,10 @@ def register_tools(
     def _get_api_key() -> str | None:
         """Get Cal.com API key from credential manager or environment."""
         if credentials is not None:
-            return credentials.get("calcom")
+            api_key = credentials.get("calcom")
+            if api_key is not None and not isinstance(api_key, str):
+                return None
+            return api_key
         return os.getenv("CALCOM_API_KEY")
 
     def _get_client() -> _CalcomClient | dict[str, str]:
@@ -479,18 +481,21 @@ def register_tools(
         schedule_id: int,
         name: str | None = None,
         timezone: str | None = None,
+        availability: list[dict] | None = None,
     ) -> dict:
         """
         Update a user's availability schedule.
 
         Use this when you need to:
         - Change schedule name or timezone
-        - Modify availability settings
+        - Modify availability windows
 
         Args:
             schedule_id: The schedule ID to update
             name: New name for the schedule
             timezone: New timezone (e.g., "America/New_York")
+            availability: List of availability rules, each with days (list of
+                ints 0-6) and startTime/endTime (e.g. "09:00", "17:00")
 
         Returns:
             Dict with updated schedule or error
@@ -507,7 +512,31 @@ def register_tools(
                 schedule_id=schedule_id,
                 name=name,
                 timezone=timezone,
+                availability=availability,
             )
+        except httpx.TimeoutException:
+            return {"error": "Request timed out"}
+        except httpx.RequestError as e:
+            return {"error": f"Network error: {e}"}
+
+    @mcp.tool()
+    def calcom_list_schedules() -> dict:
+        """
+        List all availability schedules for the authenticated user.
+
+        Use this when you need to:
+        - Discover schedule IDs before updating availability
+        - View configured schedules and their settings
+
+        Returns:
+            Dict with list of schedules or error
+        """
+        client = _get_client()
+        if isinstance(client, dict):
+            return client
+
+        try:
+            return client.list_schedules()
         except httpx.TimeoutException:
             return {"error": "Request timed out"}
         except httpx.RequestError as e:

@@ -16,6 +16,7 @@ CALCOM_CREDENTIALS = {
             "calcom_cancel_booking",
             "calcom_get_availability",
             "calcom_update_schedule",
+            "calcom_list_schedules",
             "calcom_list_event_types",
             "calcom_get_event_type",
         ],
