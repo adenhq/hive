@@ -154,7 +154,7 @@ classDef done fill:#9e9e9e,color:#fff,stroke:#757575
             - [ ] Instagram
         - [ ] SAAS
             - [ ] Hubspot
-            - [ ] Slack
+            - [x] Slack
             - [ ] Teams
             - [ ] Zoom
             - [ ] Stripe
@@ -175,7 +175,7 @@ classDef done fill:#9e9e9e,color:#fff,stroke:#757575
     - [x] CSV tools
     - [x] PDF tools
     - [ ] Excel tools
-    - [ ] Email Tools
+    - [x] Email Tools
     - [ ] Recipe for "Add your own tools"
 
 ### Memory & File System
