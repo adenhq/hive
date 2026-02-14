@@ -167,7 +167,8 @@ PYTHONPATH=exports uv run python -m my_agent test --type success
 1. **TUI Dashboard**: Run `hive tui` to explore agents interactively
 2. **Detailed Setup**: See [environment-setup.md](./environment-setup.md)
 3. **Developer Guide**: See [developer-guide.md](./developer-guide.md)
-4. **Build Agents**: Use `/hive` skill in Claude Code
+4. **Local LLMs**: See [Local LLM Setup for Windows](local-llm-windows-setup.md)
+5. **Build Agents**: Use `/hive` skill in Claude Code
 5. **Custom Tools**: Learn to integrate MCP servers
 6. **Join Community**: [Discord](https://discord.com/invite/MXE49hrKDk)
 
