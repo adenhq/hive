@@ -26,6 +26,7 @@ from .bigquery_tool import register_tools as register_bigquery
 from .calcom_tool import register_tools as register_calcom
 from .calendar_tool import register_tools as register_calendar
 from .csv_tool import register_tools as register_csv
+from .dropbox_tool import register_tools as register_dropbox
 from .email_tool import register_tools as register_email
 from .example_tool import register_tools as register_example
 from .excel_tool import register_tools as register_excel
@@ -86,6 +87,7 @@ def register_all_tools(
     # web_search supports multiple providers (Google, Brave) with auto-detection
     register_web_search(mcp, credentials=credentials)
     register_github(mcp, credentials=credentials)
+    register_dropbox(mcp, credentials=credentials)
     # email supports multiple providers (Gmail, Resend)
     register_email(mcp, credentials=credentials)
     # Gmail inbox management (read, trash, modify labels)
@@ -160,6 +162,10 @@ def register_all_tools(
         "calcom_list_schedules",
         "calcom_list_event_types",
         "calcom_get_event_type",
+        "dropbox_list_folder",
+        "dropbox_upload_file",
+        "dropbox_download_file",
+        "dropbox_create_shared_link",
         "github_list_repos",
         "github_get_repo",
         "github_search_repos",

@@ -84,6 +84,10 @@ python mcp_server.py
 | `calendar_delete_event`| Delete a calendar event                        |
 | `calendar_get_calendar`| Get calendar metadata                          |
 | `calendar_check_availability` | Check free/busy status for attendees    |
+| `dropbox_list_folder`  | List files and folders in Dropbox              |
+| `dropbox_upload_file`  | Upload files to Dropbox                        |
+| `dropbox_download_file`| Download files from Dropbox                    |
+| `dropbox_create_shared_link`| Create shareable links for Dropbox files |
 
 ## Project Structure
 
