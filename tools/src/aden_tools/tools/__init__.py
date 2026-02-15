@@ -50,6 +50,7 @@ from .news_tool import register_tools as register_news
 from .pdf_read_tool import register_tools as register_pdf_read
 from .runtime_logs_tool import register_tools as register_runtime_logs
 from .serpapi_tool import register_tools as register_serpapi
+from .posthog_tool import register_tools as register_posthog
 from .slack_tool import register_tools as register_slack
 from .telegram_tool import register_tools as register_telegram
 from .time_tool import register_tools as register_time
@@ -97,6 +98,7 @@ def register_all_tools(
     register_vision(mcp, credentials=credentials)
     register_google_maps(mcp, credentials=credentials)
     register_bigquery(mcp, credentials=credentials)
+    register_posthog(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -262,6 +264,10 @@ def register_all_tools(
         "maps_place_search",
         "run_bigquery_query",
         "describe_dataset",
+        "posthog_query",
+        "posthog_list_events",
+        "posthog_get_funnel_metrics",
+        "posthog_list_cohorts",
     ]
 
 

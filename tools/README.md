@@ -28,6 +28,8 @@ Some tools require API keys to function. Credentials are managed through the enc
 | `BRAVE_SEARCH_API_KEY` | `web_search` tool (Brave)     | [brave.com/search/api](https://brave.com/search/api/)   |
 | `GOOGLE_API_KEY`       | `web_search` tool (Google)    | [console.cloud.google.com](https://console.cloud.google.com/) |
 | `GOOGLE_CSE_ID`        | `web_search` tool (Google)    | [programmablesearchengine.google.com](https://programmablesearchengine.google.com/) |
+| `POSTHOG_API_KEY`     | `posthog` tools               | [posthog.com](https://posthog.com/) |
+| `POSTHOG_PROJECT_ID`  | `posthog` tools               | PostHog Project Settings |
 
 > **Note:** `web_search` supports multiple providers. Set either Brave OR Google credentials. Brave is preferred for backward compatibility.
 
@@ -76,6 +78,9 @@ python mcp_server.py
 | `web_scrape`           | Scrape and extract content from webpages       |
 | `pdf_read`             | Read and extract text from PDF files           |
 | `get_current_time`     | Get current date/time with timezone support    |
+| `posthog_query`        | Execute HogQL queries for analytics            |
+| `posthog_list_events`  | List recent raw events from PostHog            |
+| `posthog_list_cohorts` | List user cohorts from PostHog                |
 
 ## Project Structure
 
