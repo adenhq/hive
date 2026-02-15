@@ -58,6 +58,42 @@ async function githubRequest<T>(
   return response.json();
 }
 
+/** Fetches all issue comments by following GitHub pagination. */
+export async function fetchAllIssueComments(
+  owner: string,
+  repo: string,
+  issueNumber: number,
+  token: string,
+  request: <T>(
+    endpoint: string,
+    token: string,
+    method?: string,
+    body?: unknown
+  ) => Promise<T> = githubRequest
+): Promise<GitHubComment[]> {
+  const comments: GitHubComment[] = [];
+  const perPage = 100;
+
+  for (let page = 1; page <= 20; page++) {
+    const pageComments = await request<GitHubComment[]>(
+      `/repos/${owner}/${repo}/issues/${issueNumber}/comments?per_page=${perPage}&page=${page}`,
+      token
+    );
+
+    if (pageComments.length === 0) {
+      break;
+    }
+
+    comments.push(...pageComments);
+
+    if (pageComments.length < perPage) {
+      break;
+    }
+  }
+
+  return comments;
+}
+
 /** True if comment is a bot "possible duplicate" detection (used for filtering). */
 export function isDupeComment(comment: GitHubComment): boolean {
   const bodyLower = comment.body.toLowerCase();
@@ -224,8 +260,10 @@ async function autoCloseDuplicates(): Promise<void> {
     );
 
     console.log(`[DEBUG] Fetching comments for issue #${issue.number}...`);
-    const comments: GitHubComment[] = await githubRequest(
-      `/repos/${owner}/${repo}/issues/${issue.number}/comments`,
+    const comments = await fetchAllIssueComments(
+      owner,
+      repo,
+      issue.number,
       token
     );
     console.log(

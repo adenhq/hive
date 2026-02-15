@@ -8,6 +8,7 @@ import {
   authorDisagreedWithDupe,
   decideAutoClose,
   extractDuplicateIssueNumber,
+  fetchAllIssueComments,
   getLastDupeComment,
   isDupeComment,
   isDupeCommentOldEnough,
@@ -257,5 +258,41 @@ describe("decideAutoClose", () => {
       async () => ({ state: "OPEN" } as { state: string })
     );
     expect(result).toBe(null);
+  });
+});
+
+describe("fetchAllIssueComments", () => {
+  test("fetches all comment pages until a partial page is returned", async () => {
+    const calls: string[] = [];
+    const makeComment = (id: number): GitHubComment => ({
+      id,
+      body: "Found a possible duplicate of #1000",
+      created_at: new Date().toISOString(),
+      user: { type: "Bot", id: 2 },
+    });
+
+    const all = await fetchAllIssueComments(
+      "adenhq",
+      "hive",
+      55,
+      "token",
+      async (endpoint) => {
+        calls.push(endpoint);
+        const page = Number(endpoint.match(/[?&]page=(\d+)/)?.[1] ?? "0");
+        if (page === 1) {
+          return Array.from({ length: 100 }, (_, i) => makeComment(i + 1));
+        }
+        if (page === 2) {
+          return [makeComment(101)];
+        }
+        return [];
+      }
+    );
+
+    expect(all).toHaveLength(101);
+    expect(calls).toEqual([
+      "/repos/adenhq/hive/issues/55/comments?per_page=100&page=1",
+      "/repos/adenhq/hive/issues/55/comments?per_page=100&page=2",
+    ]);
   });
 });
