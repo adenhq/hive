@@ -14,6 +14,19 @@ from typing import Any
 from framework.graph.edge import DEFAULT_MAX_TOKENS
 
 # ---------------------------------------------------------------------------
+# Default LLM configuration
+# ---------------------------------------------------------------------------
+
+# Default LLM model used when no explicit model is provided.
+# Can be overridden via the HIVE_DEFAULT_MODEL environment variable to allow
+# environment-specific configuration without modifying source code.
+DEFAULT_LLM_MODEL = os.getenv(
+    "HIVE_DEFAULT_MODEL",
+    "claude-haiku-4-5-20251001",
+)
+
+
+# ---------------------------------------------------------------------------
 # Low-level config file access
 # ---------------------------------------------------------------------------
 

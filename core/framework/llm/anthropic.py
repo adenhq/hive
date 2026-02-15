@@ -6,6 +6,7 @@ from typing import Any
 
 from framework.llm.litellm import LiteLLMProvider
 from framework.llm.provider import LLMProvider, LLMResponse, Tool, ToolResult, ToolUse
+from framework.config import DEFAULT_LLM_MODEL
 
 
 def _get_api_key_from_credential_store() -> str | None:
@@ -38,7 +39,7 @@ class AnthropicProvider(LLMProvider):
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = "claude-haiku-4-5-20251001",
+        model: str = DEFAULT_LLM_MODEL,
     ):
         """
         Initialize the Anthropic provider.
@@ -46,7 +47,7 @@ class AnthropicProvider(LLMProvider):
         Args:
             api_key: Anthropic API key. If not provided, uses CredentialStoreAdapter
                      or ANTHROPIC_API_KEY env var.
-            model: Model to use (default: claude-haiku-4-5-20251001)
+            model: Model to use (defaults to the configured Hive default model)
         """
         # Delegate to LiteLLMProvider internally.
         self.api_key = api_key or _get_api_key_from_credential_store()
