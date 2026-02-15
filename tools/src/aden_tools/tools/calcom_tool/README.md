@@ -4,7 +4,7 @@ MCP tool integration for [Cal.com](https://cal.com) - open source scheduling inf
 
 ## Overview
 
-This tool provides 8 MCP-registered functions for interacting with the Cal.com API:
+This tool provides 9 MCP-registered functions for interacting with the Cal.com API:
 
 | Tool | Description |
 |------|-------------|
@@ -14,6 +14,7 @@ This tool provides 8 MCP-registered functions for interacting with the Cal.com A
 | `calcom_cancel_booking` | Cancel an existing booking |
 | `calcom_get_availability` | Get available time slots for booking |
 | `calcom_update_schedule` | Update a user's availability schedule |
+| `calcom_list_schedules` | List all availability schedules for the authenticated user |
 | `calcom_list_event_types` | List all configured event types |
 | `calcom_get_event_type` | Get detailed information about an event type |
 

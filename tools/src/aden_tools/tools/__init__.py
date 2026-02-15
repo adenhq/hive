@@ -23,8 +23,8 @@ if TYPE_CHECKING:
 # Import register_tools from each tool module
 from .apollo_tool import register_tools as register_apollo
 from .bigquery_tool import register_tools as register_bigquery
-from .calendar_tool import register_tools as register_calendar
 from .calcom_tool import register_tools as register_calcom
+from .calendar_tool import register_tools as register_calendar
 from .csv_tool import register_tools as register_csv
 from .email_tool import register_tools as register_email
 from .example_tool import register_tools as register_example
