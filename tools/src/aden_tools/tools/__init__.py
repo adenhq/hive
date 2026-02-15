@@ -49,6 +49,7 @@ from .gmail_tool import register_tools as register_gmail
 from .google_maps_tool import register_tools as register_google_maps
 from .hubspot_tool import register_tools as register_hubspot
 from .news_tool import register_tools as register_news
+from .pipedrive_tool import register_tools as register_pipedrive
 from .pdf_read_tool import register_tools as register_pdf_read
 from .runtime_logs_tool import register_tools as register_runtime_logs
 from .serpapi_tool import register_tools as register_serpapi
@@ -91,6 +92,7 @@ def register_all_tools(
     # Gmail inbox management (read, trash, modify labels)
     register_gmail(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
+    register_pipedrive(mcp, credentials=credentials)
     register_news(mcp, credentials=credentials)
     register_apollo(mcp, credentials=credentials)
     register_serpapi(mcp, credentials=credentials)
@@ -196,6 +198,13 @@ def register_all_tools(
         "hubspot_get_deal",
         "hubspot_create_deal",
         "hubspot_update_deal",
+        "pipedrive_create_person",
+        "pipedrive_search_person",
+        "pipedrive_get_person_details",
+        "pipedrive_create_deal",
+        "pipedrive_update_deal_stage",
+        "pipedrive_list_deals",
+        "pipedrive_add_note_to_deal",
         "news_search",
         "news_headlines",
         "news_by_company",

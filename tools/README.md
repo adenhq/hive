@@ -84,6 +84,9 @@ python mcp_server.py
 | `calendar_delete_event`| Delete a calendar event                        |
 | `calendar_get_calendar`| Get calendar metadata                          |
 | `calendar_check_availability` | Check free/busy status for attendees    |
+| `pipedrive_create_person` | Create a new person in Pipedrive CRM    |
+| `pipedrive_search_person` | Search for a person in Pipedrive CRM    |
+| `pipedrive_create_deal` | Create a new deal in Pipedrive CRM      |
 
 ## Project Structure
 
