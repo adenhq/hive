@@ -23,6 +23,7 @@ from aden_tools.credentials import (
     GITHUB_CREDENTIALS,
     HUBSPOT_CREDENTIALS,
     LLM_CREDENTIALS,
+    S3_CREDENTIALS,
     SEARCH_CREDENTIALS,
     SLACK_CREDENTIALS,
 )
@@ -209,6 +210,7 @@ class TestSpecsMergedIntoCredentialSpecs:
         "GITHUB_CREDENTIALS": GITHUB_CREDENTIALS,
         "HUBSPOT_CREDENTIALS": HUBSPOT_CREDENTIALS,
         "SLACK_CREDENTIALS": SLACK_CREDENTIALS,
+        "S3_CREDENTIALS": S3_CREDENTIALS,
     }
 
     @pytest.mark.parametrize("category_name", list(CATEGORY_DICTS.keys()))
