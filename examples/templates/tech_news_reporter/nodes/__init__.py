@@ -85,6 +85,16 @@ You do NOT have web search — instead, scrape news directly from known sites.
      to replace it. Scrape the replacement to confirm it works.
    - Only include articles whose URLs returned successful scrape results.
 
+**Handling Scraping Failures (IMPORTANT):**
+Many news sites block automated scrapers, return 403 errors, or have anti-bot protections. You MUST handle scraping failures gracefully:
+
+- **If web_scrape fails** on an individual article (error, 403, 404, timeout, empty content, etc.):
+  - First, try 2-3 alternative URLs on the same topic from your front page results
+  - If all alternatives also fail, you may omit that article and continue with others
+  - But ensure you always try alternatives before giving up on a story
+
+- **Minimum threshold**: You MUST have at least 3 successfully scraped articles before calling set_output. If you have fewer than 3, scrape additional URLs from your front pages or try additional news sources.
+
 **Output format:**
 Use set_output("articles_data", <JSON string>) with this structure:
 ```json
@@ -96,7 +106,8 @@ Use set_output("articles_data", <JSON string>) with this structure:
       "url": "https://...",
       "date": "2026-02-05",
       "summary": "2-3 sentence summary of the key points.",
-      "topic": "AI / Semiconductors / Startups / etc."
+      "topic": "AI / Semiconductors / Startups / etc.",
+      "scrape_status": "full" | "failed"
     }
   ],
   "search_date": "2026-02-06",
@@ -113,6 +124,7 @@ Use set_output("articles_data", <JSON string>) with this structure:
 - If a site fails to load, skip it and move on to the next.
 - Always use max_length to limit scraped content (5000 for front pages, 3000 for articles).
 - Work in batches: scrape front pages first, then articles, then verify. Don't scrape everything at once.
+- Set scrape_status to "full" if you got the full article content, or "failed" if the article could not be scraped after trying alternatives.
 """,
     tools=["web_scrape"],
 )
