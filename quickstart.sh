@@ -11,11 +11,11 @@
 
 set -e
 
-# Detect Bash version for compatibility (minimum Bash 4 required for associative arrays)
+# Detect Bash version for compatibility
 BASH_MAJOR_VERSION="${BASH_VERSINFO[0]}"
-if [ "$BASH_MAJOR_VERSION" -lt 4 ]; then
-    echo -e "${RED}Error: Bash 4+ is required for this script. Found: ${BASH_VERSION}${NC}"
-    exit 1
+USE_ASSOC_ARRAYS=false
+if [ "$BASH_MAJOR_VERSION" -ge 4 ]; then
+    USE_ASSOC_ARRAYS=true
 fi
 echo "[debug] Bash version: ${BASH_VERSION}"
 
@@ -283,7 +283,7 @@ echo ""
 
 # Provider config: env_var|provider_id|display_name|signup_url
 # Format: ENV_VAR|PROVIDER_ID|DISPLAY_NAME|SIGNUP_URL
-declare -a PROVIDER_CONFIG=(
+PROVIDER_CONFIG=(
     "ANTHROPIC_API_KEY|anthropic|Anthropic (Claude)|https://console.anthropic.com/settings/keys"
     "OPENAI_API_KEY|openai|OpenAI (GPT)|https://platform.openai.com/api-keys"
     "GEMINI_API_KEY|gemini|Google Gemini|https://aistudio.google.com/apikey"
@@ -296,20 +296,26 @@ declare -a PROVIDER_CONFIG=(
 )
 
 # Default models by provider_id
-declare -A PROVIDER_DEFAULT_MODEL=(
-    ["anthropic"]="claude-haiku-4-5"
-    ["openai"]="gpt-5-mini"
-    ["gemini"]="gemini-3-flash-preview"
-    ["groq"]="moonshotai/kimi-k2-instruct-0905"
-    ["cerebras"]="zai-glm-4.7"
-    ["mistral"]="mistral-large-latest"
-    ["together"]="meta-llama/Llama-3.3-70B-Instruct-Turbo"
-    ["deepseek"]="deepseek-chat"
-)
+if [ "$USE_ASSOC_ARRAYS" = true ]; then
+    declare -A PROVIDER_DEFAULT_MODEL
+    PROVIDER_DEFAULT_MODEL=(
+        ["anthropic]="claude-haiku-4-5"
+        ["openai]="gpt-5-mini"
+        ["gemini]="gemini-3-flash-preview"
+        ["groq]="moonshotai/kimi-k2-instruct-0905"
+        ["cerebras]="zai-glm-4.7"
+        ["mistral]="mistral-large-latest"
+        ["together]="meta-llama/Llama-3.3-70B-Instruct-Turbo"
+        ["deepseek]="deepseek-chat"
+    )
+else
+    PROVIDER_DEFAULT_MODEL_PROVIDER_IDS=(anthropic openai gemini groq cerebras mistral together deepseek)
+    PROVIDER_DEFAULT_MODEL_VALUES=("claude-haiku-4-5" "gpt-5-mini" "gemini-3-flash-preview" "moonshotai/kimi-k2-instruct-0905" "zai-glm-4.7" "mistral-large-latest" "meta-llama/Llama-3.3-70B-Instruct-Turbo" "deepseek-chat")
+fi
 
 # Model choices: provider_id|model_id|model_label|max_tokens
 # NOTE: 8192 should match DEFAULT_MAX_TOKENS in core/framework/graph/edge.py
-declare -a MODEL_CHOICES_CONFIG=(
+MODEL_CHOICES_CONFIG=(
     "anthropic|claude-opus-4-6|Opus 4.6 - Most capable (recommended)|8192"
     "anthropic|claude-sonnet-4-5-20250929|Sonnet 4.5 - Best balance|8192"
     "anthropic|claude-sonnet-4-20250514|Sonnet 4 - Fast + capable|8192"
@@ -329,84 +335,234 @@ declare -a MODEL_CHOICES_CONFIG=(
 # Derived Configuration Arrays (populated from central config)
 # ============================================================
 
-# Build associative arrays from central config
-declare -A PROVIDER_NAMES
-declare -A PROVIDER_IDS
-declare -A PROVIDER_SIGNUP_URLS
+if [ "$USE_ASSOC_ARRAYS" = true ]; then
+    # Bash 4+ - use associative arrays
+    declare -A PROVIDER_NAMES
+    declare -A PROVIDER_IDS
+    declare -A PROVIDER_SIGNUP_URLS
 
-for entry in "${PROVIDER_CONFIG[@]}"; do
-    IFS='|' read -r env_var provider_id display_name signup_url <<< "$entry"
-    PROVIDER_NAMES["$env_var"]="$display_name"
-    PROVIDER_IDS["$env_var"]="$provider_id"
-    PROVIDER_SIGNUP_URLS["$provider_id"]="$signup_url"
-done
+    for entry in "${PROVIDER_CONFIG[@]}"; do
+        IFS='|' read -r env_var provider_id display_name signup_url <<< "$entry"
+        PROVIDER_NAMES["$env_var"]="$display_name"
+        PROVIDER_IDS["$env_var"]="$provider_id"
+        PROVIDER_SIGNUP_URLS["$provider_id"]="$signup_url"
+    done
 
-# Build model choice arrays
-declare -A MODEL_CHOICES_ID
-declare -A MODEL_CHOICES_LABEL
-declare -A MODEL_CHOICES_MAXTOKENS
-declare -A MODEL_CHOICES_COUNT
+    declare -A MODEL_CHOICES_ID
+    declare -A MODEL_CHOICES_LABEL
+    declare -A MODEL_CHOICES_MAXTOKENS
+    declare -A MODEL_CHOICES_COUNT
 
-for entry in "${MODEL_CHOICES_CONFIG[@]}"; do
-    IFS='|' read -r provider_id model_id model_label max_tokens <<< "$entry"
-    count="${MODEL_CHOICES_COUNT[$provider_id]:-0}"
-    MODEL_CHOICES_ID["${provider_id}:${count}"]="$model_id"
-    MODEL_CHOICES_LABEL["${provider_id}:${count}"]="$model_label"
-    MODEL_CHOICES_MAXTOKENS["${provider_id}:${count}"]="$max_tokens"
-    MODEL_CHOICES_COUNT["$provider_id"]=$((count + 1))
-done
+    for entry in "${MODEL_CHOICES_CONFIG[@]}"; do
+        IFS='|' read -r provider_id model_id model_label max_tokens <<< "$entry"
+        count="${MODEL_CHOICES_COUNT[$provider_id]:-0}"
+        MODEL_CHOICES_ID["${provider_id}:${count}"]="$model_id"
+        MODEL_CHOICES_LABEL["${provider_id}:${count}"]="$model_label"
+        MODEL_CHOICES_MAXTOKENS["${provider_id}:${count}"]="$max_tokens"
+        MODEL_CHOICES_COUNT["$provider_id"]=$((count + 1))
+    done
+else
+    # Bash 3.2 - use indexed parallel arrays
+    PROVIDER_ENV_VARS=()
+    PROVIDER_DISPLAY_NAMES=()
+    PROVIDER_ID_LIST=()
+    PROVIDER_SIGNUP_URLS_LIST=()
+
+    for entry in "${PROVIDER_CONFIG[@]}"; do
+        IFS='|' read -r env_var provider_id display_name signup_url <<< "$entry"
+        PROVIDER_ENV_VARS+=("$env_var")
+        PROVIDER_DISPLAY_NAMES+=("$display_name")
+        PROVIDER_ID_LIST+=("$provider_id")
+        PROVIDER_SIGNUP_URLS_LIST+=("$signup_url")
+    done
+
+    MODEL_CHOICES_PROVIDERS=()
+    MODEL_CHOICES_IDS=()
+    MODEL_CHOICES_LABELS=()
+    MODEL_CHOICES_MAXTOKENS_LIST=()
+
+    for entry in "${MODEL_CHOICES_CONFIG[@]}"; do
+        IFS='|' read -r provider_id model_id model_label max_tokens <<< "$entry"
+        MODEL_CHOICES_PROVIDERS+=("$provider_id")
+        MODEL_CHOICES_IDS+=("$model_id")
+        MODEL_CHOICES_LABELS+=("$model_label")
+        MODEL_CHOICES_MAXTOKENS_LIST+=("$max_tokens")
+    done
+
+    MODEL_CHOICES_COUNT_ANTHROPIC=0
+    MODEL_CHOICES_COUNT_OPENAI=0
+    MODEL_CHOICES_COUNT_GEMINI=0
+    MODEL_CHOICES_COUNT_GROQ=0
+    MODEL_CHOICES_COUNT_CEREBRAS=0
+
+    for entry in "${MODEL_CHOICES_CONFIG[@]}"; do
+        case "$entry" in
+            anthropic*) MODEL_CHOICES_COUNT_ANTHROPIC=$((MODEL_CHOICES_COUNT_ANTHROPIC + 1)) ;;
+            openai*)   MODEL_CHOICES_COUNT_OPENAI=$((MODEL_CHOICES_COUNT_OPENAI + 1)) ;;
+            gemini*)   MODEL_CHOICES_COUNT_GEMINI=$((MODEL_CHOICES_COUNT_GEMINI + 1)) ;;
+            groq*)     MODEL_CHOICES_COUNT_GROQ=$((MODEL_CHOICES_COUNT_GROQ + 1)) ;;
+            cerebras*) MODEL_CHOICES_COUNT_CEREBRAS=$((MODEL_CHOICES_COUNT_CEREBRAS + 1)) ;;
+        esac
+    done
+fi
 
 # ============================================================
 # Helper Functions
 # ============================================================
 
-get_provider_name() {
-    local env_var="$1"
-    echo "${PROVIDER_NAMES[$env_var]:-}"
-}
+if [ "$USE_ASSOC_ARRAYS" = true ]; then
+    # Bash 4+ helper functions
+    get_provider_name() {
+        echo "${PROVIDER_NAMES[$1]:-}"
+    }
 
-get_provider_id() {
-    local env_var="$1"
-    echo "${PROVIDER_IDS[$env_var]:-}"
-}
+    get_provider_id() {
+        echo "${PROVIDER_IDS[$1]:-}"
+    }
 
-get_provider_signup_url() {
-    local provider_id="$1"
-    echo "${PROVIDER_SIGNUP_URLS[$provider_id]:-}"
-}
+    get_provider_signup_url() {
+        echo "${PROVIDER_SIGNUP_URLS[$1]:-}"
+    }
 
-get_default_model() {
-    local provider_id="$1"
-    echo "${PROVIDER_DEFAULT_MODEL[$provider_id]:-}"
-}
+    get_default_model() {
+        echo "${PROVIDER_DEFAULT_MODEL[$1]:-}"
+    }
 
-get_model_choice_count() {
-    local provider_id="$1"
-    echo "${MODEL_CHOICES_COUNT[$provider_id]:-0}"
-}
+    get_model_choice_count() {
+        echo "${MODEL_CHOICES_COUNT[$1]:-0}"
+    }
 
-get_model_choice_id() {
-    local provider_id="$1"
-    local idx="$2"
-    echo "${MODEL_CHOICES_ID[${provider_id}:${idx}]:-}"
-}
+    get_model_choice_id() {
+        local provider_id="$1"
+        local idx="$2"
+        echo "${MODEL_CHOICES_ID[${provider_id}:${idx}]:-}"
+    }
 
-get_model_choice_label() {
-    local provider_id="$1"
-    local idx="$2"
-    echo "${MODEL_CHOICES_LABEL[${provider_id}:${idx}]:-}"
-}
+    get_model_choice_label() {
+        local provider_id="$1"
+        local idx="$2"
+        echo "${MODEL_CHOICES_LABEL[${provider_id}:${idx}]:-}"
+    }
 
-get_model_choice_maxtokens() {
-    local provider_id="$1"
-    local idx="$2"
-    echo "${MODEL_CHOICES_MAXTOKENS[${provider_id}:${idx}]:-8192}"
-}
+    get_model_choice_maxtokens() {
+        local provider_id="$1"
+        local idx="$2"
+        echo "${MODEL_CHOICES_MAXTOKENS[${provider_id}:${idx}]:-8192}"
+    }
+else
+    # Bash 3.2 helper functions
+    get_provider_name() {
+        local env_var="$1"
+        local i=0
+        while [ $i -lt ${#PROVIDER_ENV_VARS[@]} ]; do
+            if [ "${PROVIDER_ENV_VARS[$i]}" = "$env_var" ]; then
+                echo "${PROVIDER_DISPLAY_NAMES[$i]}"
+                return
+            fi
+            i=$((i + 1))
+        done
+    }
 
-get_all_providers() {
-    local keys=("${!PROVIDER_NAMES[@]}")
-    printf '%s\n' "${keys[@]}" | sort
-}
+    get_provider_id() {
+        local env_var="$1"
+        local i=0
+        while [ $i -lt ${#PROVIDER_ENV_VARS[@]} ]; do
+            if [ "${PROVIDER_ENV_VARS[$i]}" = "$env_var" ]; then
+                echo "${PROVIDER_ID_LIST[$i]}"
+                return
+            fi
+            i=$((i + 1))
+        done
+    }
+
+    get_provider_signup_url() {
+        local provider_id="$1"
+        local i=0
+        while [ $i -lt ${#PROVIDER_ID_LIST[@]} ]; do
+            if [ "${PROVIDER_ID_LIST[$i]}" = "$provider_id" ]; then
+                echo "${PROVIDER_SIGNUP_URLS_LIST[$i]}"
+                return
+            fi
+            i=$((i + 1))
+        done
+    }
+
+    get_default_model() {
+        local provider_id="$1"
+        local i=0
+        while [ $i -lt ${#PROVIDER_DEFAULT_MODEL_PROVIDER_IDS[@]} ]; do
+            if [ "${PROVIDER_DEFAULT_MODEL_PROVIDER_IDS[$i]}" = "$provider_id" ]; then
+                echo "${PROVIDER_DEFAULT_MODEL_VALUES[$i]}"
+                return
+            fi
+            i=$((i + 1))
+        done
+    }
+
+    get_model_choice_count() {
+        local provider_id="$1"
+        case "$provider_id" in
+            anthropic) echo "$MODEL_CHOICES_COUNT_ANTHROPIC" ;;
+            openai)    echo "$MODEL_CHOICES_COUNT_OPENAI" ;;
+            gemini)    echo "$MODEL_CHOICES_COUNT_GEMINI" ;;
+            groq)      echo "$MODEL_CHOICES_COUNT_GROQ" ;;
+            cerebras)  echo "$MODEL_CHOICES_COUNT_CEREBRAS" ;;
+            *)         echo "0" ;;
+        esac
+    }
+
+    get_model_choice_id() {
+        local provider_id="$1"
+        local idx="$2"
+        local count=0
+        local i=0
+        while [ $i -lt ${#MODEL_CHOICES_PROVIDERS[@]} ]; do
+            if [ "${MODEL_CHOICES_PROVIDERS[$i]}" = "$provider_id" ]; then
+                if [ $count -eq "$idx" ]; then
+                    echo "${MODEL_CHOICES_IDS[$i]}"
+                    return
+                fi
+                count=$((count + 1))
+            fi
+            i=$((i + 1))
+        done
+    }
+
+    get_model_choice_label() {
+        local provider_id="$1"
+        local idx="$2"
+        local count=0
+        local i=0
+        while [ $i -lt ${#MODEL_CHOICES_PROVIDERS[@]} ]; do
+            if [ "${MODEL_CHOICES_PROVIDERS[$i]}" = "$provider_id" ]; then
+                if [ $count -eq "$idx" ]; then
+                    echo "${MODEL_CHOICES_LABELS[$i]}"
+                    return
+                fi
+                count=$((count + 1))
+            fi
+            i=$((i + 1))
+        done
+    }
+
+    get_model_choice_maxtokens() {
+        local provider_id="$1"
+        local idx="$2"
+        local count=0
+        local i=0
+        while [ $i -lt ${#MODEL_CHOICES_PROVIDERS[@]} ]; do
+            if [ "${MODEL_CHOICES_PROVIDERS[$i]}" = "$provider_id" ]; then
+                if [ $count -eq "$idx" ]; then
+                    echo "${MODEL_CHOICES_MAXTOKENS_LIST[$i]}"
+                    return
+                fi
+                count=$((count + 1))
+            fi
+            i=$((i + 1))
+        done
+        echo "8192"
+    }
+fi
 
 # Configuration directory
 HIVE_CONFIG_DIR="$HOME/.hive"
@@ -548,13 +704,25 @@ SELECTED_MODEL=""       # Will hold the chosen model ID
 SELECTED_MAX_TOKENS=8192 # Will hold the chosen max_tokens
 
 # Detect available API keys from environment
-for env_var in "${!PROVIDER_NAMES[@]}"; do
-    value="${!env_var}"
-    if [ -n "$value" ]; then
-        FOUND_PROVIDERS+=("$(get_provider_name "$env_var")")
-        FOUND_ENV_VARS+=("$env_var")
-    fi
-done
+if [ "$USE_ASSOC_ARRAYS" = true ]; then
+    # Bash 4+ - iterate over associative array keys
+    for env_var in "${!PROVIDER_NAMES[@]}"; do
+        value="${!env_var}"
+        if [ -n "$value" ]; then
+            FOUND_PROVIDERS+=("$(get_provider_name "$env_var")")
+            FOUND_ENV_VARS+=("$env_var")
+        fi
+    done
+else
+    # Bash 3.2 - iterate over indexed array
+    for env_var in "${PROVIDER_ENV_VARS[@]}"; do
+        value="${!env_var}"
+        if [ -n "$value" ]; then
+            FOUND_PROVIDERS+=("$(get_provider_name "$env_var")")
+            FOUND_ENV_VARS+=("$env_var")
+        fi
+    done
+fi
 
 if [ ${#FOUND_PROVIDERS[@]} -gt 0 ]; then
     echo "Found API keys:"
