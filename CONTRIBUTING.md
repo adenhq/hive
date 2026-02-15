@@ -57,6 +57,14 @@ You may submit PRs without prior assignment for:
 ```bash
 # Install Python packages and verify setup
 ./quickstart.sh
+
+# if you encounter a permission error, run:
+chmod +x scripts/setup-python.sh
+./scripts/setup-python.sh
+
+# Verify Installation
+python -c "import framework; import aden_tools; print('✓ Setup complete')"
+
 ```
 
 > **Windows Users:**  
