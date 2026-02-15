@@ -46,21 +46,21 @@ class TestGitHubClient:
         response.status_code = 401
         result = self.client._handle_response(response)
         assert "error" in result
-        assert "Invalid or expired" in result["error"]
+        assert  "Authentication failed: the API key is missing, invalid, or has been revoked. " in result["error"]
 
     def test_handle_response_403(self):
         response = MagicMock()
         response.status_code = 403
         result = self.client._handle_response(response)
         assert "error" in result
-        assert "Forbidden" in result["error"]
+        assert "Access denied" in result["error"]
 
     def test_handle_response_404(self):
         response = MagicMock()
         response.status_code = 404
         result = self.client._handle_response(response)
         assert "error" in result
-        assert "not found" in result["error"]
+        assert   "Integration not found: {path}" in result["error"]
 
     def test_handle_response_422(self):
         response = MagicMock()

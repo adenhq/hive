@@ -82,7 +82,7 @@ class _GitHubClient:
         if response.status_code == 403:
             return {"error": "Forbidden - check token permissions or rate limit"}
         if response.status_code == 404:
-            return {"error": "Resource not found"}
+            return {"error":"Please check the integration name and ensure it is correctly configured."}
         if response.status_code == 422:
             try:
                 detail = response.json().get("message", "Validation failed")

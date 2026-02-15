@@ -264,25 +264,34 @@ class AdenCredentialClient:
 
                 # Handle specific error codes
                 if response.status_code == 401:
-                    raise AdenAuthenticationError("Agent API key is invalid or revoked")
+                    raise AdenAuthenticationError("Authentication failed: API key is missing, invalid, or revoked. ",
+                                    "Please check your integration credentials and reconfigure the agent.")
 
                 if response.status_code == 404:
-                    raise AdenNotFoundError(f"Integration not found: {path}")
+                    raise AdenNotFoundError(
+                    f"Integration not found: {path}. "
+                   "Please check the integration name and ensure it is correctly configured."
+                )
 
                 if response.status_code == 429:
                     retry_after = int(response.headers.get("Retry-After", 60))
                     raise AdenRateLimitError(
-                        "Rate limited by Aden server",
-                        retry_after=retry_after,
-                    )
+                     f"Rate limit exceeded. Please wait {retry_after} seconds before retrying. "
+                     "If this occurs frequently, consider reducing request frequency or upgrading your plan.",
+                     retry_after=retry_after,
+                     )
 
                 if response.status_code == 400:
                     data = response.json()
                     if data.get("error") == "refresh_failed":
                         raise AdenRefreshError(
-                            data.get("message", "Token refresh failed"),
-                            requires_reauthorization=data.get("requires_reauthorization", False),
-                            reauthorization_url=data.get("reauthorization_url"),
+                        data.get(
+                        "message",
+                     "Token refresh failed. The integration may require reauthorization. "
+                     "Please reconnect the integration and try again."
+                      ),
+                      requires_reauthorization=data.get("requires_reauthorization", False),
+                      reauthorization_url=data.get("reauthorization_url"),
                         )
 
                 # Success or other error
