@@ -84,6 +84,7 @@ python mcp_server.py
 | `calendar_delete_event`| Delete a calendar event                        |
 | `calendar_get_calendar`| Get calendar metadata                          |
 | `calendar_check_availability` | Check free/busy status for attendees    |
+| `dockerhub_list_repositories` | List Docker Hub repositories           |
 
 ## Project Structure
 

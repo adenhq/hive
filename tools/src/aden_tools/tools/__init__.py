@@ -26,6 +26,7 @@ from .bigquery_tool import register_tools as register_bigquery
 from .calcom_tool import register_tools as register_calcom
 from .calendar_tool import register_tools as register_calendar
 from .csv_tool import register_tools as register_csv
+from .dockerhub_tool import register_tools as register_dockerhub
 from .email_tool import register_tools as register_email
 from .example_tool import register_tools as register_example
 from .excel_tool import register_tools as register_excel
@@ -101,6 +102,7 @@ def register_all_tools(
     register_vision(mcp, credentials=credentials)
     register_google_maps(mcp, credentials=credentials)
     register_bigquery(mcp, credentials=credentials)
+    register_dockerhub(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -283,6 +285,9 @@ def register_all_tools(
         "maps_place_search",
         "run_bigquery_query",
         "describe_dataset",
+        "dockerhub_list_repositories",
+        "dockerhub_list_tags",
+        "dockerhub_get_tag_metadata",
     ]
 
 

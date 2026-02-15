@@ -56,6 +56,7 @@ from .apollo import APOLLO_CREDENTIALS
 from .base import CredentialError, CredentialSpec
 from .bigquery import BIGQUERY_CREDENTIALS
 from .browser import get_aden_auth_url, get_aden_setup_url, open_browser
+from .dockerhub import DOCKERHUB_CREDENTIALS
 from .calcom import CALCOM_CREDENTIALS
 from .email import EMAIL_CREDENTIALS
 from .gcp_vision import GCP_VISION_CREDENTIALS
@@ -95,6 +96,7 @@ CREDENTIAL_SPECS = {
     **TELEGRAM_CREDENTIALS,
     **BIGQUERY_CREDENTIALS,
     **CALCOM_CREDENTIALS,
+    **DOCKERHUB_CREDENTIALS,
 }
 
 __all__ = [
@@ -134,4 +136,5 @@ __all__ = [
     "TELEGRAM_CREDENTIALS",
     "BIGQUERY_CREDENTIALS",
     "CALCOM_CREDENTIALS",
+    "DOCKERHUB_CREDENTIALS",
 ]
