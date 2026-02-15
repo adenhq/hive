@@ -78,4 +78,5 @@ core/tests/*dumps/*
 screenshots/*
 
 PROJECT_OVERVIEW.md
-
+CRITICAL_ISSUES.md
+CRITICAL_ISSUES_DEEP_DIVE.md
