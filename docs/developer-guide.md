@@ -347,6 +347,50 @@ hive run exports/my_agent --tui
 
 > **Using Python directly:** `PYTHONPATH=exports uv run python -m agent_name run --input '{...}'`
 
+### Function Nodes
+
+If your agent includes **function nodes** (custom Python functions that perform specific tasks), you need to register these functions with the executor before running the agent.
+
+#### Why Function Nodes Need Special Handling
+
+Function nodes are not automatically discovered by the runtime. Unlike LLM nodes (which are built into the framework), function nodes are user-defined implementations that must be explicitly registered.
+
+#### Template Pattern (Recommended)
+
+The recommended approach is to follow the template agent pattern used in `examples/templates/`:
+
+```python
+# exports/my_agent/agent.py
+from framework.graph.executor import GraphExecutor
+from .nodes import my_function_node
+
+def create_runtime(llm, tools):
+    """Create and configure the executor with function nodes."""
+    executor = GraphExecutor(graph=my_graph, llm=llm, tools=tools)
+    
+    # Register your function nodes
+    executor.register_function("my_function_id", my_function_node)
+    
+    return executor
+```
+
+#### Running Agents with Function Nodes
+
+When you run agents that use function nodes via `hive run` or TUI, the framework will use your agent's runtime configuration if defined:
+
+```bash
+# hive run and TUI automatically use your agent's setup
+hive run exports/my_agent --input '{"task": "your input"}'
+hive tui  # Select your agent from the list
+```
+
+#### Reference Implementations
+
+See these template agents for examples of function node usage:
+- `examples/templates/deep_research_agent/` - Complex research with custom functions
+- `examples/templates/tech_news_reporter/` - News aggregation with data processing
+- `examples/templates/job_hunter/` - Multi-step job search with custom logic
+
 ---
 
 ## Testing Agents
