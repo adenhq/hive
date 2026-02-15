@@ -114,6 +114,8 @@ uv run python -c "import litellm; print('✓ litellm OK')"
 
 We recommend using quickstart.sh for LLM API credential setup and /hive-credentials for the tools credentials
 
+> **Windows Users:** Use `$env:VARIABLE_NAME="value"` in PowerShell.
+
 ## Running Agents
 
 The `hive` CLI is the primary interface for running agents:
@@ -185,11 +187,13 @@ Skills are also available in Cursor. To enable:
 ### 2. Build an Agent
 
 **Claude Code:**
+
 ```
 claude> /hive
 ```
 
 **Codex CLI:**
+
 ```
 codex> use hive
 ```
