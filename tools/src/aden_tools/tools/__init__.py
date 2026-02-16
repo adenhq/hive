@@ -54,6 +54,7 @@ from .http_headers_scanner import register_tools as register_http_headers_scanne
 from .hubspot_tool import register_tools as register_hubspot
 from .news_tool import register_tools as register_news
 from .pdf_read_tool import register_tools as register_pdf_read
+from .browser_automation_tool import register_tools as register_browser_automation
 from .port_scanner import register_tools as register_port_scanner
 from .razorpay_tool import register_tools as register_razorpay
 from .risk_scorer import register_tools as register_risk_scorer
@@ -88,6 +89,7 @@ def register_all_tools(
     # Tools that don't need credentials
     register_example(mcp)
     register_web_scrape(mcp)
+    register_browser_automation(mcp)
     register_pdf_read(mcp)
     register_time(mcp)
     register_runtime_logs(mcp)
@@ -139,6 +141,12 @@ def register_all_tools(
         "example_tool",
         "web_search",
         "web_scrape",
+        "browser_get_page_content",
+        "browser_screenshot",
+        "browser_extract_text",
+        "browser_click_and_extract",
+        "browser_inspect_form",
+        "browser_fill_form",
         "pdf_read",
         "get_current_time",
         "view_file",
