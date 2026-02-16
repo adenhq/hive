@@ -42,6 +42,7 @@ Credential categories:
 - slack.py: Slack workspace credentials
 - google_maps.py: Google Maps Platform credentials
 - calcom.py: Cal.com scheduling API credentials
+- clickup.py: ClickUp workspace and task credentials
 
 Note: Tools that don't need credentials simply omit the 'credentials' parameter
 from their register_tools() function. This convention is enforced by CI tests.
@@ -57,6 +58,7 @@ from .base import CredentialError, CredentialSpec
 from .bigquery import BIGQUERY_CREDENTIALS
 from .browser import get_aden_auth_url, get_aden_setup_url, open_browser
 from .calcom import CALCOM_CREDENTIALS
+from .clickup import CLICKUP_CREDENTIALS
 from .email import EMAIL_CREDENTIALS
 from .gcp_vision import GCP_VISION_CREDENTIALS
 from .github import GITHUB_CREDENTIALS
@@ -95,6 +97,7 @@ CREDENTIAL_SPECS = {
     **TELEGRAM_CREDENTIALS,
     **BIGQUERY_CREDENTIALS,
     **CALCOM_CREDENTIALS,
+    **CLICKUP_CREDENTIALS,
 }
 
 __all__ = [
@@ -134,4 +137,5 @@ __all__ = [
     "TELEGRAM_CREDENTIALS",
     "BIGQUERY_CREDENTIALS",
     "CALCOM_CREDENTIALS",
+    "CLICKUP_CREDENTIALS",
 ]

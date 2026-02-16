@@ -25,6 +25,7 @@ from .apollo_tool import register_tools as register_apollo
 from .bigquery_tool import register_tools as register_bigquery
 from .calcom_tool import register_tools as register_calcom
 from .calendar_tool import register_tools as register_calendar
+from .clickup_tool import register_tools as register_clickup
 from .csv_tool import register_tools as register_csv
 from .email_tool import register_tools as register_email
 from .example_tool import register_tools as register_example
@@ -96,6 +97,7 @@ def register_all_tools(
     register_serpapi(mcp, credentials=credentials)
     register_calendar(mcp, credentials=credentials)
     register_calcom(mcp, credentials=credentials)
+    register_clickup(mcp, credentials=credentials)
     register_slack(mcp, credentials=credentials)
     register_telegram(mcp, credentials=credentials)
     register_vision(mcp, credentials=credentials)
@@ -160,6 +162,14 @@ def register_all_tools(
         "calcom_list_schedules",
         "calcom_list_event_types",
         "calcom_get_event_type",
+        "clickup_list_workspaces",
+        "clickup_list_spaces",
+        "clickup_list_lists",
+        "clickup_list_tasks",
+        "clickup_get_task",
+        "clickup_create_task",
+        "clickup_update_task",
+        "clickup_add_task_comment",
         "github_list_repos",
         "github_get_repo",
         "github_search_repos",
