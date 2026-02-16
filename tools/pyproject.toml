@@ -31,7 +31,7 @@ dependencies = [
     "litellm>=1.81.0",
     "resend>=2.0.0",
     "framework",
-    
+    "stripe>=14.3.0",
 ]
 
 [project.optional-dependencies]

@@ -42,6 +42,7 @@ Credential categories:
 - slack.py: Slack workspace credentials
 - google_maps.py: Google Maps Platform credentials
 - calcom.py: Cal.com scheduling API credentials
+- stripe.py: Stripe payment processing credentials
 
 Note: Tools that don't need credentials simply omit the 'credentials' parameter
 from their register_tools() function. This convention is enforced by CI tests.
@@ -76,6 +77,7 @@ from .shell_config import (
 )
 from .slack import SLACK_CREDENTIALS
 from .store_adapter import CredentialStoreAdapter
+from .stripe import STRIPE_CREDENTIALS
 from .telegram import TELEGRAM_CREDENTIALS
 
 # Merged registry of all credentials
@@ -95,6 +97,7 @@ CREDENTIAL_SPECS = {
     **TELEGRAM_CREDENTIALS,
     **BIGQUERY_CREDENTIALS,
     **CALCOM_CREDENTIALS,
+    **STRIPE_CREDENTIALS,
 }
 
 __all__ = [
@@ -134,4 +137,5 @@ __all__ = [
     "TELEGRAM_CREDENTIALS",
     "BIGQUERY_CREDENTIALS",
     "CALCOM_CREDENTIALS",
+    "STRIPE_CREDENTIALS",
 ]
