@@ -82,10 +82,30 @@ def main():
 
     register_testing_commands(subparsers)
 
+    # Dashboard command
+    dashboard_parser = subparsers.add_parser(
+        "dashboard",
+        help="Launch Hive Studio web interface",
+        description="Start the local agent control center.",
+    )
+    dashboard_parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port to run the dashboard on (default: 8000)",
+    )
+    dashboard_parser.set_defaults(func=cmd_dashboard)
+
     args = parser.parse_args()
 
     if hasattr(args, "func"):
         sys.exit(args.func(args))
+
+
+def cmd_dashboard(args: argparse.Namespace) -> int:
+    from framework.dashboard import start_dashboard
+    start_dashboard(args.port)
+    return 0
 
 
 if __name__ == "__main__":
