@@ -107,7 +107,7 @@ from framework.runner import AgentRunner
 runner = AgentRunner.load("examples/templates/inbox_management")
 
 # Run with input
-result = await runner.run({"input_key": "value"})
+result = await runner.run({"rules": "trash emails from marketing lists", "max_emails": 50})
 
 # Access results
 print(result.output)

@@ -93,7 +93,7 @@ from framework.runner import AgentRunner
 runner = AgentRunner.load("examples/templates/tech_news_reporter")
 
 # Run with input
-result = await runner.run({"input_key": "value"})
+result = await runner.run({})
 
 # Access results
 print(result.output)

@@ -106,7 +106,7 @@ from framework.runner import AgentRunner
 runner = AgentRunner.load("exports/job_hunter")
 
 # Run with input
-result = await runner.run({"input_key": "value"})
+result = await runner.run({})
 
 # Access results
 print(result.output)
