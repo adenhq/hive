@@ -88,21 +88,23 @@ class FileStorage:
     # === RUN OPERATIONS ===
 
     def save_run(self, run: Run) -> None:
-        """Save a run to storage.
-
-        DEPRECATED: This method is now a no-op.
-        New sessions use unified storage at sessions/{session_id}/state.json.
-        Tests should not rely on FileStorage - use unified session storage instead.
-        """
+        """Save a run to storage (deprecated but still supported for compatibility)."""
         import warnings
 
         warnings.warn(
             "FileStorage.save_run() is deprecated. "
-            "New sessions use unified storage at sessions/{session_id}/state.json. "
-            "This write has been skipped.",
+            "New sessions use unified storage at sessions/{session_id}/state.json.",
             DeprecationWarning,
             stacklevel=2,
         )
+
+        runs_dir = self.base_path / "runs"
+        runs_dir.mkdir(parents=True, exist_ok=True)
+
+        run_path = runs_dir / f"{run.run_id}.json"
+
+        with atomic_write(run_path) as f:
+            f.write(run.model_dump_json(indent=2))
         # No-op: do not write to deprecated locations
 
     def load_run(self, run_id: str) -> Run | None:
@@ -201,8 +203,9 @@ class FileStorage:
         return self._get_index("by_node", node_id)
 
     def list_all_runs(self) -> list[str]:
-        """List all run IDs."""
         runs_dir = self.base_path / "runs"
+        if not runs_dir.exists():
+            return []
         return [f.stem for f in runs_dir.glob("*.json")]
 
     def list_all_goals(self) -> list[str]:
