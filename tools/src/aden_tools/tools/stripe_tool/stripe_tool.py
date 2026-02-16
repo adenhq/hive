@@ -66,7 +66,7 @@ class StripeTool:
         stripe.api_key = config.api_key
         stripe.api_version = config.api_version
         stripe.max_network_retries = config.max_retries
-        # Note: timeout configuration varies by Stripe SDK version
+        # Note: timeout configuration varies by Stripe SDK versions
         # Some versions support stripe.default_http_client, others don't
         # Timeout is handled by the SDK internally in newer versions
 

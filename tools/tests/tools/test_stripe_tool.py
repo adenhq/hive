@@ -80,7 +80,7 @@ def mock_payment_intent():
     }
 
 
-# ==================== CUSTOMER TESTS ====================
+# ==================== CUSTOMERS TESTS ====================
 
 
 class TestCustomerManagement:

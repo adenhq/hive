@@ -103,7 +103,7 @@ def register_all_tools(
     register_google_maps(mcp, credentials=credentials)
     register_bigquery(mcp, credentials=credentials)
 
-    # Register Stripe tool
+    # Register Stripe tools
     register_stripe(mcp)  # Note: Stripe tool handles credentials
 
     # Register file system toolkits
