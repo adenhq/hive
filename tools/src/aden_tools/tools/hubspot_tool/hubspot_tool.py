@@ -7,7 +7,6 @@ Supports:
 
 API Reference: https://developers.hubspot.com/docs/api/crm
 """
-
 from __future__ import annotations
 
 import os

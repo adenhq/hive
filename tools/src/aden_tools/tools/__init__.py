@@ -36,13 +36,12 @@ from .file_system_toolkits.list_dir import register_tools as register_list_dir
 from .file_system_toolkits.replace_file_content import (
     register_tools as register_replace_file_content,
 )
-
-# Import file system toolkits
 from .file_system_toolkits.view_file import register_tools as register_view_file
 from .file_system_toolkits.write_to_file import register_tools as register_write_to_file
 from .github_tool import register_tools as register_github
 from .google_maps_tool import register_tools as register_google_maps
 from .hubspot_tool import register_tools as register_hubspot
+from .hubspot_webhook_tool import register_tools as register_hubspot_webhook
 from .news_tool import register_tools as register_news
 from .pdf_read_tool import register_tools as register_pdf_read
 from .runtime_logs_tool import register_tools as register_runtime_logs
@@ -101,6 +100,8 @@ def register_all_tools(
     register_execute_command(mcp)
     register_data_tools(mcp)
     register_csv(mcp)
+    register_hubspot_webhook(mcp)
+
 
     return [
         "example_tool",
@@ -250,6 +251,9 @@ def register_all_tools(
         "maps_distance_matrix",
         "maps_place_details",
         "maps_place_search",
+        # HubSpot webhook tools
+        "hubspot_webhook_verify",
+        "hubspot_webhook_receive",
     ]
 
 
