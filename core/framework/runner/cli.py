@@ -551,7 +551,17 @@ def cmd_run(args: argparse.Namespace) -> int:
             print(f"Status: {status_str}")
             print(f"Steps executed: {result.steps_executed}")
             print(f"Path: {' → '.join(result.path)}")
+            
+            # --- SUMMARY REPORT ---
+            print("\n--- Summary Report ---")
+            print(f"  Duration: {result.duration_seconds:.2f}s")
+            if result.cost_usd > 0:
+                print(f"  Cost: ${result.cost_usd:.4f}")
+            else:
+                 print("  Cost: $0.00 (or untracked)")
+            print(f"  Tokens: {result.total_tokens} tokens")
             print("=" * 60)
+
 
             if result.success:
                 print("\n--- Results ---")
