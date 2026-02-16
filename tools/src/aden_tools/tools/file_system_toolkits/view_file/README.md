@@ -84,3 +84,4 @@ result = view_file(
 )
 # Returns: {"error": "File not found at nonexistent.txt"}
 ```
+

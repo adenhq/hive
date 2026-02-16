@@ -89,4 +89,4 @@ result = write_to_file(
     append=True
 )
 # Returns: {"success": True, "path": "logs/activity.log", "mode": "appended", "bytes_written": 24}
-```
+
