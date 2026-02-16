@@ -56,3 +56,4 @@ STRIPE_CREDENTIALS = {
 }
 
 __all__ = ["STRIPE_CREDENTIALS"]
+# Note: Stripe credentials
