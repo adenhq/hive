@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from framework.config import get_hive_config, get_preferred_model
+from framework.credentials.validation import (
+    ensure_credential_key_env as _ensure_credential_key_env,
+    validate_agent_credentials,
+)
 from framework.graph import Goal
 from framework.graph.edge import (
     DEFAULT_MAX_TOKENS,
@@ -21,7 +25,7 @@ from framework.graph.executor import ExecutionResult
 from framework.graph.node import NodeSpec
 from framework.llm.provider import LLMProvider, Tool
 from framework.runner.tool_registry import ToolRegistry
-from framework.runtime.agent_runtime import AgentRuntime, create_agent_runtime
+from framework.runtime.agent_runtime import AgentRuntime, AgentRuntimeConfig, create_agent_runtime
 from framework.runtime.execution_stream import EntryPointSpec
 from framework.runtime.runtime_log_store import RuntimeLogStore
 
@@ -30,32 +34,6 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
-
-
-def _ensure_credential_key_env() -> None:
-    """Load HIVE_CREDENTIAL_KEY from shell config if not already in environment.
-
-    The setup-credentials skill writes the encryption key to ~/.zshrc or ~/.bashrc.
-    If the user hasn't sourced their config in the current shell, this reads it
-    directly so the runner (and any MCP subprocesses it spawns) can unlock the
-    encrypted credential store.
-
-    Only HIVE_CREDENTIAL_KEY is loaded this way — all other secrets (API keys, etc.)
-    come from the credential store itself.
-    """
-    if os.environ.get("HIVE_CREDENTIAL_KEY"):
-        return
-
-    try:
-        from aden_tools.credentials.shell_config import check_env_var_in_shell_config
-
-        found, value = check_env_var_in_shell_config("HIVE_CREDENTIAL_KEY")
-        if found and value:
-            os.environ["HIVE_CREDENTIAL_KEY"] = value
-            logger.debug("Loaded HIVE_CREDENTIAL_KEY from shell config")
-    except ImportError:
-        pass
-
 
 CLAUDE_CREDENTIALS_FILE = Path.home() / ".claude" / ".credentials.json"
 
@@ -268,6 +246,7 @@ class AgentRunner:
         storage_path: Path | None = None,
         model: str | None = None,
         intro_message: str = "",
+        runtime_config: "AgentRuntimeConfig | None" = None,
     ):
         """
         Initialize the runner (use AgentRunner.load() instead).
@@ -280,6 +259,7 @@ class AgentRunner:
             storage_path: Path for runtime storage (defaults to temp)
             model: Model to use (reads from agent config or ~/.hive/configuration.json if None)
             intro_message: Optional greeting shown to user on TUI load
+            runtime_config: Optional AgentRuntimeConfig (webhook settings, etc.)
         """
         self.agent_path = agent_path
         self.graph = graph
@@ -287,6 +267,7 @@ class AgentRunner:
         self.mock_mode = mock_mode
         self.model = model or self._resolve_default_model()
         self.intro_message = intro_message
+        self.runtime_config = runtime_config
 
         # Set up storage
         if storage_path:
@@ -331,88 +312,8 @@ class AgentRunner:
         """Check that required credentials are available before spawning MCP servers.
 
         Raises CredentialError with actionable guidance if any are missing.
-        Uses graph node specs + CREDENTIAL_SPECS — no tool registry needed.
         """
-        required_tools: set[str] = set()
-        for node in self.graph.nodes:
-            if node.tools:
-                required_tools.update(node.tools)
-        node_types: set[str] = {node.node_type for node in self.graph.nodes}
-
-        try:
-            from aden_tools.credentials import CREDENTIAL_SPECS
-
-            from framework.credentials import CredentialStore
-            from framework.credentials.storage import (
-                CompositeStorage,
-                EncryptedFileStorage,
-                EnvVarStorage,
-            )
-        except ImportError:
-            return  # aden_tools not installed, skip check
-
-        # Build credential store (same logic as validate())
-        env_mapping = {
-            (spec.credential_id or name): spec.env_var for name, spec in CREDENTIAL_SPECS.items()
-        }
-        storages: list = [EnvVarStorage(env_mapping=env_mapping)]
-        if os.environ.get("HIVE_CREDENTIAL_KEY"):
-            storages.insert(0, EncryptedFileStorage())
-        if len(storages) == 1:
-            storage = storages[0]
-        else:
-            storage = CompositeStorage(primary=storages[0], fallbacks=storages[1:])
-        store = CredentialStore(storage=storage)
-
-        # Build reverse mappings
-        tool_to_cred: dict[str, str] = {}
-        node_type_to_cred: dict[str, str] = {}
-        for cred_name, spec in CREDENTIAL_SPECS.items():
-            for tool_name in spec.tools:
-                tool_to_cred[tool_name] = cred_name
-            for nt in spec.node_types:
-                node_type_to_cred[nt] = cred_name
-
-        missing: list[str] = []
-        checked: set[str] = set()
-
-        # Check tool credentials
-        for tool_name in sorted(required_tools):
-            cred_name = tool_to_cred.get(tool_name)
-            if cred_name is None or cred_name in checked:
-                continue
-            checked.add(cred_name)
-            spec = CREDENTIAL_SPECS[cred_name]
-            cred_id = spec.credential_id or cred_name
-            if spec.required and not store.is_available(cred_id):
-                affected = sorted(t for t in required_tools if t in spec.tools)
-                entry = f"  {spec.env_var} for {', '.join(affected)}"
-                if spec.help_url:
-                    entry += f"\n    Get it at: {spec.help_url}"
-                missing.append(entry)
-
-        # Check node type credentials (e.g., ANTHROPIC_API_KEY for LLM nodes)
-        for nt in sorted(node_types):
-            cred_name = node_type_to_cred.get(nt)
-            if cred_name is None or cred_name in checked:
-                continue
-            checked.add(cred_name)
-            spec = CREDENTIAL_SPECS[cred_name]
-            cred_id = spec.credential_id or cred_name
-            if spec.required and not store.is_available(cred_id):
-                affected_types = sorted(t for t in node_types if t in spec.node_types)
-                entry = f"  {spec.env_var} for {', '.join(affected_types)} nodes"
-                if spec.help_url:
-                    entry += f"\n    Get it at: {spec.help_url}"
-                missing.append(entry)
-
-        if missing:
-            from framework.credentials.models import CredentialError
-
-            lines = ["Missing required credentials:\n"]
-            lines.extend(missing)
-            lines.append("\nTo fix: run /hive-credentials in Claude Code.")
-            raise CredentialError("\n".join(lines))
+        validate_agent_credentials(self.graph.nodes)
 
     @staticmethod
     def _import_agent_module(agent_path: Path):
@@ -510,18 +411,32 @@ class AgentRunner:
                 intro_message = agent_metadata.intro_message
 
             # Build GraphSpec from module-level variables
-            graph = GraphSpec(
-                id=f"{agent_path.name}-graph",
-                goal_id=goal.id,
-                version="1.0.0",
-                entry_node=getattr(agent_module, "entry_node", nodes[0].id),
-                entry_points=getattr(agent_module, "entry_points", {}),
-                terminal_nodes=getattr(agent_module, "terminal_nodes", []),
-                pause_nodes=getattr(agent_module, "pause_nodes", []),
-                nodes=nodes,
-                edges=edges,
-                max_tokens=max_tokens,
-            )
+            graph_kwargs: dict = {
+                "id": f"{agent_path.name}-graph",
+                "goal_id": goal.id,
+                "version": "1.0.0",
+                "entry_node": getattr(agent_module, "entry_node", nodes[0].id),
+                "entry_points": getattr(agent_module, "entry_points", {}),
+                "async_entry_points": getattr(agent_module, "async_entry_points", []),
+                "terminal_nodes": getattr(agent_module, "terminal_nodes", []),
+                "pause_nodes": getattr(agent_module, "pause_nodes", []),
+                "nodes": nodes,
+                "edges": edges,
+                "max_tokens": max_tokens,
+                "loop_config": getattr(agent_module, "loop_config", {}),
+            }
+            # Only pass optional fields if explicitly defined by the agent module
+            conversation_mode = getattr(agent_module, "conversation_mode", None)
+            if conversation_mode is not None:
+                graph_kwargs["conversation_mode"] = conversation_mode
+            identity_prompt = getattr(agent_module, "identity_prompt", None)
+            if identity_prompt is not None:
+                graph_kwargs["identity_prompt"] = identity_prompt
+
+            graph = GraphSpec(**graph_kwargs)
+
+            # Read runtime config (webhook settings, etc.) if defined
+            agent_runtime_config = getattr(agent_module, "runtime_config", None)
 
             return cls(
                 agent_path=agent_path,
@@ -531,6 +446,7 @@ class AgentRunner:
                 storage_path=storage_path,
                 model=model,
                 intro_message=intro_message,
+                runtime_config=agent_runtime_config,
             )
 
         # Fallback: load from agent.json (legacy JSON-based agents)
@@ -786,17 +702,19 @@ class AgentRunner:
             )
             entry_points.append(ep)
 
-        # Single-entry agent with no async entry points: create a default entry point
-        if not entry_points and self.graph.entry_node:
-            logger.info("Creating default entry point for single-entry agent")
-            entry_points.append(
+        # Always create a primary entry point for the graph's entry node.
+        # For multi-entry-point agents this ensures the primary path (e.g.
+        # user-facing rule setup) is reachable alongside async entry points.
+        if self.graph.entry_node:
+            entry_points.insert(
+                0,
                 EntryPointSpec(
                     id="default",
                     name="Default",
                     entry_node=self.graph.entry_node,
                     trigger_type="manual",
                     isolation_level="shared",
-                )
+                ),
             )
 
         # Create AgentRuntime with all entry points
@@ -823,6 +741,7 @@ class AgentRunner:
             tool_executor=tool_executor,
             runtime_log_store=log_store,
             checkpoint_config=checkpoint_config,
+            config=self.runtime_config,
         )
 
         # Pass intro_message through for TUI display
@@ -1308,7 +1227,7 @@ Respond with JSON only:
 }}"""
 
         try:
-            response = eval_llm.complete(
+            response = await eval_llm.acomplete(
                 messages=[{"role": "user", "content": prompt}],
                 system="You are a capability evaluator. Respond with JSON only.",
                 max_tokens=256,
