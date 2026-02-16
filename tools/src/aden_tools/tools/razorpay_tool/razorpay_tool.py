@@ -305,15 +305,12 @@ def register_tools(
             api_key = credentials.get("razorpay")
             api_secret = credentials.get("razorpay_secret")
 
+            if api_key is not None and not isinstance(api_key, str):
+                api_key = None
+            if api_secret is not None and not isinstance(api_secret, str):
+                api_secret = None
+
             if api_key and api_secret:
-                if not isinstance(api_key, str):
-                    msg = "Expected string from credentials.get('razorpay'), "
-                    msg += f"got {type(api_key).__name__}"
-                    raise TypeError(msg)
-                if not isinstance(api_secret, str):
-                    msg = "Expected string from credentials.get('razorpay_secret'), "
-                    msg += f"got {type(api_secret).__name__}"
-                    raise TypeError(msg)
                 return api_key, api_secret
         else:
             api_key = os.getenv("RAZORPAY_API_KEY")
