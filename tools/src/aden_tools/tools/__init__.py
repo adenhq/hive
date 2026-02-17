@@ -30,7 +30,11 @@ from .discord_tool import register_tools as register_discord
 
 # Security scanning tools
 from .dns_security_scanner import register_tools as register_dns_security_scanner
-from .email_tool import register_tools as register_email
+try:
+    from .email_tool import register_tools as register_email
+except ImportError:
+    def register_email(*args, **kwargs):
+        pass
 from .exa_search_tool import register_tools as register_exa_search
 from .example_tool import register_tools as register_example
 from .excel_tool import register_tools as register_excel
@@ -54,8 +58,13 @@ from .gmail_tool import register_tools as register_gmail
 from .google_maps_tool import register_tools as register_google_maps
 from .http_headers_scanner import register_tools as register_http_headers_scanner
 from .hubspot_tool import register_tools as register_hubspot
+from .linear_tool import register_tools as register_linear
 from .news_tool import register_tools as register_news
-from .pdf_read_tool import register_tools as register_pdf_read
+try:
+    from .pdf_read_tool import register_tools as register_pdf_read
+except ImportError:
+    def register_pdf_read(*args, **kwargs):
+        pass
 from .port_scanner import register_tools as register_port_scanner
 from .razorpay_tool import register_tools as register_razorpay
 from .risk_scorer import register_tools as register_risk_scorer
@@ -68,7 +77,11 @@ from .tech_stack_detector import register_tools as register_tech_stack_detector
 from .telegram_tool import register_tools as register_telegram
 from .time_tool import register_tools as register_time
 from .vision_tool import register_tools as register_vision
-from .web_scrape_tool import register_tools as register_web_scrape
+try:
+    from .web_scrape_tool import register_tools as register_web_scrape
+except ImportError:
+    def register_web_scrape(*args, **kwargs):
+        pass
 from .web_search_tool import register_tools as register_web_search
 
 
@@ -116,6 +129,7 @@ def register_all_tools(
     register_vision(mcp, credentials=credentials)
     register_google_maps(mcp, credentials=credentials)
     register_bigquery(mcp, credentials=credentials)
+    register_linear(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
@@ -317,6 +331,9 @@ def register_all_tools(
         "maps_place_search",
         "run_bigquery_query",
         "describe_dataset",
+        "linear_create_issue",
+        "linear_get_issue",
+        "linear_search_issues",
         # Security scanning tools
         "ssl_tls_scan",
         "http_headers_scan",
