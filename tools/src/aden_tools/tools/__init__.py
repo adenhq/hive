@@ -26,6 +26,7 @@ from .bigquery_tool import register_tools as register_bigquery
 from .calcom_tool import register_tools as register_calcom
 from .calendar_tool import register_tools as register_calendar
 from .csv_tool import register_tools as register_csv
+from .asana_tool import register_tools as register_asana
 from .discord_tool import register_tools as register_discord
 
 # Security scanning tools
@@ -111,6 +112,7 @@ def register_all_tools(
     register_calcom(mcp, credentials=credentials)
     register_discord(mcp, credentials=credentials)
     register_slack(mcp, credentials=credentials)
+    register_asana(mcp, credentials=credentials)
     register_razorpay(mcp, credentials=credentials)
     register_telegram(mcp, credentials=credentials)
     register_vision(mcp, credentials=credentials)
@@ -298,6 +300,32 @@ def register_all_tools(
         "slack_kick_user_from_channel",
         "slack_delete_file",
         "slack_get_team_stats",
+        # Asana tools
+        "asana_create_task",
+        "asana_update_task",
+        "asana_get_task",
+        "asana_search_tasks",
+        "asana_delete_task",
+        "asana_add_task_comment",
+        "asana_complete_task",
+        "asana_add_subtask",
+        "asana_create_project",
+        "asana_update_project",
+        "asana_get_project",
+        "asana_list_projects",
+        "asana_get_project_tasks",
+        "asana_add_task_to_project",
+        "asana_get_workspace",
+        "asana_list_workspaces",
+        "asana_get_user",
+        "asana_list_team_members",
+        "asana_create_section",
+        "asana_list_sections",
+        "asana_move_task_to_section",
+        "asana_create_tag",
+        "asana_add_tag_to_task",
+        "asana_list_tags",
+        "asana_update_custom_field",
         "vision_detect_labels",
         "vision_detect_text",
         "vision_detect_faces",

@@ -41,6 +41,7 @@ Credential categories:
 - github.py: GitHub API credentials
 - hubspot.py: HubSpot CRM credentials
 - slack.py: Slack workspace credentials
+- asana.py: Asana Personal Access Token
 - google_maps.py: Google Maps Platform credentials
 - calcom.py: Cal.com scheduling API credentials
 
@@ -78,6 +79,7 @@ from .shell_config import (
     get_shell_source_command,
 )
 from .slack import SLACK_CREDENTIALS
+from .asana import ASANA_CREDENTIALS
 from .store_adapter import CredentialStoreAdapter
 from .telegram import TELEGRAM_CREDENTIALS
 
@@ -95,6 +97,7 @@ CREDENTIAL_SPECS = {
     **HUBSPOT_CREDENTIALS,
     **GOOGLE_CALENDAR_CREDENTIALS,
     **SLACK_CREDENTIALS,
+    **ASANA_CREDENTIALS,
     **SERPAPI_CREDENTIALS,
     **RAZORPAY_CREDENTIALS,
     **TELEGRAM_CREDENTIALS,
@@ -134,6 +137,7 @@ __all__ = [
     "HUBSPOT_CREDENTIALS",
     "GOOGLE_CALENDAR_CREDENTIALS",
     "SLACK_CREDENTIALS",
+    "ASANA_CREDENTIALS",
     "APOLLO_CREDENTIALS",
     "SERPAPI_CREDENTIALS",
     "RAZORPAY_CREDENTIALS",
