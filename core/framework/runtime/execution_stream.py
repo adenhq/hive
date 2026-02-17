@@ -196,6 +196,11 @@ class ExecutionStream:
                 )
             )
 
+    @property
+    def active_execution_ids(self) -> list[str]:
+        """Return IDs of all currently active executions."""
+        return list(self._active_executions.keys())
+
     def _record_execution_result(self, execution_id: str, result: ExecutionResult) -> None:
         """Record a completed execution result with retention pruning."""
         self._execution_results[execution_id] = result
@@ -293,8 +298,13 @@ class ExecutionStream:
         if not self._running:
             raise RuntimeError(f"ExecutionStream '{self.stream_id}' is not running")
 
-        # Generate execution ID using unified session format
-        if self._session_store:
+        # When resuming, reuse the original session ID so the execution
+        # continues in the same session directory instead of creating a new one.
+        resume_session_id = session_state.get("resume_session_id") if session_state else None
+
+        if resume_session_id:
+            execution_id = resume_session_id
+        elif self._session_store:
             execution_id = self._session_store.generate_session_id()
         else:
             # Fallback to old format if SessionStore not available (shouldn't happen)
@@ -336,6 +346,11 @@ class ExecutionStream:
     async def _run_execution(self, ctx: ExecutionContext) -> None:
         """Run a single execution within the stream."""
         execution_id = ctx.id
+
+        # When sharing a session with another entry point (resume_session_id),
+        # skip writing initial/final session state — the primary execution
+        # owns the state.json and _write_progress() keeps memory up-to-date.
+        _is_shared_session = bool(ctx.session_state and ctx.session_state.get("resume_session_id"))
 
         # Acquire semaphore to limit concurrency
         async with self._semaphore:
@@ -399,7 +414,8 @@ class ExecutionStream:
                 self._active_executors[execution_id] = executor
 
                 # Write initial session state
-                await self._write_session_state(execution_id, ctx)
+                if not _is_shared_session:
+                    await self._write_session_state(execution_id, ctx)
 
                 # Create modified graph with entry point
                 # We need to override the entry_node to use our entry point
@@ -433,8 +449,9 @@ class ExecutionStream:
                 if result.paused_at:
                     ctx.status = "paused"
 
-                # Write final session state
-                await self._write_session_state(execution_id, ctx, result=result)
+                # Write final session state (skip for shared-session executions)
+                if not _is_shared_session:
+                    await self._write_session_state(execution_id, ctx, result=result)
 
                 # Emit completion/failure event
                 if self._event_bus:
@@ -485,11 +502,14 @@ class ExecutionStream:
                 # Store result with retention
                 self._record_execution_result(execution_id, result)
 
-                # Write session state
-                if has_result and result.paused_at:
-                    await self._write_session_state(execution_id, ctx, result=result)
-                else:
-                    await self._write_session_state(execution_id, ctx, error="Execution cancelled")
+                # Write session state (skip for shared-session executions)
+                if not _is_shared_session:
+                    if has_result and result.paused_at:
+                        await self._write_session_state(execution_id, ctx, result=result)
+                    else:
+                        await self._write_session_state(
+                            execution_id, ctx, error="Execution cancelled"
+                        )
 
                 # Don't re-raise - we've handled it and saved state
 
@@ -506,8 +526,9 @@ class ExecutionStream:
                     ),
                 )
 
-                # Write error session state
-                await self._write_session_state(execution_id, ctx, error=str(e))
+                # Write error session state (skip for shared-session executions)
+                if not _is_shared_session:
+                    await self._write_session_state(execution_id, ctx, error=str(e))
 
                 # End run with failure (for observability)
                 try:
@@ -597,10 +618,22 @@ class ExecutionStream:
                     entry_point=self.entry_spec.id,
                 )
             else:
-                # Create initial state
-                from framework.schemas.session_state import SessionTimestamps
+                # Create initial state — when resuming, preserve the previous
+                # execution's progress so crashes don't lose track of state.
+                from framework.schemas.session_state import (
+                    SessionProgress,
+                    SessionTimestamps,
+                )
 
                 now = datetime.now().isoformat()
+                ss = ctx.session_state or {}
+                progress = SessionProgress(
+                    current_node=ss.get("paused_at") or ss.get("resume_from"),
+                    paused_at=ss.get("paused_at"),
+                    resume_from=ss.get("paused_at") or ss.get("resume_from"),
+                    path=ss.get("execution_path", []),
+                    node_visit_counts=ss.get("node_visit_counts", {}),
+                )
                 state = SessionState(
                     session_id=execution_id,
                     stream_id=self.stream_id,
@@ -613,6 +646,8 @@ class ExecutionStream:
                         started_at=ctx.started_at.isoformat(),
                         updated_at=now,
                     ),
+                    progress=progress,
+                    memory=ss.get("memory", {}),
                     input_data=ctx.input_data,
                 )
 
@@ -629,20 +664,35 @@ class ExecutionStream:
             logger.error(f"Failed to write state.json for {execution_id}: {e}")
 
     def _create_modified_graph(self) -> "GraphSpec":
-        """Create a graph with the entry point overridden."""
-        # Use the existing graph but override entry_node
+        """Create a graph with the entry point overridden.
+
+        Preserves the original graph's entry_points and async_entry_points
+        so that validation correctly considers ALL entry nodes reachable.
+        Each stream only executes from its own entry_node, but the full
+        graph must validate with all entry points accounted for.
+        """
         from framework.graph.edge import GraphSpec
 
-        # Create a copy with modified entry node
+        # Merge entry points: this stream's entry + original graph's primary
+        # entry + any other entry points. This ensures all nodes are
+        # reachable during validation even though this stream only starts
+        # from self.entry_spec.entry_node.
+        merged_entry_points = {
+            "start": self.entry_spec.entry_node,
+        }
+        # Preserve the original graph's primary entry node
+        if self.graph.entry_node:
+            merged_entry_points["primary"] = self.graph.entry_node
+        # Include any explicitly defined entry points from the graph
+        merged_entry_points.update(self.graph.entry_points)
+
         return GraphSpec(
             id=self.graph.id,
             goal_id=self.graph.goal_id,
             version=self.graph.version,
             entry_node=self.entry_spec.entry_node,  # Use our entry point
-            entry_points={
-                "start": self.entry_spec.entry_node,
-                **self.graph.entry_points,
-            },
+            entry_points=merged_entry_points,
+            async_entry_points=self.graph.async_entry_points,
             terminal_nodes=self.graph.terminal_nodes,
             pause_nodes=self.graph.pause_nodes,
             nodes=self.graph.nodes,
@@ -651,6 +701,9 @@ class ExecutionStream:
             max_tokens=self.graph.max_tokens,
             max_steps=self.graph.max_steps,
             cleanup_llm_model=self.graph.cleanup_llm_model,
+            loop_config=self.graph.loop_config,
+            conversation_mode=self.graph.conversation_mode,
+            identity_prompt=self.graph.identity_prompt,
         )
 
     async def wait_for_completion(
