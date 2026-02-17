@@ -72,6 +72,14 @@ class StripeTool:
                 stripe.api_version = self.config.api_version
             stripe.max_network_retries = self.config.max_retries
 
+    @property
+    def _missing_creds_error(self) -> dict[str, str]:
+        """Return standardized error message when credentials are missing."""
+        return {
+            "error": "Stripe API key not configured.",
+            "help": "Set STRIPE_API_KEY environment variable from Stripe dashboard: https://dashboard.stripe.com/apikeys"
+        }
+
     # ==================== CUSTOMER MANAGEMENT ====================
 
     def create_customer(
@@ -89,9 +97,7 @@ class StripeTool:
         Create a new customer.
         """
         if not self.config.api_key:
-            return {
-                "error": "Stripe API key not configured. Set STRIPE_API_KEY environment variable."
-            }
+            return self._missing_creds_error
 
         params = {"email": email}
         if name:
@@ -115,7 +121,7 @@ class StripeTool:
     def get_customer_by_email(self, email: str) -> dict[str, Any] | None:
         """Retrieve a customer by email address."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         customers = stripe.Customer.list(email=email, limit=1)
         if customers.data:
@@ -125,7 +131,7 @@ class StripeTool:
     def get_customer_by_id(self, customer_id: str) -> dict[str, Any]:
         """Retrieve a customer by ID."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         customer = stripe.Customer.retrieve(customer_id)
         return customer.to_dict()
@@ -143,7 +149,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Update an existing customer."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {}
         if email:
@@ -173,7 +179,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """List customers with optional filtering and pagination."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {"limit": min(limit, 100)}
         if email:
@@ -189,7 +195,7 @@ class StripeTool:
     def delete_customer(self, customer_id: str) -> dict[str, Any]:
         """Delete a customer."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         result = stripe.Customer.delete(customer_id)
         return result.to_dict()
@@ -211,7 +217,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Create a new subscription for a customer."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         # Handle simplified single item creation
         items = [{"price": price_id, "quantity": quantity}]
@@ -238,7 +244,7 @@ class StripeTool:
     def get_subscription_status(self, subscription_id: str) -> dict[str, Any]:
         """Get the status of a subscription."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         subscription = stripe.Subscription.retrieve(subscription_id)
         # Return full object, caller can check .status
@@ -247,7 +253,7 @@ class StripeTool:
     def get_subscription(self, subscription_id: str) -> dict[str, Any]:
         """Retrieve a subscription by ID."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         subscription = stripe.Subscription.retrieve(subscription_id)
         return subscription.to_dict()
@@ -265,7 +271,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Update an existing subscription."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {"proration_behavior": proration_behavior}
 
@@ -299,7 +305,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Cancel a subscription."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         if cancel_at_period_end:
             subscription = stripe.Subscription.modify(subscription_id, cancel_at_period_end=True)
@@ -318,7 +324,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Pause a subscription."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {"pause_collection": {"behavior": "void"}}
         if resumes_at:
@@ -330,7 +336,7 @@ class StripeTool:
     def resume_subscription(self, subscription_id: str) -> dict[str, Any]:
         """Resume a paused subscription."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         subscription = stripe.Subscription.modify(subscription_id, pause_collection="")
         return subscription.to_dict()
@@ -344,7 +350,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """List subscriptions with optional filtering."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {"limit": min(limit, 100)}
         if customer_id:
@@ -370,7 +376,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Create a new invoice."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {
             "customer": customer_id,
@@ -390,7 +396,7 @@ class StripeTool:
     def get_invoice(self, invoice_id: str) -> dict[str, Any]:
         """Retrieve an invoice by ID."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         invoice = stripe.Invoice.retrieve(invoice_id)
         return invoice.to_dict()
@@ -405,7 +411,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """List invoices with optional filtering."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {"limit": min(limit, 100)}
         if customer_id:
@@ -423,7 +429,7 @@ class StripeTool:
     def pay_invoice(self, invoice_id: str, payment_method: str | None = None) -> dict[str, Any]:
         """Pay an invoice."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {}
         if payment_method:
@@ -435,7 +441,7 @@ class StripeTool:
     def void_invoice(self, invoice_id: str) -> dict[str, Any]:
         """Void an invoice."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         invoice = stripe.Invoice.void_invoice(invoice_id)
         return invoice.to_dict()
@@ -443,7 +449,7 @@ class StripeTool:
     def finalize_invoice(self, invoice_id: str, auto_advance: bool = False) -> dict[str, Any]:
         """Finalize a draft invoice."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         invoice = stripe.Invoice.finalize_invoice(invoice_id, auto_advance=auto_advance)
         return invoice.to_dict()
@@ -453,7 +459,7 @@ class StripeTool:
     def attach_payment_method(self, payment_method_id: str, customer_id: str) -> dict[str, Any]:
         """Attach a payment method to a customer."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         payment_method = stripe.PaymentMethod.attach(payment_method_id, customer=customer_id)
         return payment_method.to_dict()
@@ -461,7 +467,7 @@ class StripeTool:
     def detach_payment_method(self, payment_method_id: str) -> dict[str, Any]:
         """Detach a payment method from a customer."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         payment_method = stripe.PaymentMethod.detach(payment_method_id)
         return payment_method.to_dict()
@@ -471,7 +477,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """List payment methods for a customer."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         payment_methods = stripe.PaymentMethod.list(
             customer=customer_id, type=type, limit=min(limit, 100)
@@ -483,7 +489,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Set default payment method for a customer."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         customer = stripe.Customer.modify(
             customer_id, invoice_settings={"default_payment_method": payment_method_id}
@@ -505,7 +511,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Create a payment intent."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {"amount": amount, "currency": currency.lower()}
         if customer_id:
@@ -529,7 +535,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Confirm a payment intent."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {}
         if payment_method:
@@ -543,7 +549,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Cancel a payment intent."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {}
         if cancellation_reason:
@@ -557,7 +563,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Capture a payment intent."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {}
         if amount_to_capture:
@@ -571,7 +577,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """List payment intents."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {"limit": min(limit, 100)}
         if customer_id:
@@ -598,7 +604,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Create a Checkout Session."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         # Handle simplified line items
         line_items = [{"price": price_id, "quantity": quantity}]
@@ -623,7 +629,7 @@ class StripeTool:
     def get_checkout_session(self, session_id: str) -> dict[str, Any]:
         """Retrieve a checkout session."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         session = stripe.checkout.Session.retrieve(session_id)
         return session.to_dict()
@@ -633,7 +639,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """List checkout sessions."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         sessions = stripe.checkout.Session.list(
             limit=min(limit, 100), starting_after=starting_after
@@ -643,7 +649,7 @@ class StripeTool:
     def expire_checkout_session(self, session_id: str) -> dict[str, Any]:
         """Expire a checkout session."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         session = stripe.checkout.Session.expire(session_id)
         return session.to_dict()
@@ -659,7 +665,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Create a payment link."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         # Handle simplified line items
         line_items = [{"price": price_id, "quantity": quantity}]
@@ -685,7 +691,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Create a product."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {"name": name, "active": active}
         if description:
@@ -708,7 +714,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Update a product."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {}
         if name:
@@ -726,7 +732,7 @@ class StripeTool:
     def get_product(self, product_id: str) -> dict[str, Any]:
         """Retrieve a product."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         product = stripe.Product.retrieve(product_id)
         return product.to_dict()
@@ -736,7 +742,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """List products."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {"limit": min(limit, 100)}
         if active is not None:
@@ -750,7 +756,7 @@ class StripeTool:
     def archive_product(self, product_id: str) -> dict[str, Any]:
         """Archive a product (set active=False)."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         product = stripe.Product.modify(product_id, active=False)
         return product.to_dict()
@@ -769,7 +775,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Create a price for a product."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {
             "product": product_id,
@@ -780,7 +786,7 @@ class StripeTool:
         if recurring_interval:
             params["recurring"] = {
                 "interval": recurring_interval,
-                "interval_count": recurring_interval_count,
+                "interval_count": recurring_interval_count
             }
         if metadata:
             params["metadata"] = metadata
@@ -793,7 +799,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Update a price."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {}
         if metadata:
@@ -807,7 +813,7 @@ class StripeTool:
     def get_price(self, price_id: str) -> dict[str, Any]:
         """Retrieve a price."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         price = stripe.Price.retrieve(price_id)
         return price.to_dict()
@@ -821,7 +827,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """List prices."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {"limit": min(limit, 100)}
         if product_id:
@@ -849,7 +855,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Create a coupon."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {"duration": duration}
         if percent_off:
@@ -875,7 +881,7 @@ class StripeTool:
     def get_coupon(self, coupon_id: str) -> dict[str, Any]:
         """Retrieve a coupon."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         coupon = stripe.Coupon.retrieve(coupon_id)
         return coupon.to_dict()
@@ -883,7 +889,7 @@ class StripeTool:
     def delete_coupon(self, coupon_id: str) -> dict[str, Any]:
         """Delete a coupon."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         result = stripe.Coupon.delete(coupon_id)
         return result.to_dict()
@@ -900,7 +906,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Create a refund."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {}
         if payment_intent_id:
@@ -923,7 +929,7 @@ class StripeTool:
     def get_refund(self, refund_id: str) -> dict[str, Any]:
         """Retrieve a refund."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         refund = stripe.Refund.retrieve(refund_id)
         return refund.to_dict()
@@ -937,7 +943,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """List refunds."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {"limit": min(limit, 100)}
         if payment_intent_id:
@@ -953,7 +959,7 @@ class StripeTool:
     def cancel_refund(self, refund_id: str) -> dict[str, Any]:
         """Cancel a refund."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         refund = stripe.Refund.cancel(refund_id)
         return refund.to_dict()
@@ -963,7 +969,7 @@ class StripeTool:
     def get_dispute(self, dispute_id: str) -> dict[str, Any]:
         """Retrieve a dispute."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         dispute = stripe.Dispute.retrieve(dispute_id)
         return dispute.to_dict()
@@ -976,7 +982,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """List disputes."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {"limit": min(limit, 100)}
         if payment_intent_id:
@@ -996,7 +1002,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Update a dispute."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {}
         if evidence:
@@ -1012,7 +1018,7 @@ class StripeTool:
     def close_dispute(self, dispute_id: str) -> dict[str, Any]:
         """Close a dispute."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         dispute = stripe.Dispute.close(dispute_id)
         return dispute.to_dict()
@@ -1022,7 +1028,7 @@ class StripeTool:
     def get_balance_transaction(self, transaction_id: str) -> dict[str, Any]:
         """Retrieve a balance transaction."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         transaction = stripe.BalanceTransaction.retrieve(transaction_id)
         return transaction.to_dict()
@@ -1036,7 +1042,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """List balance transactions."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {"limit": min(limit, 100)}
         if type:
@@ -1061,7 +1067,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """Create a payout."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {"amount": amount, "currency": currency.lower()}
         if description:
@@ -1077,7 +1083,7 @@ class StripeTool:
     def get_payout(self, payout_id: str) -> dict[str, Any]:
         """Retrieve a payout."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         payout = stripe.Payout.retrieve(payout_id)
         return payout.to_dict()
@@ -1087,7 +1093,7 @@ class StripeTool:
     ) -> dict[str, Any]:
         """List payouts."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         params = {"limit": min(limit, 100)}
         if status:
@@ -1101,7 +1107,7 @@ class StripeTool:
     def cancel_payout(self, payout_id: str) -> dict[str, Any]:
         """Cancel a payout."""
         if not self.config.api_key:
-            return {"error": "Stripe API key not configured."}
+            return self._missing_creds_error
 
         payout = stripe.Payout.cancel(payout_id)
         return payout.to_dict()
@@ -1109,11 +1115,23 @@ class StripeTool:
     # ==================== WEBHOOKS ====================
 
     def verify_webhook_signature(
-        self, payload: str, sig_header: str, webhook_secret: str
+        self, payload: str, sig_header: str, webhook_secret: str | None = None
     ) -> dict[str, Any]:
         """Verify a webhook signature."""
+        if not self.config.api_key:
+            return self._missing_creds_error
+
+        # Use provided secret or fallback to config
+        secret = webhook_secret or self.config.webhook_secret
+
+        if not secret:
+             return {
+                "error": "Stripe webhook secret not configured.",
+                "help": "Set STRIPE_WEBHOOK_SECRET environment variable or provide it in the call."
+            }
+
         try:
-            event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+            event = stripe.Webhook.construct_event(payload, sig_header, secret)
             return event.to_dict() if hasattr(event, "to_dict") else dict(event)
         except Exception as e:
             return {"error": f"Webhook verification failed: {str(e)}"}
@@ -1122,6 +1140,11 @@ class StripeTool:
         self, payload: str, sig_header: str, webhook_secret: str, tolerance: int = 300
     ) -> dict[str, Any]:
         """Construct a webhook event."""
+        # Note: This method might not check API key strictly if it only does signature verification,
+        # but for consistency with other methods:
+        if not self.config.api_key:
+             return self._missing_creds_error
+
         try:
             event = stripe.Webhook.construct_event(
                 payload, sig_header, webhook_secret, tolerance=tolerance
