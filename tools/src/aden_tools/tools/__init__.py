@@ -53,6 +53,7 @@ from .gmail_tool import register_tools as register_gmail
 from .google_maps_tool import register_tools as register_google_maps
 from .http_headers_scanner import register_tools as register_http_headers_scanner
 from .hubspot_tool import register_tools as register_hubspot
+from .hubspot_webhook_tool import register_tools as register_hubspot_webhook
 from .news_tool import register_tools as register_news
 from .pdf_read_tool import register_tools as register_pdf_read
 from .port_scanner import register_tools as register_port_scanner
@@ -127,6 +128,7 @@ def register_all_tools(
     register_data_tools(mcp)
     register_csv(mcp)
     register_excel(mcp)
+    register_hubspot_webhook(mcp)
 
     # Security scanning tools (no credentials needed)
     register_ssl_tls_scanner(mcp)
