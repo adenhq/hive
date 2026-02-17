@@ -1,0 +1,81 @@
+{
+  "agent": {
+    "id": "research_summarizer_agent",
+    "name": "Research & Summarization Agent",
+    "version": "1.0.0",
+    "description": "Research any user provided topic from the web and generate a structured summary with key insights and references."
+  },
+  "graph": {
+    "id": "research_summarizer_graph",
+    "goal_id": "research-summarizer",
+    "version": "1.0.0",
+    "entry_node": "intake",
+    "entry_points": {
+      "start": "intake"
+    },
+    "pause_nodes": [],
+    "terminal_nodes": [
+      "compile-report"
+    ],
+    "nodes": [
+      {
+        "id": "intake",
+        "name": "Topic Intake",
+        "description": "Ask user what topic they want researched.",
+        "node_type": "event_loop",
+        "input_keys": [],
+        "output_keys": ["research_topic"],
+        "nullable_output_keys": [],
+        "system_prompt": "You are a research assistant. Ask the user what topic they want researched and summarized. After receiving topic, call set_output('research_topic', topic).",
+        "tools": [],
+        "client_facing": true
+      },
+      {
+        "id": "research",
+        "name": "Research Topic",
+        "description": "Search and collect information about the topic.",
+        "node_type": "event_loop",
+        "input_keys": ["research_topic"],
+        "output_keys": ["research_data"],
+        "nullable_output_keys": [],
+        "system_prompt": "Search the web for reliable information about the research_topic. Use web_search and web_scrape. Extract key insights and important points. Return structured research notes.",
+        "tools": ["web_search", "web_scrape"],
+        "client_facing": false
+      },
+      {
+        "id": "compile-report",
+        "name": "Compile Summary",
+        "description": "Generate structured summary report.",
+        "node_type": "event_loop",
+        "input_keys": ["research_data"],
+        "output_keys": ["final_report"],
+        "nullable_output_keys": [],
+        "system_prompt": "Create a clean structured summary of the research_data. Include key insights, bullet points, and conclusion. Save using save_data and provide to user using serve_file_to_user.",
+        "tools": ["save_data", "serve_file_to_user"],
+        "client_facing": false
+      }
+    ],
+    "edges": [
+      {
+        "id": "intake-to-research",
+        "source": "intake",
+        "target": "research",
+        "condition": "on_success",
+        "priority": 1
+      },
+      {
+        "id": "research-to-compile-report",
+        "source": "research",
+        "target": "compile-report",
+        "condition": "on_success",
+        "priority": 1
+      }
+    ]
+  },
+  "required_tools": [
+    "web_search",
+    "web_scrape",
+    "save_data",
+    "serve_file_to_user"
+  ]
+}
