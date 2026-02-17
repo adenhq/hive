@@ -58,6 +58,7 @@ from .news_tool import register_tools as register_news
 from .pdf_read_tool import register_tools as register_pdf_read
 from .port_scanner import register_tools as register_port_scanner
 from .razorpay_tool import register_tools as register_razorpay
+from .salesforce_tool import register_tools as register_salesforce
 from .risk_scorer import register_tools as register_risk_scorer
 from .runtime_logs_tool import register_tools as register_runtime_logs
 from .serpapi_tool import register_tools as register_serpapi
@@ -103,6 +104,7 @@ def register_all_tools(
     # Gmail inbox management (read, trash, modify labels)
     register_gmail(mcp, credentials=credentials)
     register_hubspot(mcp, credentials=credentials)
+    register_salesforce(mcp, credentials=credentials)
     register_news(mcp, credentials=credentials)
     register_apollo(mcp, credentials=credentials)
     register_exa_search(mcp, credentials=credentials)
