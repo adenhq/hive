@@ -27,6 +27,7 @@ from .calcom_tool import register_tools as register_calcom
 from .calendar_tool import register_tools as register_calendar
 from .csv_tool import register_tools as register_csv
 from .discord_tool import register_tools as register_discord
+from .docusign_tool import register_tools as register_docusign
 
 # Security scanning tools
 from .dns_security_scanner import register_tools as register_dns_security_scanner
@@ -110,6 +111,7 @@ def register_all_tools(
     register_calendar(mcp, credentials=credentials)
     register_calcom(mcp, credentials=credentials)
     register_discord(mcp, credentials=credentials)
+    register_docusign(mcp, credentials=credentials)
     register_slack(mcp, credentials=credentials)
     register_razorpay(mcp, credentials=credentials)
     register_telegram(mcp, credentials=credentials)
@@ -188,6 +190,10 @@ def register_all_tools(
         "discord_list_channels",
         "discord_send_message",
         "discord_get_messages",
+        "docusign_create_envelope",
+        "docusign_get_envelope_status",
+        "docusign_list_envelopes",
+        "docusign_download_document",
         "github_list_repos",
         "github_get_repo",
         "github_search_repos",
