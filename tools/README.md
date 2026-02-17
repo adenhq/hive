@@ -84,6 +84,8 @@ python mcp_server.py
 | `calendar_delete_event`| Delete a calendar event                        |
 | `calendar_get_calendar`| Get calendar metadata                          |
 | `calendar_check_availability` | Check free/busy status for attendees    |
+| `search_papers`        | Search arXiv for scientific papers and metadata |
+| `download_paper`       | Download arXiv papers to local PDF for analysis |
 
 ## Project Structure
 

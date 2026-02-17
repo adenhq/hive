@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 # Import register_tools from each tool module
 from .apollo_tool import register_tools as register_apollo
+from .arxiv_tool import register_tools as register_arxiv
 from .bigquery_tool import register_tools as register_bigquery
 from .calcom_tool import register_tools as register_calcom
 from .calendar_tool import register_tools as register_calendar
@@ -93,6 +94,7 @@ def register_all_tools(
     register_pdf_read(mcp)
     register_time(mcp)
     register_runtime_logs(mcp)
+    register_arxiv(mcp)
 
     # Tools that need credentials (pass credentials if provided)
     # web_search supports multiple providers (Google, Brave) with auto-detection
@@ -144,6 +146,8 @@ def register_all_tools(
         "web_search",
         "web_scrape",
         "pdf_read",
+        "search_papers",
+        "download_paper",
         "get_current_time",
         "view_file",
         "write_to_file",
