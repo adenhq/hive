@@ -218,8 +218,7 @@ class EdgeSpec(BaseModel):
                 # Re-raise RuntimeError from RAISE mode (intentional escalation)
                 raise
             except Exception as e:
-                # Unexpected exception - log and handle based on on_llm_failure
-                logger.error(f"      ✗ Unexpected error in LLM routing for edge '{self.id}': {e}")
+                # Unexpected exception - handle based on on_llm_failure
                 return self._handle_llm_failure(
                     error_msg=f"Unexpected error: {e}",
                     source_success=source_success,
@@ -269,9 +268,9 @@ class EdgeSpec(BaseModel):
             )
             return result
         except Exception as e:
-            logger.warning(f"      ⚠ Condition evaluation failed: {self.condition_expr}")
-            logger.warning(f"         Error: {e}")
-            logger.warning(f"         Available context keys: {list(context.keys())}")
+            logger.warning(f"Condition evaluation failed: {self.condition_expr}")
+            logger.warning(f"Error: {e}")
+            logger.warning(f"Available context keys: {list(context.keys())}")
             return False
 
     async def _llm_decide(
@@ -320,39 +319,39 @@ Consider:
 Respond with ONLY a JSON object:
 {{"proceed": true/false, "reasoning": "brief explanation"}}"""
 
+        # Call LLM - only wrap the actual async call in try-except
         try:
             response = await llm.acomplete(
                 messages=[{"role": "user", "content": prompt}],
                 system="You are a routing agent. Respond with JSON only.",
                 max_tokens=150,
             )
-
-            # Parse response
-            json_match = re.search(r"\{[^{}]*\}", response.content, re.DOTALL)
-            if json_match:
-                data = json.loads(json_match.group())
-                proceed = data.get("proceed", False)
-                reasoning = data.get("reasoning", "")
-
-                # Log the decision (using basic print for now)
-                logger.info(f"      🤔 LLM routing decision: {'PROCEED' if proceed else 'SKIP'}")
-                logger.info(f"         Reason: {reasoning}")
-
-                return proceed
-            else:
-                # JSON parsing failed - handle based on on_llm_failure mode
-                return self._handle_llm_failure(
-                    error_msg="Failed to parse JSON from LLM response",
-                    source_success=source_success,
-                    exception=None,
-                )
-
         except Exception as e:
             # LLM call failed - handle based on on_llm_failure mode
             return self._handle_llm_failure(
                 error_msg=f"LLM routing call failed: {e}",
                 source_success=source_success,
                 exception=e,
+            )
+
+        # Parse response (outside try block - raises directly if RAISE mode)
+        json_match = re.search(r"\{[^{}]*\}", response.content, re.DOTALL)
+        if json_match:
+            data = json.loads(json_match.group())
+            proceed = data.get("proceed", False)
+            reasoning = data.get("reasoning", "")
+
+            # Log the decision
+            logger.info(f"LLM routing decision: {'PROCEED' if proceed else 'SKIP'}")
+            logger.info(f"Reason: {reasoning}")
+
+            return proceed
+        else:
+            # JSON parsing failed - handle based on on_llm_failure mode
+            return self._handle_llm_failure(
+                error_msg="Failed to parse JSON from LLM response",
+                source_success=source_success,
+                exception=None,
             )
 
     def _handle_llm_failure(
@@ -378,29 +377,30 @@ Respond with ONLY a JSON object:
         if self.on_llm_failure == LLMFailureMode.PROCEED:
             # Fail-open: proceed based on source_success (backward compatible)
             logger.warning(
-                f"      ⚠ Edge '{self.id}': {error_msg}, "
+                f"Edge '{self.id}': {error_msg}, "
                 f"proceeding based on source_success={source_success} (mode=PROCEED)"
             )
             return source_success
 
         elif self.on_llm_failure == LLMFailureMode.SKIP:
             # Fail-closed: do not traverse edge
-            logger.error(
-                f"      ✗ Edge '{self.id}': {error_msg}, skipping edge traversal (mode=SKIP)"
-            )
+            logger.error(f"Edge '{self.id}': {error_msg}, skipping edge traversal (mode=SKIP)")
             return False
 
         elif self.on_llm_failure == LLMFailureMode.RAISE:
             # Escalate: raise exception to halt execution
-            logger.error(f"      ✗ Edge '{self.id}': {error_msg}, raising exception (mode=RAISE)")
+            logger.error(f"Edge '{self.id}': {error_msg}, raising exception (mode=RAISE)")
             raise RuntimeError(
                 f"LLM routing failed for edge '{self.id}' "
                 f"(source={self.source} -> target={self.target}): {error_msg}"
             ) from exception
 
-        # Should never reach here, but fail-safe to skip
-        logger.error(f"      ✗ Edge '{self.id}': Unknown on_llm_failure mode, defaulting to skip")
-        return False
+        # Unreachable: all LLMFailureMode enum values are handled above
+        # If we reach here, there's a bug (e.g., new enum value added without handling)
+        raise RuntimeError(
+            f"Unreachable: unknown on_llm_failure mode '{self.on_llm_failure}' "
+            f"for edge '{self.id}'. This should never happen."
+        )
 
     def map_inputs(
         self,

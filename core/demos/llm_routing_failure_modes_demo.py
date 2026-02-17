@@ -28,7 +28,7 @@ def demo_failure_modes():
     # -------------------------------------------------------------------
     # Mode 1: PROCEED (Fail-open, backward compatible)
     # -------------------------------------------------------------------
-    print("📝 MODE 1: PROCEED (Fail-Open)")
+    print("MODE 1: PROCEED (Fail-Open)")
     print("-" * 80)
 
     edge_proceed = EdgeSpec(
@@ -49,14 +49,14 @@ def demo_failure_modes():
         goal=mock_goal,
     )
 
-    print(f"✓ Result when LLM unavailable (source succeeded): {result}")
-    print("  Behavior: Proceeds because source_success=True (fail-open)")
+    print(f"Result when LLM unavailable (source succeeded): {result}")
+    print("Behavior: Proceeds because source_success=True (fail-open)")
     print()
 
     # -------------------------------------------------------------------
     # Mode 2: SKIP (Fail-closed, security-critical)
     # -------------------------------------------------------------------
-    print("📝 MODE 2: SKIP (Fail-Closed)")
+    print("MODE 2: SKIP (Fail-Closed)")
     print("-" * 80)
 
     edge_skip = EdgeSpec(
@@ -77,7 +77,7 @@ def demo_failure_modes():
         goal=mock_goal,
     )
 
-    print(f"✓ Result when LLM unavailable (source succeeded): {result}")
+    print(f"Result when LLM unavailable (source succeeded): {result}")
     print("  Behavior: Does NOT proceed even though source succeeded (fail-closed)")
     print("  Use case: Security gates, authorization checks, sensitive data access")
     print()
@@ -85,7 +85,7 @@ def demo_failure_modes():
     # -------------------------------------------------------------------
     # Mode 3: RAISE (Escalate to executor)
     # -------------------------------------------------------------------
-    print("📝 MODE 3: RAISE (Escalate)")
+    print("MODE 3: RAISE (Escalate)")
     print("-" * 80)
 
     edge_raise = EdgeSpec(
@@ -106,11 +106,11 @@ def demo_failure_modes():
             llm=None,  # LLM unavailable
             goal=mock_goal,
         )
-        print(f"✗ Should have raised exception but got: {result}")
+        print(f"Should have raised exception but got: {result}")
     except RuntimeError as e:
-        print("✓ Raised RuntimeError as expected:")
+        print("Raised RuntimeError as expected:")
         print(f"  {e}")
-        print("  Use case: Critical workflows where LLM decision is mandatory")
+        print("Use case: Critical workflows where LLM decision is mandatory")
     print()
 
     # -------------------------------------------------------------------
@@ -121,19 +121,19 @@ def demo_failure_modes():
     print("=" * 80)
     print()
     print("Before this fix:")
-    print("  ✗ All LLM routing failures defaulted to PROCEED (fail-open)")
-    print("  ✗ Security vulnerability: bypassed authorization checks on failures")
-    print("  ✗ Silent failures: only warnings logged")
+    print("All LLM routing failures defaulted to PROCEED (fail-open)")
+    print("Security vulnerability: bypassed authorization checks on failures")
+    print("Silent failures: only warnings logged")
     print()
     print("After this fix:")
-    print("  ✓ Three configurable modes: PROCEED, SKIP, RAISE")
-    print("  ✓ Default is PROCEED (backward compatible)")
-    print("  ✓ Security-critical edges can use SKIP (fail-closed)")
-    print("  ✓ Critical workflows can use RAISE (halt execution)")
-    print("  ✓ Clear error logging with edge context")
+    print("Three configurable modes: PROCEED, SKIP, RAISE")
+    print("Default is PROCEED (backward compatible)")
+    print("Security-critical edges can use SKIP (fail-closed)")
+    print("Critical workflows can use RAISE (halt execution)")
+    print("Clear error logging with edge context")
     print()
     print("Migration for security-critical edges:")
-    print("  on_llm_failure=LLMFailureMode.SKIP  # Explicitly fail-closed")
+    print("on_llm_failure=LLMFailureMode.SKIP  # Explicitly fail-closed")
     print("=" * 80)
 
 
