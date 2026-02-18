@@ -7,11 +7,14 @@ while preserving the goal-driven approach.
 
 import asyncio
 import logging
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from zoneinfo import ZoneInfo
 
 from framework.graph.checkpoint_config import CheckpointConfig
 from framework.graph.executor import ExecutionResult
@@ -28,6 +31,36 @@ if TYPE_CHECKING:
     from framework.llm.provider import LLMProvider, Tool
 
 logger = logging.getLogger(__name__)
+
+_HH_MM_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
+
+
+def _seconds_until_next_schedule(
+    schedule: list[str],
+    tz: ZoneInfo | None = None,
+) -> tuple[float, str]:
+    """Compute seconds from now until the next scheduled HH:MM time.
+
+    Args:
+        schedule: List of validated "HH:MM" time strings.
+        tz: Optional timezone. None means system local time.
+
+    Returns:
+        (seconds_until_next_fire, matched_time_str)
+    """
+    now = datetime.now(tz)
+    best_delta = float("inf")
+    best_time = schedule[0]
+    for time_str in schedule:
+        h, m = int(time_str[:2]), int(time_str[3:5])
+        target = now.replace(hour=h, minute=m, second=0, microsecond=0)
+        if target <= now:
+            target += timedelta(days=1)
+        delta = (target - now).total_seconds()
+        if delta < best_delta:
+            best_delta = delta
+            best_time = time_str
+    return (best_delta, best_time)
 
 
 @dataclass
@@ -323,56 +356,168 @@ class AgentRuntime:
 
                 tc = spec.trigger_config
                 interval = tc.get("interval_minutes")
-                if not interval or interval <= 0:
+                schedule = tc.get("schedule")
+
+                # Mutual exclusion check
+                if interval and schedule:
                     logger.warning(
-                        f"Entry point '{ep_id}' has trigger_type='timer' "
-                        "but no valid interval_minutes in trigger_config"
+                        "Entry point '%s' has both interval_minutes and schedule; "
+                        "use one or the other — skipping",
+                        ep_id,
                     )
                     continue
 
-                run_immediately = tc.get("run_immediately", False)
+                if schedule:
+                    # --- Clock-based scheduling ---
+                    # Validate HH:MM format
+                    valid_times: list[str] = []
+                    for t in schedule:
+                        if isinstance(t, str) and _HH_MM_RE.match(t):
+                            valid_times.append(t)
+                        else:
+                            logger.warning(
+                                "Entry point '%s': ignoring invalid schedule time '%s' "
+                                "(expected HH:MM, 00:00-23:59)",
+                                ep_id,
+                                t,
+                            )
+                    if not valid_times:
+                        logger.warning(
+                            "Entry point '%s' has trigger_type='timer' "
+                            "but no valid times in schedule — skipping",
+                            ep_id,
+                        )
+                        continue
 
-                def _make_timer(entry_point_id: str, mins: float, immediate: bool):
-                    async def _timer_loop():
-                        interval_secs = mins * 60
-                        if not immediate:
-                            self._timer_next_fire[entry_point_id] = time.monotonic() + interval_secs
-                            await asyncio.sleep(interval_secs)
-                        while self._running:
-                            self._timer_next_fire.pop(entry_point_id, None)
-                            try:
-                                session_state = self._get_primary_session_state(
-                                    exclude_entry_point=entry_point_id
-                                )
-                                await self.trigger(
-                                    entry_point_id,
-                                    {"event": {"source": "timer", "reason": "scheduled"}},
-                                    session_state=session_state,
-                                )
-                                logger.info(
-                                    "Timer fired for entry point '%s' (next in %s min)",
-                                    entry_point_id,
-                                    mins,
-                                )
-                            except Exception:
-                                logger.error(
-                                    "Timer trigger failed for '%s'",
-                                    entry_point_id,
-                                    exc_info=True,
-                                )
-                            self._timer_next_fire[entry_point_id] = time.monotonic() + interval_secs
-                            await asyncio.sleep(interval_secs)
+                    # Resolve timezone
+                    tz: ZoneInfo | None = None
+                    tz_name = tc.get("timezone")
+                    if tz_name:
+                        try:
+                            tz = ZoneInfo(tz_name)
+                        except Exception:
+                            logger.warning(
+                                "Entry point '%s': invalid timezone '%s'; "
+                                "falling back to system local time",
+                                ep_id,
+                                tz_name,
+                            )
 
-                    return _timer_loop
+                    def _make_schedule_timer(
+                        entry_point_id: str,
+                        times: list[str],
+                        timezone: ZoneInfo | None,
+                    ):
+                        async def _schedule_loop():
+                            while self._running:
+                                secs, matched_time = _seconds_until_next_schedule(
+                                    times, timezone
+                                )
+                                self._timer_next_fire[entry_point_id] = (
+                                    time.monotonic() + secs
+                                )
+                                await asyncio.sleep(secs)
+                                if not self._running:
+                                    break
+                                self._timer_next_fire.pop(entry_point_id, None)
+                                try:
+                                    session_state = self._get_primary_session_state(
+                                        exclude_entry_point=entry_point_id
+                                    )
+                                    await self.trigger(
+                                        entry_point_id,
+                                        {
+                                            "event": {
+                                                "source": "timer",
+                                                "reason": "scheduled",
+                                                "scheduled_time": matched_time,
+                                            }
+                                        },
+                                        session_state=session_state,
+                                    )
+                                    logger.info(
+                                        "Schedule timer fired for '%s' at %s",
+                                        entry_point_id,
+                                        matched_time,
+                                    )
+                                except Exception:
+                                    logger.error(
+                                        "Schedule timer trigger failed for '%s'",
+                                        entry_point_id,
+                                        exc_info=True,
+                                    )
 
-                task = asyncio.create_task(_make_timer(ep_id, interval, run_immediately)())
-                self._timer_tasks.append(task)
-                logger.info(
-                    "Started timer for entry point '%s' every %s min%s",
-                    ep_id,
-                    interval,
-                    " (immediate first run)" if run_immediately else "",
-                )
+                        return _schedule_loop
+
+                    task = asyncio.create_task(
+                        _make_schedule_timer(ep_id, valid_times, tz)()
+                    )
+                    self._timer_tasks.append(task)
+                    logger.info(
+                        "Started schedule timer for entry point '%s' at %s%s",
+                        ep_id,
+                        ", ".join(valid_times),
+                        f" ({tz_name})" if tz_name else " (local)",
+                    )
+
+                elif interval and interval > 0:
+                    # --- Interval-based scheduling (existing) ---
+                    run_immediately = tc.get("run_immediately", False)
+
+                    def _make_timer(entry_point_id: str, mins: float, immediate: bool):
+                        async def _timer_loop():
+                            interval_secs = mins * 60
+                            if not immediate:
+                                self._timer_next_fire[entry_point_id] = (
+                                    time.monotonic() + interval_secs
+                                )
+                                await asyncio.sleep(interval_secs)
+                            while self._running:
+                                self._timer_next_fire.pop(entry_point_id, None)
+                                try:
+                                    session_state = self._get_primary_session_state(
+                                        exclude_entry_point=entry_point_id
+                                    )
+                                    await self.trigger(
+                                        entry_point_id,
+                                        {"event": {"source": "timer", "reason": "scheduled"}},
+                                        session_state=session_state,
+                                    )
+                                    logger.info(
+                                        "Timer fired for entry point '%s' (next in %s min)",
+                                        entry_point_id,
+                                        mins,
+                                    )
+                                except Exception:
+                                    logger.error(
+                                        "Timer trigger failed for '%s'",
+                                        entry_point_id,
+                                        exc_info=True,
+                                    )
+                                self._timer_next_fire[entry_point_id] = (
+                                    time.monotonic() + interval_secs
+                                )
+                                await asyncio.sleep(interval_secs)
+
+                        return _timer_loop
+
+                    task = asyncio.create_task(
+                        _make_timer(ep_id, interval, run_immediately)()
+                    )
+                    self._timer_tasks.append(task)
+                    logger.info(
+                        "Started timer for entry point '%s' every %s min%s",
+                        ep_id,
+                        interval,
+                        " (immediate first run)" if run_immediately else "",
+                    )
+
+                else:
+                    logger.warning(
+                        "Entry point '%s' has trigger_type='timer' "
+                        "but neither interval_minutes nor schedule in trigger_config",
+                        ep_id,
+                    )
 
             self._running = True
             logger.info(f"AgentRuntime started with {len(self._streams)} streams")

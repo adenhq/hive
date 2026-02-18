@@ -641,5 +641,297 @@ class TestCreateAgentRuntime:
         assert "api" in runtime._entry_points
 
 
+# === Clock-Based Schedule Timer Tests ===
+
+
+class TestSecondsUntilNextSchedule:
+    """Tests for the _seconds_until_next_schedule helper function."""
+
+    def test_future_time_today(self):
+        """Time later today returns seconds until that time."""
+        from datetime import datetime, timedelta
+
+        from framework.runtime.agent_runtime import _seconds_until_next_schedule
+
+        # Zero seconds/microseconds to match what the function targets (HH:MM:00.000)
+        now = datetime.now()
+        future = (now + timedelta(hours=2)).replace(second=0, microsecond=0)
+        time_str = f"{future.hour:02d}:{future.minute:02d}"
+        expected_secs = (future - now).total_seconds()
+
+        secs, matched = _seconds_until_next_schedule([time_str])
+
+        assert matched == time_str
+        assert abs(secs - expected_secs) < 5
+
+    def test_past_time_wraps_to_tomorrow(self):
+        """Time already passed today returns seconds until tomorrow's occurrence."""
+        from datetime import datetime, timedelta
+
+        from framework.runtime.agent_runtime import _seconds_until_next_schedule
+
+        # Zero seconds/microseconds to match what the function targets (HH:MM:00.000)
+        now = datetime.now()
+        past = (now - timedelta(hours=1)).replace(second=0, microsecond=0)
+        time_str = f"{past.hour:02d}:{past.minute:02d}"
+        expected_target = past + timedelta(days=1)
+        expected_secs = (expected_target - now).total_seconds()
+
+        secs, matched = _seconds_until_next_schedule([time_str])
+
+        assert matched == time_str
+        assert abs(secs - expected_secs) < 5
+
+    def test_multiple_times_picks_nearest(self):
+        """With multiple times, returns the nearest future one."""
+        from datetime import datetime, timedelta
+
+        from framework.runtime.agent_runtime import _seconds_until_next_schedule
+
+        # Zero seconds/microseconds to match what the function targets (HH:MM:00.000)
+        now = datetime.now()
+        near = (now + timedelta(hours=1)).replace(second=0, microsecond=0)
+        far = (now + timedelta(hours=5)).replace(second=0, microsecond=0)
+        near_str = f"{near.hour:02d}:{near.minute:02d}"
+        far_str = f"{far.hour:02d}:{far.minute:02d}"
+        expected_secs = (near - now).total_seconds()
+
+        secs, matched = _seconds_until_next_schedule([far_str, near_str])
+
+        assert matched == near_str
+        assert abs(secs - expected_secs) < 5
+
+    def test_with_timezone(self):
+        """Timezone parameter is respected."""
+        from zoneinfo import ZoneInfo
+
+        from framework.runtime.agent_runtime import _seconds_until_next_schedule
+
+        # Just verify it doesn't crash with a valid timezone
+        secs, matched = _seconds_until_next_schedule(
+            ["12:00", "18:00"], tz=ZoneInfo("UTC")
+        )
+
+        assert secs > 0
+        assert matched in ("12:00", "18:00")
+
+
+class TestGraphSpecTimerValidation:
+    """Tests for GraphSpec.validate() timer trigger_config checks."""
+
+    def _make_graph_with_timer(self, trigger_config):
+        """Helper to create a graph with a timer entry point."""
+        nodes = [
+            NodeSpec(
+                id="process",
+                name="Process",
+                description="Process node",
+                node_type="llm_generate",
+                input_keys=[],
+                output_keys=[],
+            ),
+        ]
+        return GraphSpec(
+            id="test",
+            goal_id="goal",
+            entry_node="process",
+            async_entry_points=[
+                AsyncEntryPointSpec(
+                    id="timer-ep",
+                    name="Timer",
+                    entry_node="process",
+                    trigger_type="timer",
+                    trigger_config=trigger_config,
+                ),
+            ],
+            nodes=nodes,
+            edges=[],
+        )
+
+    def test_interval_only_is_valid(self):
+        """interval_minutes alone passes validation."""
+        graph = self._make_graph_with_timer({"interval_minutes": 5})
+        errors = graph.validate()
+        timer_errors = [e for e in errors if "timer-ep" in e]
+        assert len(timer_errors) == 0
+
+    def test_schedule_only_is_valid(self):
+        """schedule alone passes validation."""
+        graph = self._make_graph_with_timer({"schedule": ["08:00", "12:00"]})
+        errors = graph.validate()
+        timer_errors = [e for e in errors if "timer-ep" in e]
+        assert len(timer_errors) == 0
+
+    def test_both_interval_and_schedule_is_invalid(self):
+        """Having both interval_minutes and schedule is an error."""
+        graph = self._make_graph_with_timer(
+            {"interval_minutes": 5, "schedule": ["08:00"]}
+        )
+        errors = graph.validate()
+        assert any("both" in e.lower() for e in errors)
+
+    def test_neither_interval_nor_schedule_is_invalid(self):
+        """Having neither interval_minutes nor schedule is an error."""
+        graph = self._make_graph_with_timer({})
+        errors = graph.validate()
+        assert any("neither" in e.lower() for e in errors)
+
+
+class TestScheduleTimerIntegration:
+    """Integration tests for schedule-based timer in AgentRuntime."""
+
+    @pytest.mark.asyncio
+    async def test_schedule_timer_sets_next_fire(self, sample_goal, temp_storage):
+        """Schedule timer should set _timer_next_fire after starting."""
+        import time as time_mod
+
+        nodes = [
+            NodeSpec(
+                id="check-in",
+                name="Check In",
+                description="Check in node",
+                node_type="event_loop",
+                input_keys=[],
+                output_keys=[],
+            ),
+        ]
+        graph = GraphSpec(
+            id="test-schedule",
+            goal_id="test-goal",
+            entry_node="check-in",
+            nodes=nodes,
+            edges=[],
+        )
+
+        runtime = AgentRuntime(
+            graph=graph,
+            goal=sample_goal,
+            storage_path=temp_storage,
+        )
+
+        # Register a schedule-based timer
+        runtime.register_entry_point(
+            EntryPointSpec(
+                id="meal-timer",
+                name="Meal Timer",
+                entry_node="check-in",
+                trigger_type="timer",
+                trigger_config={"schedule": ["08:00", "12:00", "19:00"]},
+                max_concurrent=1,
+            )
+        )
+
+        await runtime.start()
+
+        # Give the timer loop a moment to set _timer_next_fire
+        await asyncio.sleep(0.1)
+
+        try:
+            assert "meal-timer" in runtime._timer_next_fire
+            next_fire = runtime._timer_next_fire["meal-timer"]
+            # Should be in the future
+            assert next_fire > time_mod.monotonic()
+        finally:
+            await runtime.stop()
+
+    @pytest.mark.asyncio
+    async def test_interval_timer_still_works(self, sample_goal, temp_storage):
+        """Existing interval-based timer should still work after the refactor."""
+        import time as time_mod
+
+        nodes = [
+            NodeSpec(
+                id="check-in",
+                name="Check In",
+                description="Check in node",
+                node_type="event_loop",
+                input_keys=[],
+                output_keys=[],
+            ),
+        ]
+        graph = GraphSpec(
+            id="test-interval",
+            goal_id="test-goal",
+            entry_node="check-in",
+            nodes=nodes,
+            edges=[],
+        )
+
+        runtime = AgentRuntime(
+            graph=graph,
+            goal=sample_goal,
+            storage_path=temp_storage,
+        )
+
+        runtime.register_entry_point(
+            EntryPointSpec(
+                id="interval-timer",
+                name="Interval Timer",
+                entry_node="check-in",
+                trigger_type="timer",
+                trigger_config={"interval_minutes": 60},
+                max_concurrent=1,
+            )
+        )
+
+        await runtime.start()
+        await asyncio.sleep(0.1)
+
+        try:
+            assert "interval-timer" in runtime._timer_next_fire
+            next_fire = runtime._timer_next_fire["interval-timer"]
+            assert next_fire > time_mod.monotonic()
+        finally:
+            await runtime.stop()
+
+    @pytest.mark.asyncio
+    async def test_mutually_exclusive_config_skipped(self, sample_goal, temp_storage):
+        """Timer with both interval_minutes and schedule should be skipped."""
+        nodes = [
+            NodeSpec(
+                id="check-in",
+                name="Check In",
+                description="Check in node",
+                node_type="event_loop",
+                input_keys=[],
+                output_keys=[],
+            ),
+        ]
+        graph = GraphSpec(
+            id="test-both",
+            goal_id="test-goal",
+            entry_node="check-in",
+            nodes=nodes,
+            edges=[],
+        )
+
+        runtime = AgentRuntime(
+            graph=graph,
+            goal=sample_goal,
+            storage_path=temp_storage,
+        )
+
+        runtime.register_entry_point(
+            EntryPointSpec(
+                id="bad-timer",
+                name="Bad Timer",
+                entry_node="check-in",
+                trigger_type="timer",
+                trigger_config={"interval_minutes": 5, "schedule": ["08:00"]},
+                max_concurrent=1,
+            )
+        )
+
+        await runtime.start()
+        await asyncio.sleep(0.1)
+
+        try:
+            # Should not have been started
+            assert "bad-timer" not in runtime._timer_next_fire
+            assert len(runtime._timer_tasks) == 0
+        finally:
+            await runtime.stop()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

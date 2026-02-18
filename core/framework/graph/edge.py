@@ -604,6 +604,22 @@ class GraphSpec(BaseModel):
                     f"'{entry_point.trigger_type}'. Valid: {valid_triggers}"
                 )
 
+            # Validate trigger_config for timer entry points
+            if entry_point.trigger_type == "timer":
+                tc = entry_point.trigger_config
+                has_interval = bool(tc.get("interval_minutes"))
+                has_schedule = bool(tc.get("schedule"))
+                if has_interval and has_schedule:
+                    errors.append(
+                        f"Async entry point '{entry_point.id}' has both "
+                        "interval_minutes and schedule; use one or the other"
+                    )
+                if not has_interval and not has_schedule:
+                    errors.append(
+                        f"Async entry point '{entry_point.id}' has trigger_type='timer' "
+                        "but neither interval_minutes nor schedule in trigger_config"
+                    )
+
         # Check terminal nodes exist
         for term in self.terminal_nodes:
             if not self.get_node(term):

@@ -457,18 +457,31 @@ class GraphOverview(Vertical):
 
         for ep in event_sources:
             if ep.trigger_type == "timer":
-                interval = ep.trigger_config.get("interval_minutes", "?")
+                interval = ep.trigger_config.get("interval_minutes")
+                schedule = ep.trigger_config.get("schedule")
                 display.write(f"  [green]⏱[/green]  {ep.name} [dim]→ {ep.entry_node}[/dim]")
-                # Show interval + next fire countdown
+
+                # Build description string
+                if schedule:
+                    times_str = ", ".join(schedule)
+                    tz_label = ep.trigger_config.get("timezone", "local")
+                    desc = f"schedule {times_str} ({tz_label})"
+                else:
+                    desc = f"every {interval or '?'} min"
+
+                # Show countdown if available
                 next_fire = self.runtime._timer_next_fire.get(ep.id)
                 if next_fire is not None:
                     remaining = max(0, next_fire - time.monotonic())
-                    mins, secs = divmod(int(remaining), 60)
-                    display.write(
-                        f"     [dim]every {interval} min — next in {mins}m {secs:02d}s[/dim]"
-                    )
+                    hrs, rem = divmod(int(remaining), 3600)
+                    mins, secs = divmod(rem, 60)
+                    if hrs > 0:
+                        countdown = f"{hrs}h {mins:02d}m {secs:02d}s"
+                    else:
+                        countdown = f"{mins}m {secs:02d}s"
+                    display.write(f"     [dim]{desc} — next in {countdown}[/dim]")
                 else:
-                    display.write(f"     [dim]every {interval} min[/dim]")
+                    display.write(f"     [dim]{desc}[/dim]")
 
             elif ep.trigger_type in ("event", "webhook"):
                 display.write(f"  [yellow]⚡[/yellow] {ep.name} [dim]→ {ep.entry_node}[/dim]")
