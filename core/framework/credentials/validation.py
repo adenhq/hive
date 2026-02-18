@@ -9,18 +9,20 @@ from __future__ import annotations
 import logging
 import os
 
+from framework.credentials.client_hints import get_credential_fix_guidance_lines
+
 logger = logging.getLogger(__name__)
 
 
 def ensure_credential_key_env() -> None:
     """Load HIVE_CREDENTIAL_KEY from shell config if not already in environment.
 
-    The setup-credentials skill writes the encryption key to ~/.zshrc or ~/.bashrc.
+    The credential setup flow may persist the encryption key to ~/.zshrc or ~/.bashrc.
     If the user hasn't sourced their config in the current shell, this reads it
     directly so the runner (and any MCP subprocesses it spawns) can unlock the
     encrypted credential store.
 
-    Only HIVE_CREDENTIAL_KEY is loaded this way — all other secrets (API keys, etc.)
+    Only HIVE_CREDENTIAL_KEY is loaded this way - all other secrets (API keys, etc.)
     come from the credential store itself.
     """
     if os.environ.get("HIVE_CREDENTIAL_KEY"):
@@ -35,6 +37,15 @@ def ensure_credential_key_env() -> None:
             logger.debug("Loaded HIVE_CREDENTIAL_KEY from shell config")
     except ImportError:
         pass
+
+
+def build_missing_credentials_error(missing_entries: list[str]) -> str:
+    """Build a client-agnostic credential error message."""
+    lines = ["Missing required credentials:\n"]
+    lines.extend(missing_entries)
+    lines.append("")
+    lines.extend(get_credential_fix_guidance_lines())
+    return "\n".join(lines)
 
 
 def validate_agent_credentials(nodes: list) -> None:
@@ -124,10 +135,5 @@ def validate_agent_credentials(nodes: list) -> None:
     if missing:
         from framework.credentials.models import CredentialError
 
-        lines = ["Missing required credentials:\n"]
-        lines.extend(missing)
-        lines.append(
-            "\nTo fix: run /hive-credentials in Claude Code."
-            "\nIf you've already set up credentials, restart your terminal to load them."
-        )
-        raise CredentialError("\n".join(lines))
+        raise CredentialError(build_missing_credentials_error(missing))
+
