@@ -74,13 +74,16 @@ def main():
 
     # Register runner commands (run, info, validate, list, dispatch, shell)
     from framework.runner.cli import register_commands
-
     register_commands(subparsers)
 
     # Register testing commands (test-run, test-debug, test-list, test-stats)
     from framework.testing.cli import register_testing_commands
-
     register_testing_commands(subparsers)
+    
+    # Register builder commands (diff)
+    # Note: We import from core.framework because of how sys.path is set up
+    from framework.builder.cli import register_builder_commands
+    register_builder_commands(subparsers)
 
     args = parser.parse_args()
 
