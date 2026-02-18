@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 from typing import TYPE_CHECKING, Any
+from urllib.parse import quote
 
 import httpx
 from fastmcp import FastMCP
@@ -20,6 +21,11 @@ if TYPE_CHECKING:
     from aden_tools.credentials import CredentialStoreAdapter
 
 GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets"
+
+
+def _encode_range(range_name: str) -> str:
+    """URL-encode an A1 notation range for safe use in URL paths."""
+    return quote(range_name, safe="")
 
 
 class _GoogleSheetsClient:
@@ -103,7 +109,7 @@ class _GoogleSheetsClient:
         params = {"valueRenderOption": value_render_option}
 
         response = httpx.get(
-            f"{GOOGLE_SHEETS_API_BASE}/{spreadsheet_id}/values/{range_name}",
+            f"{GOOGLE_SHEETS_API_BASE}/{spreadsheet_id}/values/{_encode_range(range_name)}",
             headers=self._headers,
             params=params,
             timeout=30.0,
@@ -122,7 +128,7 @@ class _GoogleSheetsClient:
         body = {"values": values}
 
         response = httpx.put(
-            f"{GOOGLE_SHEETS_API_BASE}/{spreadsheet_id}/values/{range_name}",
+            f"{GOOGLE_SHEETS_API_BASE}/{spreadsheet_id}/values/{_encode_range(range_name)}",
             headers=self._headers,
             params=params,
             json=body,
@@ -142,7 +148,7 @@ class _GoogleSheetsClient:
         body = {"values": values}
 
         response = httpx.post(
-            f"{GOOGLE_SHEETS_API_BASE}/{spreadsheet_id}/values/{range_name}:append",
+            f"{GOOGLE_SHEETS_API_BASE}/{spreadsheet_id}/values/{_encode_range(range_name)}:append",
             headers=self._headers,
             params=params,
             json=body,
@@ -157,7 +163,7 @@ class _GoogleSheetsClient:
     ) -> dict[str, Any]:
         """Clear values in a range."""
         response = httpx.post(
-            f"{GOOGLE_SHEETS_API_BASE}/{spreadsheet_id}/values/{range_name}:clear",
+            f"{GOOGLE_SHEETS_API_BASE}/{spreadsheet_id}/values/{_encode_range(range_name)}:clear",
             headers=self._headers,
             timeout=30.0,
         )

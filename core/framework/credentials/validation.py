@@ -56,28 +56,12 @@ def validate_agent_credentials(nodes: list) -> None:
 
     try:
         from aden_tools.credentials import CREDENTIAL_SPECS
-
-        from framework.credentials import CredentialStore
-        from framework.credentials.storage import (
-            CompositeStorage,
-            EncryptedFileStorage,
-            EnvVarStorage,
-        )
+        from aden_tools.credentials.store_adapter import CredentialStoreAdapter
     except ImportError:
         return  # aden_tools not installed, skip check
 
-    # Build credential store
-    env_mapping = {
-        (spec.credential_id or name): spec.env_var for name, spec in CREDENTIAL_SPECS.items()
-    }
-    storages: list = [EnvVarStorage(env_mapping=env_mapping)]
-    if os.environ.get("HIVE_CREDENTIAL_KEY"):
-        storages.insert(0, EncryptedFileStorage())
-    if len(storages) == 1:
-        storage = storages[0]
-    else:
-        storage = CompositeStorage(primary=storages[0], fallbacks=storages[1:])
-    store = CredentialStore(storage=storage)
+    # Use the canonical factory which handles Aden sync when ADEN_API_KEY is set
+    adapter = CredentialStoreAdapter.default()
 
     # Build reverse mappings
     tool_to_cred: dict[str, str] = {}
@@ -98,8 +82,7 @@ def validate_agent_credentials(nodes: list) -> None:
             continue
         checked.add(cred_name)
         spec = CREDENTIAL_SPECS[cred_name]
-        cred_id = spec.credential_id or cred_name
-        if spec.required and not store.is_available(cred_id):
+        if spec.required and not adapter.is_available(cred_name):
             affected = sorted(t for t in required_tools if t in spec.tools)
             entry = f"  {spec.env_var} for {', '.join(affected)}"
             if spec.help_url:
@@ -113,8 +96,7 @@ def validate_agent_credentials(nodes: list) -> None:
             continue
         checked.add(cred_name)
         spec = CREDENTIAL_SPECS[cred_name]
-        cred_id = spec.credential_id or cred_name
-        if spec.required and not store.is_available(cred_id):
+        if spec.required and not adapter.is_available(cred_name):
             affected_types = sorted(t for t in node_types if t in spec.node_types)
             entry = f"  {spec.env_var} for {', '.join(affected_types)} nodes"
             if spec.help_url:

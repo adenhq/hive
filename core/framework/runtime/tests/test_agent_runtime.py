@@ -708,9 +708,7 @@ class TestSecondsUntilNextSchedule:
         from framework.runtime.agent_runtime import _seconds_until_next_schedule
 
         # Just verify it doesn't crash with a valid timezone
-        secs, matched = _seconds_until_next_schedule(
-            ["12:00", "18:00"], tz=ZoneInfo("UTC")
-        )
+        secs, matched = _seconds_until_next_schedule(["12:00", "18:00"], tz=ZoneInfo("UTC"))
 
         assert secs > 0
         assert matched in ("12:00", "18:00")
@@ -764,9 +762,7 @@ class TestGraphSpecTimerValidation:
 
     def test_both_interval_and_schedule_is_invalid(self):
         """Having both interval_minutes and schedule is an error."""
-        graph = self._make_graph_with_timer(
-            {"interval_minutes": 5, "schedule": ["08:00"]}
-        )
+        graph = self._make_graph_with_timer({"interval_minutes": 5, "schedule": ["08:00"]})
         errors = graph.validate()
         assert any("both" in e.lower() for e in errors)
 

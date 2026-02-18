@@ -410,12 +410,8 @@ class AgentRuntime:
                     ):
                         async def _schedule_loop():
                             while self._running:
-                                secs, matched_time = _seconds_until_next_schedule(
-                                    times, timezone
-                                )
-                                self._timer_next_fire[entry_point_id] = (
-                                    time.monotonic() + secs
-                                )
+                                secs, matched_time = _seconds_until_next_schedule(times, timezone)
+                                self._timer_next_fire[entry_point_id] = time.monotonic() + secs
                                 await asyncio.sleep(secs)
                                 if not self._running:
                                     break
@@ -449,9 +445,7 @@ class AgentRuntime:
 
                         return _schedule_loop
 
-                    task = asyncio.create_task(
-                        _make_schedule_timer(ep_id, valid_times, tz)()
-                    )
+                    task = asyncio.create_task(_make_schedule_timer(ep_id, valid_times, tz)())
                     self._timer_tasks.append(task)
                     logger.info(
                         "Started schedule timer for entry point '%s' at %s%s",
@@ -501,9 +495,7 @@ class AgentRuntime:
 
                         return _timer_loop
 
-                    task = asyncio.create_task(
-                        _make_timer(ep_id, interval, run_immediately)()
-                    )
+                    task = asyncio.create_task(_make_timer(ep_id, interval, run_immediately)())
                     self._timer_tasks.append(task)
                     logger.info(
                         "Started timer for entry point '%s' every %s min%s",

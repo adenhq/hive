@@ -19,6 +19,7 @@ import pytest
 
 from aden_tools.tools.google_sheets_tool.google_sheets_tool import (
     GOOGLE_SHEETS_API_BASE,
+    _encode_range,
     _GoogleSheetsClient,
     register_tools,
 )
@@ -152,7 +153,7 @@ class TestGoogleSheetsClient:
         result = self.client.get_values("123", "Sheet1!A1:B2")
 
         mock_get.assert_called_once_with(
-            f"{GOOGLE_SHEETS_API_BASE}/123/values/Sheet1!A1:B2",
+            f"{GOOGLE_SHEETS_API_BASE}/123/values/{_encode_range('Sheet1!A1:B2')}",
             headers=self.client._headers,
             params={"valueRenderOption": "FORMATTED_VALUE"},
             timeout=30.0,
@@ -170,6 +171,19 @@ class TestGoogleSheetsClient:
 
         assert mock_get.call_args.kwargs["params"]["valueRenderOption"] == "UNFORMATTED_VALUE"
 
+    @patch("aden_tools.tools.google_sheets_tool.google_sheets_tool.httpx.get")
+    def test_get_values_encodes_range_with_spaces(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"values": [["A"]]}
+        mock_get.return_value = mock_response
+
+        self.client.get_values("123", "My Sheet!A1:B2")
+
+        url = mock_get.call_args.args[0]
+        assert "My Sheet" not in url
+        assert "My%20Sheet" in url
+
     @patch("aden_tools.tools.google_sheets_tool.google_sheets_tool.httpx.put")
     def test_update_values(self, mock_put):
         mock_response = MagicMock()
@@ -184,7 +198,7 @@ class TestGoogleSheetsClient:
         result = self.client.update_values("123", "Sheet1!A1:B2", values)
 
         mock_put.assert_called_once_with(
-            f"{GOOGLE_SHEETS_API_BASE}/123/values/Sheet1!A1:B2",
+            f"{GOOGLE_SHEETS_API_BASE}/123/values/{_encode_range('Sheet1!A1:B2')}",
             headers=self.client._headers,
             params={"valueInputOption": "USER_ENTERED"},
             json={"values": values},
@@ -216,7 +230,7 @@ class TestGoogleSheetsClient:
         result = self.client.append_values("123", "Sheet1!A1", values)
 
         mock_post.assert_called_once_with(
-            f"{GOOGLE_SHEETS_API_BASE}/123/values/Sheet1!A1:append",
+            f"{GOOGLE_SHEETS_API_BASE}/123/values/{_encode_range('Sheet1!A1')}:append",
             headers=self.client._headers,
             params={"valueInputOption": "USER_ENTERED"},
             json={"values": values},
@@ -234,7 +248,7 @@ class TestGoogleSheetsClient:
         result = self.client.clear_values("123", "Sheet1!A1:B2")
 
         mock_post.assert_called_once_with(
-            f"{GOOGLE_SHEETS_API_BASE}/123/values/Sheet1!A1:B2:clear",
+            f"{GOOGLE_SHEETS_API_BASE}/123/values/{_encode_range('Sheet1!A1:B2')}:clear",
             headers=self.client._headers,
             timeout=30.0,
         )

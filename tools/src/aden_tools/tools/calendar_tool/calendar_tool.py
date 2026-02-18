@@ -17,6 +17,7 @@ import logging
 import os
 import re
 import uuid
+import warnings
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from urllib.parse import quote
@@ -85,7 +86,19 @@ def register_tools(
             return credentials.get("google")
 
         # Fall back to environment variable
-        return os.getenv("GOOGLE_ACCESS_TOKEN")
+        token = os.getenv("GOOGLE_ACCESS_TOKEN")
+        if token:
+            return token
+        # Deprecated fallback — remove in a future release
+        token = os.getenv("GOOGLE_CALENDAR_ACCESS_TOKEN")
+        if token:
+            warnings.warn(
+                "GOOGLE_CALENDAR_ACCESS_TOKEN is deprecated, use GOOGLE_ACCESS_TOKEN instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return token
+        return None
 
     def _get_headers() -> dict[str, str]:
         """Get authorization headers for API requests.
