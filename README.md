@@ -85,6 +85,95 @@ Use Hive when you need:
 
 > **Note for Windows Users:** It is strongly recommended to use **WSL (Windows Subsystem for Linux)** or **Git Bash** to run this framework. Some core automation scripts may not execute correctly in standard Command Prompt or PowerShell.
 
+### 🚀 First-Time Contributor Setup
+
+If you're new to Hive, here's what you need to know before diving in:
+
+#### What is Claude Code?
+
+Claude Code is a coding assistant that helps you build and test Hive agents. The `claude>` commands you'll see in this README refer to Claude Code's command interface.
+
+- **Installation**: Claude Code comes with [Claude Desktop](https://claude.ai/download) or can be used via [VSCode extension](https://marketplace.visualstudio.com/items?itemName=Anthropic.claude)
+- **Alternative**: You can also build agents manually without Claude Code by directly editing Python files in `exports/`
+
+#### Required API Keys
+
+Before running agents, you need at least ONE of the following:
+
+| Provider   | Environment Variable | Get Your Key | Supported Models |
+|------------|---------------------|--------------|------------------|
+| **OpenAI** | `OPENAI_API_KEY` | [platform.openai.com](https://platform.openai.com/api-keys) | GPT-4, GPT-4o, GPT-3.5-turbo |
+| **Anthropic** | `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com/) | Claude 3.5 Sonnet, Claude 3 Opus |
+| **Google** | `GOOGLE_API_KEY` | [ai.google.dev](https://ai.google.dev/) | Gemini Pro, Gemini 1.5 |
+
+**Set your API key** (choose one):
+```bash
+# Option 1: Set in terminal (temporary)
+export OPENAI_API_KEY="sk-..."
+
+# Option 2: Add to .env file (persistent)
+echo 'OPENAI_API_KEY="sk-..."' >> .env
+
+# Option 3: Add to your shell profile (permanent)
+echo 'export OPENAI_API_KEY="sk-..."' >> ~/.bashrc  # or ~/.zshrc
+source ~/.bashrc
+```
+
+#### Setup Verification Checklist
+
+Before building your first agent, verify your environment:
+
+- [ ] **Python 3.11+**: Run `python --version` or `python3 --version`
+  - If missing: [Download Python](https://www.python.org/downloads/)
+  - **Windows users**: Use WSL for best compatibility, or ensure Python is in your PATH
+
+- [ ] **Git**: Run `git --version`
+  - If missing: [Install Git](https://git-scm.com/downloads)
+
+- [ ] **Docker (Optional)**: Run `docker --version`
+  - Only needed for containerized tools
+  - If missing: [Install Docker](https://docs.docker.com/get-docker/)
+
+- [ ] **API Key**: Verify your key is set
+  ```bash
+  echo $OPENAI_API_KEY  # Should print your key (not empty)
+  ```
+
+- [ ] **Repository Cloned**: You're in the `hive/` directory
+  ```bash
+  ls -la  # Should show core/, tools/, exports/, etc.
+  ```
+
+✅ **All checked?** Proceed to [Installation](#installation) below!
+
+#### Common Setup Issues
+
+**Windows Users:**
+- Prefer WSL (Windows Subsystem for Linux) for running setup scripts
+- If using PowerShell, replace `./scripts/setup-python.sh` with `bash ./scripts/setup-python.sh`
+
+**Python Version Detection:**
+- If setup fails with Python 3.10 detected (but you have 3.11+), specify the binary:
+  ```bash
+  PYTHON=python3.11 ./scripts/setup-python.sh
+  ```
+
+**Import Errors After Setup:**
+- Verify packages installed:
+  ```bash
+  pip list | grep -E "framework|aden_tools"
+  ```
+- If missing, re-run setup with verbose output:
+  ```bash
+  ./scripts/setup-python.sh -v
+  ```
+
+**Need Help?**
+- [Open an issue](https://github.com/adenhq/hive/issues)
+- [Join Discord](https://discord.com/invite/MXE49hrKDk)
+
+---
+
 ### Installation
 
 >**Note**
