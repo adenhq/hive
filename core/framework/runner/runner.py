@@ -667,9 +667,6 @@ class AgentRunner:
         Maps model name to credential store ID (e.g. "anthropic/..." -> "anthropic")
         and retrieves the key via CredentialStore.get().
         """
-        if not os.environ.get("HIVE_CREDENTIAL_KEY"):
-            return None
-
         # Map model prefix to credential store ID
         model_lower = self.model.lower()
         cred_id = None
@@ -680,10 +677,22 @@ class AgentRunner:
         if cred_id is None:
             return None
 
+        # Check configuration for credential backend
+        config = get_hive_config()
+        akv_name = config.get("azure_key_vault_name")
+
+        # If using local storage, ensure encryption key is present
+        if not akv_name and not os.environ.get("HIVE_CREDENTIAL_KEY"):
+            return None
+
         try:
             from framework.credentials import CredentialStore
 
-            store = CredentialStore.with_encrypted_storage()
+            if akv_name:
+                vault_url = f"https://{akv_name}.vault.azure.net/"
+                store = CredentialStore.with_azure_key_vault(vault_url)
+                store = CredentialStore.with_encrypted_storage()
+
             return store.get(cred_id)
         except Exception:
             return None

@@ -706,3 +706,31 @@ class CredentialStore:
         except Exception as e:
             logger.warning(f"Failed to setup Aden sync: {e}. Using local storage.")
             return cls(storage=local_storage, **kwargs)
+
+    @classmethod
+    def with_azure_key_vault(
+        cls,
+        vault_url: str,
+        credential: Any | None = None,
+        providers: list[CredentialProvider] | None = None,
+        **kwargs: Any,
+    ) -> CredentialStore:
+        """
+        Create a credential store with Azure Key Vault storage.
+
+        Args:
+            vault_url: The URL of the key vault (e.g., https://myvault.vault.azure.net/)
+            credential: The token credential to use for authentication.
+            providers: List of credential providers
+            **kwargs: Additional arguments passed to CredentialStore
+
+        Returns:
+            CredentialStore with AzureKeyVaultStorage
+        """
+        from .vault.azure import AzureKeyVaultStorage
+
+        return cls(
+            storage=AzureKeyVaultStorage(vault_url, credential),
+            providers=providers,
+            **kwargs,
+        )

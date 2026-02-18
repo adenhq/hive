@@ -16,6 +16,8 @@ dependencies = [
   "pytest-asyncio>=0.23",
   "pytest-xdist>=3.0",
   "tools",
+  "azure-identity>=1.15.0",
+  "azure-keyvault-secrets>=4.8.0",
 ]
 
 [project.optional-dependencies]

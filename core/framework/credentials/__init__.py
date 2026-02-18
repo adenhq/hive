@@ -40,6 +40,9 @@ For Aden server sync:
 
 For Vault integration:
     from core.framework.credentials.vault import HashiCorpVaultStorage
+
+For Azure Key Vault integration:
+    from core.framework.credentials.vault import AzureKeyVaultStorage
 """
 
 from .models import (
