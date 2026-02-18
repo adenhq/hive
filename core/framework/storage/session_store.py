@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 from framework.schemas.session_state import SessionState
+from framework.utils import validate_path_id
 from framework.utils.io import atomic_write
 
 logger = logging.getLogger(__name__)
@@ -62,7 +63,11 @@ class SessionStore:
 
         Returns:
             Path to session directory
+
+        Raises:
+            ValueError: If session_id contains path traversal patterns
         """
+        validate_path_id(session_id, "session_id")
         return self.sessions_dir / session_id
 
     def get_state_path(self, session_id: str) -> Path:

@@ -17,6 +17,20 @@ from mcp.server.fastmcp import FastMCP
 from aden_tools.credentials.browser import open_browser
 
 
+def _validate_data_dir(data_dir: str) -> str | None:
+    """Validate that data_dir doesn't use path traversal.
+
+    Returns an error message string if invalid, or None if valid.
+    """
+    if ".." in data_dir.replace("\\", "/").split("/"):
+        return "data_dir must not contain '..' path components"
+    resolved = Path(data_dir).resolve()
+    # Reject if resolution moved outside the stated directory (symlink tricks)
+    if ".." in str(resolved):
+        return "data_dir resolves to an invalid path"
+    return None
+
+
 def register_tools(mcp: FastMCP) -> None:
     """Register data management tools with the MCP server."""
 
@@ -47,6 +61,10 @@ def register_tools(mcp: FastMCP) -> None:
             return {"error": "Invalid filename. Use simple names like 'users.json'"}
         if not data_dir:
             return {"error": "data_dir is required"}
+
+        dir_err = _validate_data_dir(data_dir)
+        if dir_err:
+            return {"error": dir_err}
 
         try:
             dir_path = Path(data_dir)
@@ -106,6 +124,10 @@ def register_tools(mcp: FastMCP) -> None:
             return {"error": "Invalid filename"}
         if not data_dir:
             return {"error": "data_dir is required"}
+
+        dir_err = _validate_data_dir(data_dir)
+        if dir_err:
+            return {"error": dir_err}
 
         try:
             offset_bytes = int(offset_bytes)
@@ -204,6 +226,10 @@ def register_tools(mcp: FastMCP) -> None:
         if not data_dir:
             return {"error": "data_dir is required"}
 
+        dir_err = _validate_data_dir(data_dir)
+        if dir_err:
+            return {"error": dir_err}
+
         try:
             path = Path(data_dir) / filename
             if not path.exists():
@@ -245,6 +271,10 @@ def register_tools(mcp: FastMCP) -> None:
         """
         if not data_dir:
             return {"error": "data_dir is required"}
+
+        dir_err = _validate_data_dir(data_dir)
+        if dir_err:
+            return {"error": dir_err}
 
         try:
             dir_path = Path(data_dir)
@@ -291,6 +321,10 @@ def register_tools(mcp: FastMCP) -> None:
             return {"error": "Invalid filename. Use simple names like 'report.html'"}
         if not data_dir:
             return {"error": "data_dir is required"}
+
+        dir_err = _validate_data_dir(data_dir)
+        if dir_err:
+            return {"error": dir_err}
 
         try:
             dir_path = Path(data_dir)
@@ -339,6 +373,10 @@ def register_tools(mcp: FastMCP) -> None:
             return {"error": "Invalid filename. Use simple names like 'report.html'"}
         if not data_dir:
             return {"error": "data_dir is required"}
+
+        dir_err = _validate_data_dir(data_dir)
+        if dir_err:
+            return {"error": dir_err}
 
         try:
             path = Path(data_dir) / filename

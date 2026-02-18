@@ -134,6 +134,25 @@ class BuildSession:
 _session: BuildSession | None = None
 
 
+def _validate_session_id(session_id: str) -> None:
+    """Validate session ID to prevent path traversal.
+
+    Raises:
+        ValueError: If session_id contains path traversal or unsafe characters.
+    """
+    if not session_id or not session_id.strip():
+        raise ValueError("Session ID cannot be empty")
+    if ".." in session_id or "/" in session_id or "\\" in session_id:
+        raise ValueError(f"Invalid session ID: path traversal detected in '{session_id}'")
+    if "\x00" in session_id:
+        raise ValueError("Invalid session ID: null bytes not allowed")
+    import re
+    if not re.match(r'^[a-zA-Z0-9_\-]+$', session_id):
+        raise ValueError(
+            f"Invalid session ID: only alphanumeric, underscore, and hyphen allowed in '{session_id}'"
+        )
+
+
 def _ensure_sessions_dir():
     """Ensure sessions directory exists."""
     SESSIONS_DIR.mkdir(exist_ok=True)
@@ -147,6 +166,7 @@ def _save_session(session: BuildSession):
     session.last_modified = datetime.now().isoformat()
 
     # Save session file
+    _validate_session_id(session.id)
     session_file = SESSIONS_DIR / f"{session.id}.json"
     with atomic_write(session_file) as f:
         json.dump(session.to_dict(), f, indent=2, default=str)
@@ -158,6 +178,7 @@ def _save_session(session: BuildSession):
 
 def _load_session(session_id: str) -> BuildSession:
     """Load session from disk."""
+    _validate_session_id(session_id)
     session_file = SESSIONS_DIR / f"{session_id}.json"
     if not session_file.exists():
         raise ValueError(f"Session '{session_id}' not found")
@@ -296,6 +317,11 @@ def load_session_by_id(session_id: Annotated[str, "ID of the session to load"]) 
 def delete_session(session_id: Annotated[str, "ID of the session to delete"]) -> str:
     """Delete a saved agent building session."""
     global _session
+
+    try:
+        _validate_session_id(session_id)
+    except ValueError as e:
+        return json.dumps({"success": False, "error": str(e)})
 
     session_file = SESSIONS_DIR / f"{session_id}.json"
     if not session_file.exists():
@@ -574,6 +600,17 @@ def _validate_agent_path(agent_path: str) -> tuple[Path | None, str | None]:
                 "success": False,
                 "error": f"Agent path not found: {path}",
                 "hint": "Run export_graph to create an agent in exports/ first",
+            }
+        )
+
+    # Prevent escaping the project root
+    try:
+        path.resolve().relative_to(_PROJECT_ROOT.resolve())
+    except ValueError:
+        return None, json.dumps(
+            {
+                "success": False,
+                "error": "Agent path must be within the project directory",
             }
         )
 
@@ -4046,6 +4083,18 @@ def verify_credentials(
 _MAX_DIFF_VALUE_LEN = 500
 
 
+def _validate_path_component(value: str, label: str = "ID") -> str | None:
+    """Validate a value used as a path component to prevent path traversal.
+
+    Returns None if valid, or an error JSON string if invalid.
+    """
+    if not value or not value.strip():
+        return json.dumps({"error": f"{label} cannot be empty"})
+    if ".." in value or "/" in value or "\\" in value or "\x00" in value:
+        return json.dumps({"error": f"Invalid {label}: contains unsafe characters"})
+    return None
+
+
 def _read_session_json(path: Path) -> dict | None:
     """Read a JSON file, returning None on failure."""
     if not path.exists():
@@ -4157,6 +4206,9 @@ def get_agent_session_state(
     metrics, and checkpoint info. Memory values are excluded to prevent
     context bloat -- use get_agent_session_memory to retrieve memory contents.
     """
+    err = _validate_path_component(session_id, "session_id")
+    if err:
+        return err
     state_path = Path(agent_work_dir) / "sessions" / session_id / "state.json"
     data = _read_session_json(state_path)
     if data is None:
@@ -4185,6 +4237,9 @@ def get_agent_session_memory(
     If key is provided, returns only that memory key's value.
     If key is empty, returns all memory keys and their values.
     """
+    err = _validate_path_component(session_id, "session_id")
+    if err:
+        return err
     state_path = Path(agent_work_dir) / "sessions" / session_id / "state.json"
     data = _read_session_json(state_path)
     if data is None:
@@ -4238,6 +4293,9 @@ def list_agent_checkpoints(
     crash recovery and resume. Use with get_agent_checkpoint for
     detailed checkpoint inspection.
     """
+    err = _validate_path_component(session_id, "session_id")
+    if err:
+        return err
     session_dir = Path(agent_work_dir) / "sessions" / session_id
     checkpoint_dir = session_dir / "checkpoints"
 
@@ -4313,6 +4371,9 @@ def get_agent_checkpoint(
     execution path, accumulated outputs, and metrics. If checkpoint_id
     is empty, loads the latest checkpoint.
     """
+    err = _validate_path_component(session_id, "session_id")
+    if err:
+        return err
     session_dir = Path(agent_work_dir) / "sessions" / session_id
     checkpoint_dir = session_dir / "checkpoints"
 
@@ -4329,6 +4390,9 @@ def get_agent_checkpoint(
                 return json.dumps({"error": f"No checkpoints found for session: {session_id}"})
             checkpoint_id = cp_files[-1].stem
 
+    err = _validate_path_component(checkpoint_id, "checkpoint_id")
+    if err:
+        return err
     cp_path = checkpoint_dir / f"{checkpoint_id}.json"
     data = _read_session_json(cp_path)
     if data is None:
@@ -4351,6 +4415,10 @@ def compare_agent_checkpoints(
     two points in execution. Useful for understanding how data flows
     through the agent graph.
     """
+    for label, value in [("session_id", session_id), ("checkpoint_id_before", checkpoint_id_before), ("checkpoint_id_after", checkpoint_id_after)]:
+        err = _validate_path_component(value, label)
+        if err:
+            return err
     checkpoint_dir = Path(agent_work_dir) / "sessions" / session_id / "checkpoints"
 
     before = _read_session_json(checkpoint_dir / f"{checkpoint_id_before}.json")

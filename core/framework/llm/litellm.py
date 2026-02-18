@@ -10,6 +10,7 @@ See: https://docs.litellm.ai/docs/providers
 import asyncio
 import json
 import logging
+import os
 import time
 from collections.abc import AsyncIterator, Callable
 from datetime import datetime
@@ -34,6 +35,14 @@ RATE_LIMIT_MAX_DELAY = 120  # seconds - cap to prevent absurd waits
 
 # Directory for dumping failed requests
 FAILED_REQUESTS_DIR = Path.home() / ".hive" / "failed_requests"
+
+# Set HIVE_DUMP_FAILED_MESSAGES=true to include full message content in failed
+# request dumps.  Defaults to false to avoid persisting PII or sensitive data.
+DUMP_MESSAGE_CONTENT = os.environ.get("HIVE_DUMP_FAILED_MESSAGES", "false").lower() in (
+    "true",
+    "1",
+    "yes",
+)
 
 
 def _estimate_tokens(model: str, messages: list[dict]) -> tuple[int, str]:
@@ -64,20 +73,29 @@ def _dump_failed_request(
     filename = f"{error_type}_{model.replace('/', '_')}_{timestamp}.json"
     filepath = FAILED_REQUESTS_DIR / filename
 
-    # Build dump data
+    # Build dump data — omit message content by default to avoid persisting PII.
+    # Set HIVE_DUMP_FAILED_MESSAGES=true to include full messages for debugging.
     messages = kwargs.get("messages", [])
-    dump_data = {
+    dump_data: dict[str, Any] = {
         "timestamp": datetime.now().isoformat(),
         "model": model,
         "error_type": error_type,
         "attempt": attempt,
         "estimated_tokens": _estimate_tokens(model, messages),
         "num_messages": len(messages),
-        "messages": messages,
-        "tools": kwargs.get("tools"),
         "max_tokens": kwargs.get("max_tokens"),
         "temperature": kwargs.get("temperature"),
     }
+
+    if DUMP_MESSAGE_CONTENT:
+        dump_data["messages"] = messages
+        dump_data["tools"] = kwargs.get("tools")
+    else:
+        dump_data["messages"] = "[redacted — set HIVE_DUMP_FAILED_MESSAGES=true to include]"
+        dump_data["message_roles"] = [m.get("role", "unknown") for m in messages]
+        tools = kwargs.get("tools")
+        if tools:
+            dump_data["tool_count"] = len(tools)
 
     with open(filepath, "w") as f:
         json.dump(dump_data, f, indent=2, default=str)

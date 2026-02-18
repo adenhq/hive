@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 from framework.schemas.run import Run, RunStatus, RunSummary
+from framework.utils import validate_path_id
 from framework.utils.io import atomic_write
 
 
@@ -107,6 +108,7 @@ class FileStorage:
 
     def load_run(self, run_id: str) -> Run | None:
         """Load a run from storage."""
+        validate_path_id(run_id, "run_id")
         run_path = self.base_path / "runs" / f"{run_id}.json"
         if not run_path.exists():
             return None
@@ -115,6 +117,7 @@ class FileStorage:
 
     def load_summary(self, run_id: str) -> RunSummary | None:
         """Load just the summary (faster than full run)."""
+        validate_path_id(run_id, "run_id")
         summary_path = self.base_path / "summaries" / f"{run_id}.json"
         if not summary_path.exists():
             # Fall back to computing from full run
@@ -128,6 +131,7 @@ class FileStorage:
 
     def delete_run(self, run_id: str) -> bool:
         """Delete a run from storage."""
+        validate_path_id(run_id, "run_id")
         run_path = self.base_path / "runs" / f"{run_id}.json"
         summary_path = self.base_path / "summaries" / f"{run_id}.json"
 

@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from framework.schemas.checkpoint import Checkpoint, CheckpointIndex, CheckpointSummary
+from framework.utils import validate_path_id
 from framework.utils.io import atomic_write
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,7 @@ class CheckpointStore:
         """
 
         def _write():
+            validate_path_id(checkpoint.checkpoint_id, "checkpoint_id")
             # Ensure directory exists
             self.checkpoints_dir.mkdir(parents=True, exist_ok=True)
 
@@ -88,6 +90,7 @@ class CheckpointStore:
         """
 
         def _read(checkpoint_id: str) -> Checkpoint | None:
+            validate_path_id(checkpoint_id, "checkpoint_id")
             checkpoint_path = self.checkpoints_dir / f"{checkpoint_id}.json"
 
             if not checkpoint_path.exists():
@@ -172,6 +175,7 @@ class CheckpointStore:
         """
 
         def _delete(checkpoint_id: str) -> bool:
+            validate_path_id(checkpoint_id, "checkpoint_id")
             checkpoint_path = self.checkpoints_dir / f"{checkpoint_id}.json"
 
             if not checkpoint_path.exists():
@@ -249,6 +253,7 @@ class CheckpointStore:
         """
 
         def _check(checkpoint_id: str) -> bool:
+            validate_path_id(checkpoint_id, "checkpoint_id")
             checkpoint_path = self.checkpoints_dir / f"{checkpoint_id}.json"
             return checkpoint_path.exists()
 
