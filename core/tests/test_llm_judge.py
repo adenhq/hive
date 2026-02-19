@@ -369,6 +369,25 @@ class TestLLMJudgeIntegrationPatterns:
 
         assert result["passes"] is True
 
+    def test_with_openai_provider(self):
+        """Test pattern: using LLMJudge with OpenAIProvider."""
+        # This demonstrates the intended usage pattern without actually calling the API
+        # Create a mock that behaves like OpenAIProvider
+        mock_openai = MockLLMProvider(
+            response_content='{"passes": true, "explanation": "Matches source"}'
+        )
+
+        judge = LLMJudge(llm_provider=mock_anthropic)
+
+        result = judge.evaluate(
+            constraint="factual-accuracy",
+            source_document="Python was created by Guido van Rossum.",
+            summary="Python's creator is Guido van Rossum.",
+            criteria="Summary must be factually accurate",
+        )
+
+        assert result["passes"] is True
+
     def test_with_multiple_evaluations(self):
         """Test pattern: running multiple evaluations with same provider."""
         provider = MockLLMProvider()

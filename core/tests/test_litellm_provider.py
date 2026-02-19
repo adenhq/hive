@@ -19,6 +19,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from framework.llm.anthropic import AnthropicProvider
+from framework.llm.openai import OpenAIProvider
 from framework.llm.litellm import LiteLLMProvider, _compute_retry_delay
 from framework.llm.provider import LLMProvider, LLMResponse, Tool, ToolResult, ToolUse
 
@@ -411,6 +412,120 @@ class TestAnthropicProviderBackwardCompatibility:
         call_kwargs = mock_completion.call_args[1]
         assert call_kwargs["response_format"] == fmt
 
+class TestOpenAIProviderBackwardCompatibility:
+    """Test OpenAIProvider backward compatibility with LiteLLM backend."""
+
+    def test_openai_provider_is_llm_provider(self):
+        """Test that OpenAIProvider implements LLMProvider interface."""
+        provider = OpenAIProvider(api_key="test-key")
+        assert isinstance(provider, LLMProvider)
+
+    def test_openai_provider_init_defaults(self):
+        """Test OpenAIProvider initialization with defaults."""
+        provider = OpenAIProvider(api_key="test-key")
+        assert provider.model == "gpt-4o-mini"
+        assert provider.api_key == "test-key"
+
+    def test_openai_provider_init_custom_model(self):
+        """Test OpenAIProvider initialization with custom model."""
+        provider = OpenAIProvider(api_key="test-key", model="gpt-4o-mini")
+        assert provider.model == "gpt-4o-mini"
+
+    def test_openai_provider_uses_litellm_internally(self):
+        """Test that OpenAIProvider delegates to LiteLLMProvider."""
+        provider = OpenAIProvider(api_key="test-key", model="gpt-4o-mini")
+        assert isinstance(provider._provider, LiteLLMProvider)
+        assert provider._provider.model == "gpt-4o-mini"
+        assert provider._provider.api_key == "test-key"
+
+    @patch("litellm.completion")
+    def test_openai_provider_complete(self, mock_completion):
+        """Test OpenAIProvider.complete() delegates to LiteLLM."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "How can I help you today?"
+        mock_response.choices[0].finish_reason = "stop"
+        mock_response.model = "gpt-4o-mini"
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 5
+        mock_completion.return_value = mock_response
+
+        provider = OpenAIProvider(api_key="test-key", model="gpt-4o-mini")
+        result = provider.complete(
+            messages=[{"role": "user", "content": "How"}],
+            system="You are helpful.",
+            max_tokens=100,
+        )
+
+        assert result.content == "How can I help you today?"
+        assert result.model == "gpt-4o-mini"
+        assert result.input_tokens == 10
+        assert result.output_tokens == 5
+
+        mock_completion.assert_called_once()
+        call_kwargs = mock_completion.call_args[1]
+        assert call_kwargs["model"] == "gpt-4o-mini"
+        assert call_kwargs["api_key"] == "test-key"
+
+    @patch("litellm.completion")
+    def test_openai_provider_complete_with_tools(self, mock_completion):
+        """Test OpenAIProvider.complete_with_tools() delegates to LiteLLM."""
+        # Mock a simple response (no tool calls)
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "The time is 3:00 PM."
+        mock_response.choices[0].message.tool_calls = None
+        mock_response.choices[0].finish_reason = "stop"
+        mock_response.model = "gpt-4o-mini"
+        mock_response.usage.prompt_tokens = 20
+        mock_response.usage.completion_tokens = 10
+        mock_completion.return_value = mock_response
+
+        provider = OpenAIProvider(api_key="test-key", model="gpt-4o-mini")
+
+        tools = [
+            Tool(
+                name="get_time",
+                description="Get current time",
+                parameters={"properties": {}, "required": []},
+            )
+        ]
+
+        def tool_executor(tool_use: ToolUse) -> ToolResult:
+            return ToolResult(tool_use_id=tool_use.id, content="3:00 PM", is_error=False)
+
+        result = provider.complete_with_tools(
+            messages=[{"role": "user", "content": "What time is it?"}],
+            system="You are a time assistant.",
+            tools=tools,
+            tool_executor=tool_executor,
+        )
+
+        assert result.content == "The time is 3:00 PM."
+        mock_completion.assert_called_once()
+
+    @patch("litellm.completion")
+    def test_openai_provider_passes_response_format(self, mock_completion):
+        """Test that OpenAIProvider accepts and forwards response_format."""
+        # Setup mock
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "{}"
+        mock_response.choices[0].finish_reason = "stop"
+        mock_response.model = "gpt-4o-mini"
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 5
+        mock_completion.return_value = mock_response
+
+        provider = OpenAIProvider(api_key="test-key")
+        fmt = {"type": "json_object"}
+
+        provider.complete(messages=[{"role": "user", "content": "hi"}], response_format=fmt)
+
+        # Verify it was passed to litellm
+        call_kwargs = mock_completion.call_args[1]
+        assert call_kwargs["response_format"] == fmt
+
 
 class TestJsonMode:
     """Test json_mode parameter for structured JSON output via prompt engineering."""
@@ -525,6 +640,33 @@ class TestJsonMode:
         mock_completion.return_value = mock_response
 
         provider = AnthropicProvider(api_key="test-key")
+        provider.complete(
+            messages=[{"role": "user", "content": "Return JSON"}],
+            system="You are helpful.",
+            json_mode=True,
+        )
+
+        call_kwargs = mock_completion.call_args[1]
+        # Should NOT use response_format
+        assert "response_format" not in call_kwargs
+        # Should have JSON instruction in system prompt
+        messages = call_kwargs["messages"]
+        assert messages[0]["role"] == "system"
+        assert "Please respond with a valid JSON object" in messages[0]["content"]
+
+    @patch("litellm.completion")
+    def test_openai_provider_passes_json_mode(self, mock_completion):
+        """Test that OpenAIProvider passes json_mode through (prompt engineering)."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = '{"result": "ok"}'
+        mock_response.choices[0].finish_reason = "stop"
+        mock_response.model = "gpt-4o-mini"
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 5
+        mock_completion.return_value = mock_response
+
+        provider = OpenAIProvider(api_key="test-key")
         provider.complete(
             messages=[{"role": "user", "content": "Return JSON"}],
             system="You are helpful.",

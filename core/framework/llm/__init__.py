@@ -28,9 +28,14 @@ __all__ = [
 ]
 
 try:
-    from framework.llm.anthropic import AnthropicProvider  # noqa: F401
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        from framework.llm.anthropic import AnthropicProvider  # noqa: F401
 
-    __all__.append("AnthropicProvider")
+        __all__.append("AnthropicProvider")
+    elif os.environ.get("OPENAI_API_KEY"):
+        from framework.llm.openai import OpenAIProvider  # noqa: F401
+
+        __all__.append("OpenAIProvider")
 except ImportError:
     pass
 
