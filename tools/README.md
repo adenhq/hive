@@ -5,36 +5,40 @@ Tool library for the Aden agent framework. Provides a collection of tools that A
 ## Installation
 
 ```bash
-pip install -e tools
+uv pip install -e tools
 ```
 
 For development:
 
 ```bash
-pip install -e "tools[dev]"
+uv pip install -e "tools[dev]"
 ```
 
 ## Environment Setup
 
-Some tools require API keys to function. Copy the example file and add your credentials:
+Some tools require API keys to function. Credentials are managed through the encrypted credential store at `~/.hive/credentials`, which is configured automatically during initial setup:
 
 ```bash
-cp .env.example .env
+./quickstart.sh
 ```
 
 | Variable               | Required For                  | Get Key                                                 |
 | ---------------------- | ----------------------------- | ------------------------------------------------------- |
 | `ANTHROPIC_API_KEY`    | MCP server startup, LLM nodes | [console.anthropic.com](https://console.anthropic.com/) |
-| `BRAVE_SEARCH_API_KEY` | `web_search` tool             | [brave.com/search/api](https://brave.com/search/api/)   |
+| `BRAVE_SEARCH_API_KEY` | `web_search` tool (Brave)     | [brave.com/search/api](https://brave.com/search/api/)   |
+| `GOOGLE_API_KEY`       | `web_search` tool (Google)    | [console.cloud.google.com](https://console.cloud.google.com/) |
+| `GOOGLE_CSE_ID`        | `web_search` tool (Google)    | [programmablesearchengine.google.com](https://programmablesearchengine.google.com/) |
 
-Alternatively, export as environment variables:
+> **Note:** `web_search` supports multiple providers. Set either Brave OR Google credentials. Brave is preferred for backward compatibility.
+
+Alternatively, export credentials as environment variables:
 
 ```bash
 export ANTHROPIC_API_KEY=your-key-here
 export BRAVE_SEARCH_API_KEY=your-key-here
 ```
 
-See [.env.example](.env.example) for details.
+See the [credentials module](src/aden_tools/credentials/) for details on how credentials are resolved.
 
 ## Quick Start
 
@@ -57,14 +61,29 @@ python mcp_server.py
 
 ## Available Tools
 
-| Tool           | Description                              |
-| -------------- | ---------------------------------------- |
-| `example_tool` | Template tool demonstrating the pattern  |
-| `file_read`    | Read contents of local files             |
-| `file_write`   | Write content to local files             |
-| `web_search`   | Search the web using Brave Search API    |
-| `web_scrape`   | Scrape and extract content from webpages |
-| `pdf_read`     | Read and extract text from PDF files     |
+| Tool                   | Description                                    |
+| ---------------------- | ---------------------------------------------- |
+| `example_tool`         | Template tool demonstrating the pattern        |
+| `view_file`            | Read contents of local files                   |
+| `write_to_file`        | Write content to local files                   |
+| `list_dir`             | List directory contents                        |
+| `replace_file_content` | Replace content in files                       |
+| `apply_diff`           | Apply diff patches to files                    |
+| `apply_patch`          | Apply unified patches to files                 |
+| `grep_search`          | Search file contents with regex                |
+| `execute_command_tool` | Execute shell commands                         |
+| `web_search`           | Search the web (Google or Brave, auto-detected) |
+| `web_scrape`           | Scrape and extract content from webpages       |
+| `pdf_read`             | Read and extract text from PDF files           |
+| `get_current_time`     | Get current date/time with timezone support    |
+| `calendar_list_calendars` | List all accessible calendars               |
+| `calendar_list_events` | List events from a calendar                    |
+| `calendar_get_event`   | Get details of a specific event                |
+| `calendar_create_event`| Create a new calendar event                    |
+| `calendar_update_event`| Update an existing calendar event              |
+| `calendar_delete_event`| Delete a calendar event                        |
+| `calendar_get_calendar`| Get calendar metadata                          |
+| `calendar_check_availability` | Check free/busy status for attendees    |
 
 ## Project Structure
 
@@ -72,14 +91,23 @@ python mcp_server.py
 tools/
 ├── src/aden_tools/
 │   ├── __init__.py          # Main exports
-│   ├── utils/               # Utility functions
+│   ├── credentials/         # Credential management
 │   └── tools/               # Tool implementations
 │       ├── example_tool/
-│       ├── file_read_tool/
-│       ├── file_write_tool/
+│       ├── file_system_toolkits/  # File operation tools
+│       │   ├── view_file.py
+│       │   ├── write_to_file.py
+│       │   ├── list_dir.py
+│       │   ├── replace_file_content.py
+│       │   ├── apply_diff.py
+│       │   ├── apply_patch.py
+│       │   ├── grep_search.py
+│       │   └── execute_command_tool.py
 │       ├── web_search_tool/
 │       ├── web_scrape_tool/
-│       └── pdf_read_tool/
+│       ├── pdf_read_tool/
+│       ├── time_tool/
+│       └── calendar_tool/
 ├── tests/                   # Test suite
 ├── mcp_server.py            # MCP server entry point
 ├── README.md

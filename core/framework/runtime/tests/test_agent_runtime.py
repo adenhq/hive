@@ -11,23 +11,23 @@ Tests:
 """
 
 import asyncio
-import pytest
 import tempfile
 from pathlib import Path
 
-from framework.graph import Goal
-from framework.graph.goal import SuccessCriterion, Constraint
-from framework.graph.edge import GraphSpec, EdgeSpec, EdgeCondition, AsyncEntryPointSpec
-from framework.graph.node import NodeSpec
-from framework.runtime.agent_runtime import AgentRuntime, AgentRuntimeConfig, create_agent_runtime
-from framework.runtime.execution_stream import EntryPointSpec
-from framework.runtime.shared_state import SharedStateManager, IsolationLevel
-from framework.runtime.event_bus import EventBus, EventType, AgentEvent
-from framework.runtime.outcome_aggregator import OutcomeAggregator
-from framework.runtime.stream_runtime import StreamRuntime
+import pytest
 
+from framework.graph import Goal
+from framework.graph.edge import AsyncEntryPointSpec, EdgeCondition, EdgeSpec, GraphSpec
+from framework.graph.goal import Constraint, SuccessCriterion
+from framework.graph.node import NodeSpec
+from framework.runtime.agent_runtime import AgentRuntime, create_agent_runtime
+from framework.runtime.event_bus import AgentEvent, EventBus, EventType
+from framework.runtime.execution_stream import EntryPointSpec
+from framework.runtime.outcome_aggregator import OutcomeAggregator
+from framework.runtime.shared_state import IsolationLevel, SharedStateManager
 
 # === Test Fixtures ===
+
 
 @pytest.fixture
 def sample_goal():
@@ -64,7 +64,7 @@ def sample_graph():
             id="process-webhook",
             name="Process Webhook",
             description="Process incoming webhook",
-            node_type="llm_generate",
+            node_type="event_loop",
             input_keys=["webhook_data"],
             output_keys=["result"],
         ),
@@ -72,7 +72,7 @@ def sample_graph():
             id="process-api",
             name="Process API Request",
             description="Process API request",
-            node_type="llm_generate",
+            node_type="event_loop",
             input_keys=["request_data"],
             output_keys=["result"],
         ),
@@ -141,6 +141,7 @@ def temp_storage():
 
 # === SharedStateManager Tests ===
 
+
 class TestSharedStateManager:
     """Tests for SharedStateManager."""
 
@@ -175,8 +176,8 @@ class TestSharedStateManager:
         """Test shared state is visible across executions."""
         manager = SharedStateManager()
 
-        mem1 = manager.create_memory("exec-1", "stream-1", IsolationLevel.SHARED)
-        mem2 = manager.create_memory("exec-2", "stream-1", IsolationLevel.SHARED)
+        manager.create_memory("exec-1", "stream-1", IsolationLevel.SHARED)
+        manager.create_memory("exec-2", "stream-1", IsolationLevel.SHARED)
 
         # Write to global scope
         await manager.write(
@@ -209,6 +210,7 @@ class TestSharedStateManager:
 
 # === EventBus Tests ===
 
+
 class TestEventBus:
     """Tests for EventBus pub/sub."""
 
@@ -226,12 +228,14 @@ class TestEventBus:
             handler=handler,
         )
 
-        await bus.publish(AgentEvent(
-            type=EventType.EXECUTION_STARTED,
-            stream_id="webhook",
-            execution_id="exec-1",
-            data={"test": "data"},
-        ))
+        await bus.publish(
+            AgentEvent(
+                type=EventType.EXECUTION_STARTED,
+                stream_id="webhook",
+                execution_id="exec-1",
+                data={"test": "data"},
+            )
+        )
 
         # Allow handler to run
         await asyncio.sleep(0.1)
@@ -256,16 +260,20 @@ class TestEventBus:
         )
 
         # Publish to webhook stream (should be received)
-        await bus.publish(AgentEvent(
-            type=EventType.EXECUTION_STARTED,
-            stream_id="webhook",
-        ))
+        await bus.publish(
+            AgentEvent(
+                type=EventType.EXECUTION_STARTED,
+                stream_id="webhook",
+            )
+        )
 
         # Publish to api stream (should NOT be received)
-        await bus.publish(AgentEvent(
-            type=EventType.EXECUTION_STARTED,
-            stream_id="api",
-        ))
+        await bus.publish(
+            AgentEvent(
+                type=EventType.EXECUTION_STARTED,
+                stream_id="api",
+            )
+        )
 
         await asyncio.sleep(0.1)
 
@@ -308,11 +316,13 @@ class TestEventBus:
 
         # Publish the event
         await asyncio.sleep(0.1)
-        await bus.publish(AgentEvent(
-            type=EventType.EXECUTION_COMPLETED,
-            stream_id="webhook",
-            execution_id="exec-1",
-        ))
+        await bus.publish(
+            AgentEvent(
+                type=EventType.EXECUTION_COMPLETED,
+                stream_id="webhook",
+                execution_id="exec-1",
+            )
+        )
 
         event = await wait_task
 
@@ -321,6 +331,7 @@ class TestEventBus:
 
 
 # === OutcomeAggregator Tests ===
+
 
 class TestOutcomeAggregator:
     """Tests for OutcomeAggregator."""
@@ -375,6 +386,7 @@ class TestOutcomeAggregator:
 
 
 # === AgentRuntime Tests ===
+
 
 class TestAgentRuntime:
     """Tests for AgentRuntime orchestration."""
@@ -491,6 +503,7 @@ class TestAgentRuntime:
 
 # === GraphSpec Validation Tests ===
 
+
 class TestGraphSpecValidation:
     """Tests for GraphSpec with async_entry_points."""
 
@@ -525,7 +538,7 @@ class TestGraphSpecValidation:
                 id="valid-node",
                 name="Valid Node",
                 description="A valid node",
-                node_type="llm_generate",
+                node_type="event_loop",
                 input_keys=[],
                 output_keys=[],
             ),
@@ -595,6 +608,7 @@ class TestGraphSpecValidation:
 
 # === Integration Tests ===
 
+
 class TestCreateAgentRuntime:
     """Tests for the create_agent_runtime factory."""
 
@@ -625,6 +639,186 @@ class TestCreateAgentRuntime:
         assert len(runtime.get_entry_points()) == 2
         assert "webhook" in runtime._entry_points
         assert "api" in runtime._entry_points
+
+
+# === Timer Entry Point Tests ===
+
+
+class TestTimerEntryPoints:
+    """Tests for timer-driven entry points (interval and cron)."""
+
+    @pytest.mark.asyncio
+    async def test_interval_timer_starts_task(self, sample_graph, sample_goal, temp_storage):
+        """Test that interval_minutes timer creates an async task."""
+        runtime = AgentRuntime(
+            graph=sample_graph,
+            goal=sample_goal,
+            storage_path=temp_storage,
+        )
+
+        entry_spec = EntryPointSpec(
+            id="timer-interval",
+            name="Interval Timer",
+            entry_node="process-webhook",
+            trigger_type="timer",
+            trigger_config={"interval_minutes": 60},
+        )
+        runtime.register_entry_point(entry_spec)
+
+        await runtime.start()
+        try:
+            assert len(runtime._timer_tasks) == 1
+            assert not runtime._timer_tasks[0].done()
+            # Give the async task a moment to set next_fire
+            await asyncio.sleep(0.05)
+            assert "timer-interval" in runtime._timer_next_fire
+        finally:
+            await runtime.stop()
+
+        assert len(runtime._timer_tasks) == 0
+
+    @pytest.mark.asyncio
+    async def test_cron_timer_starts_task(self, sample_graph, sample_goal, temp_storage):
+        """Test that cron expression timer creates an async task."""
+        runtime = AgentRuntime(
+            graph=sample_graph,
+            goal=sample_goal,
+            storage_path=temp_storage,
+        )
+
+        entry_spec = EntryPointSpec(
+            id="timer-cron",
+            name="Cron Timer",
+            entry_node="process-webhook",
+            trigger_type="timer",
+            trigger_config={"cron": "*/5 * * * *"},  # Every 5 minutes
+        )
+        runtime.register_entry_point(entry_spec)
+
+        await runtime.start()
+        try:
+            assert len(runtime._timer_tasks) == 1
+            assert not runtime._timer_tasks[0].done()
+            # Give the async task a moment to set next_fire
+            await asyncio.sleep(0.05)
+            assert "timer-cron" in runtime._timer_next_fire
+        finally:
+            await runtime.stop()
+
+    @pytest.mark.asyncio
+    async def test_invalid_cron_expression_skipped(
+        self, sample_graph, sample_goal, temp_storage, caplog
+    ):
+        """Test that an invalid cron expression logs a warning and skips."""
+        runtime = AgentRuntime(
+            graph=sample_graph,
+            goal=sample_goal,
+            storage_path=temp_storage,
+        )
+
+        entry_spec = EntryPointSpec(
+            id="timer-bad-cron",
+            name="Bad Cron Timer",
+            entry_node="process-webhook",
+            trigger_type="timer",
+            trigger_config={"cron": "not a cron expression"},
+        )
+        runtime.register_entry_point(entry_spec)
+
+        await runtime.start()
+        try:
+            assert len(runtime._timer_tasks) == 0
+            assert "invalid cron" in caplog.text.lower() or "Invalid cron" in caplog.text
+        finally:
+            await runtime.stop()
+
+    @pytest.mark.asyncio
+    async def test_cron_takes_priority_over_interval(
+        self, sample_graph, sample_goal, temp_storage, caplog
+    ):
+        """Test that when both cron and interval_minutes are set, cron wins."""
+        import logging
+
+        runtime = AgentRuntime(
+            graph=sample_graph,
+            goal=sample_goal,
+            storage_path=temp_storage,
+        )
+
+        entry_spec = EntryPointSpec(
+            id="timer-both",
+            name="Both Timer",
+            entry_node="process-webhook",
+            trigger_type="timer",
+            trigger_config={"cron": "0 9 * * *", "interval_minutes": 30},
+        )
+        runtime.register_entry_point(entry_spec)
+
+        with caplog.at_level(logging.INFO):
+            await runtime.start()
+        try:
+            assert len(runtime._timer_tasks) == 1
+            # Should log cron, not interval
+            assert any("cron" in r.message.lower() for r in caplog.records)
+        finally:
+            await runtime.stop()
+
+    @pytest.mark.asyncio
+    async def test_no_interval_or_cron_warns(self, sample_graph, sample_goal, temp_storage, caplog):
+        """Test that timer with neither cron nor interval_minutes logs a warning."""
+        runtime = AgentRuntime(
+            graph=sample_graph,
+            goal=sample_goal,
+            storage_path=temp_storage,
+        )
+
+        entry_spec = EntryPointSpec(
+            id="timer-empty",
+            name="Empty Timer",
+            entry_node="process-webhook",
+            trigger_type="timer",
+            trigger_config={},
+        )
+        runtime.register_entry_point(entry_spec)
+
+        await runtime.start()
+        try:
+            assert len(runtime._timer_tasks) == 0
+            assert "no 'cron' or valid 'interval_minutes'" in caplog.text
+        finally:
+            await runtime.stop()
+
+    @pytest.mark.asyncio
+    async def test_cron_immediate_fires_first(self, sample_graph, sample_goal, temp_storage):
+        """Test that run_immediately=True with cron doesn't set next_fire before first run."""
+        runtime = AgentRuntime(
+            graph=sample_graph,
+            goal=sample_goal,
+            storage_path=temp_storage,
+        )
+
+        entry_spec = EntryPointSpec(
+            id="timer-cron-immediate",
+            name="Cron Immediate",
+            entry_node="process-webhook",
+            trigger_type="timer",
+            trigger_config={"cron": "0 0 * * *", "run_immediately": True},
+        )
+        runtime.register_entry_point(entry_spec)
+
+        await runtime.start()
+        try:
+            assert len(runtime._timer_tasks) == 1
+            # With run_immediately, the task enters the while loop directly,
+            # so _timer_next_fire is NOT set before the first trigger attempt
+            # (it pops it at the top of the loop)
+            # Give it a moment to start executing
+            await asyncio.sleep(0.05)
+            # Task should still be running (it will try to trigger and likely fail
+            # since there's no LLM, but the task itself continues)
+            assert not runtime._timer_tasks[0].done()
+        finally:
+            await runtime.stop()
 
 
 if __name__ == "__main__":
