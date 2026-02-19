@@ -638,31 +638,12 @@ def add_node(
     if any(n.id == node_id for n in session.nodes):
         return json.dumps({"valid": False, "errors": [f"Node '{node_id}' already exists"]})
 
-    node = NodeSpec(
-        id=node_id,
-        name=name,
-        description=description,
-        node_type=node_type,
-        input_keys=input_keys_list,
-        output_keys=output_keys_list,
-        system_prompt=system_prompt or None,
-        tools=tools_list,
-        routes=routes_dict,
-        client_facing=client_facing,
-        nullable_output_keys=nullable_output_keys_list,
-        max_node_visits=max_node_visits,
-    )
-
-    session.nodes.append(node)
-
     # Validate
     errors = []
     warnings = []
 
     if not node_id:
         errors.append("Node must have an id")
-    if not name:
-        errors.append("Node must have a name")
 
     # Reject removed node types
     if node_type in ("function", "llm_tool_use", "llm_generate"):
@@ -691,7 +672,27 @@ def add_node(
                 f"nullable_output_keys {invalid_nullable} must be a subset of "
                 f"output_keys {output_keys_list}"
             )
+    if (n.id == node.id for n in session.node):
+        error.append(f"node {node_id} already exists")
 
+    if errors:
+        return json.dumps("valid":False,"errors":errors,"warnings":warnings})
+    node = NodeSpec(
+        id=node_id,
+        name=name,
+        description=description,
+        node_type=node_type,
+        input_keys=input_keys_list,
+        output_keys=output_keys_list,
+        system_prompt=system_prompt or None,
+        tools=tools_list,
+        routes=routes_dict,
+        client_facing=client_facing,
+        nullable_output_keys=nullable_output_keys_list,
+        max_node_visits=max_node_visits,
+    )
+
+    session.nodes.append(node)
     _save_session(session)  # Auto-save
 
     return json.dumps(
@@ -755,25 +756,18 @@ def add_edge(
     }
     edge_condition = condition_map.get(condition, EdgeCondition.ON_SUCCESS)
 
-    edge = EdgeSpec(
-        id=edge_id,
-        source=source,
-        target=target,
-        condition=edge_condition,
-        condition_expr=condition_expr or None,
-        priority=priority,
-    )
-
-    session.edges.append(edge)
+    
 
     # Validate
     errors = []
     warnings = []
 
+    if not any(e.id == edge_id for e in session.edges):
+        errors.append(f"edge '{edge_id}' not found")
     if not any(n.id == source for n in session.nodes):
-        errors.append(f"Source node '{source}' not found")
+        errors.append(f"source node '{source}' not found")
     if not any(n.id == target for n in session.nodes):
-        errors.append(f"Target node '{target}' not found")
+        errors.append(f"target '{target}' not found")
     if edge_condition == EdgeCondition.CONDITIONAL and not condition_expr:
         errors.append(f"Conditional edge '{edge_id}' needs condition_expr")
 
@@ -787,6 +781,18 @@ def add_edge(
                 f"max_node_visits={target_node.max_node_visits}. "
                 "Consider increasing max_node_visits on the target node."
             )
+    if errors:
+        return json.dumps({"valid":False, "errors":errors, "warnings":warnings})
+    edge = EdgeSpec(
+        id=edge_id,
+        source=source,
+        target=target,
+        condition=edge_condition,
+        condition_expr=condition_expr or None,
+        priority=priority,
+    )
+
+    session.edges.append(edge)
 
     _save_session(session)  # Auto-save
 
@@ -881,32 +887,12 @@ def update_node(
         cred_error = _validate_tool_credentials(tools_list)
         if cred_error:
             return json.dumps(cred_error)
-
-    # Update fields if provided
-    if name:
-        node.name = name
-    if description:
-        node.description = description
-    if node_type:
-        node.node_type = node_type
-    if input_keys_list is not None:
-        node.input_keys = input_keys_list
-    if output_keys_list is not None:
-        node.output_keys = output_keys_list
-    if system_prompt:
-        node.system_prompt = system_prompt
-    if tools_list is not None:
-        node.tools = tools_list
-    if routes_dict is not None:
-        node.routes = routes_dict
-    if client_facing:
-        node.client_facing = client_facing.lower() == "true"
-    if nullable_output_keys_list is not None:
-        node.nullable_output_keys = nullable_output_keys_list
-    if max_node_visits > 0:
-        node.max_node_visits = max_node_visits
-
-    # Validate
+    snap = node.model_dump()
+    effective_node_type = node_type if node_type else node.node_type
+    effective_output_keys = output_keys_list if output_keys_list is not None else node.output_keys
+    effective_nullable = nullable_output_keys_list if nullable_output_keys_list is not None else node.nullable_output_keys
+    effective_routes = routes_dict if routes_dict is not None else node.routes
+    effective_system_prompt = system_prompt if system_prompt else node.system_prompt
     errors = []
     warnings = []
 
@@ -931,8 +917,32 @@ def update_node(
                 f"nullable_output_keys {invalid_nullable} must be a subset of "
                 f"output_keys {node.output_keys}"
             )
-
-    _save_session(session)  # Auto-save
+    if errors:
+        return json.dumps({"valid": False, "errors": errors, "warnings": warnings})
+    if name:
+        node.name = name
+    if description:
+        node.description = description
+    if node_type:
+        node.node_type = node_type
+    if input_keys_list is not None:
+        node.input_keys = input_keys_list
+    if output_keys_list is not None:
+        node.output_keys = output_keys_list
+    if system_prompt:
+        node.system_prompt = system_prompt
+    if tools_list is not None:
+        node.tools = tools_list
+    if routes_dict is not None:
+        node.routes = routes_dict
+    if client_facing:
+        node.client_facing = client_facing.lower() == "true"
+    if nullable_output_keys_list is not None:
+        node.nullable_output_keys = nullable_output_keys_list
+    if max_node_visits > 0:
+        node.max_node_visits = max_node_visits
+    _save_session(session) 
+    return json.dumps({"valid": True, "errors": errors, "warnings": warnings, "node": node.model_dump(), ...})
 
     return json.dumps(
         {
