@@ -11,6 +11,7 @@ The executor:
 
 import asyncio
 import logging
+import random
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -743,9 +744,45 @@ class GraphExecutor:
                         stream_id=self._stream_id, node_id=current_node_id
                     )
 
-                # Execute node
-                self.logger.info("   Executing...")
-                result = await node_impl.execute(ctx)
+                # Execute node with System-Level Retry (Reliability Layer)
+                system_retries = 3
+                result = None
+
+                for attempt in range(system_retries + 1):
+                    try:
+                        if attempt > 0:
+                            self.logger.info(f"    Executing... (Attempt {attempt + 1}/{system_retries + 1})")
+                        else:
+                            self.logger.info("    Executing...")
+
+                        result = await node_impl.execute(ctx)
+                        break  # Execution successful (no crash), exit loop
+
+                    except asyncio.CancelledError:
+                        raise  # Respect cancellation requests immediately
+                    except Exception as e:
+                        # Check if we have retries left
+                        if attempt < system_retries:
+                            # Calculate Exponential Backoff with Jitter
+                            # Base: 1s, 2s, 4s...
+                            base_delay = 1.0 * (2 ** attempt)
+                            # Jitter: Add 0-20% randomness
+                            jitter = random.uniform(0, 0.2 * base_delay)
+                            total_delay = base_delay + jitter
+
+                            self.logger.warning(
+                                f"   ⚠ Node '{node_spec.id}' crashed: {e}. "
+                                f"Retrying in {total_delay:.2f}s..."
+                            )
+
+                            # Non-blocking sleep
+                            await asyncio.sleep(total_delay)
+                        else:
+                            # No retries left - let it bubble up to the main failure handler
+                            self.logger.error(
+                                f"   ✗ Node '{node_spec.id}' failed after {system_retries} system retries."
+                            )
+                            raise e
 
                 # Emit node-completed event (skip event_loop nodes)
                 if self._event_bus and node_spec.node_type != "event_loop":

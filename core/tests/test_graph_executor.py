@@ -239,3 +239,101 @@ async def test_executor_no_events_without_event_bus():
     result = await executor.execute(graph=graph, goal=goal)
 
     assert result.success is True
+
+# --- System Reliability Tests ---
+class SystemCrashNode:
+    def __init__(self, crashes_before_success: int):
+        self.crashes_before_success = crashes_before_success
+        self.attempts = 0
+
+    def validate_input(self, ctx):
+        return []
+
+    async def execute(self, ctx):
+        self.attempts += 1
+        if self.attempts <= self.crashes_before_success:
+            raise ValueError(f"Intentional System Crash (Attempt {self.attempts})")
+        return NodeResult(
+            success=True, 
+            output={"recovered": True},
+            tokens_used=1,
+            latency_ms=1
+        )
+
+
+@pytest.mark.asyncio
+async def test_executor_system_reliability_layer_recovery():
+    """Test that the executor catches unhandled exceptions and applies backoff retries."""
+    runtime = DummyRuntime()
+    
+    graph = GraphSpec(
+        id="crash_graph",
+        goal_id="g1",
+        nodes=[
+            NodeSpec(
+                id="crash_node",
+                name="Crash Node",
+                description="test node",
+                node_type="event_loop",
+                input_keys=[],
+                output_keys=["recovered"],
+                max_retries=0,
+            )
+        ],
+        edges=[],
+        entry_node="crash_node",
+    )
+    
+    # Crash twice, then succeed on the 3rd attempt
+    crashing_node = SystemCrashNode(crashes_before_success=2)
+    executor = GraphExecutor(
+        runtime=runtime,
+        node_registry={"crash_node": crashing_node},
+    )
+    
+    goal = Goal(id="g1", name="test", description="Test system retries")
+    result = await executor.execute(graph=graph, goal=goal)
+
+    # Verify execution succeeded after recovery
+    assert result.success is True
+    assert result.output.get("recovered") is True
+    assert crashing_node.attempts == 3
+
+
+@pytest.mark.asyncio
+async def test_executor_system_reliability_layer_exhausted():
+    """Test that the executor fails gracefully if max system retries are exceeded."""
+    runtime = DummyRuntime()
+    
+    graph = GraphSpec(
+        id="crash_graph_fail",
+        goal_id="g2",
+        nodes=[
+            NodeSpec(
+                id="crash_node",
+                name="Crash Node",
+                description="test node",
+                node_type="event_loop",
+                input_keys=[],
+                output_keys=["recovered"],
+                max_retries=0,
+            )
+        ],
+        edges=[],
+        entry_node="crash_node",
+    )
+    
+    # System default is 3 retries (4 total attempts). This node crashes 5 times.
+    crashing_node = SystemCrashNode(crashes_before_success=5)
+    executor = GraphExecutor(
+        runtime=runtime,
+        node_registry={"crash_node": crashing_node},
+    )
+    
+    goal = Goal(id="g2", name="test", description="Test system retries")
+    result = await executor.execute(graph=graph, goal=goal)
+
+    # Verify it ultimately failed, caught by the outer Exception block
+    assert result.success is False
+    assert "Intentional System Crash" in result.error
+    assert crashing_node.attempts == 4  # 1 initial try + 3 system retries
