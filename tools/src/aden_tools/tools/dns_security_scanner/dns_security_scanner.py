@@ -11,6 +11,7 @@ from fastmcp import FastMCP
 
 try:
     import dns.exception
+    import dns.flags
     import dns.name
     import dns.query
     import dns.rdatatype
@@ -197,15 +198,44 @@ def _check_dkim(resolver: dns.resolver.Resolver, domain: str) -> dict:
     }
 
 
-def _check_dnssec(resolver: dns.resolver.Resolver, domain: str) -> dict:
-    """Check if DNSSEC is enabled."""
+def _check_dnssec(_resolver: dns.resolver.Resolver, domain: str) -> dict:
+    """Check if DNSSEC is enabled by verifying the AD flag via a validating resolver.
+
+    Uses a dedicated resolver with known DNSSEC-validating nameservers
+    (Google DNS, Cloudflare DNS) instead of the system resolver, which
+    may strip DNSSEC data.  Queries SOA records (mandatory for any zone)
+    and checks the Authenticated Data (AD) flag rather than merely
+    testing for DNSKEY record existence.
+    """
     try:
-        answers = resolver.resolve(domain, "DNSKEY")
-        if answers:
+        # Create a dedicated resolver that bypasses system configuration
+        # to ensure we reach nameservers that perform DNSSEC validation.
+        dnssec_resolver = dns.resolver.Resolver(configure=False)
+        dnssec_resolver.nameservers = ["8.8.8.8", "1.1.1.1"]
+        dnssec_resolver.timeout = _resolver.timeout
+        dnssec_resolver.lifetime = _resolver.lifetime
+
+        # Enable EDNS with the DO (DNSSEC OK) bit so the resolver
+        # returns DNSSEC-related records and sets the AD flag when
+        # validation succeeds.  The payload size is raised to 4096
+        # bytes to accommodate the larger responses.
+        dnssec_resolver.use_edns(0, dns.flags.DO, 4096)
+
+        # SOA records are mandatory for every zone, making them a
+        # reliable query target.  If the domain has a valid DNSSEC
+        # chain of trust the validating resolver will set the AD flag.
+        response = dnssec_resolver.resolve(domain, "SOA")
+        if response.response.flags & dns.flags.AD:
             return {"enabled": True, "issues": []}
-    except dns.resolver.NoAnswer:
-        pass
-    except (dns.resolver.NXDOMAIN, dns.exception.DNSException):
+
+        return {
+            "enabled": False,
+            "issues": [
+                "DNSSEC not enabled or not validated. "
+                "The domain is vulnerable to DNS spoofing and cache poisoning."
+            ],
+        }
+    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.exception.DNSException):
         pass
 
     return {
