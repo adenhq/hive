@@ -88,6 +88,21 @@ class LoopConfig:
     max_tool_result_chars: int = 3_000
     spillover_dir: str | None = None  # Path string; created on first use
 
+    # --- Stream retry (transient error recovery within EventLoopNode) ---
+    # When _run_single_turn() raises a transient error (network, rate limit,
+    # server error), retry up to this many times with exponential backoff
+    # before re-raising.  Set to 0 to disable.
+    max_stream_retries: int = 3
+    stream_retry_backoff_base: float = 2.0
+    stream_retry_max_delay: float = 60.0  # cap per-retry sleep
+
+    # --- Tool doom loop detection ---
+    # Detect when the LLM calls the same tool(s) with identical args for
+    # N consecutive turns.  For client-facing nodes, blocks for user input.
+    # For non-client-facing nodes, injects a warning into the conversation.
+    tool_doom_loop_threshold: int = 3
+    tool_doom_loop_enabled: bool = True
+
 
 # ---------------------------------------------------------------------------
 # Output accumulator with write-through persistence
@@ -190,6 +205,7 @@ class EventLoopNode(NodeProtocol):
         self._injection_queue: asyncio.Queue[str] = asyncio.Queue()
         # Client-facing input blocking state
         self._input_ready = asyncio.Event()
+        self._awaiting_input = False
         self._shutdown = False
 
     def validate_input(self, ctx: NodeContext) -> list[str]:
@@ -259,12 +275,25 @@ class EventLoopNode(NodeProtocol):
             )
             accumulator = OutputAccumulator(store=self._conversation_store)
             start_iteration = 0
+            _restored_recent_responses: list[str] = []
+            _restored_tool_fingerprints: list[list[tuple[str, str]]] = []
         else:
             # Try crash-recovery restore from store, then fall back to fresh.
-            conversation, accumulator, start_iteration = await self._restore(ctx)
-            if conversation is None:
+            restored = await self._restore(ctx)
+            if restored is not None:
+                conversation = restored.conversation
+                accumulator = restored.accumulator
+                start_iteration = restored.start_iteration
+                _restored_recent_responses = restored.recent_responses
+                _restored_tool_fingerprints = restored.recent_tool_fingerprints
+            else:
+                _restored_recent_responses = []
+                _restored_tool_fingerprints = []
+
                 # Fresh conversation: either isolated mode or first node in continuous mode.
-                system_prompt = ctx.node_spec.system_prompt or ""
+                from framework.graph.prompt_composer import _with_datetime
+
+                system_prompt = _with_datetime(ctx.node_spec.system_prompt or "")
 
                 conversation = NodeConversation(
                     system_prompt=system_prompt,
@@ -288,8 +317,9 @@ class EventLoopNode(NodeProtocol):
         set_output_tool = self._build_set_output_tool(ctx.node_spec.output_keys)
         if set_output_tool:
             tools.append(set_output_tool)
-        if ctx.node_spec.client_facing:
+        if ctx.node_spec.client_facing and not ctx.event_triggered:
             tools.append(self._build_ask_user_tool())
+            tools.append(self._build_escalate_tool())
 
         logger.info(
             "[%s] Tools available (%d): %s | client_facing=%s | judge=%s",
@@ -303,9 +333,9 @@ class EventLoopNode(NodeProtocol):
         # 4. Publish loop started
         await self._publish_loop_started(stream_id, node_id)
 
-        # 5. Stall detection state
-        recent_responses: list[str] = []
-        user_interaction_count = 0  # tracks how many times this node blocked for user input
+        # 5. Stall / doom loop detection state (restored from cursor if resuming)
+        recent_responses: list[str] = _restored_recent_responses
+        recent_tool_fingerprints: list[list[tuple[str, str]]] = _restored_tool_fingerprints
 
         # 6. Main loop
         for iteration in range(start_iteration, self._config.max_iterations):
@@ -349,80 +379,118 @@ class EventLoopNode(NodeProtocol):
             if conversation.needs_compaction():
                 await self._compact_tiered(ctx, conversation, accumulator)
 
-            # 6e. Run single LLM turn
+            # 6e. Run single LLM turn (with transient error retry)
             logger.info(
                 "[%s] iter=%d: running LLM turn (msgs=%d)",
                 node_id,
                 iteration,
                 len(conversation.messages),
             )
-            try:
-                (
-                    assistant_text,
-                    real_tool_results,
-                    outputs_set,
-                    turn_tokens,
-                    logged_tool_calls,
-                    user_input_requested,
-                ) = await self._run_single_turn(ctx, conversation, tools, iteration, accumulator)
-                logger.info(
-                    "[%s] iter=%d: LLM done — text=%d chars, real_tools=%d, "
-                    "outputs_set=%s, tokens=%s, accumulator=%s",
-                    node_id,
-                    iteration,
-                    len(assistant_text),
-                    len(real_tool_results),
-                    outputs_set or "[]",
-                    turn_tokens,
-                    {
-                        k: ("set" if v is not None else "None")
-                        for k, v in accumulator.to_dict().items()
-                    },
-                )
-                total_input_tokens += turn_tokens.get("input", 0)
-                total_output_tokens += turn_tokens.get("output", 0)
-            except Exception as e:
-                # LLM call crashed - log partial step with error
-                import traceback
-
-                iter_latency_ms = int((time.time() - iter_start) * 1000)
-                latency_ms = int((time.time() - start_time) * 1000)
-                error_msg = f"LLM call failed: {e}"
-                stack_trace = traceback.format_exc()
-
-                if ctx.runtime_logger:
-                    ctx.runtime_logger.log_step(
-                        node_id=node_id,
-                        node_type="event_loop",
-                        step_index=iteration,
-                        error=error_msg,
-                        stacktrace=stack_trace,
-                        is_partial=True,
-                        input_tokens=0,
-                        output_tokens=0,
-                        latency_ms=iter_latency_ms,
+            _stream_retry_count = 0
+            while True:
+                try:
+                    (
+                        assistant_text,
+                        real_tool_results,
+                        outputs_set,
+                        turn_tokens,
+                        logged_tool_calls,
+                        user_input_requested,
+                    ) = await self._run_single_turn(
+                        ctx, conversation, tools, iteration, accumulator
                     )
-                    ctx.runtime_logger.log_node_complete(
-                        node_id=node_id,
-                        node_name=ctx.node_spec.name,
-                        node_type="event_loop",
-                        success=False,
-                        error=error_msg,
-                        stacktrace=stack_trace,
-                        total_steps=iteration + 1,
-                        tokens_used=total_input_tokens + total_output_tokens,
-                        input_tokens=total_input_tokens,
-                        output_tokens=total_output_tokens,
-                        latency_ms=latency_ms,
-                        exit_status="failure",
-                        accept_count=_accept_count,
-                        retry_count=_retry_count,
-                        escalate_count=_escalate_count,
-                        continue_count=_continue_count,
+                    logger.info(
+                        "[%s] iter=%d: LLM done — text=%d chars, real_tools=%d, "
+                        "outputs_set=%s, tokens=%s, accumulator=%s",
+                        node_id,
+                        iteration,
+                        len(assistant_text),
+                        len(real_tool_results),
+                        outputs_set or "[]",
+                        turn_tokens,
+                        {
+                            k: ("set" if v is not None else "None")
+                            for k, v in accumulator.to_dict().items()
+                        },
                     )
+                    total_input_tokens += turn_tokens.get("input", 0)
+                    total_output_tokens += turn_tokens.get("output", 0)
+                    break  # success — exit retry loop
 
-                # Re-raise to maintain existing error handling
-                raise
+                except Exception as e:
+                    # Retry transient errors with exponential backoff
+                    if (
+                        self._is_transient_error(e)
+                        and _stream_retry_count < self._config.max_stream_retries
+                    ):
+                        _stream_retry_count += 1
+                        delay = min(
+                            self._config.stream_retry_backoff_base
+                            * (2 ** (_stream_retry_count - 1)),
+                            self._config.stream_retry_max_delay,
+                        )
+                        logger.warning(
+                            "[%s] iter=%d: transient error (%s), retrying in %.1fs (%d/%d): %s",
+                            node_id,
+                            iteration,
+                            type(e).__name__,
+                            delay,
+                            _stream_retry_count,
+                            self._config.max_stream_retries,
+                            str(e)[:200],
+                        )
+                        if self._event_bus:
+                            await self._event_bus.emit_node_retry(
+                                stream_id=stream_id,
+                                node_id=node_id,
+                                retry_count=_stream_retry_count,
+                                max_retries=self._config.max_stream_retries,
+                                error=str(e)[:500],
+                            )
+                        await asyncio.sleep(delay)
+                        continue  # retry same iteration
+
+                    # Non-transient or retries exhausted — existing crash handler
+                    import traceback
+
+                    iter_latency_ms = int((time.time() - iter_start) * 1000)
+                    latency_ms = int((time.time() - start_time) * 1000)
+                    error_msg = f"LLM call failed: {e}"
+                    stack_trace = traceback.format_exc()
+
+                    if ctx.runtime_logger:
+                        ctx.runtime_logger.log_step(
+                            node_id=node_id,
+                            node_type="event_loop",
+                            step_index=iteration,
+                            error=error_msg,
+                            stacktrace=stack_trace,
+                            is_partial=True,
+                            input_tokens=0,
+                            output_tokens=0,
+                            latency_ms=iter_latency_ms,
+                        )
+                        ctx.runtime_logger.log_node_complete(
+                            node_id=node_id,
+                            node_name=ctx.node_spec.name,
+                            node_type="event_loop",
+                            success=False,
+                            error=error_msg,
+                            stacktrace=stack_trace,
+                            total_steps=iteration + 1,
+                            tokens_used=total_input_tokens + total_output_tokens,
+                            input_tokens=total_input_tokens,
+                            output_tokens=total_output_tokens,
+                            latency_ms=latency_ms,
+                            exit_status="failure",
+                            accept_count=_accept_count,
+                            retry_count=_retry_count,
+                            escalate_count=_escalate_count,
+                            continue_count=_continue_count,
+                        )
+
+                    # Re-raise to maintain existing error handling
+                    raise
 
             # 6e'. Feed actual API token count back for accurate estimation
             turn_input = turn_tokens.get("input", 0)
@@ -515,8 +583,69 @@ class EventLoopNode(NodeProtocol):
                     conversation=conversation if _is_continuous else None,
                 )
 
-            # 6g. Write cursor checkpoint
-            await self._write_cursor(ctx, conversation, accumulator, iteration)
+            # 6f'. Tool doom loop detection
+            # Use logged_tool_calls (persists across inner iterations) and
+            # filter to real MCP tools (exclude set_output, ask_user, errors).
+            mcp_tool_calls = [
+                tc
+                for tc in logged_tool_calls
+                if tc.get("tool_name") not in ("set_output", "ask_user", "escalate_to_coder")
+                and not tc.get("is_error")
+            ]
+            if mcp_tool_calls:
+                fps = self._fingerprint_tool_calls(mcp_tool_calls)
+                recent_tool_fingerprints.append(fps)
+                threshold = self._config.tool_doom_loop_threshold
+                if len(recent_tool_fingerprints) > threshold:
+                    recent_tool_fingerprints.pop(0)
+                is_doom, doom_desc = self._is_tool_doom_loop(
+                    recent_tool_fingerprints,
+                )
+                if is_doom:
+                    logger.warning("[%s] %s", node_id, doom_desc)
+                    if self._event_bus:
+                        await self._event_bus.emit_tool_doom_loop(
+                            stream_id=stream_id,
+                            node_id=node_id,
+                            description=doom_desc,
+                        )
+                    warning_msg = (
+                        f"[SYSTEM] {doom_desc}. You are repeating the "
+                        "same tool calls with identical arguments. "
+                        "Try a different approach or different arguments."
+                    )
+                    if ctx.node_spec.client_facing and not ctx.event_triggered:
+                        await conversation.add_user_message(warning_msg)
+                        self._input_ready.clear()
+                        if self._event_bus:
+                            await self._event_bus.emit_client_input_requested(
+                                stream_id=stream_id,
+                                node_id=node_id,
+                                prompt=doom_desc,
+                            )
+                        self._awaiting_input = True
+                        try:
+                            await self._input_ready.wait()
+                        finally:
+                            self._awaiting_input = False
+                        recent_tool_fingerprints.clear()
+                        recent_responses.clear()
+                    else:
+                        await conversation.add_user_message(warning_msg)
+                        recent_tool_fingerprints.clear()
+            else:
+                # Text-only turn breaks the doom loop chain
+                recent_tool_fingerprints.clear()
+
+            # 6g. Write cursor checkpoint (includes stall/doom state for resume)
+            await self._write_cursor(
+                ctx,
+                conversation,
+                accumulator,
+                iteration,
+                recent_responses=recent_responses,
+                recent_tool_fingerprints=recent_tool_fingerprints,
+            )
 
             # 6h. Client-facing input blocking
             #
@@ -533,7 +662,7 @@ class EventLoopNode(NodeProtocol):
             # conversation — they flow through without blocking.
             _cf_block = False
             _cf_auto = False
-            if ctx.node_spec.client_facing:
+            if ctx.node_spec.client_facing and not ctx.event_triggered:
                 if user_input_requested:
                     _cf_block = True
                 elif assistant_text and not real_tool_results and not outputs_set:
@@ -633,7 +762,6 @@ class EventLoopNode(NodeProtocol):
                         conversation=conversation if _is_continuous else None,
                     )
 
-                user_interaction_count += 1
                 recent_responses.clear()
 
                 if _cf_auto:
@@ -932,7 +1060,11 @@ class EventLoopNode(NodeProtocol):
                 prompt="",
             )
 
-        await self._input_ready.wait()
+        self._awaiting_input = True
+        try:
+            await self._input_ready.wait()
+        finally:
+            self._awaiting_input = False
         return not self._shutdown
 
     # -------------------------------------------------------------------
@@ -1005,6 +1137,7 @@ class EventLoopNode(NodeProtocol):
 
             accumulated_text = ""
             tool_calls: list[ToolCallEvent] = []
+            _stream_error: StreamErrorEvent | None = None
 
             # Stream LLM response
             async for event in ctx.llm.stream(
@@ -1029,7 +1162,16 @@ class EventLoopNode(NodeProtocol):
                 elif isinstance(event, StreamErrorEvent):
                     if not event.recoverable:
                         raise RuntimeError(f"Stream error: {event.error}")
-                    logger.warning(f"Recoverable stream error: {event.error}")
+                    _stream_error = event
+                    logger.warning("Recoverable stream error: %s", event.error)
+
+            # If a recoverable stream error produced an empty response,
+            # raise so the outer transient-error retry can handle it
+            # with proper backoff instead of burning judge iterations.
+            if _stream_error and not accumulated_text and not tool_calls:
+                raise ConnectionError(
+                    f"Stream failed with recoverable error: {_stream_error.error}"
+                )
 
             final_text = accumulated_text
             logger.info(
@@ -1145,6 +1287,26 @@ class EventLoopNode(NodeProtocol):
                     )
                     results_by_id[tc.tool_use_id] = result
 
+                elif tc.tool_name == "escalate_to_coder":
+                    # --- Framework-level escalation handling ---
+                    if self._event_bus:
+                        await self._event_bus.emit_escalation_requested(
+                            stream_id=stream_id,
+                            node_id=node_id,
+                            reason=tc.tool_input.get("reason", ""),
+                            context=tc.tool_input.get("context", ""),
+                            execution_id=ctx.execution_id,
+                        )
+                    # Block like ask_user — the TUI loads the coder,
+                    # and /back injects a message to unblock us.
+                    user_input_requested = True
+                    result = ToolResult(
+                        tool_use_id=tc.tool_use_id,
+                        content="Escalating to Hive Coder. You will resume when done.",
+                        is_error=False,
+                    )
+                    results_by_id[tc.tool_use_id] = result
+
                 else:
                     # --- Real tool: check for truncated args, else queue ---
                     if "_raw" in tc.tool_input:
@@ -1191,7 +1353,7 @@ class EventLoopNode(NodeProtocol):
                     continue  # shouldn't happen
 
                 # Build log entries for real tools
-                if tc.tool_name not in ("set_output", "ask_user"):
+                if tc.tool_name not in ("set_output", "ask_user", "escalate_to_coder"):
                     tool_entry = {
                         "tool_use_id": tc.tool_use_id,
                         "tool_name": tc.tool_name,
@@ -1333,6 +1495,46 @@ class EventLoopNode(NodeProtocol):
                     },
                 },
                 "required": [],
+            },
+        )
+
+    def _build_escalate_tool(self) -> Tool:
+        """Build the synthetic escalate_to_coder tool.
+
+        Client-facing nodes call this when the user's request requires
+        capabilities beyond the current agent (code changes, feature
+        expansion, debugging).  The TUI intercepts the event and loads
+        hive_coder in the foreground.
+        """
+        return Tool(
+            name="escalate_to_coder",
+            description=(
+                "Call this tool when the user requests something you "
+                "cannot handle — a code change, feature expansion, bug "
+                "fix, or framework-level modification. This will bring "
+                "in Hive Coder, a coding agent that can read and write "
+                "files. Provide a clear reason and relevant context so "
+                "the coder can pick up where you left off."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "reason": {
+                        "type": "string",
+                        "description": (
+                            "Why you are escalating (what the user needs that you cannot do)."
+                        ),
+                    },
+                    "context": {
+                        "type": "string",
+                        "description": (
+                            "Relevant context: what you discussed, "
+                            "what files are involved, what the user "
+                            "wants changed."
+                        ),
+                    },
+                },
+                "required": ["reason"],
             },
         )
 
@@ -1626,6 +1828,104 @@ class EventLoopNode(NodeProtocol):
             return False
         return all(r == recent_responses[0] for r in recent_responses)
 
+    @staticmethod
+    def _is_transient_error(exc: BaseException) -> bool:
+        """Classify whether an exception is transient (retryable) vs permanent.
+
+        Transient: network errors, rate limits, server errors, timeouts.
+        Permanent: auth errors, bad requests, context window exceeded.
+        """
+        try:
+            from litellm.exceptions import (
+                APIConnectionError,
+                BadGatewayError,
+                InternalServerError,
+                RateLimitError,
+                ServiceUnavailableError,
+            )
+
+            transient_types: tuple[type[BaseException], ...] = (
+                RateLimitError,
+                APIConnectionError,
+                InternalServerError,
+                BadGatewayError,
+                ServiceUnavailableError,
+                TimeoutError,
+                ConnectionError,
+                OSError,
+            )
+        except ImportError:
+            transient_types = (TimeoutError, ConnectionError, OSError)
+
+        if isinstance(exc, transient_types):
+            return True
+
+        # RuntimeError from StreamErrorEvent with "Stream error:" prefix
+        if isinstance(exc, RuntimeError):
+            error_str = str(exc).lower()
+            transient_keywords = [
+                "rate limit",
+                "429",
+                "timeout",
+                "connection",
+                "internal server",
+                "502",
+                "503",
+                "504",
+                "service unavailable",
+                "bad gateway",
+                "overloaded",
+            ]
+            return any(kw in error_str for kw in transient_keywords)
+
+        return False
+
+    @staticmethod
+    def _fingerprint_tool_calls(
+        tool_results: list[dict],
+    ) -> list[tuple[str, str]]:
+        """Create deterministic fingerprints for a turn's tool calls.
+
+        Each fingerprint is (tool_name, canonical_args_json).  Order-sensitive
+        so [search("a"), fetch("b")] != [fetch("b"), search("a")].
+        """
+        fingerprints = []
+        for tr in tool_results:
+            name = tr.get("tool_name", "")
+            args = tr.get("tool_input", {})
+            try:
+                canonical = json.dumps(args, sort_keys=True, default=str)
+            except (TypeError, ValueError):
+                canonical = str(args)
+            fingerprints.append((name, canonical))
+        return fingerprints
+
+    def _is_tool_doom_loop(
+        self,
+        recent_tool_fingerprints: list[list[tuple[str, str]]],
+    ) -> tuple[bool, str]:
+        """Detect doom loop: N consecutive turns with identical tool calls.
+
+        Returns (is_doom_loop, description).
+        """
+        if not self._config.tool_doom_loop_enabled:
+            return False, ""
+        threshold = self._config.tool_doom_loop_threshold
+        if len(recent_tool_fingerprints) < threshold:
+            return False, ""
+        # All entries must be non-empty and identical
+        first = recent_tool_fingerprints[0]
+        if not first:
+            return False, ""
+        if all(fp == first for fp in recent_tool_fingerprints):
+            tool_names = [name for name, _ in first]
+            desc = (
+                f"Doom loop detected: {threshold} consecutive identical "
+                f"tool calls ({', '.join(tool_names)})"
+            )
+            return True, desc
+        return False, ""
+
     async def _execute_tool(self, tc: ToolCallEvent) -> ToolResult:
         """Execute a tool call, handling both sync and async executors."""
         if self._tool_executor is None:
@@ -1882,7 +2182,7 @@ class EventLoopNode(NodeProtocol):
         # internal thinking. 500 leaves nothing for the actual summary.
         summary_budget = max(1024, self._config.max_history_tokens // 10)
         try:
-            response = ctx.llm.complete(
+            response = await ctx.llm.acomplete(
                 messages=[{"role": "user", "content": prompt}],
                 system=(
                     "Summarize conversations concisely. Always preserve the tool history section."
@@ -1994,29 +2294,60 @@ class EventLoopNode(NodeProtocol):
     # Persistence: restore, cursor, injection, pause
     # -------------------------------------------------------------------
 
+    @dataclass
+    class _RestoredState:
+        """State recovered from a previous checkpoint."""
+
+        conversation: NodeConversation
+        accumulator: OutputAccumulator
+        start_iteration: int
+        recent_responses: list[str]
+        recent_tool_fingerprints: list[list[tuple[str, str]]]
+
     async def _restore(
         self,
         ctx: NodeContext,
-    ) -> tuple[NodeConversation | None, OutputAccumulator | None, int]:
-        """Attempt to restore from a previous checkpoint."""
+    ) -> _RestoredState | None:
+        """Attempt to restore from a previous checkpoint.
+
+        Returns a ``_RestoredState`` with conversation, accumulator, iteration
+        counter, and stall/doom-loop detection state — everything needed to
+        resume exactly where execution stopped.
+        """
         if self._conversation_store is None:
-            return None, None, 0
+            return None
 
         conversation = await NodeConversation.restore(self._conversation_store)
         if conversation is None:
-            return None, None, 0
+            return None
 
         accumulator = await OutputAccumulator.restore(self._conversation_store)
 
         cursor = await self._conversation_store.read_cursor()
         start_iteration = cursor.get("iteration", 0) + 1 if cursor else 0
 
+        # Restore stall/doom-loop detection state
+        recent_responses: list[str] = cursor.get("recent_responses", []) if cursor else []
+        raw_fps = cursor.get("recent_tool_fingerprints", []) if cursor else []
+        recent_tool_fingerprints: list[list[tuple[str, str]]] = [
+            [tuple(pair) for pair in fps]  # type: ignore[misc]
+            for fps in raw_fps
+        ]
+
         logger.info(
             f"Restored event loop: iteration={start_iteration}, "
             f"messages={conversation.message_count}, "
-            f"outputs={list(accumulator.values.keys())}"
+            f"outputs={list(accumulator.values.keys())}, "
+            f"stall_window={len(recent_responses)}, "
+            f"doom_window={len(recent_tool_fingerprints)}"
         )
-        return conversation, accumulator, start_iteration
+        return EventLoopNode._RestoredState(
+            conversation=conversation,
+            accumulator=accumulator,
+            start_iteration=start_iteration,
+            recent_responses=recent_responses,
+            recent_tool_fingerprints=recent_tool_fingerprints,
+        )
 
     async def _write_cursor(
         self,
@@ -2024,8 +2355,15 @@ class EventLoopNode(NodeProtocol):
         conversation: NodeConversation,
         accumulator: OutputAccumulator,
         iteration: int,
+        *,
+        recent_responses: list[str] | None = None,
+        recent_tool_fingerprints: list[list[tuple[str, str]]] | None = None,
     ) -> None:
-        """Write checkpoint cursor for crash recovery."""
+        """Write checkpoint cursor for crash recovery.
+
+        Persists iteration counter, accumulator outputs, and stall/doom-loop
+        detection state so that resume picks up exactly where execution stopped.
+        """
         if self._conversation_store:
             cursor = await self._conversation_store.read_cursor() or {}
             cursor.update(
@@ -2036,6 +2374,14 @@ class EventLoopNode(NodeProtocol):
                     "outputs": accumulator.to_dict(),
                 }
             )
+            # Persist stall/doom-loop detection state for reliable resume
+            if recent_responses is not None:
+                cursor["recent_responses"] = recent_responses
+            if recent_tool_fingerprints is not None:
+                # Convert list[list[tuple]] → list[list[list]] for JSON
+                cursor["recent_tool_fingerprints"] = [
+                    [list(pair) for pair in fps] for fps in recent_tool_fingerprints
+                ]
             await self._conversation_store.write_cursor(cursor)
 
     async def _drain_injection_queue(self, conversation: NodeConversation) -> int:

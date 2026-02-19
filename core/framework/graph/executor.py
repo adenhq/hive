@@ -11,7 +11,6 @@ The executor:
 
 import asyncio
 import logging
-import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -21,13 +20,10 @@ from framework.graph.checkpoint_config import CheckpointConfig
 from framework.graph.edge import EdgeCondition, EdgeSpec, GraphSpec
 from framework.graph.goal import Goal
 from framework.graph.node import (
-    FunctionNode,
-    LLMNode,
     NodeContext,
     NodeProtocol,
     NodeResult,
     NodeSpec,
-    RouterNode,
     SharedMemory,
 )
 from framework.graph.output_cleaner import CleansingConfig, OutputCleaner
@@ -346,6 +342,9 @@ class GraphExecutor:
             for key, value in input_data.items():
                 memory.write(key, value)
 
+        # Detect event-triggered execution (timer/webhook) — no interactive user.
+        _event_triggered = bool(input_data and isinstance(input_data.get("event"), dict))
+
         path: list[str] = []
         total_tokens = 0
         total_latency = 0
@@ -459,6 +458,66 @@ class GraphExecutor:
 
         steps = 0
 
+        # Fresh shared-session execution: clear stale cursor so the entry
+        # node doesn't restore a filled OutputAccumulator from the previous
+        # webhook run (which would cause the judge to accept immediately).
+        # The conversation history is preserved (continuous memory).
+        _is_fresh_shared = bool(
+            session_state
+            and session_state.get("resume_session_id")
+            and not session_state.get("paused_at")
+            and not session_state.get("resume_from_checkpoint")
+        )
+        if _is_fresh_shared and is_continuous and self._storage_path:
+            try:
+                from framework.storage.conversation_store import FileConversationStore
+
+                entry_conv_path = self._storage_path / "conversations" / current_node_id
+                if entry_conv_path.exists():
+                    _store = FileConversationStore(base_path=entry_conv_path)
+
+                    # Read cursor to find next seq for the transition marker.
+                    _cursor = await _store.read_cursor() or {}
+                    _next_seq = _cursor.get("next_seq", 0)
+                    if _next_seq == 0:
+                        # Fallback: scan part files for max seq
+                        _parts = await _store.read_parts()
+                        if _parts:
+                            _next_seq = max(p.get("seq", 0) for p in _parts) + 1
+
+                    # Reset cursor — clears stale accumulator outputs and
+                    # iteration counter so the node starts fresh work while
+                    # the conversation thread carries forward.
+                    await _store.write_cursor({})
+
+                    # Append a transition marker so the LLM knows a new
+                    # event arrived and previous results are outdated.
+                    await _store.write_part(
+                        _next_seq,
+                        {
+                            "role": "user",
+                            "content": (
+                                "--- NEW EVENT TRIGGER ---\n"
+                                "A new event has been received. "
+                                "Process this as a fresh request — "
+                                "previous outputs are no longer valid."
+                            ),
+                            "seq": _next_seq,
+                            "is_transition_marker": True,
+                        },
+                    )
+                    self.logger.info(
+                        "🔄 Cleared stale cursor and added transition marker "
+                        "for shared-session entry node '%s'",
+                        current_node_id,
+                    )
+            except Exception:
+                self.logger.debug(
+                    "Could not prepare conversation store for shared-session entry node '%s'",
+                    current_node_id,
+                    exc_info=True,
+                )
+
         if session_state and current_node_id != graph.entry_node:
             self.logger.info(f"🔄 Resuming from: {current_node_id}")
 
@@ -559,7 +618,7 @@ class GraphExecutor:
                     cnt = node_visit_counts.get(current_node_id, 0) + 1
                     node_visit_counts[current_node_id] = cnt
                 _is_retry = False
-                max_visits = getattr(node_spec, "max_node_visits", 1)
+                max_visits = getattr(node_spec, "max_node_visits", 0)
                 if max_visits > 0 and node_visit_counts[current_node_id] > max_visits:
                     self.logger.warning(
                         f"   ⊘ Node '{node_spec.name}' visit limit reached "
@@ -567,7 +626,7 @@ class GraphExecutor:
                     )
                     # Skip execution — follow outgoing edges using current memory
                     skip_result = NodeResult(success=True, output=memory.read_all())
-                    next_node = self._follow_edges(
+                    next_node = await self._follow_edges(
                         graph=graph,
                         goal=goal,
                         current_node_id=current_node_id,
@@ -630,6 +689,7 @@ class GraphExecutor:
                     inherited_conversation=continuous_conversation if is_continuous else None,
                     override_tools=cumulative_tools if is_continuous else None,
                     cumulative_output_keys=cumulative_output_keys if is_continuous else None,
+                    event_triggered=_event_triggered,
                 )
 
                 # Log actual input data being read
@@ -773,9 +833,13 @@ class GraphExecutor:
                     # [CORRECTED] Use node_spec.max_retries instead of hardcoded 3
                     max_retries = getattr(node_spec, "max_retries", 3)
 
-                    # Event loop nodes handle retry internally via judge —
-                    # executor retry is catastrophic (retry multiplication)
-                    if node_spec.node_type == "event_loop" and max_retries > 0:
+                    # EventLoopNode instances handle retry internally via judge —
+                    # executor retry would cause catastrophic retry multiplication.
+                    # Only override for actual EventLoopNode instances, not custom
+                    # NodeProtocol implementations that happen to use node_type="event_loop"
+                    from framework.graph.event_loop_node import EventLoopNode
+
+                    if isinstance(node_impl, EventLoopNode) and max_retries > 0:
                         self.logger.warning(
                             f"EventLoopNode '{node_spec.id}' has max_retries={max_retries}. "
                             "Overriding to 0 — event loop nodes handle retry internally via judge."
@@ -817,7 +881,7 @@ class GraphExecutor:
                         )
 
                         # Check if there's an ON_FAILURE edge to follow
-                        next_node = self._follow_edges(
+                        next_node = await self._follow_edges(
                             graph=graph,
                             goal=goal,
                             current_node_id=current_node_id,
@@ -972,7 +1036,7 @@ class GraphExecutor:
                     self._write_progress(current_node_id, path, memory, node_visit_counts)
                 else:
                     # Get all traversable edges for fan-out detection
-                    traversable_edges = self._get_all_traversable_edges(
+                    traversable_edges = await self._get_all_traversable_edges(
                         graph=graph,
                         goal=goal,
                         current_node_id=current_node_id,
@@ -1032,7 +1096,7 @@ class GraphExecutor:
                             break
                     else:
                         # Sequential: follow single edge (existing logic via _follow_edges)
-                        next_node = self._follow_edges(
+                        next_node = await self._follow_edges(
                             graph=graph,
                             goal=goal,
                             current_node_id=current_node_id,
@@ -1230,6 +1294,36 @@ class GraphExecutor:
             # Handle cancellation (e.g., TUI quit) - save as paused instead of failed
             self.logger.info("⏸ Execution cancelled - saving state for resume")
 
+            # Flush WIP accumulator outputs from the interrupted node's
+            # cursor.json into SharedMemory so they survive resume.  The
+            # accumulator writes to cursor.json on every set() call, but
+            # only writes to SharedMemory when the judge ACCEPTs.  Without
+            # this, edge conditions checking these keys see None on resume.
+            if current_node_id and self._storage_path:
+                try:
+                    import json as _json
+
+                    cursor_path = (
+                        self._storage_path / "conversations" / current_node_id / "cursor.json"
+                    )
+                    if cursor_path.exists():
+                        cursor_data = _json.loads(cursor_path.read_text(encoding="utf-8"))
+                        wip_outputs = cursor_data.get("outputs", {})
+                        for key, value in wip_outputs.items():
+                            if value is not None:
+                                memory.write(key, value, validate=False)
+                        if wip_outputs:
+                            self.logger.info(
+                                "Flushed %d WIP accumulator outputs to memory: %s",
+                                len(wip_outputs),
+                                list(wip_outputs.keys()),
+                            )
+                except Exception:
+                    self.logger.debug(
+                        "Could not flush accumulator outputs from cursor",
+                        exc_info=True,
+                    )
+
             # Save memory and state for resume
             saved_memory = memory.read_all()
             session_state_out: dict[str, Any] = {
@@ -1307,6 +1401,25 @@ class GraphExecutor:
                     execution_quality="failed",
                 )
 
+            # Flush WIP accumulator outputs (same as CancelledError path)
+            if current_node_id and self._storage_path:
+                try:
+                    import json as _json
+
+                    cursor_path = (
+                        self._storage_path / "conversations" / current_node_id / "cursor.json"
+                    )
+                    if cursor_path.exists():
+                        cursor_data = _json.loads(cursor_path.read_text(encoding="utf-8"))
+                        for key, value in cursor_data.get("outputs", {}).items():
+                            if value is not None:
+                                memory.write(key, value, validate=False)
+                except Exception:
+                    self.logger.debug(
+                        "Could not flush accumulator outputs from cursor",
+                        exc_info=True,
+                    )
+
             # Save memory and state for potential resume
             saved_memory = memory.read_all()
             session_state_out: dict[str, Any] = {
@@ -1370,6 +1483,7 @@ class GraphExecutor:
         inherited_conversation: Any = None,
         override_tools: list | None = None,
         cumulative_output_keys: list[str] | None = None,
+        event_triggered: bool = False,
     ) -> NodeContext:
         """Build execution context for a node."""
         # Filter tools to those available to this node
@@ -1403,18 +1517,20 @@ class GraphExecutor:
             continuous_mode=continuous_mode,
             inherited_conversation=inherited_conversation,
             cumulative_output_keys=cumulative_output_keys or [],
+            event_triggered=event_triggered,
         )
 
-    # Valid node types - no ambiguous "llm" type allowed
     VALID_NODE_TYPES = {
-        "llm_tool_use",
-        "llm_generate",
-        "router",
-        "function",
-        "human_input",
         "event_loop",
     }
-    DEPRECATED_NODE_TYPES = {"llm_tool_use": "event_loop", "llm_generate": "event_loop"}
+    # Node types removed in v0.5 — provide migration guidance
+    REMOVED_NODE_TYPES = {
+        "function": "event_loop",
+        "llm_tool_use": "event_loop",
+        "llm_generate": "event_loop",
+        "router": "event_loop",  # Unused theoretical infrastructure
+        "human_input": "event_loop",  # Use client_facing=True instead
+    }
 
     def _get_node_implementation(
         self, node_spec: NodeSpec, cleanup_llm_model: str | None = None
@@ -1424,62 +1540,23 @@ class GraphExecutor:
         if node_spec.id in self.node_registry:
             return self.node_registry[node_spec.id]
 
+        # Reject removed node types with migration guidance
+        if node_spec.node_type in self.REMOVED_NODE_TYPES:
+            replacement = self.REMOVED_NODE_TYPES[node_spec.node_type]
+            raise RuntimeError(
+                f"Node type '{node_spec.node_type}' was removed in v0.5. "
+                f"Migrate node '{node_spec.id}' to '{replacement}'. "
+                f"See https://github.com/adenhq/hive/issues/4753 for migration guide."
+            )
+
         # Validate node type
         if node_spec.node_type not in self.VALID_NODE_TYPES:
             raise RuntimeError(
                 f"Invalid node type '{node_spec.node_type}' for node '{node_spec.id}'. "
-                f"Must be one of: {sorted(self.VALID_NODE_TYPES)}. "
-                f"Use 'llm_tool_use' for nodes that call tools, 'llm_generate' for text generation."
+                f"Must be one of: {sorted(self.VALID_NODE_TYPES)}."
             )
 
-        # Warn on deprecated node types
-        if node_spec.node_type in self.DEPRECATED_NODE_TYPES:
-            replacement = self.DEPRECATED_NODE_TYPES[node_spec.node_type]
-            warnings.warn(
-                f"Node type '{node_spec.node_type}' is deprecated. "
-                f"Use '{replacement}' instead. "
-                f"Node: '{node_spec.id}'",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-        # Create based on type
-        if node_spec.node_type == "llm_tool_use":
-            if not node_spec.tools:
-                raise RuntimeError(
-                    f"Node '{node_spec.id}' is type 'llm_tool_use' but declares no tools. "
-                    "Either add tools to the node or change type to 'llm_generate'."
-                )
-            return LLMNode(
-                tool_executor=self.tool_executor,
-                require_tools=True,
-                cleanup_llm_model=cleanup_llm_model,
-            )
-
-        if node_spec.node_type == "llm_generate":
-            return LLMNode(
-                tool_executor=None,
-                require_tools=False,
-                cleanup_llm_model=cleanup_llm_model,
-            )
-
-        if node_spec.node_type == "router":
-            return RouterNode()
-
-        if node_spec.node_type == "function":
-            # Function nodes need explicit registration
-            raise RuntimeError(
-                f"Function node '{node_spec.id}' not registered. Register with node_registry."
-            )
-
-        if node_spec.node_type == "human_input":
-            # Human input nodes are handled specially by HITL mechanism
-            return LLMNode(
-                tool_executor=None,
-                require_tools=False,
-                cleanup_llm_model=cleanup_llm_model,
-            )
-
+        # Create based on type (only event_loop is valid)
         if node_spec.node_type == "event_loop":
             # Auto-create EventLoopNode with sensible defaults.
             # Custom configs can still be pre-registered via node_registry.
@@ -1527,7 +1604,7 @@ class GraphExecutor:
         # Should never reach here due to validation above
         raise RuntimeError(f"Unhandled node type: {node_spec.node_type}")
 
-    def _follow_edges(
+    async def _follow_edges(
         self,
         graph: GraphSpec,
         goal: Goal,
@@ -1542,7 +1619,7 @@ class GraphExecutor:
         for edge in edges:
             target_node_spec = graph.get_node(edge.target)
 
-            if edge.should_traverse(
+            if await edge.should_traverse(
                 source_success=result.success,
                 source_output=result.output,
                 memory=memory.read_all(),
@@ -1568,7 +1645,7 @@ class GraphExecutor:
                         self.logger.warning(f"⚠ Output validation failed: {validation.errors}")
 
                         # Clean the output
-                        cleaned_output = self.output_cleaner.clean_output(
+                        cleaned_output = await self.output_cleaner.clean_output(
                             output=output_to_validate,
                             source_node_id=current_node_id,
                             target_node_spec=target_node_spec,
@@ -1606,7 +1683,7 @@ class GraphExecutor:
 
         return None
 
-    def _get_all_traversable_edges(
+    async def _get_all_traversable_edges(
         self,
         graph: GraphSpec,
         goal: Goal,
@@ -1626,7 +1703,7 @@ class GraphExecutor:
 
         for edge in edges:
             target_node_spec = graph.get_node(edge.target)
-            if edge.should_traverse(
+            if await edge.should_traverse(
                 source_success=result.success,
                 source_output=result.output,
                 memory=memory.read_all(),
@@ -1739,14 +1816,19 @@ class GraphExecutor:
                 branch.error = f"Node {branch.node_id} not found in graph"
                 return branch, RuntimeError(branch.error)
 
+            # Get node implementation to check its type
+            branch_impl = self._get_node_implementation(node_spec, graph.cleanup_llm_model)
+
             effective_max_retries = node_spec.max_retries
-            if node_spec.node_type == "event_loop":
-                if effective_max_retries > 1:
-                    self.logger.warning(
-                        f"EventLoopNode '{node_spec.id}' has "
-                        f"max_retries={effective_max_retries}. Overriding "
-                        "to 1 — event loop nodes handle retry internally."
-                    )
+            # Only override for actual EventLoopNode instances, not custom NodeProtocol impls
+            from framework.graph.event_loop_node import EventLoopNode
+
+            if isinstance(branch_impl, EventLoopNode) and effective_max_retries > 1:
+                self.logger.warning(
+                    f"EventLoopNode '{node_spec.id}' has "
+                    f"max_retries={effective_max_retries}. Overriding "
+                    "to 1 — event loop nodes handle retry internally."
+                )
                 effective_max_retries = 1
 
             branch.status = "running"
@@ -1768,7 +1850,7 @@ class GraphExecutor:
                             f"⚠ Output validation failed for branch "
                             f"{branch.node_id}: {validation.errors}"
                         )
-                        cleaned_output = self.output_cleaner.clean_output(
+                        cleaned_output = await self.output_cleaner.clean_output(
                             output=mem_snapshot,
                             source_node_id=source_node_spec.id if source_node_spec else "unknown",
                             target_node_spec=node_spec,
@@ -1911,10 +1993,6 @@ class GraphExecutor:
     def register_node(self, node_id: str, implementation: NodeProtocol) -> None:
         """Register a custom node implementation."""
         self.node_registry[node_id] = implementation
-
-    def register_function(self, node_id: str, func: Callable) -> None:
-        """Register a function as a node."""
-        self.node_registry[node_id] = FunctionNode(func)
 
     def request_pause(self) -> None:
         """
