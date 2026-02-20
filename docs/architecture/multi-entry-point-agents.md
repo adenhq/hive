@@ -22,7 +22,7 @@ These are not sequential operations—they happen **concurrently and independent
 The original framework had a fundamental constraint:
 
 ```python
-# In Runtime (core.py:58)
+# In Runtime (core.py:59)
 class Runtime:
     def __init__(self, ...):
         self._current_run: Run | None = None  # Only ONE run at a time
@@ -58,7 +58,7 @@ This seems to work—tools can read/write external storage, enabling "shared sta
 
 ### 1. Race Conditions Without Isolation Control
 
-```
+```python
 Execution A: get_customer_context("cust_123") → {tickets: 5}
 Execution B: get_customer_context("cust_123") → {tickets: 5}
 Execution A: update_ticket_count("cust_123", 6)
@@ -153,27 +153,27 @@ assert await memory.read("key") == "value"
 
 The new architecture introduces explicit state management with proper isolation:
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
-│                  AgentRuntime                       │
-│  - Manages agent lifecycle                          │
-│  - Coordinates ExecutionStreams                     │
-│  - Aggregates outcomes for goal evaluation          │
+│                     AgentRuntime                    │
+│  • Manages agent lifecycle                          │
+│  • Coordinates ExecutionStreams                     │
+│  • Aggregates outcomes for goal evaluation          │
 ├─────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
-│  │  Stream A   │  │  Stream B   │  │  Stream C   │ │
-│  │ (webhook)   │  │   (api)     │  │  (timer)    │ │
-│  │             │  │             │  │             │ │
-│  │ Concurrent  │  │ Concurrent  │  │ Concurrent  │ │
-│  │ Executions  │  │ Executions  │  │ Executions  │ │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘ │
-│         └────────────────┼────────────────┘        │
-│                          ↓                         │
-│              SharedStateManager                    │
-│              (Isolation Levels)                    │
-│                                                    │
-│              OutcomeAggregator                     │
-│              (Cross-Stream Goals)                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │  Stream A   │  │  Stream B   │  │  Stream C   │  │
+│  │ (webhook)   │  │   (api)     │  │  (timer)    │  │
+│  │             │  │             │  │             │  │
+│  │ Concurrent  │  │ Concurrent  │  │ Concurrent  │  │
+│  │ Executions  │  │ Executions  │  │ Executions  │  │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  │
+│         └────────────────┼────────────────┘         │
+│                          ↓                          │
+│                 SharedStateManager                  │
+│                 (Isolation Levels)                  │
+│                                                     │
+│                 OutcomeAggregator                   │
+│                (Cross-Stream Goals)                 │
 └─────────────────────────────────────────────────────┘
 ```
 
