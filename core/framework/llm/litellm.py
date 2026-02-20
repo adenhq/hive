@@ -80,6 +80,14 @@ RATE_LIMIT_MAX_DELAY = 120  # seconds - cap to prevent absurd waits
 # Directory for dumping failed requests
 FAILED_REQUESTS_DIR = Path.home() / ".hive" / "failed_requests"
 
+# Provider-specific max_tokens limits (output tokens, not context window)
+# These are enforced by providers and will cause errors if exceeded
+PROVIDER_MAX_TOKENS = {
+    "groq": 16384,  # Groq models have 16384 max output tokens
+    "cerebras": 8192,  # Cerebras models typically 8192
+    "together": 8192,  # Together AI default limit
+}
+
 
 def _estimate_tokens(model: str, messages: list[dict]) -> tuple[int, str]:
     """Estimate token count for messages. Returns (token_count, method)."""
@@ -281,6 +289,34 @@ class LiteLLMProvider(LLMProvider):
                 "LiteLLM is not installed. Please install it with: uv pip install litellm"
             )
 
+
+    def _get_provider_from_model(self, model: str) -> str | None:
+        """Extract provider name from model string (e.g., 'groq/llama3' -> 'groq')."""
+        if "/" in model:
+            return model.split("/")[0].lower()
+        # Check common prefixes
+        model_lower = model.lower()
+        if model_lower.startswith(("gpt-", "o1-", "o3-")):
+            return "openai"
+        if model_lower.startswith("claude"):
+            return "anthropic"
+        if model_lower.startswith("gemini"):
+            return "google"
+        return None
+
+    def _constrain_max_tokens(self, max_tokens: int) -> int:
+        """Constrain max_tokens to provider-specific limits."""
+        provider = self._get_provider_from_model(self.model)
+        if provider and provider in PROVIDER_MAX_TOKENS:
+            limit = PROVIDER_MAX_TOKENS[provider]
+            if max_tokens > limit:
+                logger.warning(
+                    f"max_tokens={max_tokens} exceeds {provider} limit of {limit}. "
+                    f"Constraining to {limit}."
+                )
+                return limit
+        return max_tokens
+
     def _completion_with_rate_limit_retry(
         self, max_retries: int | None = None, **kwargs: Any
     ) -> Any:
@@ -405,11 +441,14 @@ class LiteLLMProvider(LLMProvider):
             else:
                 full_messages.insert(0, {"role": "system", "content": json_instruction.strip()})
 
+        # Constrain max_tokens to provider limits
+        constrained_max_tokens = self._constrain_max_tokens(max_tokens)
+
         # Build kwargs
         kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": full_messages,
-            "max_tokens": max_tokens,
+            "max_tokens": constrained_max_tokens,
             **self.extra_kwargs,
         }
 
@@ -471,6 +510,9 @@ class LiteLLMProvider(LLMProvider):
         total_input_tokens = 0
         total_output_tokens = 0
 
+        # Constrain max_tokens to provider limits
+        constrained_max_tokens = self._constrain_max_tokens(max_tokens)
+
         # Convert tools to OpenAI format
         openai_tools = [self._tool_to_openai_format(t) for t in tools]
 
@@ -479,7 +521,7 @@ class LiteLLMProvider(LLMProvider):
             kwargs: dict[str, Any] = {
                 "model": self.model,
                 "messages": current_messages,
-                "max_tokens": max_tokens,
+                "max_tokens": constrained_max_tokens,
                 "tools": openai_tools,
                 **self.extra_kwargs,
             }
@@ -879,10 +921,13 @@ class LiteLLMProvider(LLMProvider):
             full_messages.append({"role": "system", "content": system})
         full_messages.extend(messages)
 
+        # Constrain max_tokens to provider limits
+        constrained_max_tokens = self._constrain_max_tokens(max_tokens)
+
         kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": full_messages,
-            "max_tokens": max_tokens,
+            "max_tokens": constrained_max_tokens,
             "stream": True,
             "stream_options": {"include_usage": True},
             **self.extra_kwargs,

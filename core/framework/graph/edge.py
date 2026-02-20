@@ -33,6 +33,9 @@ from framework.graph.safe_eval import safe_eval
 
 logger = logging.getLogger(__name__)
 
+# Default max_tokens for LLM completions (output tokens)
+# Note: Some providers have lower limits (e.g., Groq: 16384, Cerebras: 8192)
+# which are automatically enforced by LiteLLMProvider._constrain_max_tokens()
 DEFAULT_MAX_TOKENS = 8192
 
 
