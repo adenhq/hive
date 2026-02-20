@@ -1,3 +1,9 @@
+---
+noteId: "2aecbda0fd0411f088eb375fc53985b6"
+tags: []
+
+---
+
 <p align="center">
   <img width="100%" alt="Hive Banner" src="https://github.com/user-attachments/assets/a027429b-5d3c-4d34-88e4-0feaeaabbab3" />
 </p>
@@ -84,6 +90,29 @@ Use Hive when you need:
 - Claude Code, Codex CLI, or Cursor for utilizing agent skills
 
 > **Note for Windows Users:** It is strongly recommended to use **WSL (Windows Subsystem for Linux)** or **Git Bash** to run this framework. Some core automation scripts may not execute correctly in standard Command Prompt or PowerShell.
+
+## 🔑 LLM API Keys: Required vs Optional
+
+LLM API keys are **not required** for many contribution paths.
+
+### ✅ LLM API keys are NOT required for:
+- Cloning the repository
+- Running the Python setup script (`./scripts/setup-python.sh`)
+- Installing framework dependencies and developer tools
+- Documentation improvements
+- Framework, tooling, or developer-experience contributions
+
+### 🔐 LLM API keys ARE required for:
+- Building agents using `/building-agents`
+- Testing agents using `/testing-agent`
+- Running agents via the runtime
+
+> 💡 Contributors without LLM credits can still make meaningful contributions
+> by improving documentation, tooling, tests, and developer experience.
+
+Optional alternatives such as **local models (e.g., Ollama)** may be explored
+for development and experimentation.
+
 
 ### Installation
 
@@ -456,3 +485,5 @@ Hive focuses on generating agents that run real business processes, rather than 
 <p align="center">
   Made with 🔥 Passion in San Francisco
 </p>
+
+
