@@ -72,6 +72,17 @@ python mcp_server.py
 | `apply_patch`          | Apply unified patches to files                 |
 | `grep_search`          | Search file contents with regex                |
 | `execute_command_tool` | Execute shell commands                         |
+| `send_email`           | Send emails (Gmail, Outlook, or Resend)        |
+| `email_list`           | List emails in a folder (Gmail or Outlook)     |
+| `email_read`           | Read a full email by ID (Gmail or Outlook)     |
+| `email_search`         | Search emails (Gmail or Outlook)               |
+| `email_labels`         | List email labels/folders (Gmail or Outlook)   |
+| `email_mark_read`      | Mark emails as read/unread (Gmail or Outlook)  |
+| `email_delete`         | Delete or trash emails (Gmail or Outlook)       |
+| `email_reply`          | Reply or reply-all to emails (Gmail or Outlook) |
+| `email_forward`        | Forward emails (Gmail or Outlook)               |
+| `email_move`           | Move emails between folders (Gmail or Outlook)  |
+| `email_bulk_delete`    | Bulk delete/trash emails (Gmail or Outlook)     |
 | `web_search`           | Search the web (Google or Brave, auto-detected) |
 | `web_scrape`           | Scrape and extract content from webpages       |
 | `pdf_read`             | Read and extract text from PDF files           |
