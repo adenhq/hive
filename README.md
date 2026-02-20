@@ -83,7 +83,7 @@ Use Hive when you need:
 - Python 3.11+ for agent development
 - Claude Code, Codex CLI, or Cursor for utilizing agent skills
 
-> **Note for Windows Users:** It is strongly recommended to use **WSL (Windows Subsystem for Linux)** or **Git Bash** to run this framework. Some core automation scripts may not execute correctly in standard Command Prompt or PowerShell.
+> **Note for Windows Users:** The easiest way to run Hive on Windows is using **Docker** (see [Docker Setup Guide](docs/docker-setup.md)). Alternatively, you can use **WSL (Windows Subsystem for Linux)** or **Git Bash** to run the native setup scripts.
 
 ### Installation
 
@@ -97,9 +97,15 @@ Use Hive when you need:
 git clone https://github.com/adenhq/hive.git
 cd hive
 
-# Run quickstart setup
+# Option 1: Native setup (recommended for Linux/macOS)
 ./quickstart.sh
+
+# Option 2: Docker setup (recommended for Windows)
+docker-compose up --build
 ```
+
+**[🐳 Docker Setup Guide](docs/docker-setup.md)** - Complete Docker installation and usage instructions
+
 
 This sets up:
 
