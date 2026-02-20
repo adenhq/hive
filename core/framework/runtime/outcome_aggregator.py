@@ -75,7 +75,7 @@ class OutcomeAggregator:
 
         # Evaluate goal progress
         progress = await aggregator.evaluate_goal_progress()
-        print(f"Goal progress: {progress['overall_progress']:.1%}")
+        logger.info(f"Goal progress: {progress['overall_progress']:.1%}")
     """
 
     def __init__(

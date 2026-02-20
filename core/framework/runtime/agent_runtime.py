@@ -108,7 +108,7 @@ class AgentRuntime:
 
         # Check goal progress
         progress = await runtime.get_goal_progress()
-        print(f"Progress: {progress['overall_progress']:.1%}")
+        logger.info(f"Progress: {progress['overall_progress']:.1%}")
 
         # Stop runtime
         await runtime.stop()
