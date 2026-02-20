@@ -451,6 +451,11 @@ Aden's adaptation loop begins working from the first execution. When an agent fa
 
 Hive focuses on generating agents that run real business processes, rather than generic agents. This vision emphasizes outcome-driven design, adaptability, and an easy-to-use set of tools and integrations.
 
+**Q: Why is there no root `requirements.txt`?**  
+A: The Python dependencies live under `core/requirements.txt` (and the recommended setup is `./scripts/setup-python.sh`). Running `pip install -r requirements.txt` from the repo root will fail because there isn’t a root-level `requirements.txt`.
+
+**Q: What is `package.json` for if this is a Python project?**  
+A: Hive is Python-first for agent development. `package.json` exists for auxiliary tooling and repo workflows, but you do not need to run `npm` to set up or develop agents.
 ---
 
 <p align="center">
