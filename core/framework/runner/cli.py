@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import sys
+import textwrap
 from pathlib import Path
 
 
@@ -15,6 +16,13 @@ def register_commands(subparsers: argparse._SubParsersAction) -> None:
         "run",
         help="Run an exported agent",
         description="Execute an exported agent with the given input.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""\
+            examples:
+              %(prog)s exports/my_agent --input '{"query": "hello"}'
+              %(prog)s exports/my_agent --input-file request.json --verbose
+              %(prog)s exports/my_agent --mock --input '{"test": true}'
+        """),
     )
     run_parser.add_argument(
         "agent_path",
@@ -87,6 +95,12 @@ def register_commands(subparsers: argparse._SubParsersAction) -> None:
         "info",
         help="Show agent information",
         description="Display details about an exported agent.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""\
+            examples:
+              %(prog)s exports/my_agent
+              %(prog)s exports/my_agent --json
+        """),
     )
     info_parser.add_argument(
         "agent_path",
@@ -105,6 +119,11 @@ def register_commands(subparsers: argparse._SubParsersAction) -> None:
         "validate",
         help="Validate an exported agent",
         description="Check that an exported agent is valid and runnable.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""\
+            examples:
+              %(prog)s exports/my_agent
+        """),
     )
     validate_parser.add_argument(
         "agent_path",
@@ -118,6 +137,12 @@ def register_commands(subparsers: argparse._SubParsersAction) -> None:
         "list",
         help="List available agents",
         description="List all exported agents in a directory.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""\
+            examples:
+              %(prog)s
+              %(prog)s /path/to/agents
+        """),
     )
     list_parser.add_argument(
         "directory",
@@ -133,6 +158,13 @@ def register_commands(subparsers: argparse._SubParsersAction) -> None:
         "dispatch",
         help="Dispatch request to multiple agents",
         description="Route a request to the best agent(s) using the orchestrator.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""\
+            examples:
+              %(prog)s --input '{"query": "summarize sales"}'
+              %(prog)s exports/ --input '{"task": "review"}' --agents agent_a agent_b
+              %(prog)s --input '{"data": [1,2]}' --intent "analyze trends" --quiet
+        """),
     )
     dispatch_parser.add_argument(
         "agents_dir",
@@ -173,6 +205,13 @@ def register_commands(subparsers: argparse._SubParsersAction) -> None:
         "shell",
         help="Interactive agent session",
         description="Start an interactive REPL session with agents.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""\
+            examples:
+              %(prog)s exports/my_agent
+              %(prog)s --multi
+              %(prog)s exports/my_agent --no-approve
+        """),
     )
     shell_parser.add_argument(
         "agent_path",
