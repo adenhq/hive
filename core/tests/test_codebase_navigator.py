@@ -5,8 +5,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
-
 # Add core and examples/templates to sys.path for imports
 _repo_root = Path(__file__).resolve().parents[1]
 _project_root = _repo_root.parent

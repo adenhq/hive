@@ -6,12 +6,8 @@ import logging
 from pathlib import Path
 
 from framework.graph import Constraint, EdgeCondition, EdgeSpec, Goal, SuccessCriterion
-from framework.graph.edge import GraphSpec
 
 from .config import default_config, default_source_path, metadata
-from .sync_repo import sync
-
-logger = logging.getLogger(__name__)
 from .nodes import (
     deliver_node,
     explore_node,
@@ -19,6 +15,9 @@ from .nodes import (
     search_node,
     synthesize_node,
 )
+from .sync_repo import sync
+
+logger = logging.getLogger(__name__)
 
 # Goal definition
 goal = Goal(
