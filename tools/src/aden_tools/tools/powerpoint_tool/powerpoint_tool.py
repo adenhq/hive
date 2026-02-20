@@ -35,6 +35,7 @@ def register_tools(mcp: FastMCP) -> None:
         workspace_id: str,
         agent_id: str,
         session_id: str,
+        strict: bool = True,
     ) -> dict:
         """
         Generate a PowerPoint (.pptx) from a strict schema and save it to the session sandbox.
@@ -122,9 +123,18 @@ def register_tools(mcp: FastMCP) -> None:
 
                 for idx, img_rel in enumerate(all_imgs[:3]):
                     img_abs = get_secure_path(img_rel, workspace_id, agent_id, session_id)
-                    if os.path.exists(img_abs):
-                        x, y = positions[idx]
-                        sl.shapes.add_picture(img_abs, Inches(x), Inches(y), width=Inches(2.5))
+                    if not os.path.exists(img_abs):
+                        if strict:
+                            return ArtifactResult(
+                                success=False,
+                                error=ArtifactError(
+                                    code="INVALID_PATH",
+                                    message=f"image not found: {img_rel}",
+                                ),
+                            ).model_dump()
+                        continue
+                    x, y = positions[idx]
+                    sl.shapes.add_picture(img_abs, Inches(x), Inches(y), width=Inches(2.5))
 
             prs.save(out_path)
 

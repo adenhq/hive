@@ -59,3 +59,6 @@ From repo root:
 ```bash
 python tools/examples/office_skills_pack_demo.py
 ```
+
+## Example payloads
+See `tools/tests/fixtures/office_skills_pack/` for sample JSON inputs.

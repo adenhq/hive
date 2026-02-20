@@ -32,6 +32,8 @@ class SheetSpec(BaseModel):
 
     # Optional fixed widths: {"Ticker": 12, "Return": 10}
     column_widths: Dict[str, float] = Field(default_factory=dict)
+    auto_filter: bool = True
+    header_fill: bool = True
     images: List[SheetImageSpec] = Field(
         default_factory=list,
         description="Images to place in worksheet",
@@ -69,6 +71,7 @@ def register_tools(mcp: FastMCP) -> None:
         workspace_id: str,
         agent_id: str,
         session_id: str,
+        strict: bool = True,
     ) -> dict:
         """
         Write an Excel (.xlsx) file from a strict schema into the session sandbox.
@@ -101,7 +104,7 @@ def register_tools(mcp: FastMCP) -> None:
 
         try:
             from openpyxl import Workbook
-            from openpyxl.styles import Font
+            from openpyxl.styles import Font, PatternFill
         except ImportError:
 
             return ArtifactResult(
@@ -139,6 +142,14 @@ def register_tools(mcp: FastMCP) -> None:
                 for j, col in enumerate(sheet.columns, start=1):
                     c = ws.cell(row=1, column=j, value=col)
                     c.font = header_font
+                if sheet.header_fill:
+                    fill = PatternFill(
+                        start_color="D9E1F2",
+                        end_color="D9E1F2",
+                        fill_type="solid",
+                    )
+                    for j in range(1, len(sheet.columns) + 1):
+                        ws.cell(row=1, column=j).fill = fill
 
                 # rows
                 for i, row in enumerate(sheet.rows, start=2):
@@ -170,6 +181,9 @@ def register_tools(mcp: FastMCP) -> None:
                 # autosize as fallback
                 _best_effort_autosize(ws)
 
+                if sheet.auto_filter:
+                    ws.auto_filter.ref = ws.dimensions
+
                 # images
                 if sheet.images:
                     from openpyxl.drawing.image import Image as XLImage
@@ -177,19 +191,30 @@ def register_tools(mcp: FastMCP) -> None:
                     for img in sheet.images:
                         ext = os.path.splitext(img.path.lower())[1]
                         if ext not in [".png", ".jpg", ".jpeg"]:
-                            return ArtifactResult(
-                                success=False,
-                                error=ArtifactError(
-                                    code="INVALID_PATH",
-                                    message=f"unsupported image extension: {ext}",
-                                ),
-                            ).model_dump()
+                            if strict:
+                                return ArtifactResult(
+                                    success=False,
+                                    error=ArtifactError(
+                                        code="INVALID_PATH",
+                                        message=f"unsupported image extension: {ext}",
+                                    ),
+                                ).model_dump()
+                            continue
                         img_abs = get_secure_path(img.path, workspace_id, agent_id, session_id)
-                        if os.path.exists(img_abs):
-                            xl_img = XLImage(img_abs)
-                            if img.width:
-                                xl_img.width = int(img.width)
-                            ws.add_image(xl_img, img.cell)
+                        if not os.path.exists(img_abs):
+                            if strict:
+                                return ArtifactResult(
+                                    success=False,
+                                    error=ArtifactError(
+                                        code="INVALID_PATH",
+                                        message=f"image not found: {img.path}",
+                                    ),
+                                ).model_dump()
+                            continue
+                        xl_img = XLImage(img_abs)
+                        if img.width:
+                            xl_img.width = int(img.width)
+                        ws.add_image(xl_img, img.cell)
 
             wb.save(out_path)
 

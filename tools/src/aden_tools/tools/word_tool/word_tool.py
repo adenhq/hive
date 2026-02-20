@@ -45,6 +45,7 @@ def register_tools(mcp: FastMCP) -> None:
         workspace_id: str,
         agent_id: str,
         session_id: str,
+        strict: bool = True,
     ) -> dict:
         """
         Generate a Word (.docx) report from a strict schema and save it to the session sandbox.
@@ -107,6 +108,14 @@ def register_tools(mcp: FastMCP) -> None:
                     d.add_paragraph(b, style="List Bullet")
 
                 if sec.table is not None:
+                    if strict and any(len(row) > len(sec.table.columns) for row in sec.table.rows):
+                        return ArtifactResult(
+                            success=False,
+                            error=ArtifactError(
+                                code="INVALID_SCHEMA",
+                                message="Table row has more values than columns",
+                            ),
+                        ).model_dump()
                     t = d.add_table(rows=1, cols=len(sec.table.columns))
                     hdr = t.rows[0].cells
                     for i, c in enumerate(sec.table.columns):
@@ -120,13 +129,15 @@ def register_tools(mcp: FastMCP) -> None:
                 for rel_path in [*sec.image_paths, *sec.charts]:
                     img_path = get_secure_path(rel_path, workspace_id, agent_id, session_id)
                     if not os.path.exists(img_path):
-                        return ArtifactResult(
-                            success=False,
-                            error=ArtifactError(
-                                code="ASSET_NOT_FOUND",
-                                message=f"Image not found: {rel_path}",
-                            ),
-                        ).model_dump()
+                        if strict:
+                            return ArtifactResult(
+                                success=False,
+                                error=ArtifactError(
+                                    code="INVALID_PATH",
+                                    message=f"Image not found: {rel_path}",
+                                ),
+                            ).model_dump()
+                        continue
                     d.add_picture(str(img_path), width=Inches(5.8))
 
                 

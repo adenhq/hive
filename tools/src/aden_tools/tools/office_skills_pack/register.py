@@ -4,6 +4,10 @@ from aden_tools.tools.chart_tool.chart_tool import register_tools as register_ch
 from aden_tools.tools.excel_write_tool.excel_write_tool import (
     register_tools as register_excel_write,
 )
+from aden_tools.tools.office_skills_pack.manifest_tool import (
+    register_tools as register_manifest,
+)
+from aden_tools.tools.office_skills_pack.schema_tool import register_tools as register_schema
 from aden_tools.tools.powerpoint_tool.powerpoint_tool import (
     register_tools as register_powerpoint,
 )
@@ -15,3 +19,5 @@ def register_office_skills_pack(mcp: FastMCP) -> None:
     register_excel_write(mcp)
     register_powerpoint(mcp)
     register_word(mcp)
+    register_schema(mcp)
+    register_manifest(mcp)
