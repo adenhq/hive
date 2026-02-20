@@ -1,2 +1,8 @@
 [tool.uv.workspace]
 members = ["core", "tools"]
+
+[tool.pytest.ini_options]
+# Use importlib import mode to avoid namespace collisions between
+# core/tests and tools/tests (both named "tests").
+import_mode = "importlib"
+testpaths = ["core/tests", "tools/tests"]
