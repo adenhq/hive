@@ -88,9 +88,6 @@ def register_tools(mcp: FastMCP) -> None:
                         timeout=60000,
                     )
 
-                    # Give JS a moment to render dynamic content
-                    await page.wait_for_timeout(2000)
-
                     if response is None:
                         return {"error": "Navigation failed: no response received"}
 
@@ -105,6 +102,9 @@ def register_tools(mcp: FastMCP) -> None:
                             "url": url,
                             "skipped": True,
                         }
+
+                    # Wait for network activity to settle before extracting content
+                    await page.wait_for_load_state("networkidle")
 
                     # Get fully rendered HTML
                     html_content = await page.content()
