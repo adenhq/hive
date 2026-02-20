@@ -33,7 +33,7 @@ class Colors:
 
 
 def check(description: str) -> bool:
-    """Print check description and return a context manager for result."""
+    """Print check description."""
     logger.info(f"Checking {description}... ", extra={"end": ""})
     sys.stdout.flush()
     return True
@@ -54,6 +54,19 @@ def error(msg: str):
     logger.error(f"{Colors.RED}✗ {msg}{Colors.NC}")
 
 
+def run_python_snippet(code: str, timeout: int = None) -> str:
+    """Run a Python one-liner and return its stdout output."""
+    cmd = [sys.executable, "-c", code]
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=timeout,
+    )
+    return result.stdout.strip()
+
+
 def main():
     """Run verification checks."""
     setup_logger()
@@ -66,13 +79,7 @@ def main():
     # Check 1: Framework package installed
     check("framework package installation")
     try:
-        result = subprocess.run(
-            [sys.executable, "-c", "import framework; print(framework.__file__)"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        framework_path = result.stdout.strip()
+        framework_path = run_python_snippet("import framework; print(framework.__file__)")
         success(f"installed at {framework_path}")
     except subprocess.CalledProcessError:
         error("framework package not found")
@@ -84,7 +91,7 @@ def main():
     missing_deps = []
     for dep in ["mcp", "fastmcp"]:
         try:
-            subprocess.run([sys.executable, "-c", f"import {dep}"], capture_output=True, check=True)
+            run_python_snippet(f"import {dep}")
         except subprocess.CalledProcessError:
             missing_deps.append(dep)
 
@@ -98,12 +105,7 @@ def main():
     # Check 3: MCP server module
     check("MCP server module")
     try:
-        subprocess.run(
-            [sys.executable, "-c", "from framework.mcp import agent_builder_server"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+        run_python_snippet("from framework.mcp import agent_builder_server")
         success("loads successfully")
     except subprocess.CalledProcessError as e:
         error("failed to import")
@@ -148,9 +150,7 @@ def main():
     failed_modules = []
     for module in modules_to_check:
         try:
-            subprocess.run(
-                [sys.executable, "-c", f"import {module}"], capture_output=True, check=True
-            )
+            run_python_snippet(f"import {module}")
         except subprocess.CalledProcessError:
             failed_modules.append(module)
 
@@ -164,18 +164,11 @@ def main():
     check("MCP server startup")
     try:
         # Try to import and instantiate the MCP server
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                "from framework.mcp.agent_builder_server import mcp; print('OK')",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=5,
+        result_output = run_python_snippet(
+            "from framework.mcp.agent_builder_server import mcp; print('OK')",
+            timeout=5
         )
-        if "OK" in result.stdout:
+        if "OK" in result_output:
             success("server can start")
         else:
             warning("unexpected output")
