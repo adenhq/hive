@@ -13,6 +13,13 @@ from typing import Any, Protocol
 
 import httpx
 
+try:
+    import boto3
+    from botocore.exceptions import ClientError
+except ImportError:
+    boto3 = None  # type: ignore[assignment]
+    ClientError = Exception  # type: ignore[misc, assignment]
+
 
 @dataclass
 class HealthCheckResult:
@@ -715,6 +722,7 @@ HEALTH_CHECKERS: dict[str, CredentialHealthChecker] = {
     "anthropic": AnthropicHealthChecker(),
     "github": GitHubHealthChecker(),
     "resend": ResendHealthChecker(),
+    "aws_s3": AWSS3HealthChecker(),
 }
 
 
@@ -767,5 +775,9 @@ def check_credential_health(
     if credential_name == "google_search" and "cse_id" in kwargs:
         checker = GoogleSearchHealthChecker()
         return checker.check(credential_value, kwargs["cse_id"])
+
+    # Special case for AWS S3 which needs access key + secret key
+    if credential_name == "aws_s3" and "secret_key" in kwargs:
+        return checker.check(credential_value, kwargs["secret_key"])
 
     return checker.check(credential_value)
