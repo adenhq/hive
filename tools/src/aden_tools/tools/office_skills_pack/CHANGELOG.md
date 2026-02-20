@@ -6,3 +6,8 @@
 - One-call pack tool + CLI runner
 - Manifest + markdown viewer
 - Guardrails for size limits
+
+## Next
+- Add CLI entrypoint `aden-office-pack`
+- Add schema docs generator
+- Add typecheck + pre-commit

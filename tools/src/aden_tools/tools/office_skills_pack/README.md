@@ -88,6 +88,12 @@ CLI with markdown summary:
 python -m aden_tools.cli.office_pack --spec tools/examples/pack_custom_template.json --dry-run --print-markdown
 ```
 
+Installed entrypoint:
+
+```bash
+aden-office-pack --spec tools/examples/pack_custom_template.json --dry-run --print-markdown
+```
+
 Manifest example:
 
 ```json
@@ -104,3 +110,6 @@ Manifest example:
 
 ## Limits (MVP)
 Slides <= 30, sheet rows <= 2000, chart points <= 5000 (strict mode).
+
+## Versioning
+`contract_version` changes only on breaking schema/response changes.

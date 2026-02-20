@@ -42,3 +42,11 @@ In strict mode, limits return `INVALID_SCHEMA`; in non-strict mode, outputs are 
    - excel_write_tool/excel_write_tool.py (xlsx + images)
 4) Custom template dry-run:
    python -m aden_tools.cli.office_pack --spec tools/examples/pack_custom_template.json --dry-run --print-markdown
+
+## Review map
+- Core: `office_skills_pack/pack_tool.py`, `limits.py`, `contracts.py`
+- Tools: `excel_write_tool`, `powerpoint_tool`, `word_tool`, `chart_tool`
+- CLI: `aden_tools/cli/office_pack.py`
+- Templates: `tools/examples/pack_*.json`
+- Docs: `README.md`, `SCHEMAS.md`
+- Tests: `tools/tests/examples/test_office_pack_*`, `golden` tests

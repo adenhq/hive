@@ -5,10 +5,11 @@ from fastmcp import FastMCP
 from aden_tools.tools.chart_tool.chart_tool import ChartSpec
 from aden_tools.tools.excel_write_tool.excel_write_tool import WorkbookSpec
 from aden_tools.tools.office_skills_pack.contracts import CONTRACT_VERSION
+from aden_tools.tools.office_skills_pack.pack_tool import PackSpec
 from aden_tools.tools.powerpoint_tool.powerpoint_tool import DeckSpec
 from aden_tools.tools.word_tool.word_tool import DocSpec
 
-SUPPORTED_TOOL_NAMES = ["chart", "excel", "powerpoint", "word"]
+SUPPORTED_TOOL_NAMES = ["chart", "excel", "powerpoint", "word", "pack"]
 
 
 def register_tools(mcp: FastMCP) -> None:
@@ -16,7 +17,7 @@ def register_tools(mcp: FastMCP) -> None:
     def office_skills_schema(tool_name: str) -> dict:
         """
         Return JSON schema for Office Skills Pack input specs.
-        tool_name: one of ['chart', 'excel', 'powerpoint', 'word']
+        tool_name: one of ['chart', 'excel', 'powerpoint', 'word', 'pack']
         """
         name = tool_name.strip().lower()
         if name == "chart":
@@ -42,6 +43,12 @@ def register_tools(mcp: FastMCP) -> None:
                 "contract_version": CONTRACT_VERSION,
                 "tool": "word",
                 "schema": DocSpec.model_json_schema(),
+            }
+        if name == "pack":
+            return {
+                "contract_version": CONTRACT_VERSION,
+                "tool": "pack",
+                "schema": PackSpec.model_json_schema(),
             }
         return {
             "contract_version": CONTRACT_VERSION,
