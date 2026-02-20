@@ -41,18 +41,23 @@ class CheckpointStore:
         self.index_path = self.checkpoints_dir / "index.json"
         self._index_lock = asyncio.Lock()
 
-    async def save_checkpoint(self, checkpoint: Checkpoint) -> None:
+    async def save_checkpoint(
+        self, checkpoint: Checkpoint, *, max_retries: int = 3, backoff_base: float = 0.5,
+    ) -> None:
         """
-        Atomically save checkpoint and update index.
+        Atomically save checkpoint and update index, with retry on transient I/O errors.
 
         Uses temp file + rename for crash safety. Updates index
-        after checkpoint is persisted.
+        after checkpoint is persisted. Retries up to *max_retries* times
+        with exponential backoff on OSError.
 
         Args:
             checkpoint: Checkpoint to save
+            max_retries: Maximum number of retry attempts (default 3)
+            backoff_base: Base delay in seconds for exponential backoff (default 0.5)
 
         Raises:
-            OSError: If file write fails
+            OSError: If all retry attempts fail
         """
 
         def _write():
@@ -66,8 +71,27 @@ class CheckpointStore:
 
             logger.debug(f"Saved checkpoint {checkpoint.checkpoint_id}")
 
-        # Write checkpoint file (blocking I/O in thread)
-        await asyncio.to_thread(_write)
+        # Write checkpoint file (blocking I/O in thread) with retry
+        last_error: OSError | None = None
+        for attempt in range(max_retries + 1):
+            try:
+                await asyncio.to_thread(_write)
+                break
+            except OSError as exc:
+                last_error = exc
+                if attempt < max_retries:
+                    delay = backoff_base * (2 ** attempt)
+                    logger.warning(
+                        "Checkpoint save failed (attempt %d/%d): %s — retrying in %.1fs",
+                        attempt + 1, max_retries + 1, exc, delay,
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(
+                        "Checkpoint save failed after %d attempts: %s",
+                        max_retries + 1, exc,
+                    )
+                    raise last_error from exc
 
         # Update index (with lock to prevent concurrent modifications)
         async with self._index_lock:
