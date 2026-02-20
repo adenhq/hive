@@ -70,6 +70,86 @@ class CleansingConfig:
     cache_successful_patterns: bool = True
     fallback_to_raw: bool = True  # If cleaning fails, pass raw output
     log_cleanings: bool = True  # Log when cleansing happens
+    # Maximum number of characters to keep from any single string value
+    # when building the LLM repair prompt. This helps prevent extremely
+    # large RAG contexts, file contents, or datasets from blowing up
+    # the prompt size while preserving overall JSON structure.
+    # Kept intentionally small to limit prompt size for data-heavy nodes.
+    max_prompt_value_chars: int = 1000
+
+
+def truncate_large_values(data: Any, max_length: int = 1000) -> Any:
+    """
+    Recursively truncate large string values in a JSON-like structure.
+
+    - Only affects values, never keys
+    - Preserves overall JSON structure and non-string types
+    - For long strings, keeps the beginning and end (first 200 + last 100 chars)
+      and inserts a truncation marker with omitted length.
+    - Detects base64-ish/binary data and uses a dedicated marker.
+    - Guards against circular references by inserting a marker string.
+    """
+
+    seen_ids: set[int] = set()
+    base64_charset = set(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r"
+    )
+
+    def _inner(value: Any) -> Any:
+        # Handle circular references for container types
+        if isinstance(value, (dict, list)):
+            obj_id = id(value)
+            if obj_id in seen_ids:
+                logger.warning(
+                    "Detected circular reference while truncating output; "
+                    "replacing repeated reference with '[CIRCULAR_REF]' marker"
+                )
+                return "[CIRCULAR_REF]"
+            seen_ids.add(obj_id)
+
+        if isinstance(value, str):
+            if len(value) <= max_length:
+                return value
+
+            original_len = len(value)
+            omitted = original_len - max_length
+
+            # Heuristic: classify as base64-ish/binary if it only contains base64 chars/whitespace
+            stripped = value.strip()
+            is_base64ish = bool(stripped) and set(stripped) <= base64_charset
+
+            # Default: preserve beginning and end
+            head_len = min(200, max_length // 2)
+            tail_len = min(100, max_length - head_len)
+            if head_len + tail_len > max_length:
+                tail_len = max(0, max_length - head_len)
+
+            if is_base64ish:
+                logger.info(
+                    "✂ Truncated base64-like string value in output "
+                    f"(original length={original_len} chars, omitted={omitted} chars)"
+                )
+                head = value[:head_len]
+                return head + f"... [BINARY DATA TRUNCATED: {omitted} chars omitted]"
+
+            logger.info(
+                "✂ Truncated large string value in output "
+                f"(original length={original_len} chars, omitted={omitted} chars)"
+            )
+            head = value[:head_len]
+            tail = value[-tail_len:] if tail_len > 0 else ""
+            return head + f"... [TRUNCATED: {omitted} chars omitted] ..." + tail
+
+        if isinstance(value, dict):
+            return {k: _inner(v) for k, v in value.items()}
+
+        if isinstance(value, list):
+            return [_inner(v) for v in value]
+
+        # Leave numbers, booleans, None, etc. untouched
+        return value
+
+    return _inner(data)
 
 
 @dataclass
@@ -261,6 +341,12 @@ class OutputCleaner:
         # Build schema description for target node
         schema_desc = self._build_schema_description(target_node_spec)
 
+        # Truncate large string values in the raw output before sending to LLM.
+        # This preserves the JSON structure but avoids huge prompt sizes when
+        # nodes return large contexts or file contents alongside small schema errors.
+        max_len = getattr(self.config, "max_prompt_value_chars", 1000)
+        truncated_output = truncate_large_values(output, max_length=max_len)
+
         # Create cleansing prompt
         prompt = f"""Clean this malformed agent output to match the expected schema.
 
@@ -271,7 +357,7 @@ EXPECTED SCHEMA for node '{target_node_spec.id}':
 {schema_desc}
 
 RAW OUTPUT from node '{source_node_id}':
-{json.dumps(output, indent=2, default=str)}
+{json.dumps(truncated_output, indent=2, default=str)}
 
 INSTRUCTIONS:
 1. Extract values that match the expected schema keys
