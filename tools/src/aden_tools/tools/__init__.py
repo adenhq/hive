@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 # Import register_tools from each tool module
 from .account_info_tool import register_tools as register_account_info
 from .apollo_tool import register_tools as register_apollo
+from .aws_s3_tool import register_tools as register_aws_s3
 from .bigquery_tool import register_tools as register_bigquery
 from .calcom_tool import register_tools as register_calcom
 from .calendar_tool import register_tools as register_calendar
@@ -121,6 +122,7 @@ def register_all_tools(
     register_google_docs(mcp, credentials=credentials)
     register_google_maps(mcp, credentials=credentials)
     register_account_info(mcp, credentials=credentials)
+    register_aws_s3(mcp, credentials=credentials)
 
     # Register file system toolkits
     register_view_file(mcp)
