@@ -92,16 +92,78 @@ goal = Goal(
 )
 
 # ---------------------------------------------------------------------------
-# Edges (will add as we build nodes)
+# Edges
 # ---------------------------------------------------------------------------
-edges = []
+edges = [
+    # Main flow: intake -> analyze -> hint
+    EdgeSpec(
+        id="intake-to-analyze",
+        source="intake",
+        target="analyze-problem",
+        condition=EdgeCondition.ON_SUCCESS,
+        description="After collecting problem statement, analyze the problem",
+    ),
+    EdgeSpec(
+        id="analyze-to-hint",
+        source="analyze-problem",
+        target="provide-hint",
+        condition=EdgeCondition.ON_SUCCESS,
+        description="After analyzing problem, provide hints",
+    ),
+    # Conditional: if code provided, review it
+    EdgeSpec(
+        id="hint-to-review",
+        source="provide-hint",
+        target="review-code",
+        condition=EdgeCondition.CONDITIONAL,
+        condition_expr="user_code and user_code != ''",
+        priority=10,
+        description="If user provided code, review it",
+    ),
+    # After code review, identify weaknesses
+    EdgeSpec(
+        id="review-to-weaknesses",
+        source="review-code",
+        target="identify-weaknesses",
+        condition=EdgeCondition.ON_SUCCESS,
+        description="After code review, identify weak areas",
+    ),
+    # If no code review, go directly to weaknesses from hint
+    EdgeSpec(
+        id="hint-to-weaknesses",
+        source="provide-hint",
+        target="identify-weaknesses",
+        condition=EdgeCondition.CONDITIONAL,
+        condition_expr="not user_code or user_code == ''",
+        priority=5,
+        description="If no code provided, identify weaknesses from problem analysis",
+    ),
+    # Finally, suggest practice plan
+    EdgeSpec(
+        id="weaknesses-to-practice",
+        source="identify-weaknesses",
+        target="suggest-practice",
+        condition=EdgeCondition.ON_SUCCESS,
+        description="After identifying weaknesses, suggest practice plan",
+    ),
+    # Allow hint escalation (user asks for more specific hint)
+    EdgeSpec(
+        id="hint-escalation",
+        source="provide-hint",
+        target="provide-hint",
+        condition=EdgeCondition.CONDITIONAL,
+        condition_expr="hint_level and hint_level < 4",
+        priority=1,
+        description="Allow hint level escalation if user needs more help",
+    ),
+]
 
 # ---------------------------------------------------------------------------
 # Graph structure
 # ---------------------------------------------------------------------------
 entry_node = "intake"
 entry_points = {"start": "intake"}
-terminal_nodes = ["intake"]  # Temporary - will update as we add more nodes
+terminal_nodes = ["suggest-practice"]
 pause_nodes = []
 
 
