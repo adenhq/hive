@@ -1,6 +1,18 @@
 """DSA Mentor Agent — goal, edges, graph spec, and agent class."""
 
+import sys
 from pathlib import Path
+
+# Ensure core and tools directories are in path for framework imports
+# This is needed when running as a module from examples/templates/
+_agent_file = Path(__file__).resolve()
+_project_root = _agent_file.parent.parent.parent.parent
+_core_dir = _project_root / "core"
+_tools_src_dir = _project_root / "tools" / "src"
+if str(_core_dir) not in sys.path:
+    sys.path.insert(0, str(_core_dir))
+if str(_tools_src_dir) not in sys.path:
+    sys.path.insert(0, str(_tools_src_dir))
 
 from framework.graph import EdgeCondition, EdgeSpec, Goal, SuccessCriterion, Constraint
 from framework.graph.edge import GraphSpec

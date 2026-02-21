@@ -4,6 +4,17 @@ import asyncio
 import json
 import sys
 import logging
+from pathlib import Path
+
+# Add core and tools directories to Python path so we can import framework and aden_tools
+# This must happen BEFORE any framework imports
+_project_root = Path(__file__).resolve().parent.parent.parent.parent
+_core_dir = _project_root / "core"
+_tools_src_dir = _project_root / "tools" / "src"
+if str(_core_dir) not in sys.path:
+    sys.path.insert(0, str(_core_dir))
+if str(_tools_src_dir) not in sys.path:
+    sys.path.insert(0, str(_tools_src_dir))
 
 # Set up logging to see what's happening
 logging.basicConfig(
@@ -65,13 +76,25 @@ def main():
 
 def _run_tui():
     """Launch TUI mode for interactive testing."""
+    # Ensure core and tools are in path (in case it wasn't set up correctly)
+    _project_root = Path(__file__).resolve().parent.parent.parent.parent
+    _core_dir = _project_root / "core"
+    _tools_src_dir = _project_root / "tools" / "src"
+    if str(_core_dir) not in sys.path:
+        sys.path.insert(0, str(_core_dir))
+    if str(_tools_src_dir) not in sys.path:
+        sys.path.insert(0, str(_tools_src_dir))
+    
     try:
         from framework.tui.app import AdenTUI
-    except ImportError:
-        print("TUI requires the 'textual' package. Install with: pip install textual")
+    except ImportError as e:
+        print(f"TUI import failed: {e}")
+        print("TUI requires the 'textual' package. Install with: python3 -m pip install textual")
+        print(f"Also ensure core directory is accessible: {_core_dir}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
-    from pathlib import Path
     from framework.llm.anthropic import AnthropicProvider
     from framework.runner.tool_registry import ToolRegistry
     from framework.runtime.agent_runtime import create_agent_runtime
