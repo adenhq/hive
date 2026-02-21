@@ -81,6 +81,7 @@ from .shell_config import (
 )
 from .slack import SLACK_CREDENTIALS
 from .store_adapter import CredentialStoreAdapter
+from .stripe import STRIPE_CREDENTIALS
 from .telegram import TELEGRAM_CREDENTIALS
 
 # Merged registry of all credentials
@@ -103,6 +104,7 @@ CREDENTIAL_SPECS = {
     **TELEGRAM_CREDENTIALS,
     **BIGQUERY_CREDENTIALS,
     **CALCOM_CREDENTIALS,
+    **STRIPE_CREDENTIALS,
     **POSTGRES_CREDENTIALS,
 }
 
@@ -146,5 +148,6 @@ __all__ = [
     "BIGQUERY_CREDENTIALS",
     "CALCOM_CREDENTIALS",
     "DISCORD_CREDENTIALS",
+    "STRIPE_CREDENTIALS",
     "POSTGRES_CREDENTIALS",
 ]
