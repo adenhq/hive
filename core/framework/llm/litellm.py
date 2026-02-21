@@ -25,6 +25,7 @@ except ImportError:
 
 from framework.llm.provider import LLMProvider, LLMResponse, Tool, ToolResult, ToolUse
 from framework.llm.stream_events import StreamEvent
+from framework.llm.constants import MODEL_OUTPUT_TOKEN_LIMIT_KEYS, PROVIDER_FALLBACK_MAX_TOKENS
 
 logger = logging.getLogger(__name__)
 
@@ -79,15 +80,6 @@ RATE_LIMIT_MAX_DELAY = 120  # seconds - cap to prevent absurd waits
 
 # Directory for dumping failed requests
 FAILED_REQUESTS_DIR = Path.home() / ".hive" / "failed_requests"
-
-# Provider-specific max_tokens limits (output tokens, not context window)
-# These are enforced by providers and will cause errors if exceeded
-PROVIDER_MAX_TOKENS = {
-    "groq": 16384,  # Groq models have 16384 max output tokens
-    "cerebras": 8192,  # Cerebras models typically 8192
-    "together": 8192,  # Together AI default limit
-}
-
 
 def _estimate_tokens(model: str, messages: list[dict]) -> tuple[int, str]:
     """Estimate token count for messages. Returns (token_count, method)."""
@@ -304,17 +296,91 @@ class LiteLLMProvider(LLMProvider):
             return "google"
         return None
 
+    def _get_dynamic_model_output_limit_info(self, model: str) -> tuple[int, str] | None:
+        """Resolve per-model output token limit and source key from LiteLLM metadata."""
+        if litellm is None or not hasattr(litellm, "get_model_info"):
+            return None
+
+        try:
+            model_info = litellm.get_model_info(model)  # type: ignore[union-attr]
+        except Exception:
+            return None
+
+        if not isinstance(model_info, dict):
+            return None
+
+        for key in MODEL_OUTPUT_TOKEN_LIMIT_KEYS:
+            value = model_info.get(key)
+            if isinstance(value, int) and value > 0:
+                return value, key
+            if isinstance(value, float) and value > 0:
+                return int(value), key
+            if isinstance(value, str):
+                try:
+                    parsed = int(value)
+                except ValueError:
+                    continue
+                if parsed > 0:
+                    return parsed, key
+
+        return None
+
+    def _get_dynamic_model_output_limit(self, model: str) -> int | None:
+        """Resolve per-model output token limit from LiteLLM metadata when available."""
+        resolved = self._get_dynamic_model_output_limit_info(model)
+        if resolved is None:
+            return None
+        return resolved[0]
+
     def _constrain_max_tokens(self, max_tokens: int) -> int:
-        """Constrain max_tokens to provider-specific limits."""
+        """Constrain max_tokens to model/provider limits (dynamic first, fallback second)."""
+        dynamic_limit_info = self._get_dynamic_model_output_limit_info(self.model)
+        if dynamic_limit_info is not None:
+            dynamic_limit, dynamic_key = dynamic_limit_info
+            applied = min(max_tokens, dynamic_limit)
+            logger.info(
+                "max_tokens resolution model=%s source=litellm.get_model_info.%s requested=%s "
+                "limit=%s applied=%s",
+                self.model,
+                dynamic_key,
+                max_tokens,
+                dynamic_limit,
+                applied,
+            )
+            if max_tokens > dynamic_limit:
+                logger.warning(
+                    f"max_tokens={max_tokens} exceeds model output limit of {dynamic_limit} "
+                    f"for {self.model}. Constraining to {dynamic_limit}."
+                )
+                return dynamic_limit
+            return max_tokens
+
         provider = self._get_provider_from_model(self.model)
-        if provider and provider in PROVIDER_MAX_TOKENS:
-            limit = PROVIDER_MAX_TOKENS[provider]
+        if provider and provider in PROVIDER_FALLBACK_MAX_TOKENS:
+            limit = PROVIDER_FALLBACK_MAX_TOKENS[provider]
+            applied = min(max_tokens, limit)
+            logger.info(
+                "max_tokens resolution model=%s source=fallback.%s requested=%s limit=%s applied=%s",
+                self.model,
+                provider,
+                max_tokens,
+                limit,
+                applied,
+            )
             if max_tokens > limit:
                 logger.warning(
-                    f"max_tokens={max_tokens} exceeds {provider} limit of {limit}. "
+                    f"max_tokens={max_tokens} exceeds fallback {provider} limit of {limit}. "
                     f"Constraining to {limit}."
                 )
                 return limit
+            return max_tokens
+
+        logger.info(
+            "max_tokens resolution model=%s source=none requested=%s limit=none applied=%s",
+            self.model,
+            max_tokens,
+            max_tokens,
+        )
         return max_tokens
 
     def _completion_with_rate_limit_retry(

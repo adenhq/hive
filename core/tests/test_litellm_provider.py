@@ -66,6 +66,108 @@ class TestLiteLLMProviderInit:
             assert provider.model == "ollama/llama3"
 
 
+class TestLiteLLMProviderTokenLimits:
+    """Test max_tokens constraint behavior for dynamic model info and fallbacks."""
+
+    @patch("framework.llm.litellm.litellm.get_model_info")
+    def test_constrain_max_tokens_prefers_output_limit_key_priority(self, mock_get_model_info):
+        """max_output_tokens should take priority over generic max_tokens."""
+        mock_get_model_info.return_value = {
+            "max_tokens": 64000,
+            "max_output_tokens": 4096,
+        }
+
+        provider = LiteLLMProvider(model="openai/gpt-5-mini", api_key="test-key")
+
+        assert provider._constrain_max_tokens(99999) == 4096
+
+    @patch("framework.llm.litellm.litellm.get_model_info")
+    def test_constrain_max_tokens_prefers_completion_tokens_before_max_tokens(
+        self,
+        mock_get_model_info,
+    ):
+        """max_completion_tokens should be used when max_output_tokens is not present."""
+        mock_get_model_info.return_value = {
+            "max_tokens": 64000,
+            "max_completion_tokens": 8192,
+        }
+
+        provider = LiteLLMProvider(model="openai/gpt-5-mini", api_key="test-key")
+
+        assert provider._constrain_max_tokens(99999) == 8192
+
+    @patch("framework.llm.litellm.litellm.get_model_info")
+    def test_constrain_max_tokens_uses_dynamic_model_limit(self, mock_get_model_info):
+        """Dynamic model metadata should be preferred over provider fallback caps."""
+        mock_get_model_info.return_value = {
+            "max_output_tokens": 32768,
+            "max_tokens": 32768,
+        }
+
+        provider = LiteLLMProvider(model="groq/llama-3.3-70b-versatile", api_key="test-key")
+
+        assert provider._constrain_max_tokens(99999) == 32768
+
+    @patch("framework.llm.litellm.litellm.get_model_info")
+    def test_constrain_max_tokens_falls_back_when_metadata_unavailable(self, mock_get_model_info):
+        """When model metadata lookup fails, provider fallback cap should apply."""
+        mock_get_model_info.side_effect = RuntimeError("metadata unavailable")
+
+        provider = LiteLLMProvider(model="groq/moonshotai/kimi-k2-instruct-0905", api_key="test-key")
+
+        assert provider._constrain_max_tokens(99999) == 16384
+
+    @patch("framework.llm.litellm.litellm.get_model_info")
+    def test_constrain_max_tokens_keeps_value_for_unlisted_provider(self, mock_get_model_info):
+        """If metadata is unavailable and provider has no fallback cap, value is unchanged."""
+        mock_get_model_info.side_effect = RuntimeError("metadata unavailable")
+
+        provider = LiteLLMProvider(model="anthropic/claude-sonnet-4-20250514", api_key="test-key")
+
+        assert provider._constrain_max_tokens(64000) == 64000
+
+
+class TestLiteLLMProviderTokenLimitMatrix:
+    """Deterministic provider matrix tests for resolved max_tokens behavior."""
+
+    @pytest.mark.parametrize(
+        ("provider", "model", "dynamic_limit", "expected"),
+        [
+            ("groq", "groq/moonshotai/kimi-k2-instruct-0905", 16384, 16384),
+            ("openai", "openai/gpt-5-mini", 128000, 128000),
+            ("anthropic", "anthropic/claude-sonnet-4-20250514", 64000, 64000),
+            ("google", "gemini/gemini-1.5-flash", 8192, 8192),
+            ("mistral", "mistral/mistral-large-latest", 128000, 128000),
+            ("cerebras", "cerebras/llama3.1-70b", 128000, 128000),
+            # together intentionally uses fallback (simulates missing model metadata)
+            ("together", "together/meta-llama/Llama-3.1-70B-Instruct-Turbo", None, 8192),
+            ("deepseek", "deepseek/deepseek-chat", 8192, 8192),
+        ],
+    )
+    @patch("framework.llm.litellm.litellm.get_model_info")
+    def test_provider_matrix_resolved_limits(
+        self,
+        mock_get_model_info,
+        provider,
+        model,
+        dynamic_limit,
+        expected,
+    ):
+        """Resolved limit should use dynamic metadata when present, else provider fallback."""
+
+        def fake_get_model_info(requested_model):
+            if requested_model != model:
+                raise ValueError("unexpected model")
+            if dynamic_limit is None:
+                raise RuntimeError("metadata unavailable")
+            return {"max_output_tokens": dynamic_limit, "max_tokens": dynamic_limit}
+
+        mock_get_model_info.side_effect = fake_get_model_info
+
+        provider_obj = LiteLLMProvider(model=model, api_key="test-key")
+        assert provider_obj._constrain_max_tokens(999999) == expected
+
+
 class TestLiteLLMProviderComplete:
     """Test LiteLLMProvider.complete() method."""
 
