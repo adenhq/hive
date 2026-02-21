@@ -17,6 +17,12 @@ from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
 
+from .office_tool.excel import register_tools as register_excel_generate
+
+from .office_tool.word import register_tools as register_word_generate
+
+
+
 if TYPE_CHECKING:
     from aden_tools.credentials import CredentialStoreAdapter
 
@@ -74,6 +80,11 @@ from .vision_tool import register_tools as register_vision
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
 
+from .office_tool.powerpoint import register_tools as register_powerpoint
+
+from .office_tool.excel import register_tools as register_excel_generate
+
+
 
 def register_all_tools(
     mcp: FastMCP,
@@ -96,6 +107,8 @@ def register_all_tools(
     register_pdf_read(mcp)
     register_time(mcp)
     register_runtime_logs(mcp)
+    register_powerpoint(mcp)
+
 
     # Tools that need credentials (pass credentials if provided)
     # web_search supports multiple providers (Google, Brave) with auto-detection
@@ -134,6 +147,10 @@ def register_all_tools(
     register_data_tools(mcp)
     register_csv(mcp)
     register_excel(mcp)
+    register_excel_generate(mcp)
+    tools.extend(register_word_generate(mcp, credentials))
+
+
 
     # Security scanning tools (no credentials needed)
     register_ssl_tls_scanner(mcp)
