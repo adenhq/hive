@@ -180,8 +180,7 @@ class MCPClient:
                 # Initialize persistent connection
                 async def init_connection():
                     try:
-                        from mcp import ClientSession
-                        from mcp.client.stdio import stdio_client
+                        from mcp import ClientSession, stdio_client
 
                         # Create persistent stdio client context
                         self._stdio_context = stdio_client(server_params)

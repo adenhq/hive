@@ -1,15 +1,5 @@
-"""EventLoopNode: Multi-turn LLM streaming loop with tool execution and judge evaluation.
-
-Implements NodeProtocol and runs a streaming event loop:
-1. Calls LLMProvider.stream() to get streaming events
-2. Processes text deltas, tool calls, and finish events
-3. Executes tools and feeds results back to the conversation
-4. Uses judge evaluation (or implicit stop-reason) to decide loop termination
-5. Publishes lifecycle events to EventBus
-6. Persists conversation and outputs via write-through to ConversationStore
-"""
-
 from __future__ import annotations
+print("LOADING event_loop_node.py from source")
 
 import asyncio
 import json
@@ -533,9 +523,9 @@ class EventLoopNode(NodeProtocol):
                         latency_ms=latency_ms,
                     )
 
-                logger.info("[%s] iter=%d: blocking for user input...", node_id, iteration)
+                print(f"DEBUG: [{node_id}] iter={iteration}: blocking for user input...")
                 got_input = await self._await_user_input(ctx)
-                logger.info("[%s] iter=%d: unblocked, got_input=%s", node_id, iteration, got_input)
+                print(f"DEBUG: [{node_id}] iter={iteration}: unblocked, got_input={got_input}")
                 if not got_input:
                     await self._publish_loop_completed(stream_id, node_id, iteration + 1)
                     latency_ms = int((time.time() - start_time) * 1000)
@@ -837,7 +827,9 @@ class EventLoopNode(NodeProtocol):
                 prompt="",
             )
 
+        print(f"DEBUG: _await_user_input waiting on Event, is_set={self._input_ready.is_set()}")
         await self._input_ready.wait()
+        print(f"DEBUG: _await_user_input done waiting, shutdown={self._shutdown}")
         return not self._shutdown
 
     # -------------------------------------------------------------------
@@ -987,6 +979,7 @@ class EventLoopNode(NodeProtocol):
 
                 if tc.tool_name == "set_output":
                     # --- Framework-level set_output handling ---
+                    print(f"DEBUG: [{node_id}] processing set_output: {tc.tool_input}")
                     result = self._handle_set_output(tc.tool_input, ctx.node_spec.output_keys)
                     result = ToolResult(
                         tool_use_id=tc.tool_use_id,
@@ -1006,8 +999,11 @@ class EventLoopNode(NodeProtocol):
                             except (json.JSONDecodeError, TypeError):
                                 pass
                         key = tc.tool_input.get("key", "")
+                        print(f"DEBUG: [{node_id}] setting accumulator: {key}={value}")
                         await accumulator.set(key, value)
                         outputs_set_this_turn.append(key)
+                    else:
+                        print(f"DEBUG: [{node_id}] set_output ERROR: {result.content}")
                     logged_tool_calls.append(
                         {
                             "tool_use_id": tc.tool_use_id,
@@ -1288,18 +1284,15 @@ class EventLoopNode(NodeProtocol):
             missing = self._get_missing_output_keys(
                 accumulator, ctx.node_spec.output_keys, ctx.node_spec.nullable_output_keys
             )
+            print(f"DEBUG: Implicit judge checking missing keys. Missing: {missing}, Accumulator: {accumulator.to_dict()}")
             if not missing:
-                # Safety check: when ALL output keys are nullable and NONE
-                # have been set, the node produced nothing useful.  Retry
-                # instead of accepting an empty result — this prevents
-                # client-facing nodes from terminating before the user
-                # ever interacts, and non-client-facing nodes from
-                # short-circuiting without doing their work.
+                # Safety check
                 output_keys = ctx.node_spec.output_keys or []
                 nullable_keys = set(ctx.node_spec.nullable_output_keys or [])
                 all_nullable = output_keys and nullable_keys >= set(output_keys)
                 none_set = not any(accumulator.get(k) is not None for k in output_keys)
                 if all_nullable and none_set:
+                    print("DEBUG: Implicit judge RETRY because all nullable and none set")
                     return JudgeVerdict(
                         action="RETRY",
                         feedback=(
@@ -1307,8 +1300,10 @@ class EventLoopNode(NodeProtocol):
                             f"Use set_output to set at least one of: {output_keys}"
                         ),
                     )
+                print("DEBUG: Implicit judge ACCEPT")
                 return JudgeVerdict(action="ACCEPT")
             else:
+                print(f"DEBUG: Implicit judge RETRY because missing keys: {missing}")
                 return JudgeVerdict(
                     action="RETRY",
                     feedback=(
@@ -1317,6 +1312,7 @@ class EventLoopNode(NodeProtocol):
                 )
 
         # Tool calls were made -- continue loop
+        print(f"DEBUG: Implicit judge RETRY because tool_results is not empty: {len(tool_results)} items")
         return JudgeVerdict(action="RETRY", feedback="")
 
     # -------------------------------------------------------------------

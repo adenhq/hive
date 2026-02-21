@@ -370,28 +370,31 @@ class GraphExecutor:
             node_ids = [n.id for n in graph.nodes]
             self.logger.debug(f"paused_at={paused_at}, available node IDs={node_ids}")
 
-            if paused_at and graph.get_node(paused_at) is not None:
-                # Resume from paused_at node directly (works for any node, not just pause_nodes)
-                current_node_id = paused_at
+            if paused_at:
+                if graph.get_node(paused_at) is not None:
+                    # Resume from paused_at node directly (works for any node, not just pause_nodes)
+                    current_node_id = paused_at
 
-                # Restore execution path from session state if available
-                if session_state:
-                    execution_path = session_state.get("execution_path", [])
-                    if execution_path:
-                        path.extend(execution_path)
-                        self.logger.info(
-                            f"🔄 Resuming from paused node: {paused_at} "
-                            f"(restored path: {execution_path})"
-                        )
+                    # Restore execution path from session state if available
+                    if session_state:
+                        execution_path = session_state.get("execution_path", [])
+                        if execution_path:
+                            path.extend(execution_path)
+                            self.logger.info(
+                                f"🔄 Resuming from paused node: {paused_at} "
+                                f"(restored path: {execution_path})"
+                            )
+                        else:
+                            self.logger.info(f"🔄 Resuming from paused node: {paused_at}")
                     else:
                         self.logger.info(f"🔄 Resuming from paused node: {paused_at}")
                 else:
-                    self.logger.info(f"🔄 Resuming from paused node: {paused_at}")
+                    self.logger.warning(
+                        f"⚠ paused_at={paused_at} is not a valid node, falling back to entry point"
+                    )
+                    current_node_id = graph.get_entry_point(session_state)
             else:
-                # Fall back to normal entry point logic
-                self.logger.warning(
-                    f"⚠ paused_at={paused_at} is not a valid node, falling back to entry point"
-                )
+                # Normal entry point
                 current_node_id = graph.get_entry_point(session_state)
 
         steps = 0

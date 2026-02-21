@@ -15,7 +15,7 @@ async def run_agent(model: str = None):
     if model:
         agent.config.model = model
 
-    print(f"🚀 Starting {agent.info()['name']}...")
+    print(f"[*] Starting {agent.info()['name']}...")
     print(f"Goal: {agent.info()['goal']['description']}")
 
     # Start the agent
@@ -30,9 +30,9 @@ async def run_agent(model: str = None):
         
         # Simple loop for human-in-the-loop if needed
         # (This is a simplified CLI runner logic)
-        while result and result.status == "paused":
+        while result and result.paused_at:
             # For this specific agent, if it pauses, it's likely asking for user input
-            user_input = input("\n👤 User Input: ")
+            user_input = input("\n> User Input: ")
             result = await agent.trigger_and_wait(
                 "resume", 
                 {"user_response": user_input}, 
@@ -40,13 +40,13 @@ async def run_agent(model: str = None):
             )
 
         if result and result.success:
-            print("\n✅ Agent completed successfully!")
+            print("\n[+] Agent completed successfully!")
             # Print final outputs
             for key, value in result.output.items():
                 print(f"\n--- Output: {key} ---")
                 print(value)
         else:
-            print(f"\n❌ Agent failed: {result.error if result else 'Unknown error'}")
+            print(f"\n[-] Agent failed: {result.error if result else 'Unknown error'}")
 
     finally:
         await agent.stop()

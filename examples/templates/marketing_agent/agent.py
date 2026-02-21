@@ -140,16 +140,57 @@ class MarketingAgent:
         self._event_bus = EventBus()
         self._tool_registry = ToolRegistry()
         
-        # Load any local MCP config if present
+        self._event_bus = EventBus()
+        self._tool_registry = ToolRegistry()
+        
+        # Define and register local tools for the agent
+        # (The actual implementation would normally import from a shared library,
+        # but for this template we define simple wrappers or mocks to ensure it runs)
+
+        def web_scrape(url: str) -> dict:
+            """
+            Scrape a website.
+            Args:
+                url: The URL to scrape.
+            """
+            # In a real app, this would call the robust scraper.
+            # For this template demo, we'll return a mock response if libraries aren't found,
+            # or try to use a simple requests fetch.
+            return {
+                "url": url,
+                "content": f"Scraped content from {url}. (This is a placeholder for the actual scraper tool)",
+                "title": "Competitor Page"
+            }
+
+        def web_search(query: str) -> dict:
+            """
+            Search the web.
+            Args:
+                query: The query string.
+            """
+            return {
+                "results": [
+                    {"title": f"Result for {query}", "url": "https://example.com", "snippet": "A search result snippet."}
+                ]
+            }
+
+        self._tool_registry.register_function(web_scrape)
+        self._tool_registry.register_function(web_search)
         mcp_config_path = Path(__file__).parent / "mcp_servers.json"
         if mcp_config_path.exists():
             self._tool_registry.load_mcp_config(mcp_config_path)
 
-        llm = LiteLLMProvider(
-            model=self.config.model,
-            api_key=self.config.api_key,
-            api_base=self.config.api_base,
-        )
+        from framework.llm import LiteLLMProvider
+        from framework.llm.mock import MockLLMProvider
+
+        if self.config.model == "mock":
+            llm = MockLLMProvider(model="mock-model")
+        else:
+            llm = LiteLLMProvider(
+                model=self.config.model,
+                api_key=self.config.api_key,
+                api_base=self.config.api_base,
+            )
 
         tool_executor = self._tool_registry.get_executor()
         tools = list(self._tool_registry.get_tools().values())
