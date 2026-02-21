@@ -126,3 +126,20 @@ class TestHiveEntryPoint:
             text=True,
         )
         assert result.returncode != 0
+
+    def test_hive_run_invalid_agent_fails_fast(self, tmp_path):
+        """Verify ``hive run`` validates before execution and exits on errors (#5122)."""
+        # Create a minimal invalid agent (empty nodes → entry node not found)
+        agent_dir = tmp_path / "bad_agent"
+        agent_dir.mkdir()
+        (agent_dir / "agent.json").write_text(
+            '{"name": "bad", "goal": {"name": "test", "prompt": "x"}, "nodes": [], "edges": []}'
+        )
+
+        result = subprocess.run(
+            ["hive", "run", str(agent_dir), "--quiet"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 0
+        assert "validation failed" in result.stderr.lower()

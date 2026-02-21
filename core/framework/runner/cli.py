@@ -519,6 +519,22 @@ def cmd_run(args: argparse.Namespace) -> int:
                     if runner is None:
                         return
 
+                # Validate agent before execution (#5122)
+                validation = runner.validate()
+                if not validation.valid:
+                    print("✗ Agent validation failed:", file=sys.stderr)
+                    for error in validation.errors:
+                        print(f"  ERROR: {error}", file=sys.stderr)
+                    if validation.warnings:
+                        for warning in validation.warnings:
+                            print(f"  WARNING: {warning}", file=sys.stderr)
+                    print(
+                        "\nRun 'hive validate' for full details. Aborting.",
+                        file=sys.stderr,
+                    )
+                    await runner.cleanup_async()
+                    return
+
                 # Force setup inside the loop
                 if runner._agent_runtime is None:
                     try:
@@ -578,6 +594,22 @@ def cmd_run(args: argparse.Namespace) -> int:
             runner = _prompt_before_start(args.agent_path, runner, args.model)
             if runner is None:
                 return 1
+
+        # Validate agent before execution (#5122)
+        validation = runner.validate()
+        if not validation.valid:
+            print("✗ Agent validation failed:", file=sys.stderr)
+            for error in validation.errors:
+                print(f"  ERROR: {error}", file=sys.stderr)
+            if validation.warnings:
+                for warning in validation.warnings:
+                    print(f"  WARNING: {warning}", file=sys.stderr)
+            print(
+                "\nRun 'hive validate' for full details. Aborting.",
+                file=sys.stderr,
+            )
+            runner.cleanup()
+            return 1
 
         # Load session/checkpoint state for resume (headless mode)
         session_state = None
