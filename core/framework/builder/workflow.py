@@ -290,7 +290,7 @@ class GraphBuilder:
 
         # Check for edge references
         for edge in self.session.edges:
-            if edge.source == node_id or edge.target == node_id:
+            if node_id in {edge.source, edge.target}:
                 return ValidationResult(
                     valid=False,
                     errors=[f"Cannot remove node '{node_id}': referenced by edge '{edge.id}'"],
