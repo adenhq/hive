@@ -70,6 +70,7 @@ from .subdomain_enumerator import register_tools as register_subdomain_enumerato
 from .tech_stack_detector import register_tools as register_tech_stack_detector
 from .telegram_tool import register_tools as register_telegram
 from .time_tool import register_tools as register_time
+from .twitter_tool import register_tools as register_twitter
 from .vision_tool import register_tools as register_vision
 from .web_scrape_tool import register_tools as register_web_scrape
 from .web_search_tool import register_tools as register_web_search
@@ -144,6 +145,7 @@ def register_all_tools(
     register_subdomain_enumerator(mcp)
     register_risk_scorer(mcp)
     register_stripe(mcp, credentials=credentials)
+    register_twitter(mcp, credentials=credentials)
 
     # Return the list of all registered tool names
     return list(mcp._tool_manager._tools.keys())
