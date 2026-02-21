@@ -9,6 +9,7 @@ Security features:
 - Statement timeout
 - SQL hashing for safe logging (no raw query logs)
 - CredentialStore integration
+- Thread-safe connection pooling
 """
 
 from __future__ import annotations
@@ -18,10 +19,12 @@ import logging
 import os
 import re
 import time
+from contextlib import contextmanager
 from typing import Any
 
 import psycopg2 as psycopg
 from fastmcp import FastMCP
+from psycopg2 import pool, sql as pg_sql
 
 from aden_tools.credentials import CREDENTIAL_SPECS
 from aden_tools.credentials.store_adapter import CredentialStoreAdapter
@@ -29,7 +32,14 @@ from aden_tools.credentials.store_adapter import CredentialStoreAdapter
 MAX_ROWS = 1000
 STATEMENT_TIMEOUT_MS = 3000
 
+MIN_POOL_SIZE = 1
+MAX_POOL_SIZE = 10
+
+
 logger = logging.getLogger(__name__)
+_connection_pool: pool.ThreadedConnectionPool | None = None
+_pool_database_url: str | None = None
+
 
 
 # ============================================================
@@ -96,6 +106,72 @@ WHERE table_schema = %(schema)s
   AND table_name = %(table)s
 ORDER BY ordinal_position
 """
+
+# ============================================================
+# Pooling
+# ============================================================
+
+def _get_pool(database_url: str):
+    """
+    Retrieve a connection pool for the given PostgreSQL database URL.
+
+    This function lazily creates a connection pool when the first request is made.
+    Subsequent requests will reuse the existing connection pool.
+
+    Args:
+        database_url: PostgreSQL database URL
+
+    Returns:
+        A connection pool object
+    """
+    global _connection_pool, _pool_database_url
+    if _connection_pool is None or _pool_database_url != database_url:
+        if _connection_pool is not None:
+            _connection_pool.closeall()
+        _connection_pool = pool.ThreadedConnectionPool(
+            MIN_POOL_SIZE,
+            MAX_POOL_SIZE,
+            dsn=database_url
+        )
+        _pool_database_url = database_url
+    return _connection_pool
+
+
+@contextmanager
+def _get_connection(database_url: str):
+    """
+    Retrieve a connection from the pool for the given PostgreSQL database URL.
+
+    This function uses a context manager to ensure that the connection is always
+    returned to the pool after use. The connection is also rolled back before
+    being returned to the pool to prevent leaking any active transactions.
+
+    Args:
+        database_url: PostgreSQL database URL
+
+    Yields:
+        A connection object
+    """
+    pool_instance = _get_pool(database_url)
+    conn = pool_instance.getconn()
+
+    try:
+        # Ensure clean state
+        if conn.closed:
+            conn = pool_instance.getconn()
+
+        conn.rollback()  # Clear any aborted transaction
+        conn.set_session(readonly=True)
+
+        yield conn
+
+    finally:
+        try:
+            conn.rollback()  # Always rollback before returning to pool
+        except Exception:
+            pass
+        pool_instance.putconn(conn)
+
 
 
 # ============================================================
@@ -174,22 +250,6 @@ def _get_database_url(
         database_url = os.getenv("DATABASE_URL")
 
     return database_url
-
-
-def _get_connection(database_url: str) -> psycopg.extensions.connection:
-    """
-    Establish a read-only PostgreSQL connection.
-
-    Parameters:
-        database_url (str): The PostgreSQL connection string
-
-    Returns:
-        psycopg.extensions.connection: A read-only PostgreSQL connection
-    """
-    conn = psycopg.connect(database_url)
-    conn.set_session(readonly=True)
-    return conn
-
 
 def register_tools(
     mcp: FastMCP,
@@ -441,7 +501,9 @@ def register_tools(
 
             with _get_connection(database_url) as conn:
                 with conn.cursor() as cur:
-                    cur.execute("EXPLAIN " + sql)
+                    cur.execute(
+                        pg_sql.SQL("EXPLAIN {}").format(pg_sql.SQL(sql))
+                    )
                     plan = [r[0] for r in cur.fetchall()]
 
             duration_ms = int((time.monotonic() - start) * 1000)
