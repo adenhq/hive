@@ -34,7 +34,7 @@ dependencies = [
     "framework",
     "arxiv>=2.1.0",
     "requests>=2.31.0",
-    
+    "stripe>=14.3.0",
 ]
 
 [project.optional-dependencies]
